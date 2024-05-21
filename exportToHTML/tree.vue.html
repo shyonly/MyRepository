@@ -1,0 +1,519 @@
+<html>
+<head>
+<title>tree.vue</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #d5b778;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bababa;}
+.s3 { color: #6aab73;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #2aacb8;}
+.s6 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+tree.vue</font>
+</center></td></tr></table>
+<pre><span class="s0">&lt;template&gt;</span>
+  <span class="s0">&lt;div</span>
+    <span class="s2">class</span><span class="s3">=&quot;el-tree&quot;</span>
+    <span class="s2">:class</span><span class="s3">=&quot;</span><span class="s1">{</span>
+      <span class="s3">'el-tree--highlight-current'</span><span class="s1">: highlightCurrent,</span>
+      <span class="s3">'is-dragging'</span><span class="s1">: !!dragState.draggingNode,</span>
+      <span class="s3">'is-drop-not-allow'</span><span class="s1">: !dragState.allowDrop,</span>
+      <span class="s3">'is-drop-inner'</span><span class="s1">: dragState.dropType === </span><span class="s3">'inner'</span>
+    <span class="s1">}</span><span class="s3">&quot;</span>
+    <span class="s2">role</span><span class="s3">=&quot;tree&quot;</span>
+  <span class="s0">&gt;</span>
+    <span class="s0">&lt;el-tree-node</span>
+      <span class="s2">v-for</span><span class="s3">=&quot;</span><span class="s1">child </span><span class="s4">in </span><span class="s1">root.childNodes</span><span class="s3">&quot;</span>
+      <span class="s2">:node</span><span class="s3">=&quot;</span><span class="s1">child</span><span class="s3">&quot;</span>
+      <span class="s2">:props</span><span class="s3">=&quot;</span><span class="s1">props</span><span class="s3">&quot;</span>
+      <span class="s2">:render-after-expand</span><span class="s3">=&quot;</span><span class="s1">renderAfterExpand</span><span class="s3">&quot;</span>
+      <span class="s2">:show-checkbox</span><span class="s3">=&quot;</span><span class="s1">showCheckbox</span><span class="s3">&quot;</span>
+      <span class="s2">:key</span><span class="s3">=&quot;</span><span class="s1">getNodeKey(child)</span><span class="s3">&quot;</span>
+      <span class="s2">:render-content</span><span class="s3">=&quot;</span><span class="s1">renderContent</span><span class="s3">&quot;</span>
+      <span class="s2">@node-expand</span><span class="s3">=&quot;</span><span class="s1">handleNodeExpand</span><span class="s3">&quot;</span><span class="s0">&gt;</span>
+    <span class="s0">&lt;/el-tree-node&gt;</span>
+    <span class="s0">&lt;div </span><span class="s2">class</span><span class="s3">=&quot;el-tree__empty-block&quot; </span><span class="s2">v-if</span><span class="s3">=&quot;</span><span class="s1">isEmpty</span><span class="s3">&quot;</span><span class="s0">&gt;</span>
+      <span class="s0">&lt;span </span><span class="s2">class</span><span class="s3">=&quot;el-tree__empty-text&quot;</span><span class="s0">&gt;</span><span class="s1">{{ emptyText }}</span><span class="s0">&lt;/span&gt;</span>
+    <span class="s0">&lt;/div&gt;</span>
+    <span class="s0">&lt;div</span>
+      <span class="s2">v-show</span><span class="s3">=&quot;</span><span class="s1">dragState.showDropIndicator</span><span class="s3">&quot;</span>
+      <span class="s2">class</span><span class="s3">=&quot;el-tree__drop-indicator&quot;</span>
+      <span class="s2">ref</span><span class="s3">=&quot;dropIndicator&quot;</span><span class="s0">&gt;</span>
+    <span class="s0">&lt;/div&gt;</span>
+  <span class="s0">&lt;/div&gt;</span>
+<span class="s0">&lt;/template&gt;</span>
+
+<span class="s0">&lt;script&gt;</span>
+  <span class="s4">import </span><span class="s1">TreeStore from </span><span class="s3">'./model/tree-store'</span><span class="s1">;</span>
+  <span class="s4">import </span><span class="s1">{ getNodeKey, findNearestComponent } from </span><span class="s3">'./model/util'</span><span class="s1">;</span>
+  <span class="s4">import </span><span class="s1">ElTreeNode from </span><span class="s3">'./tree-node.vue'</span><span class="s1">;</span>
+  <span class="s4">import </span><span class="s1">{t} from </span><span class="s3">'element-ui/src/locale'</span><span class="s1">;</span>
+  <span class="s4">import </span><span class="s1">emitter from </span><span class="s3">'element-ui/src/mixins/emitter'</span><span class="s1">;</span>
+  <span class="s4">import </span><span class="s1">{ addClass, removeClass } from </span><span class="s3">'element-ui/src/utils/dom'</span><span class="s1">;</span>
+
+  <span class="s4">export default </span><span class="s1">{</span>
+    <span class="s1">name: </span><span class="s3">'ElTree'</span><span class="s1">,</span>
+
+    <span class="s1">mixins: [emitter],</span>
+
+    <span class="s1">components: {</span>
+      <span class="s1">ElTreeNode</span>
+    <span class="s1">},</span>
+
+    <span class="s1">data() {</span>
+      <span class="s4">return </span><span class="s1">{</span>
+        <span class="s1">store: </span><span class="s4">null</span><span class="s1">,</span>
+        <span class="s1">root: </span><span class="s4">null</span><span class="s1">,</span>
+        <span class="s1">currentNode: </span><span class="s4">null</span><span class="s1">,</span>
+        <span class="s1">treeItems: </span><span class="s4">null</span><span class="s1">,</span>
+        <span class="s1">checkboxItems: [],</span>
+        <span class="s1">dragState: {</span>
+          <span class="s1">showDropIndicator: </span><span class="s4">false</span><span class="s1">,</span>
+          <span class="s1">draggingNode: </span><span class="s4">null</span><span class="s1">,</span>
+          <span class="s1">dropNode: </span><span class="s4">null</span><span class="s1">,</span>
+          <span class="s1">allowDrop: </span><span class="s4">true</span>
+        <span class="s1">}</span>
+      <span class="s1">};</span>
+    <span class="s1">},</span>
+
+    <span class="s1">props: {</span>
+      <span class="s1">data: {</span>
+        <span class="s1">type: Array</span>
+      <span class="s1">},</span>
+      <span class="s1">emptyText: {</span>
+        <span class="s1">type: String,</span>
+        <span class="s4">default</span><span class="s1">() {</span>
+          <span class="s4">return </span><span class="s1">t(</span><span class="s3">'el.tree.emptyText'</span><span class="s1">);</span>
+        <span class="s1">}</span>
+      <span class="s1">},</span>
+      <span class="s1">renderAfterExpand: {</span>
+        <span class="s1">type: Boolean,</span>
+        <span class="s4">default</span><span class="s1">: </span><span class="s4">true</span>
+      <span class="s1">},</span>
+      <span class="s1">nodeKey: String,</span>
+      <span class="s1">checkStrictly: Boolean,</span>
+      <span class="s1">defaultExpandAll: Boolean,</span>
+      <span class="s1">expandOnClickNode: {</span>
+        <span class="s1">type: Boolean,</span>
+        <span class="s4">default</span><span class="s1">: </span><span class="s4">true</span>
+      <span class="s1">},</span>
+      <span class="s1">checkOnClickNode: Boolean,</span>
+      <span class="s1">checkDescendants: {</span>
+        <span class="s1">type: Boolean,</span>
+        <span class="s4">default</span><span class="s1">: </span><span class="s4">false</span>
+      <span class="s1">},</span>
+      <span class="s1">autoExpandParent: {</span>
+        <span class="s1">type: Boolean,</span>
+        <span class="s4">default</span><span class="s1">: </span><span class="s4">true</span>
+      <span class="s1">},</span>
+      <span class="s1">defaultCheckedKeys: Array,</span>
+      <span class="s1">defaultExpandedKeys: Array,</span>
+      <span class="s1">currentNodeKey: [String, Number],</span>
+      <span class="s1">renderContent: Function,</span>
+      <span class="s1">showCheckbox: {</span>
+        <span class="s1">type: Boolean,</span>
+        <span class="s4">default</span><span class="s1">: </span><span class="s4">false</span>
+      <span class="s1">},</span>
+      <span class="s1">draggable: {</span>
+        <span class="s1">type: Boolean,</span>
+        <span class="s4">default</span><span class="s1">: </span><span class="s4">false</span>
+      <span class="s1">},</span>
+      <span class="s1">allowDrag: Function,</span>
+      <span class="s1">allowDrop: Function,</span>
+      <span class="s1">props: {</span>
+        <span class="s4">default</span><span class="s1">() {</span>
+          <span class="s4">return </span><span class="s1">{</span>
+            <span class="s1">children: </span><span class="s3">'children'</span><span class="s1">,</span>
+            <span class="s1">label: </span><span class="s3">'label'</span><span class="s1">,</span>
+            <span class="s1">disabled: </span><span class="s3">'disabled'</span>
+          <span class="s1">};</span>
+        <span class="s1">}</span>
+      <span class="s1">},</span>
+      <span class="s1">lazy: {</span>
+        <span class="s1">type: Boolean,</span>
+        <span class="s4">default</span><span class="s1">: </span><span class="s4">false</span>
+      <span class="s1">},</span>
+      <span class="s1">highlightCurrent: Boolean,</span>
+      <span class="s1">load: Function,</span>
+      <span class="s1">filterNodeMethod: Function,</span>
+      <span class="s1">accordion: Boolean,</span>
+      <span class="s1">indent: {</span>
+        <span class="s1">type: Number,</span>
+        <span class="s4">default</span><span class="s1">: </span><span class="s5">18</span>
+      <span class="s1">},</span>
+      <span class="s1">iconClass: String</span>
+    <span class="s1">},</span>
+
+    <span class="s1">computed: {</span>
+      <span class="s1">children: {</span>
+        <span class="s1">set(value) {</span>
+          <span class="s4">this</span><span class="s1">.data = value;</span>
+        <span class="s1">},</span>
+        <span class="s1">get() {</span>
+          <span class="s4">return this</span><span class="s1">.data;</span>
+        <span class="s1">}</span>
+      <span class="s1">},</span>
+
+      <span class="s1">treeItemArray() {</span>
+        <span class="s4">return </span><span class="s1">Array.prototype.slice.call(</span><span class="s4">this</span><span class="s1">.treeItems);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">isEmpty() {</span>
+        <span class="s4">const </span><span class="s1">{ childNodes } = </span><span class="s4">this</span><span class="s1">.root;</span>
+        <span class="s4">return </span><span class="s1">!childNodes || childNodes.length === </span><span class="s5">0 </span><span class="s1">|| childNodes.every(({visible}) =&gt; !visible);</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+
+    <span class="s1">watch: {</span>
+      <span class="s1">defaultCheckedKeys(newVal) {</span>
+        <span class="s4">this</span><span class="s1">.store.setDefaultCheckedKey(newVal);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">defaultExpandedKeys(newVal) {</span>
+        <span class="s4">this</span><span class="s1">.store.defaultExpandedKeys = newVal;</span>
+        <span class="s4">this</span><span class="s1">.store.setDefaultExpandedKeys(newVal);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">data(newVal) {</span>
+        <span class="s4">this</span><span class="s1">.store.setData(newVal);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">checkboxItems(val) {</span>
+        <span class="s1">Array.prototype.forEach.call(val, (checkbox) =&gt; {</span>
+          <span class="s1">checkbox.setAttribute(</span><span class="s3">'tabindex'</span><span class="s1">, -</span><span class="s5">1</span><span class="s1">);</span>
+        <span class="s1">});</span>
+      <span class="s1">},</span>
+
+      <span class="s1">checkStrictly(newVal) {</span>
+        <span class="s4">this</span><span class="s1">.store.checkStrictly = newVal;</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+
+    <span class="s1">methods: {</span>
+      <span class="s1">filter(value) {</span>
+        <span class="s4">if </span><span class="s1">(!</span><span class="s4">this</span><span class="s1">.filterNodeMethod) </span><span class="s4">throw new </span><span class="s1">Error(</span><span class="s3">'[Tree] filterNodeMethod is required when filter'</span><span class="s1">);</span>
+        <span class="s4">this</span><span class="s1">.store.filter(value);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">getNodeKey(node) {</span>
+        <span class="s4">return </span><span class="s1">getNodeKey(</span><span class="s4">this</span><span class="s1">.nodeKey, node.data);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">getNodePath(data) {</span>
+        <span class="s4">if </span><span class="s1">(!</span><span class="s4">this</span><span class="s1">.nodeKey) </span><span class="s4">throw new </span><span class="s1">Error(</span><span class="s3">'[Tree] nodeKey is required in getNodePath'</span><span class="s1">);</span>
+        <span class="s4">const </span><span class="s1">node = </span><span class="s4">this</span><span class="s1">.store.getNode(data);</span>
+        <span class="s4">if </span><span class="s1">(!node) </span><span class="s4">return </span><span class="s1">[];</span>
+        <span class="s4">const </span><span class="s1">path = [node.data];</span>
+        <span class="s4">let </span><span class="s1">parent = node.parent;</span>
+        <span class="s4">while </span><span class="s1">(parent &amp;&amp; parent !== </span><span class="s4">this</span><span class="s1">.root) {</span>
+          <span class="s1">path.push(parent.data);</span>
+          <span class="s1">parent = parent.parent;</span>
+        <span class="s1">}</span>
+        <span class="s4">return </span><span class="s1">path.reverse();</span>
+      <span class="s1">},</span>
+
+      <span class="s1">getCheckedNodes(leafOnly, includeHalfChecked) {</span>
+        <span class="s4">return this</span><span class="s1">.store.getCheckedNodes(leafOnly, includeHalfChecked);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">getCheckedKeys(leafOnly) {</span>
+        <span class="s4">return this</span><span class="s1">.store.getCheckedKeys(leafOnly);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">getCurrentNode() {</span>
+        <span class="s4">const </span><span class="s1">currentNode = </span><span class="s4">this</span><span class="s1">.store.getCurrentNode();</span>
+        <span class="s4">return </span><span class="s1">currentNode ? currentNode.data : </span><span class="s4">null</span><span class="s1">;</span>
+      <span class="s1">},</span>
+
+      <span class="s1">getCurrentKey() {</span>
+        <span class="s4">if </span><span class="s1">(!</span><span class="s4">this</span><span class="s1">.nodeKey) </span><span class="s4">throw new </span><span class="s1">Error(</span><span class="s3">'[Tree] nodeKey is required in getCurrentKey'</span><span class="s1">);</span>
+        <span class="s4">const </span><span class="s1">currentNode = </span><span class="s4">this</span><span class="s1">.getCurrentNode();</span>
+        <span class="s4">return </span><span class="s1">currentNode ? currentNode[</span><span class="s4">this</span><span class="s1">.nodeKey] : </span><span class="s4">null</span><span class="s1">;</span>
+      <span class="s1">},</span>
+
+      <span class="s1">setCheckedNodes(nodes, leafOnly) {</span>
+        <span class="s4">if </span><span class="s1">(!</span><span class="s4">this</span><span class="s1">.nodeKey) </span><span class="s4">throw new </span><span class="s1">Error(</span><span class="s3">'[Tree] nodeKey is required in setCheckedNodes'</span><span class="s1">);</span>
+        <span class="s4">this</span><span class="s1">.store.setCheckedNodes(nodes, leafOnly);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">setCheckedKeys(keys, leafOnly) {</span>
+        <span class="s4">if </span><span class="s1">(!</span><span class="s4">this</span><span class="s1">.nodeKey) </span><span class="s4">throw new </span><span class="s1">Error(</span><span class="s3">'[Tree] nodeKey is required in setCheckedKeys'</span><span class="s1">);</span>
+        <span class="s4">this</span><span class="s1">.store.setCheckedKeys(keys, leafOnly);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">setChecked(data, checked, deep) {</span>
+        <span class="s4">this</span><span class="s1">.store.setChecked(data, checked, deep);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">getHalfCheckedNodes() {</span>
+        <span class="s4">return this</span><span class="s1">.store.getHalfCheckedNodes();</span>
+      <span class="s1">},</span>
+
+      <span class="s1">getHalfCheckedKeys() {</span>
+        <span class="s4">return this</span><span class="s1">.store.getHalfCheckedKeys();</span>
+      <span class="s1">},</span>
+
+      <span class="s1">setCurrentNode(node) {</span>
+        <span class="s4">if </span><span class="s1">(!</span><span class="s4">this</span><span class="s1">.nodeKey) </span><span class="s4">throw new </span><span class="s1">Error(</span><span class="s3">'[Tree] nodeKey is required in setCurrentNode'</span><span class="s1">);</span>
+        <span class="s4">this</span><span class="s1">.store.setUserCurrentNode(node);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">setCurrentKey(key) {</span>
+        <span class="s4">if </span><span class="s1">(!</span><span class="s4">this</span><span class="s1">.nodeKey) </span><span class="s4">throw new </span><span class="s1">Error(</span><span class="s3">'[Tree] nodeKey is required in setCurrentKey'</span><span class="s1">);</span>
+        <span class="s4">this</span><span class="s1">.store.setCurrentNodeKey(key);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">getNode(data) {</span>
+        <span class="s4">return this</span><span class="s1">.store.getNode(data);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">remove(data) {</span>
+        <span class="s4">this</span><span class="s1">.store.remove(data);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">append(data, parentNode) {</span>
+        <span class="s4">this</span><span class="s1">.store.append(data, parentNode);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">insertBefore(data, refNode) {</span>
+        <span class="s4">this</span><span class="s1">.store.insertBefore(data, refNode);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">insertAfter(data, refNode) {</span>
+        <span class="s4">this</span><span class="s1">.store.insertAfter(data, refNode);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">handleNodeExpand(nodeData, node, instance) {</span>
+        <span class="s4">this</span><span class="s1">.broadcast(</span><span class="s3">'ElTreeNode'</span><span class="s1">, </span><span class="s3">'tree-node-expand'</span><span class="s1">, node);</span>
+        <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'node-expand'</span><span class="s1">, nodeData, node, instance);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">updateKeyChildren(key, data) {</span>
+        <span class="s4">if </span><span class="s1">(!</span><span class="s4">this</span><span class="s1">.nodeKey) </span><span class="s4">throw new </span><span class="s1">Error(</span><span class="s3">'[Tree] nodeKey is required in updateKeyChild'</span><span class="s1">);</span>
+        <span class="s4">this</span><span class="s1">.store.updateChildren(key, data);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">initTabIndex() {</span>
+        <span class="s4">this</span><span class="s1">.treeItems = </span><span class="s4">this</span><span class="s1">.$el.querySelectorAll(</span><span class="s3">'.is-focusable[role=treeitem]'</span><span class="s1">);</span>
+        <span class="s4">this</span><span class="s1">.checkboxItems = </span><span class="s4">this</span><span class="s1">.$el.querySelectorAll(</span><span class="s3">'input[type=checkbox]'</span><span class="s1">);</span>
+        <span class="s4">const </span><span class="s1">checkedItem = </span><span class="s4">this</span><span class="s1">.$el.querySelectorAll(</span><span class="s3">'.is-checked[role=treeitem]'</span><span class="s1">);</span>
+        <span class="s4">if </span><span class="s1">(checkedItem.length) {</span>
+          <span class="s1">checkedItem[</span><span class="s5">0</span><span class="s1">].setAttribute(</span><span class="s3">'tabindex'</span><span class="s1">, </span><span class="s5">0</span><span class="s1">);</span>
+          <span class="s4">return</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s4">this</span><span class="s1">.treeItems[</span><span class="s5">0</span><span class="s1">] &amp;&amp; </span><span class="s4">this</span><span class="s1">.treeItems[</span><span class="s5">0</span><span class="s1">].setAttribute(</span><span class="s3">'tabindex'</span><span class="s1">, </span><span class="s5">0</span><span class="s1">);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">handleKeydown(ev) {</span>
+        <span class="s4">const </span><span class="s1">currentItem = ev.target;</span>
+        <span class="s4">if </span><span class="s1">(currentItem.className.indexOf(</span><span class="s3">'el-tree-node'</span><span class="s1">) === -</span><span class="s5">1</span><span class="s1">) </span><span class="s4">return</span><span class="s1">;</span>
+        <span class="s4">const </span><span class="s1">keyCode = ev.keyCode;</span>
+        <span class="s4">this</span><span class="s1">.treeItems = </span><span class="s4">this</span><span class="s1">.$el.querySelectorAll(</span><span class="s3">'.is-focusable[role=treeitem]'</span><span class="s1">);</span>
+        <span class="s4">const </span><span class="s1">currentIndex = </span><span class="s4">this</span><span class="s1">.treeItemArray.indexOf(currentItem);</span>
+        <span class="s4">let </span><span class="s1">nextIndex;</span>
+        <span class="s4">if </span><span class="s1">([</span><span class="s5">38</span><span class="s1">, </span><span class="s5">40</span><span class="s1">].indexOf(keyCode) &gt; -</span><span class="s5">1</span><span class="s1">) { </span><span class="s6">// up、down</span>
+          <span class="s1">ev.preventDefault();</span>
+          <span class="s4">if </span><span class="s1">(keyCode === </span><span class="s5">38</span><span class="s1">) { </span><span class="s6">// up</span>
+            <span class="s1">nextIndex = currentIndex !== </span><span class="s5">0 </span><span class="s1">? currentIndex - </span><span class="s5">1 </span><span class="s1">: </span><span class="s5">0</span><span class="s1">;</span>
+          <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+            <span class="s1">nextIndex = (currentIndex &lt; </span><span class="s4">this</span><span class="s1">.treeItemArray.length - </span><span class="s5">1</span><span class="s1">) ? currentIndex + </span><span class="s5">1 </span><span class="s1">: </span><span class="s5">0</span><span class="s1">;</span>
+          <span class="s1">}</span>
+          <span class="s4">this</span><span class="s1">.treeItemArray[nextIndex].focus(); </span><span class="s6">// 选中</span>
+        <span class="s1">}</span>
+        <span class="s4">if </span><span class="s1">([</span><span class="s5">37</span><span class="s1">, </span><span class="s5">39</span><span class="s1">].indexOf(keyCode) &gt; -</span><span class="s5">1</span><span class="s1">) { </span><span class="s6">// left、right 展开</span>
+          <span class="s1">ev.preventDefault();</span>
+          <span class="s1">currentItem.click(); </span><span class="s6">// 选中</span>
+        <span class="s1">}</span>
+        <span class="s4">const </span><span class="s1">hasInput = currentItem.querySelector(</span><span class="s3">'[type=&quot;checkbox&quot;]'</span><span class="s1">);</span>
+        <span class="s4">if </span><span class="s1">([</span><span class="s5">13</span><span class="s1">, </span><span class="s5">32</span><span class="s1">].indexOf(keyCode) &gt; -</span><span class="s5">1 </span><span class="s1">&amp;&amp; hasInput) { </span><span class="s6">// space enter选中checkbox</span>
+          <span class="s1">ev.preventDefault();</span>
+          <span class="s1">hasInput.click();</span>
+        <span class="s1">}</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+
+    <span class="s1">created() {</span>
+      <span class="s4">this</span><span class="s1">.isTree = </span><span class="s4">true</span><span class="s1">;</span>
+
+      <span class="s4">this</span><span class="s1">.store = </span><span class="s4">new </span><span class="s1">TreeStore({</span>
+        <span class="s1">key: </span><span class="s4">this</span><span class="s1">.nodeKey,</span>
+        <span class="s1">data: </span><span class="s4">this</span><span class="s1">.data,</span>
+        <span class="s1">lazy: </span><span class="s4">this</span><span class="s1">.lazy,</span>
+        <span class="s1">props: </span><span class="s4">this</span><span class="s1">.props,</span>
+        <span class="s1">load: </span><span class="s4">this</span><span class="s1">.load,</span>
+        <span class="s1">currentNodeKey: </span><span class="s4">this</span><span class="s1">.currentNodeKey,</span>
+        <span class="s1">checkStrictly: </span><span class="s4">this</span><span class="s1">.checkStrictly,</span>
+        <span class="s1">checkDescendants: </span><span class="s4">this</span><span class="s1">.checkDescendants,</span>
+        <span class="s1">defaultCheckedKeys: </span><span class="s4">this</span><span class="s1">.defaultCheckedKeys,</span>
+        <span class="s1">defaultExpandedKeys: </span><span class="s4">this</span><span class="s1">.defaultExpandedKeys,</span>
+        <span class="s1">autoExpandParent: </span><span class="s4">this</span><span class="s1">.autoExpandParent,</span>
+        <span class="s1">defaultExpandAll: </span><span class="s4">this</span><span class="s1">.defaultExpandAll,</span>
+        <span class="s1">filterNodeMethod: </span><span class="s4">this</span><span class="s1">.filterNodeMethod</span>
+      <span class="s1">});</span>
+
+      <span class="s4">this</span><span class="s1">.root = </span><span class="s4">this</span><span class="s1">.store.root;</span>
+
+      <span class="s4">let </span><span class="s1">dragState = </span><span class="s4">this</span><span class="s1">.dragState;</span>
+      <span class="s4">this</span><span class="s1">.$on(</span><span class="s3">'tree-node-drag-start'</span><span class="s1">, (event, treeNode) =&gt; {</span>
+        <span class="s4">if </span><span class="s1">(</span><span class="s4">typeof this</span><span class="s1">.allowDrag === </span><span class="s3">'function' </span><span class="s1">&amp;&amp; !</span><span class="s4">this</span><span class="s1">.allowDrag(treeNode.node)) {</span>
+          <span class="s1">event.preventDefault();</span>
+          <span class="s4">return false</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s1">event.dataTransfer.effectAllowed = </span><span class="s3">'move'</span><span class="s1">;</span>
+
+        <span class="s6">// wrap in try catch to address IE's error when first param is 'text/plain'</span>
+        <span class="s4">try </span><span class="s1">{</span>
+          <span class="s6">// setData is required for draggable to work in FireFox</span>
+          <span class="s6">// the content has to be '' so dragging a node out of the tree won't open a new tab in FireFox</span>
+          <span class="s1">event.dataTransfer.setData(</span><span class="s3">'text/plain'</span><span class="s1">, </span><span class="s3">''</span><span class="s1">);</span>
+        <span class="s1">} </span><span class="s4">catch </span><span class="s1">(e) {}</span>
+        <span class="s1">dragState.draggingNode = treeNode;</span>
+        <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'node-drag-start'</span><span class="s1">, treeNode.node, event);</span>
+      <span class="s1">});</span>
+
+      <span class="s4">this</span><span class="s1">.$on(</span><span class="s3">'tree-node-drag-over'</span><span class="s1">, (event, treeNode) =&gt; {</span>
+        <span class="s4">const </span><span class="s1">dropNode = findNearestComponent(event.target, </span><span class="s3">'ElTreeNode'</span><span class="s1">);</span>
+        <span class="s4">const </span><span class="s1">oldDropNode = dragState.dropNode;</span>
+        <span class="s4">if </span><span class="s1">(oldDropNode &amp;&amp; oldDropNode !== dropNode) {</span>
+          <span class="s1">removeClass(oldDropNode.$el, </span><span class="s3">'is-drop-inner'</span><span class="s1">);</span>
+        <span class="s1">}</span>
+        <span class="s4">const </span><span class="s1">draggingNode = dragState.draggingNode;</span>
+        <span class="s4">if </span><span class="s1">(!draggingNode || !dropNode) </span><span class="s4">return</span><span class="s1">;</span>
+
+        <span class="s4">let </span><span class="s1">dropPrev = </span><span class="s4">true</span><span class="s1">;</span>
+        <span class="s4">let </span><span class="s1">dropInner = </span><span class="s4">true</span><span class="s1">;</span>
+        <span class="s4">let </span><span class="s1">dropNext = </span><span class="s4">true</span><span class="s1">;</span>
+        <span class="s4">let </span><span class="s1">userAllowDropInner = </span><span class="s4">true</span><span class="s1">;</span>
+        <span class="s4">if </span><span class="s1">(</span><span class="s4">typeof this</span><span class="s1">.allowDrop === </span><span class="s3">'function'</span><span class="s1">) {</span>
+          <span class="s1">dropPrev = </span><span class="s4">this</span><span class="s1">.allowDrop(draggingNode.node, dropNode.node, </span><span class="s3">'prev'</span><span class="s1">);</span>
+          <span class="s1">userAllowDropInner = dropInner = </span><span class="s4">this</span><span class="s1">.allowDrop(draggingNode.node, dropNode.node, </span><span class="s3">'inner'</span><span class="s1">);</span>
+          <span class="s1">dropNext = </span><span class="s4">this</span><span class="s1">.allowDrop(draggingNode.node, dropNode.node, </span><span class="s3">'next'</span><span class="s1">);</span>
+        <span class="s1">}</span>
+        <span class="s1">event.dataTransfer.dropEffect = dropInner ? </span><span class="s3">'move' </span><span class="s1">: </span><span class="s3">'none'</span><span class="s1">;</span>
+        <span class="s4">if </span><span class="s1">((dropPrev || dropInner || dropNext) &amp;&amp; oldDropNode !== dropNode) {</span>
+          <span class="s4">if </span><span class="s1">(oldDropNode) {</span>
+            <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'node-drag-leave'</span><span class="s1">, draggingNode.node, oldDropNode.node, event);</span>
+          <span class="s1">}</span>
+          <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'node-drag-enter'</span><span class="s1">, draggingNode.node, dropNode.node, event);</span>
+        <span class="s1">}</span>
+
+        <span class="s4">if </span><span class="s1">(dropPrev || dropInner || dropNext) {</span>
+          <span class="s1">dragState.dropNode = dropNode;</span>
+        <span class="s1">}</span>
+
+        <span class="s4">if </span><span class="s1">(dropNode.node.nextSibling === draggingNode.node) {</span>
+          <span class="s1">dropNext = </span><span class="s4">false</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s4">if </span><span class="s1">(dropNode.node.previousSibling === draggingNode.node) {</span>
+          <span class="s1">dropPrev = </span><span class="s4">false</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s4">if </span><span class="s1">(dropNode.node.contains(draggingNode.node, </span><span class="s4">false</span><span class="s1">)) {</span>
+          <span class="s1">dropInner = </span><span class="s4">false</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s4">if </span><span class="s1">(draggingNode.node === dropNode.node || draggingNode.node.contains(dropNode.node)) {</span>
+          <span class="s1">dropPrev = </span><span class="s4">false</span><span class="s1">;</span>
+          <span class="s1">dropInner = </span><span class="s4">false</span><span class="s1">;</span>
+          <span class="s1">dropNext = </span><span class="s4">false</span><span class="s1">;</span>
+        <span class="s1">}</span>
+
+        <span class="s4">const </span><span class="s1">targetPosition = dropNode.$el.getBoundingClientRect();</span>
+        <span class="s4">const </span><span class="s1">treePosition = </span><span class="s4">this</span><span class="s1">.$el.getBoundingClientRect();</span>
+
+        <span class="s4">let </span><span class="s1">dropType;</span>
+        <span class="s4">const </span><span class="s1">prevPercent = dropPrev ? (dropInner ? </span><span class="s5">0.25 </span><span class="s1">: (dropNext ? </span><span class="s5">0.45 </span><span class="s1">: </span><span class="s5">1</span><span class="s1">)) : -</span><span class="s5">1</span><span class="s1">;</span>
+        <span class="s4">const </span><span class="s1">nextPercent = dropNext ? (dropInner ? </span><span class="s5">0.75 </span><span class="s1">: (dropPrev ? </span><span class="s5">0.55 </span><span class="s1">: </span><span class="s5">0</span><span class="s1">)) : </span><span class="s5">1</span><span class="s1">;</span>
+
+        <span class="s4">let </span><span class="s1">indicatorTop = -</span><span class="s5">9999</span><span class="s1">;</span>
+        <span class="s4">const </span><span class="s1">distance = event.clientY - targetPosition.top;</span>
+        <span class="s4">if </span><span class="s1">(distance &lt; targetPosition.height * prevPercent) {</span>
+          <span class="s1">dropType = </span><span class="s3">'before'</span><span class="s1">;</span>
+        <span class="s1">} </span><span class="s4">else if </span><span class="s1">(distance &gt; targetPosition.height * nextPercent) {</span>
+          <span class="s1">dropType = </span><span class="s3">'after'</span><span class="s1">;</span>
+        <span class="s1">} </span><span class="s4">else if </span><span class="s1">(dropInner) {</span>
+          <span class="s1">dropType = </span><span class="s3">'inner'</span><span class="s1">;</span>
+        <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+          <span class="s1">dropType = </span><span class="s3">'none'</span><span class="s1">;</span>
+        <span class="s1">}</span>
+
+        <span class="s4">const </span><span class="s1">iconPosition = dropNode.$el.querySelector(</span><span class="s3">'.el-tree-node__expand-icon'</span><span class="s1">).getBoundingClientRect();</span>
+        <span class="s4">const </span><span class="s1">dropIndicator = </span><span class="s4">this</span><span class="s1">.$refs.dropIndicator;</span>
+        <span class="s4">if </span><span class="s1">(dropType === </span><span class="s3">'before'</span><span class="s1">) {</span>
+          <span class="s1">indicatorTop = iconPosition.top - treePosition.top;</span>
+        <span class="s1">} </span><span class="s4">else if </span><span class="s1">(dropType === </span><span class="s3">'after'</span><span class="s1">) {</span>
+          <span class="s1">indicatorTop = iconPosition.bottom - treePosition.top;</span>
+        <span class="s1">}</span>
+        <span class="s1">dropIndicator.style.top = indicatorTop + </span><span class="s3">'px'</span><span class="s1">;</span>
+        <span class="s1">dropIndicator.style.left = (iconPosition.right - treePosition.left) + </span><span class="s3">'px'</span><span class="s1">;</span>
+
+        <span class="s4">if </span><span class="s1">(dropType === </span><span class="s3">'inner'</span><span class="s1">) {</span>
+          <span class="s1">addClass(dropNode.$el, </span><span class="s3">'is-drop-inner'</span><span class="s1">);</span>
+        <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+          <span class="s1">removeClass(dropNode.$el, </span><span class="s3">'is-drop-inner'</span><span class="s1">);</span>
+        <span class="s1">}</span>
+
+        <span class="s1">dragState.showDropIndicator = dropType === </span><span class="s3">'before' </span><span class="s1">|| dropType === </span><span class="s3">'after'</span><span class="s1">;</span>
+        <span class="s1">dragState.allowDrop = dragState.showDropIndicator || userAllowDropInner;</span>
+        <span class="s1">dragState.dropType = dropType;</span>
+        <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'node-drag-over'</span><span class="s1">, draggingNode.node, dropNode.node, event);</span>
+      <span class="s1">});</span>
+
+      <span class="s4">this</span><span class="s1">.$on(</span><span class="s3">'tree-node-drag-end'</span><span class="s1">, (event) =&gt; {</span>
+        <span class="s4">const </span><span class="s1">{ draggingNode, dropType, dropNode } = dragState;</span>
+        <span class="s1">event.preventDefault();</span>
+        <span class="s1">event.dataTransfer.dropEffect = </span><span class="s3">'move'</span><span class="s1">;</span>
+
+        <span class="s4">if </span><span class="s1">(draggingNode &amp;&amp; dropNode) {</span>
+          <span class="s4">const </span><span class="s1">draggingNodeCopy = { data: draggingNode.node.data };</span>
+          <span class="s4">if </span><span class="s1">(dropType !== </span><span class="s3">'none'</span><span class="s1">) {</span>
+            <span class="s1">draggingNode.node.remove();</span>
+          <span class="s1">}</span>
+          <span class="s4">if </span><span class="s1">(dropType === </span><span class="s3">'before'</span><span class="s1">) {</span>
+            <span class="s1">dropNode.node.parent.insertBefore(draggingNodeCopy, dropNode.node);</span>
+          <span class="s1">} </span><span class="s4">else if </span><span class="s1">(dropType === </span><span class="s3">'after'</span><span class="s1">) {</span>
+            <span class="s1">dropNode.node.parent.insertAfter(draggingNodeCopy, dropNode.node);</span>
+          <span class="s1">} </span><span class="s4">else if </span><span class="s1">(dropType === </span><span class="s3">'inner'</span><span class="s1">) {</span>
+            <span class="s1">dropNode.node.insertChild(draggingNodeCopy);</span>
+          <span class="s1">}</span>
+          <span class="s4">if </span><span class="s1">(dropType !== </span><span class="s3">'none'</span><span class="s1">) {</span>
+            <span class="s4">this</span><span class="s1">.store.registerNode(draggingNodeCopy);</span>
+          <span class="s1">}</span>
+
+          <span class="s1">removeClass(dropNode.$el, </span><span class="s3">'is-drop-inner'</span><span class="s1">);</span>
+
+          <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'node-drag-end'</span><span class="s1">, draggingNode.node, dropNode.node, dropType, event);</span>
+          <span class="s4">if </span><span class="s1">(dropType !== </span><span class="s3">'none'</span><span class="s1">) {</span>
+            <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'node-drop'</span><span class="s1">, draggingNode.node, dropNode.node, dropType, event);</span>
+          <span class="s1">}</span>
+        <span class="s1">}</span>
+        <span class="s4">if </span><span class="s1">(draggingNode &amp;&amp; !dropNode) {</span>
+          <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'node-drag-end'</span><span class="s1">, draggingNode.node, </span><span class="s4">null</span><span class="s1">, dropType, event);</span>
+        <span class="s1">}</span>
+
+        <span class="s1">dragState.showDropIndicator = </span><span class="s4">false</span><span class="s1">;</span>
+        <span class="s1">dragState.draggingNode = </span><span class="s4">null</span><span class="s1">;</span>
+        <span class="s1">dragState.dropNode = </span><span class="s4">null</span><span class="s1">;</span>
+        <span class="s1">dragState.allowDrop = </span><span class="s4">true</span><span class="s1">;</span>
+      <span class="s1">});</span>
+    <span class="s1">},</span>
+
+    <span class="s1">mounted() {</span>
+      <span class="s4">this</span><span class="s1">.initTabIndex();</span>
+      <span class="s4">this</span><span class="s1">.$el.addEventListener(</span><span class="s3">'keydown'</span><span class="s1">, </span><span class="s4">this</span><span class="s1">.handleKeydown);</span>
+    <span class="s1">},</span>
+
+    <span class="s1">updated() {</span>
+      <span class="s4">this</span><span class="s1">.treeItems = </span><span class="s4">this</span><span class="s1">.$el.querySelectorAll(</span><span class="s3">'[role=treeitem]'</span><span class="s1">);</span>
+      <span class="s4">this</span><span class="s1">.checkboxItems = </span><span class="s4">this</span><span class="s1">.$el.querySelectorAll(</span><span class="s3">'input[type=checkbox]'</span><span class="s1">);</span>
+    <span class="s1">}</span>
+  <span class="s1">};</span>
+<span class="s0">&lt;/script&gt;</span>
+</pre>
+</body>
+</html>

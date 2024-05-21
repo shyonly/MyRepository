@@ -1,0 +1,163 @@
+<html>
+<head>
+<title>styleInjection.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #42c3d4;}
+.s5 { color: #2aacb8;}
+.s6 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+styleInjection.js</font>
+</center></td></tr></table>
+<pre><span class="s0">const </span><span class="s2">{ </span><span class="s1">attrsToQuery</span><span class="s2">, </span><span class="s1">genMatchResource </span><span class="s2">} = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./utils'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s1">hotReloadAPIPath </span><span class="s2">= </span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">stringify</span><span class="s2">(</span><span class="s1">require</span><span class="s2">.</span><span class="s1">resolve</span><span class="s2">(</span><span class="s3">'vue-hot-reload-api'</span><span class="s2">))</span>
+<span class="s0">const </span><span class="s1">nonWhitespaceRE </span><span class="s2">= </span><span class="s4">/\S+/</span>
+
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= </span><span class="s0">function </span><span class="s1">genStyleInjectionCode</span><span class="s2">(</span>
+  <span class="s1">loaderContext</span><span class="s2">,</span>
+  <span class="s1">styles</span><span class="s2">,</span>
+  <span class="s1">id</span><span class="s2">,</span>
+  <span class="s1">resourcePath</span><span class="s2">,</span>
+  <span class="s1">stringifyRequest</span><span class="s2">,</span>
+  <span class="s1">needsHotReload</span><span class="s2">,</span>
+  <span class="s1">needsExplicitInjection</span><span class="s2">,</span>
+  <span class="s1">isProduction</span><span class="s2">,</span>
+  <span class="s1">enableInlineMatchResource</span>
+<span class="s2">) {</span>
+  <span class="s0">let </span><span class="s1">styleImportsCode </span><span class="s2">= </span><span class="s3">``</span>
+  <span class="s0">let </span><span class="s1">styleInjectionCode </span><span class="s2">= </span><span class="s3">``</span>
+  <span class="s0">let </span><span class="s1">cssModulesHotReloadCode </span><span class="s2">= </span><span class="s3">``</span>
+
+  <span class="s0">let </span><span class="s1">hasCSSModules </span><span class="s2">= </span><span class="s0">false</span>
+  <span class="s0">const </span><span class="s1">cssModuleNames </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Map</span><span class="s2">()</span>
+
+  <span class="s0">function </span><span class="s1">genStyleRequest</span><span class="s2">(</span><span class="s1">style</span><span class="s2">, </span><span class="s1">i</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">src </span><span class="s2">= </span><span class="s1">style</span><span class="s2">.</span><span class="s1">src </span><span class="s2">|| </span><span class="s1">resourcePath</span>
+    <span class="s0">const </span><span class="s1">attrsQuery </span><span class="s2">= </span><span class="s1">attrsToQuery</span><span class="s2">(</span><span class="s1">style</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">, </span><span class="s3">'css'</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">lang </span><span class="s2">= </span><span class="s1">String</span><span class="s2">(</span><span class="s1">style</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">lang </span><span class="s2">|| </span><span class="s3">'css'</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">inheritQuery </span><span class="s2">= </span><span class="s1">loaderContext</span><span class="s2">.</span><span class="s1">resourceQuery</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s5">1</span><span class="s2">)</span>
+      <span class="s2">? </span><span class="s3">`&amp;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">loaderContext</span><span class="s2">.</span><span class="s1">resourceQuery</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s5">1</span><span class="s2">)}</span><span class="s3">`</span>
+      <span class="s2">: </span><span class="s3">''</span>
+    <span class="s6">// make sure to only pass id not src importing so that we don't inject</span>
+    <span class="s6">// duplicate tags when multiple components import the same css file</span>
+    <span class="s0">const </span><span class="s1">idQuery </span><span class="s2">= !</span><span class="s1">style</span><span class="s2">.</span><span class="s1">src </span><span class="s2">|| </span><span class="s1">style</span><span class="s2">.</span><span class="s1">scoped </span><span class="s2">? </span><span class="s3">`&amp;id=</span><span class="s1">$</span><span class="s2">{</span><span class="s1">id</span><span class="s2">}</span><span class="s3">` </span><span class="s2">: </span><span class="s3">``</span>
+    <span class="s0">const </span><span class="s1">prodQuery </span><span class="s2">= </span><span class="s1">isProduction </span><span class="s2">? </span><span class="s3">`&amp;prod` </span><span class="s2">: </span><span class="s3">``</span>
+    <span class="s0">const </span><span class="s1">externalQuery </span><span class="s2">= </span><span class="s1">style</span><span class="s2">.</span><span class="s1">src </span><span class="s2">? </span><span class="s3">`&amp;external` </span><span class="s2">: </span><span class="s3">``</span>
+    <span class="s0">const </span><span class="s1">query </span><span class="s2">= </span><span class="s3">`?vue&amp;type=style&amp;index=</span><span class="s1">$</span><span class="s2">{</span><span class="s1">i</span><span class="s2">}</span><span class="s1">$</span><span class="s2">{</span><span class="s1">idQuery</span><span class="s2">}</span><span class="s1">$</span><span class="s2">{</span><span class="s1">prodQuery</span><span class="s2">}</span><span class="s1">$</span><span class="s2">{</span><span class="s1">attrsQuery</span><span class="s2">}</span><span class="s1">$</span><span class="s2">{</span><span class="s1">inheritQuery</span><span class="s2">}</span><span class="s1">$</span><span class="s2">{</span><span class="s1">externalQuery</span><span class="s2">}</span><span class="s3">`</span>
+    <span class="s0">let </span><span class="s1">styleRequest</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">enableInlineMatchResource</span><span class="s2">) {</span>
+      <span class="s1">styleRequest </span><span class="s2">= </span><span class="s1">stringifyRequest</span><span class="s2">(</span><span class="s1">genMatchResource</span><span class="s2">(</span><span class="s1">loaderContext</span><span class="s2">, </span><span class="s1">src</span><span class="s2">, </span><span class="s1">query</span><span class="s2">, </span><span class="s1">lang</span><span class="s2">))</span>
+    <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+      <span class="s1">styleRequest </span><span class="s2">= </span><span class="s1">stringifyRequest</span><span class="s2">(</span><span class="s1">src </span><span class="s2">+ </span><span class="s1">query</span><span class="s2">)</span>
+    <span class="s2">}</span>
+    <span class="s0">return </span><span class="s1">styleRequest</span>
+  <span class="s2">}</span>
+
+  <span class="s0">function </span><span class="s1">genCSSModulesCode</span><span class="s2">(</span><span class="s1">style</span><span class="s2">, </span><span class="s1">request</span><span class="s2">, </span><span class="s1">i</span><span class="s2">) {</span>
+    <span class="s1">hasCSSModules </span><span class="s2">= </span><span class="s0">true</span>
+
+    <span class="s0">const </span><span class="s1">moduleName </span><span class="s2">= </span><span class="s1">style</span><span class="s2">.</span><span class="s1">module </span><span class="s2">=== </span><span class="s0">true </span><span class="s2">? </span><span class="s3">'$style' </span><span class="s2">: </span><span class="s1">style</span><span class="s2">.</span><span class="s1">module</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">cssModuleNames</span><span class="s2">.</span><span class="s1">has</span><span class="s2">(</span><span class="s1">moduleName</span><span class="s2">)) {</span>
+      <span class="s1">loaderContext</span><span class="s2">.</span><span class="s1">emitError</span><span class="s2">(</span><span class="s3">`CSS module name </span><span class="s1">$</span><span class="s2">{</span><span class="s1">moduleName</span><span class="s2">} </span><span class="s3">is not unique!`</span><span class="s2">)</span>
+    <span class="s2">}</span>
+    <span class="s1">cssModuleNames</span><span class="s2">.</span><span class="s1">set</span><span class="s2">(</span><span class="s1">moduleName</span><span class="s2">, </span><span class="s0">true</span><span class="s2">)</span>
+
+    <span class="s6">// `(vue-)style-loader` exports the name-to-hash map directly</span>
+    <span class="s6">// `css-loader` exports it in `.locals`</span>
+    <span class="s0">const </span><span class="s1">locals </span><span class="s2">= </span><span class="s3">`(style</span><span class="s1">$</span><span class="s2">{</span><span class="s1">i</span><span class="s2">}</span><span class="s3">.locals || style</span><span class="s1">$</span><span class="s2">{</span><span class="s1">i</span><span class="s2">}</span><span class="s3">)`</span>
+    <span class="s0">const </span><span class="s1">name </span><span class="s2">= </span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">stringify</span><span class="s2">(</span><span class="s1">moduleName</span><span class="s2">)</span>
+
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">needsHotReload</span><span class="s2">) {</span>
+      <span class="s1">styleInjectionCode </span><span class="s2">+= </span><span class="s3">`this[</span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span><span class="s3">] = </span><span class="s1">$</span><span class="s2">{</span><span class="s1">locals</span><span class="s2">}</span><span class="s0">\n</span><span class="s3">`</span>
+    <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+      <span class="s1">styleInjectionCode </span><span class="s2">+= </span><span class="s3">`</span>
+        <span class="s3">cssModules[</span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span><span class="s3">] = </span><span class="s1">$</span><span class="s2">{</span><span class="s1">locals</span><span class="s2">}</span>
+        <span class="s3">Object.defineProperty(this, </span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span><span class="s3">, { 
+          configurable: true, 
+          get: function () { 
+            return cssModules[</span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span><span class="s3">] 
+          } 
+        }) 
+      `</span>
+      <span class="s1">cssModulesHotReloadCode </span><span class="s2">+= </span><span class="s3">`</span>
+        <span class="s3">module.hot &amp;&amp; module.hot.accept([</span><span class="s1">$</span><span class="s2">{</span><span class="s1">request</span><span class="s2">}</span><span class="s3">], function () { 
+          var oldLocals = cssModules[</span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span><span class="s3">] 
+          if (oldLocals) { 
+            var newLocals = require(</span><span class="s1">$</span><span class="s2">{</span><span class="s1">request</span><span class="s2">}</span><span class="s3">) 
+            if (JSON.stringify(newLocals) !== JSON.stringify(oldLocals)) { 
+              cssModules[</span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span><span class="s3">] = newLocals 
+              require(</span><span class="s1">$</span><span class="s2">{</span><span class="s1">hotReloadAPIPath</span><span class="s2">}</span><span class="s3">).rerender(&quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">id</span><span class="s2">}</span><span class="s3">&quot;) 
+            } 
+          } 
+        }) 
+      `</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+  <span class="s6">// empty styles: with no `src` specified or only contains whitespaces</span>
+  <span class="s0">const </span><span class="s1">isNotEmptyStyle </span><span class="s2">= (</span><span class="s1">style</span><span class="s2">) =&gt;</span>
+    <span class="s1">style</span><span class="s2">.</span><span class="s1">src </span><span class="s2">|| </span><span class="s1">nonWhitespaceRE</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">style</span><span class="s2">.</span><span class="s1">content</span><span class="s2">)</span>
+  <span class="s6">// explicit injection is needed in SSR (for critical CSS collection)</span>
+  <span class="s6">// or in Shadow Mode (for injection into shadow root)</span>
+  <span class="s6">// In these modes, vue-style-loader exports objects with the __inject__</span>
+  <span class="s6">// method; otherwise we simply import the styles.</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">needsExplicitInjection</span><span class="s2">) {</span>
+    <span class="s1">styles</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">((</span><span class="s1">style</span><span class="s2">, </span><span class="s1">i</span><span class="s2">) =&gt; {</span>
+      <span class="s6">// do not generate requests for empty styles</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">isNotEmptyStyle</span><span class="s2">(</span><span class="s1">style</span><span class="s2">)) {</span>
+        <span class="s0">const </span><span class="s1">request </span><span class="s2">= </span><span class="s1">genStyleRequest</span><span class="s2">(</span><span class="s1">style</span><span class="s2">, </span><span class="s1">i</span><span class="s2">)</span>
+        <span class="s1">styleImportsCode </span><span class="s2">+= </span><span class="s3">`import style</span><span class="s1">$</span><span class="s2">{</span><span class="s1">i</span><span class="s2">} </span><span class="s3">from </span><span class="s1">$</span><span class="s2">{</span><span class="s1">request</span><span class="s2">}</span><span class="s0">\n</span><span class="s3">`</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">style</span><span class="s2">.</span><span class="s1">module</span><span class="s2">) </span><span class="s1">genCSSModulesCode</span><span class="s2">(</span><span class="s1">style</span><span class="s2">, </span><span class="s1">request</span><span class="s2">, </span><span class="s1">i</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">})</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s1">styles</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">((</span><span class="s1">style</span><span class="s2">, </span><span class="s1">i</span><span class="s2">) =&gt; {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">isNotEmptyStyle</span><span class="s2">(</span><span class="s1">style</span><span class="s2">)) {</span>
+        <span class="s0">const </span><span class="s1">request </span><span class="s2">= </span><span class="s1">genStyleRequest</span><span class="s2">(</span><span class="s1">style</span><span class="s2">, </span><span class="s1">i</span><span class="s2">)</span>
+        <span class="s1">styleInjectionCode </span><span class="s2">+=</span>
+          <span class="s3">`var style</span><span class="s1">$</span><span class="s2">{</span><span class="s1">i</span><span class="s2">} </span><span class="s3">= require(</span><span class="s1">$</span><span class="s2">{</span><span class="s1">request</span><span class="s2">}</span><span class="s3">)</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+          <span class="s3">`if (style</span><span class="s1">$</span><span class="s2">{</span><span class="s1">i</span><span class="s2">}</span><span class="s3">.__inject__) style</span><span class="s1">$</span><span class="s2">{</span><span class="s1">i</span><span class="s2">}</span><span class="s3">.__inject__(context)</span><span class="s0">\n</span><span class="s3">`</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">style</span><span class="s2">.</span><span class="s1">module</span><span class="s2">) </span><span class="s1">genCSSModulesCode</span><span class="s2">(</span><span class="s1">style</span><span class="s2">, </span><span class="s1">request</span><span class="s2">, </span><span class="s1">i</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">})</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">needsExplicitInjection </span><span class="s2">&amp;&amp; !</span><span class="s1">hasCSSModules</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">styleImportsCode</span>
+  <span class="s2">}</span>
+
+  <span class="s0">return </span><span class="s3">`</span>
+<span class="s1">$</span><span class="s2">{</span><span class="s1">styleImportsCode</span><span class="s2">}</span>
+<span class="s1">$</span><span class="s2">{</span><span class="s1">hasCSSModules </span><span class="s2">&amp;&amp; </span><span class="s1">needsHotReload </span><span class="s2">? </span><span class="s3">`var cssModules = {}` </span><span class="s2">: </span><span class="s3">``</span><span class="s2">}</span>
+<span class="s1">$</span><span class="s2">{</span><span class="s1">needsHotReload </span><span class="s2">? </span><span class="s3">`var disposed = false` </span><span class="s2">: </span><span class="s3">``</span><span class="s2">}</span>
+
+<span class="s3">function injectStyles (context) { 
+  </span><span class="s1">$</span><span class="s2">{</span><span class="s1">needsHotReload </span><span class="s2">? </span><span class="s3">`if (disposed) return` </span><span class="s2">: </span><span class="s3">``</span><span class="s2">}</span>
+  <span class="s1">$</span><span class="s2">{</span><span class="s1">styleInjectionCode</span><span class="s2">}</span>
+<span class="s3">} 
+ 
+</span><span class="s1">$</span><span class="s2">{</span>
+  <span class="s1">needsHotReload</span>
+    <span class="s2">? </span><span class="s3">`</span>
+  <span class="s3">module.hot &amp;&amp; module.hot.dispose(function (data) { 
+    disposed = true 
+  }) 
+`</span>
+    <span class="s2">: </span><span class="s3">``</span>
+<span class="s2">}</span>
+
+<span class="s1">$</span><span class="s2">{</span><span class="s1">cssModulesHotReloadCode</span><span class="s2">}</span>
+  <span class="s3">`</span><span class="s2">.</span><span class="s1">trim</span><span class="s2">()</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

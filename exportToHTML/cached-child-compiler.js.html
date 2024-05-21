@@ -1,0 +1,403 @@
+<html>
+<head>
+<title>cached-child-compiler.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #5f826b; font-style: italic;}
+.s3 { color: #67a37c; font-style: italic;}
+.s4 { color: #6aab73;}
+.s5 { color: #bcbec4;}
+.s6 { color: #cf8e6d;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+cached-child-compiler.js</font>
+</center></td></tr></table>
+<pre><span class="s0">// @ts-check</span>
+<span class="s2">/**</span>
+ <span class="s2">* </span><span class="s3">@file</span>
+ <span class="s2">* Helper plugin manages the cached state of the child compilation</span>
+ <span class="s2">*</span>
+ <span class="s2">* To optimize performance the child compilation is running asyncronously.</span>
+ <span class="s2">* Therefore it needs to be started in the compiler.make phase and ends after</span>
+ <span class="s2">* the compilation.afterCompile phase.</span>
+ <span class="s2">*</span>
+ <span class="s2">* To prevent bugs from blocked hooks there is no promise or event based api</span>
+ <span class="s2">* for this plugin.</span>
+ <span class="s2">*</span>
+ <span class="s2">* Example usage:</span>
+ <span class="s2">*</span>
+ <span class="s2">* ```js</span>
+    <span class="s2">const childCompilerPlugin = new PersistentChildCompilerPlugin();</span>
+    <span class="s2">childCompilerPlugin.addEntry('./src/index.js');</span>
+    <span class="s2">compiler.hooks.afterCompile.tapAsync('MyPlugin', (compilation, callback) =&gt; {</span>
+      <span class="s2">console.log(childCompilerPlugin.getCompilationResult()['./src/index.js']));</span>
+      <span class="s2">return true;</span>
+    <span class="s2">});</span>
+ <span class="s2">* ```</span>
+ <span class="s2">*/</span>
+
+<span class="s0">// Import types</span>
+<span class="s2">/** </span><span class="s3">@typedef </span><span class="s2">{import(&quot;webpack/lib/Compiler.js&quot;)} WebpackCompiler */</span>
+<span class="s2">/** </span><span class="s3">@typedef </span><span class="s2">{import(&quot;webpack/lib/Compilation.js&quot;)} WebpackCompilation */</span>
+<span class="s2">/** </span><span class="s3">@typedef </span><span class="s2">{{hash: string, entry: any, content: string }} ChildCompilationResultEntry */</span>
+<span class="s2">/** </span><span class="s3">@typedef </span><span class="s2">{import(&quot;./file-watcher-api&quot;).Snapshot} Snapshot */</span>
+<span class="s2">/** </span><span class="s3">@typedef </span><span class="s2">{{fileDependencies: string[], contextDependencies: string[], missingDependencies: string[]}} FileDependencies */</span>
+<span class="s2">/** </span><span class="s3">@typedef </span><span class="s2">{{</span>
+  <span class="s2">dependencies: FileDependencies,</span>
+  <span class="s2">compiledEntries: {[entryName: string]: ChildCompilationResultEntry}</span>
+<span class="s2">} | {</span>
+  <span class="s2">dependencies: FileDependencies,</span>
+  <span class="s2">error: Error</span>
+<span class="s2">}} ChildCompilationResult */</span>
+<span class="s4">'use strict'</span><span class="s5">;</span>
+
+<span class="s6">const </span><span class="s5">{ </span><span class="s1">HtmlWebpackChildCompiler </span><span class="s5">} = </span><span class="s1">require</span><span class="s5">(</span><span class="s4">'./child-compiler'</span><span class="s5">);</span>
+<span class="s6">const </span><span class="s1">fileWatcherApi </span><span class="s5">= </span><span class="s1">require</span><span class="s5">(</span><span class="s4">'./file-watcher-api'</span><span class="s5">);</span>
+
+<span class="s2">/**</span>
+ <span class="s2">* This plugin is a singleton for performance reasons.</span>
+ <span class="s2">* To keep track if a plugin does already exist for the compiler they are cached</span>
+ <span class="s2">* in this map</span>
+ <span class="s2">* </span><span class="s3">@type </span><span class="s2">{WeakMap&lt;WebpackCompiler, PersistentChildCompilerSingletonPlugin&gt;}}</span>
+ <span class="s2">*/</span>
+<span class="s6">const </span><span class="s1">compilerMap </span><span class="s5">= </span><span class="s6">new </span><span class="s1">WeakMap</span><span class="s5">();</span>
+
+<span class="s6">class </span><span class="s1">CachedChildCompilation </span><span class="s5">{</span>
+  <span class="s2">/**</span>
+   <span class="s2">* </span><span class="s3">@param </span><span class="s2">{WebpackCompiler} compiler</span>
+   <span class="s2">*/</span>
+  <span class="s1">constructor </span><span class="s5">(</span><span class="s1">compiler</span><span class="s5">) {</span>
+    <span class="s2">/**</span>
+     <span class="s2">* </span><span class="s3">@private</span>
+     <span class="s2">* </span><span class="s3">@type </span><span class="s2">{WebpackCompiler}</span>
+     <span class="s2">*/</span>
+    <span class="s6">this</span><span class="s5">.</span><span class="s1">compiler </span><span class="s5">= </span><span class="s1">compiler</span><span class="s5">;</span>
+    <span class="s0">// Create a singleton instance for the compiler</span>
+    <span class="s0">// if there is none</span>
+    <span class="s6">if </span><span class="s5">(</span><span class="s1">compilerMap</span><span class="s5">.</span><span class="s1">has</span><span class="s5">(</span><span class="s1">compiler</span><span class="s5">)) {</span>
+      <span class="s6">return</span><span class="s5">;</span>
+    <span class="s5">}</span>
+    <span class="s6">const </span><span class="s1">persistentChildCompilerSingletonPlugin </span><span class="s5">= </span><span class="s6">new </span><span class="s1">PersistentChildCompilerSingletonPlugin</span><span class="s5">();</span>
+    <span class="s1">compilerMap</span><span class="s5">.</span><span class="s1">set</span><span class="s5">(</span><span class="s1">compiler</span><span class="s5">, </span><span class="s1">persistentChildCompilerSingletonPlugin</span><span class="s5">);</span>
+    <span class="s1">persistentChildCompilerSingletonPlugin</span><span class="s5">.</span><span class="s1">apply</span><span class="s5">(</span><span class="s1">compiler</span><span class="s5">);</span>
+  <span class="s5">}</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* apply is called by the webpack main compiler during the start phase</span>
+   <span class="s2">* </span><span class="s3">@param </span><span class="s2">{string} entry</span>
+   <span class="s2">*/</span>
+  <span class="s1">addEntry </span><span class="s5">(</span><span class="s1">entry</span><span class="s5">) {</span>
+    <span class="s6">const </span><span class="s1">persistentChildCompilerSingletonPlugin </span><span class="s5">= </span><span class="s1">compilerMap</span><span class="s5">.</span><span class="s1">get</span><span class="s5">(</span><span class="s6">this</span><span class="s5">.</span><span class="s1">compiler</span><span class="s5">);</span>
+    <span class="s6">if </span><span class="s5">(!</span><span class="s1">persistentChildCompilerSingletonPlugin</span><span class="s5">) {</span>
+      <span class="s6">throw new </span><span class="s1">Error</span><span class="s5">(</span>
+        <span class="s4">'PersistentChildCompilerSingletonPlugin instance not found.'</span>
+      <span class="s5">);</span>
+    <span class="s5">}</span>
+    <span class="s1">persistentChildCompilerSingletonPlugin</span><span class="s5">.</span><span class="s1">addEntry</span><span class="s5">(</span><span class="s1">entry</span><span class="s5">);</span>
+  <span class="s5">}</span>
+
+  <span class="s1">getCompilationResult </span><span class="s5">() {</span>
+    <span class="s6">const </span><span class="s1">persistentChildCompilerSingletonPlugin </span><span class="s5">= </span><span class="s1">compilerMap</span><span class="s5">.</span><span class="s1">get</span><span class="s5">(</span><span class="s6">this</span><span class="s5">.</span><span class="s1">compiler</span><span class="s5">);</span>
+    <span class="s6">if </span><span class="s5">(!</span><span class="s1">persistentChildCompilerSingletonPlugin</span><span class="s5">) {</span>
+      <span class="s6">throw new </span><span class="s1">Error</span><span class="s5">(</span>
+        <span class="s4">'PersistentChildCompilerSingletonPlugin instance not found.'</span>
+      <span class="s5">);</span>
+    <span class="s5">}</span>
+    <span class="s6">return </span><span class="s1">persistentChildCompilerSingletonPlugin</span><span class="s5">.</span><span class="s1">getLatestResult</span><span class="s5">();</span>
+  <span class="s5">}</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* Returns the result for the given entry</span>
+   <span class="s2">* </span><span class="s3">@param </span><span class="s2">{string} entry</span>
+   <span class="s2">* </span><span class="s3">@returns </span><span class="s2">{</span>
+      <span class="s2">| { mainCompilationHash: string, error: Error }</span>
+      <span class="s2">| { mainCompilationHash: string, compiledEntry: ChildCompilationResultEntry }</span>
+    <span class="s2">}</span>
+   <span class="s2">*/</span>
+  <span class="s1">getCompilationEntryResult </span><span class="s5">(</span><span class="s1">entry</span><span class="s5">) {</span>
+    <span class="s6">const </span><span class="s1">latestResult </span><span class="s5">= </span><span class="s6">this</span><span class="s5">.</span><span class="s1">getCompilationResult</span><span class="s5">();</span>
+    <span class="s6">const </span><span class="s1">compilationResult </span><span class="s5">= </span><span class="s1">latestResult</span><span class="s5">.</span><span class="s1">compilationResult</span><span class="s5">;</span>
+    <span class="s6">return </span><span class="s4">'error' </span><span class="s6">in </span><span class="s1">compilationResult </span><span class="s5">? {</span>
+      <span class="s1">mainCompilationHash</span><span class="s5">: </span><span class="s1">latestResult</span><span class="s5">.</span><span class="s1">mainCompilationHash</span><span class="s5">,</span>
+      <span class="s1">error</span><span class="s5">: </span><span class="s1">compilationResult</span><span class="s5">.</span><span class="s1">error</span>
+    <span class="s5">} : {</span>
+      <span class="s1">mainCompilationHash</span><span class="s5">: </span><span class="s1">latestResult</span><span class="s5">.</span><span class="s1">mainCompilationHash</span><span class="s5">,</span>
+      <span class="s1">compiledEntry</span><span class="s5">: </span><span class="s1">compilationResult</span><span class="s5">.</span><span class="s1">compiledEntries</span><span class="s5">[</span><span class="s1">entry</span><span class="s5">]</span>
+    <span class="s5">};</span>
+  <span class="s5">}</span>
+<span class="s5">}</span>
+
+<span class="s6">class </span><span class="s1">PersistentChildCompilerSingletonPlugin </span><span class="s5">{</span>
+  <span class="s1">constructor </span><span class="s5">() {</span>
+    <span class="s2">/**</span>
+     <span class="s2">* </span><span class="s3">@private</span>
+     <span class="s2">* </span><span class="s3">@type </span><span class="s2">{</span>
+      <span class="s2">| {</span>
+        <span class="s2">isCompiling: false,</span>
+        <span class="s2">isVerifyingCache: false,</span>
+        <span class="s2">entries: string[],</span>
+        <span class="s2">compiledEntries: string[],</span>
+        <span class="s2">mainCompilationHash: string,</span>
+        <span class="s2">compilationResult: ChildCompilationResult</span>
+      <span class="s2">}</span>
+    <span class="s2">| Readonly&lt;{</span>
+      <span class="s2">isCompiling: false,</span>
+      <span class="s2">isVerifyingCache: true,</span>
+      <span class="s2">entries: string[],</span>
+      <span class="s2">previousEntries: string[],</span>
+      <span class="s2">previousResult: ChildCompilationResult</span>
+    <span class="s2">}&gt;</span>
+    <span class="s2">| Readonly &lt;{</span>
+      <span class="s2">isVerifyingCache: false,</span>
+      <span class="s2">isCompiling: true,</span>
+      <span class="s2">entries: string[],</span>
+    <span class="s2">}&gt;</span>
+  <span class="s2">} the internal compilation state */</span>
+    <span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState </span><span class="s5">= {</span>
+      <span class="s1">isCompiling</span><span class="s5">: </span><span class="s6">false</span><span class="s5">,</span>
+      <span class="s1">isVerifyingCache</span><span class="s5">: </span><span class="s6">false</span><span class="s5">,</span>
+      <span class="s1">entries</span><span class="s5">: [],</span>
+      <span class="s1">compiledEntries</span><span class="s5">: [],</span>
+      <span class="s1">mainCompilationHash</span><span class="s5">: </span><span class="s4">'initial'</span><span class="s5">,</span>
+      <span class="s1">compilationResult</span><span class="s5">: {</span>
+        <span class="s1">dependencies</span><span class="s5">: {</span>
+          <span class="s1">fileDependencies</span><span class="s5">: [],</span>
+          <span class="s1">contextDependencies</span><span class="s5">: [],</span>
+          <span class="s1">missingDependencies</span><span class="s5">: []</span>
+        <span class="s5">},</span>
+        <span class="s1">compiledEntries</span><span class="s5">: {}</span>
+      <span class="s5">}</span>
+    <span class="s5">};</span>
+  <span class="s5">}</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* apply is called by the webpack main compiler during the start phase</span>
+   <span class="s2">* </span><span class="s3">@param </span><span class="s2">{WebpackCompiler} compiler</span>
+   <span class="s2">*/</span>
+  <span class="s1">apply </span><span class="s5">(</span><span class="s1">compiler</span><span class="s5">) {</span>
+    <span class="s2">/** </span><span class="s3">@type </span><span class="s2">Promise&lt;ChildCompilationResult&gt; */</span>
+    <span class="s6">let </span><span class="s1">childCompilationResultPromise </span><span class="s5">= </span><span class="s1">Promise</span><span class="s5">.</span><span class="s1">resolve</span><span class="s5">({</span>
+      <span class="s1">dependencies</span><span class="s5">: {</span>
+        <span class="s1">fileDependencies</span><span class="s5">: [],</span>
+        <span class="s1">contextDependencies</span><span class="s5">: [],</span>
+        <span class="s1">missingDependencies</span><span class="s5">: []</span>
+      <span class="s5">},</span>
+      <span class="s1">compiledEntries</span><span class="s5">: {}</span>
+    <span class="s5">});</span>
+    <span class="s2">/**</span>
+     <span class="s2">* The main compilation hash which will only be updated</span>
+     <span class="s2">* if the childCompiler changes</span>
+     <span class="s2">*/</span>
+    <span class="s6">let </span><span class="s1">mainCompilationHashOfLastChildRecompile </span><span class="s5">= </span><span class="s4">''</span><span class="s5">;</span>
+    <span class="s2">/** </span><span class="s3">@typedef</span><span class="s2">{Snapshot|undefined} */</span>
+    <span class="s6">let </span><span class="s1">previousFileSystemSnapshot</span><span class="s5">;</span>
+    <span class="s6">let </span><span class="s1">compilationStartTime </span><span class="s5">= </span><span class="s6">new </span><span class="s1">Date</span><span class="s5">().</span><span class="s1">getTime</span><span class="s5">();</span>
+
+    <span class="s1">compiler</span><span class="s5">.</span><span class="s1">hooks</span><span class="s5">.</span><span class="s1">make</span><span class="s5">.</span><span class="s1">tapAsync</span><span class="s5">(</span>
+      <span class="s4">'PersistentChildCompilerSingletonPlugin'</span><span class="s5">,</span>
+      <span class="s5">(</span><span class="s1">mainCompilation</span><span class="s5">, </span><span class="s1">callback</span><span class="s5">) =&gt; {</span>
+        <span class="s6">if </span><span class="s5">(</span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">isCompiling </span><span class="s5">|| </span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">isVerifyingCache</span><span class="s5">) {</span>
+          <span class="s6">return </span><span class="s1">callback</span><span class="s5">(</span><span class="s6">new </span><span class="s1">Error</span><span class="s5">(</span><span class="s4">'Child compilation has already started'</span><span class="s5">));</span>
+        <span class="s5">}</span>
+
+        <span class="s0">// Update the time to the current compile start time</span>
+        <span class="s1">compilationStartTime </span><span class="s5">= </span><span class="s6">new </span><span class="s1">Date</span><span class="s5">().</span><span class="s1">getTime</span><span class="s5">();</span>
+
+        <span class="s0">// The compilation starts - adding new templates is now not possible anymore</span>
+        <span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState </span><span class="s5">= {</span>
+          <span class="s1">isCompiling</span><span class="s5">: </span><span class="s6">false</span><span class="s5">,</span>
+          <span class="s1">isVerifyingCache</span><span class="s5">: </span><span class="s6">true</span><span class="s5">,</span>
+          <span class="s1">previousEntries</span><span class="s5">: </span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">compiledEntries</span><span class="s5">,</span>
+          <span class="s1">previousResult</span><span class="s5">: </span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">compilationResult</span><span class="s5">,</span>
+          <span class="s1">entries</span><span class="s5">: </span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">entries</span>
+        <span class="s5">};</span>
+
+        <span class="s0">// Validate cache:</span>
+        <span class="s6">const </span><span class="s1">isCacheValidPromise </span><span class="s5">= </span><span class="s6">this</span><span class="s5">.</span><span class="s1">isCacheValid</span><span class="s5">(</span><span class="s1">previousFileSystemSnapshot</span><span class="s5">, </span><span class="s1">mainCompilation</span><span class="s5">);</span>
+
+        <span class="s6">let </span><span class="s1">cachedResult </span><span class="s5">= </span><span class="s1">childCompilationResultPromise</span><span class="s5">;</span>
+        <span class="s1">childCompilationResultPromise </span><span class="s5">= </span><span class="s1">isCacheValidPromise</span><span class="s5">.</span><span class="s1">then</span><span class="s5">((</span><span class="s1">isCacheValid</span><span class="s5">) =&gt; {</span>
+          <span class="s0">// Reuse cache</span>
+          <span class="s6">if </span><span class="s5">(</span><span class="s1">isCacheValid</span><span class="s5">) {</span>
+            <span class="s6">return </span><span class="s1">cachedResult</span><span class="s5">;</span>
+          <span class="s5">}</span>
+          <span class="s0">// Start the compilation</span>
+          <span class="s6">const </span><span class="s1">compiledEntriesPromise </span><span class="s5">= </span><span class="s6">this</span><span class="s5">.</span><span class="s1">compileEntries</span><span class="s5">(</span>
+            <span class="s1">mainCompilation</span><span class="s5">,</span>
+            <span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">entries</span>
+          <span class="s5">);</span>
+          <span class="s0">// Update snapshot as soon as we know the filedependencies</span>
+          <span class="s0">// this might possibly cause bugs if files were changed inbetween</span>
+          <span class="s0">// compilation start and snapshot creation</span>
+          <span class="s1">compiledEntriesPromise</span><span class="s5">.</span><span class="s1">then</span><span class="s5">((</span><span class="s1">childCompilationResult</span><span class="s5">) =&gt; {</span>
+            <span class="s6">return </span><span class="s1">fileWatcherApi</span><span class="s5">.</span><span class="s1">createSnapshot</span><span class="s5">(</span><span class="s1">childCompilationResult</span><span class="s5">.</span><span class="s1">dependencies</span><span class="s5">, </span><span class="s1">mainCompilation</span><span class="s5">, </span><span class="s1">compilationStartTime</span><span class="s5">);</span>
+          <span class="s5">}).</span><span class="s1">then</span><span class="s5">((</span><span class="s1">snapshot</span><span class="s5">) =&gt; {</span>
+            <span class="s1">previousFileSystemSnapshot </span><span class="s5">= </span><span class="s1">snapshot</span><span class="s5">;</span>
+          <span class="s5">});</span>
+          <span class="s6">return </span><span class="s1">compiledEntriesPromise</span><span class="s5">;</span>
+        <span class="s5">});</span>
+
+        <span class="s0">// Add files to compilation which needs to be watched:</span>
+        <span class="s1">mainCompilation</span><span class="s5">.</span><span class="s1">hooks</span><span class="s5">.</span><span class="s1">optimizeTree</span><span class="s5">.</span><span class="s1">tapAsync</span><span class="s5">(</span>
+          <span class="s4">'PersistentChildCompilerSingletonPlugin'</span><span class="s5">,</span>
+          <span class="s5">(</span><span class="s1">chunks</span><span class="s5">, </span><span class="s1">modules</span><span class="s5">, </span><span class="s1">callback</span><span class="s5">) =&gt; {</span>
+            <span class="s6">const </span><span class="s1">handleCompilationDonePromise </span><span class="s5">= </span><span class="s1">childCompilationResultPromise</span><span class="s5">.</span><span class="s1">then</span><span class="s5">(</span>
+              <span class="s1">childCompilationResult </span><span class="s5">=&gt; {</span>
+                <span class="s6">this</span><span class="s5">.</span><span class="s1">watchFiles</span><span class="s5">(</span>
+                  <span class="s1">mainCompilation</span><span class="s5">,</span>
+                  <span class="s1">childCompilationResult</span><span class="s5">.</span><span class="s1">dependencies</span>
+                <span class="s5">);</span>
+              <span class="s5">});</span>
+            <span class="s1">handleCompilationDonePromise</span><span class="s5">.</span><span class="s1">then</span><span class="s5">(() =&gt; </span><span class="s1">callback</span><span class="s5">(</span><span class="s6">null</span><span class="s5">, </span><span class="s1">chunks</span><span class="s5">, </span><span class="s1">modules</span><span class="s5">), </span><span class="s1">callback</span><span class="s5">);</span>
+          <span class="s5">}</span>
+        <span class="s5">);</span>
+
+        <span class="s0">// Store the final compilation once the main compilation hash is known</span>
+        <span class="s1">mainCompilation</span><span class="s5">.</span><span class="s1">hooks</span><span class="s5">.</span><span class="s1">additionalAssets</span><span class="s5">.</span><span class="s1">tapAsync</span><span class="s5">(</span>
+          <span class="s4">'PersistentChildCompilerSingletonPlugin'</span><span class="s5">,</span>
+          <span class="s5">(</span><span class="s1">callback</span><span class="s5">) =&gt; {</span>
+            <span class="s6">const </span><span class="s1">didRecompilePromise </span><span class="s5">= </span><span class="s1">Promise</span><span class="s5">.</span><span class="s1">all</span><span class="s5">([</span><span class="s1">childCompilationResultPromise</span><span class="s5">, </span><span class="s1">cachedResult</span><span class="s5">]).</span><span class="s1">then</span><span class="s5">(</span>
+              <span class="s5">([</span><span class="s1">childCompilationResult</span><span class="s5">, </span><span class="s1">cachedResult</span><span class="s5">]) =&gt; {</span>
+                <span class="s0">// Update if childCompilation changed</span>
+                <span class="s6">return </span><span class="s5">(</span><span class="s1">cachedResult </span><span class="s5">!== </span><span class="s1">childCompilationResult</span><span class="s5">);</span>
+              <span class="s5">}</span>
+            <span class="s5">);</span>
+
+            <span class="s6">const </span><span class="s1">handleCompilationDonePromise </span><span class="s5">= </span><span class="s1">Promise</span><span class="s5">.</span><span class="s1">all</span><span class="s5">([</span><span class="s1">childCompilationResultPromise</span><span class="s5">, </span><span class="s1">didRecompilePromise</span><span class="s5">]).</span><span class="s1">then</span><span class="s5">(</span>
+              <span class="s5">([</span><span class="s1">childCompilationResult</span><span class="s5">, </span><span class="s1">didRecompile</span><span class="s5">]) =&gt; {</span>
+                <span class="s0">// Update hash and snapshot if childCompilation changed</span>
+                <span class="s6">if </span><span class="s5">(</span><span class="s1">didRecompile</span><span class="s5">) {</span>
+                  <span class="s1">mainCompilationHashOfLastChildRecompile </span><span class="s5">= </span><span class="s1">mainCompilation</span><span class="s5">.</span><span class="s1">hash</span><span class="s5">;</span>
+                <span class="s5">}</span>
+                <span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState </span><span class="s5">= {</span>
+                  <span class="s1">isCompiling</span><span class="s5">: </span><span class="s6">false</span><span class="s5">,</span>
+                  <span class="s1">isVerifyingCache</span><span class="s5">: </span><span class="s6">false</span><span class="s5">,</span>
+                  <span class="s1">entries</span><span class="s5">: </span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">entries</span><span class="s5">,</span>
+                  <span class="s1">compiledEntries</span><span class="s5">: </span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">entries</span><span class="s5">,</span>
+                  <span class="s1">compilationResult</span><span class="s5">: </span><span class="s1">childCompilationResult</span><span class="s5">,</span>
+                  <span class="s1">mainCompilationHash</span><span class="s5">: </span><span class="s1">mainCompilationHashOfLastChildRecompile</span>
+                <span class="s5">};</span>
+              <span class="s5">});</span>
+            <span class="s1">handleCompilationDonePromise</span><span class="s5">.</span><span class="s1">then</span><span class="s5">(() =&gt; </span><span class="s1">callback</span><span class="s5">(</span><span class="s6">null</span><span class="s5">), </span><span class="s1">callback</span><span class="s5">);</span>
+          <span class="s5">}</span>
+        <span class="s5">);</span>
+
+        <span class="s0">// Continue compilation:</span>
+        <span class="s1">callback</span><span class="s5">(</span><span class="s6">null</span><span class="s5">);</span>
+      <span class="s5">}</span>
+    <span class="s5">);</span>
+  <span class="s5">}</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* Add a new entry to the next compile run</span>
+   <span class="s2">* </span><span class="s3">@param </span><span class="s2">{string} entry</span>
+   <span class="s2">*/</span>
+  <span class="s1">addEntry </span><span class="s5">(</span><span class="s1">entry</span><span class="s5">) {</span>
+    <span class="s6">if </span><span class="s5">(</span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">isCompiling </span><span class="s5">|| </span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">isVerifyingCache</span><span class="s5">) {</span>
+      <span class="s6">throw new </span><span class="s1">Error</span><span class="s5">(</span>
+        <span class="s4">'The child compiler has already started to compile. ' </span><span class="s5">+</span>
+        <span class="s4">&quot;Please add entries before the main compiler 'make' phase has started or &quot; </span><span class="s5">+</span>
+        <span class="s4">'after the compilation is done.'</span>
+      <span class="s5">);</span>
+    <span class="s5">}</span>
+    <span class="s6">if </span><span class="s5">(</span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">entries</span><span class="s5">.</span><span class="s1">indexOf</span><span class="s5">(</span><span class="s1">entry</span><span class="s5">) === -</span><span class="s7">1</span><span class="s5">) {</span>
+      <span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">entries </span><span class="s5">= [</span><span class="s1">...</span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">entries</span><span class="s5">, </span><span class="s1">entry</span><span class="s5">];</span>
+    <span class="s5">}</span>
+  <span class="s5">}</span>
+
+  <span class="s1">getLatestResult </span><span class="s5">() {</span>
+    <span class="s6">if </span><span class="s5">(</span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">isCompiling </span><span class="s5">|| </span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">isVerifyingCache</span><span class="s5">) {</span>
+      <span class="s6">throw new </span><span class="s1">Error</span><span class="s5">(</span>
+        <span class="s4">'The child compiler is not done compiling. ' </span><span class="s5">+</span>
+        <span class="s4">&quot;Please access the result after the compiler 'make' phase has started or &quot; </span><span class="s5">+</span>
+        <span class="s4">'after the compilation is done.'</span>
+      <span class="s5">);</span>
+    <span class="s5">}</span>
+    <span class="s6">return </span><span class="s5">{</span>
+      <span class="s1">mainCompilationHash</span><span class="s5">: </span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">mainCompilationHash</span><span class="s5">,</span>
+      <span class="s1">compilationResult</span><span class="s5">: </span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">compilationResult</span>
+    <span class="s5">};</span>
+  <span class="s5">}</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* Verify that the cache is still valid</span>
+   <span class="s2">* </span><span class="s3">@private</span>
+   <span class="s2">* </span><span class="s3">@param </span><span class="s2">{Snapshot | undefined} snapshot</span>
+   <span class="s2">* </span><span class="s3">@param </span><span class="s2">{WebpackCompilation} mainCompilation</span>
+   <span class="s2">* </span><span class="s3">@returns </span><span class="s2">{Promise&lt;boolean&gt;}</span>
+   <span class="s2">*/</span>
+  <span class="s1">isCacheValid </span><span class="s5">(</span><span class="s1">snapshot</span><span class="s5">, </span><span class="s1">mainCompilation</span><span class="s5">) {</span>
+    <span class="s6">if </span><span class="s5">(!</span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">isVerifyingCache</span><span class="s5">) {</span>
+      <span class="s6">return </span><span class="s1">Promise</span><span class="s5">.</span><span class="s1">reject</span><span class="s5">(</span><span class="s6">new </span><span class="s1">Error</span><span class="s5">(</span><span class="s4">'Cache validation can only be done right before the compilation starts'</span><span class="s5">));</span>
+    <span class="s5">}</span>
+    <span class="s0">// If there are no entries we don't need a new child compilation</span>
+    <span class="s6">if </span><span class="s5">(</span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">entries</span><span class="s5">.</span><span class="s1">length </span><span class="s5">=== </span><span class="s7">0</span><span class="s5">) {</span>
+      <span class="s6">return </span><span class="s1">Promise</span><span class="s5">.</span><span class="s1">resolve</span><span class="s5">(</span><span class="s6">true</span><span class="s5">);</span>
+    <span class="s5">}</span>
+    <span class="s0">// If there are new entries the cache is invalid</span>
+    <span class="s6">if </span><span class="s5">(</span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">entries </span><span class="s5">!== </span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationState</span><span class="s5">.</span><span class="s1">previousEntries</span><span class="s5">) {</span>
+      <span class="s6">return </span><span class="s1">Promise</span><span class="s5">.</span><span class="s1">resolve</span><span class="s5">(</span><span class="s6">false</span><span class="s5">);</span>
+    <span class="s5">}</span>
+    <span class="s0">// Mark the cache as invalid if there is no snapshot</span>
+    <span class="s6">if </span><span class="s5">(!</span><span class="s1">snapshot</span><span class="s5">) {</span>
+      <span class="s6">return </span><span class="s1">Promise</span><span class="s5">.</span><span class="s1">resolve</span><span class="s5">(</span><span class="s6">false</span><span class="s5">);</span>
+    <span class="s5">}</span>
+    <span class="s6">return </span><span class="s1">fileWatcherApi</span><span class="s5">.</span><span class="s1">isSnapShotValid</span><span class="s5">(</span><span class="s1">snapshot</span><span class="s5">, </span><span class="s1">mainCompilation</span><span class="s5">);</span>
+  <span class="s5">}</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* Start to compile all templates</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@private</span>
+   <span class="s2">* </span><span class="s3">@param </span><span class="s2">{WebpackCompilation} mainCompilation</span>
+   <span class="s2">* </span><span class="s3">@param </span><span class="s2">{string[]} entries</span>
+   <span class="s2">* </span><span class="s3">@returns </span><span class="s2">{Promise&lt;ChildCompilationResult&gt;}</span>
+   <span class="s2">*/</span>
+  <span class="s1">compileEntries </span><span class="s5">(</span><span class="s1">mainCompilation</span><span class="s5">, </span><span class="s1">entries</span><span class="s5">) {</span>
+    <span class="s6">const </span><span class="s1">compiler </span><span class="s5">= </span><span class="s6">new </span><span class="s1">HtmlWebpackChildCompiler</span><span class="s5">(</span><span class="s1">entries</span><span class="s5">);</span>
+    <span class="s6">return </span><span class="s1">compiler</span><span class="s5">.</span><span class="s1">compileTemplates</span><span class="s5">(</span><span class="s1">mainCompilation</span><span class="s5">).</span><span class="s1">then</span><span class="s5">((</span><span class="s1">result</span><span class="s5">) =&gt; {</span>
+      <span class="s6">return </span><span class="s5">{</span>
+      <span class="s0">// The compiled sources to render the content</span>
+        <span class="s1">compiledEntries</span><span class="s5">: </span><span class="s1">result</span><span class="s5">,</span>
+        <span class="s0">// The file dependencies to find out if a</span>
+        <span class="s0">// recompilation is required</span>
+        <span class="s1">dependencies</span><span class="s5">: </span><span class="s1">compiler</span><span class="s5">.</span><span class="s1">fileDependencies</span><span class="s5">,</span>
+        <span class="s0">// The main compilation hash can be used to find out</span>
+        <span class="s0">// if this compilation was done during the current compilation</span>
+        <span class="s1">mainCompilationHash</span><span class="s5">: </span><span class="s1">mainCompilation</span><span class="s5">.</span><span class="s1">hash</span>
+      <span class="s5">};</span>
+    <span class="s5">}, </span><span class="s1">error </span><span class="s5">=&gt; ({</span>
+      <span class="s0">// The compiled sources to render the content</span>
+      <span class="s1">error</span><span class="s5">,</span>
+      <span class="s0">// The file dependencies to find out if a</span>
+      <span class="s0">// recompilation is required</span>
+      <span class="s1">dependencies</span><span class="s5">: </span><span class="s1">compiler</span><span class="s5">.</span><span class="s1">fileDependencies</span><span class="s5">,</span>
+      <span class="s0">// The main compilation hash can be used to find out</span>
+      <span class="s0">// if this compilation was done during the current compilation</span>
+      <span class="s1">mainCompilationHash</span><span class="s5">: </span><span class="s1">mainCompilation</span><span class="s5">.</span><span class="s1">hash</span>
+    <span class="s5">}));</span>
+  <span class="s5">}</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* </span><span class="s3">@private</span>
+   <span class="s2">* </span><span class="s3">@param </span><span class="s2">{WebpackCompilation} mainCompilation</span>
+   <span class="s2">* </span><span class="s3">@param </span><span class="s2">{FileDependencies} files</span>
+   <span class="s2">*/</span>
+  <span class="s1">watchFiles </span><span class="s5">(</span><span class="s1">mainCompilation</span><span class="s5">, </span><span class="s1">files</span><span class="s5">) {</span>
+    <span class="s1">fileWatcherApi</span><span class="s5">.</span><span class="s1">watchFiles</span><span class="s5">(</span><span class="s1">mainCompilation</span><span class="s5">, </span><span class="s1">files</span><span class="s5">);</span>
+  <span class="s5">}</span>
+<span class="s5">}</span>
+
+<span class="s1">module</span><span class="s5">.</span><span class="s1">exports </span><span class="s5">= {</span>
+  <span class="s1">CachedChildCompilation</span>
+<span class="s5">};</span>
+</pre>
+</body>
+</html>

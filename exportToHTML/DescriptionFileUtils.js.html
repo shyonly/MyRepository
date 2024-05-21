@@ -1,0 +1,222 @@
+<html>
+<head>
+<title>DescriptionFileUtils.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #67a37c; font-style: italic;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+DescriptionFileUtils.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+    MIT License http://www.opensource.org/licenses/mit-license.php 
+    Author Tobias Koppers @sokra 
+*/</span>
+
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">const </span><span class="s1">forEachBail </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./forEachBail&quot;</span><span class="s3">);</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Resolver&quot;)} Resolver */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Resolver&quot;).JsonObject} JsonObject */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Resolver&quot;).JsonValue} JsonValue */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Resolver&quot;).ResolveContext} ResolveContext */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Resolver&quot;).ResolveRequest} ResolveRequest */</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{Object} DescriptionFileInfo</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{JsonObject=} content</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string} path</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string} directory</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@callback </span><span class="s5">ErrorFirstCallback</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Error|null=} error</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{DescriptionFileInfo=} result</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{Object} Result</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string} path path to description file</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string} directory directory of description file</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{JsonObject} content content of description file</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Resolver} resolver resolver</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} directory directory</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string[]} filenames filenames</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{DescriptionFileInfo|undefined} oldInfo oldInfo</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ResolveContext} resolveContext resolveContext</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ErrorFirstCallback} callback callback</span>
+ <span class="s5">*/</span>
+<span class="s4">function </span><span class="s1">loadDescriptionFile</span><span class="s3">(</span>
+	<span class="s1">resolver</span><span class="s3">,</span>
+	<span class="s1">directory</span><span class="s3">,</span>
+	<span class="s1">filenames</span><span class="s3">,</span>
+	<span class="s1">oldInfo</span><span class="s3">,</span>
+	<span class="s1">resolveContext</span><span class="s3">,</span>
+	<span class="s1">callback</span>
+<span class="s3">) {</span>
+	<span class="s3">(</span><span class="s4">function </span><span class="s1">findDescriptionFile</span><span class="s3">() {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">oldInfo </span><span class="s3">&amp;&amp; </span><span class="s1">oldInfo</span><span class="s3">.</span><span class="s1">directory </span><span class="s3">=== </span><span class="s1">directory</span><span class="s3">) {</span>
+			<span class="s0">// We already have info for this directory and can reuse it</span>
+			<span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, </span><span class="s1">oldInfo</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s1">forEachBail</span><span class="s3">(</span>
+			<span class="s1">filenames</span><span class="s3">,</span>
+			<span class="s5">/**</span>
+			 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} filename filename</span>
+			 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{(err?: null|Error, result?: null|Result) =&gt; void} callback callback</span>
+			 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+			 <span class="s5">*/</span>
+			<span class="s3">(</span><span class="s1">filename</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) =&gt; {</span>
+				<span class="s4">const </span><span class="s1">descriptionFilePath </span><span class="s3">= </span><span class="s1">resolver</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">directory</span><span class="s3">, </span><span class="s1">filename</span><span class="s3">);</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">resolver</span><span class="s3">.</span><span class="s1">fileSystem</span><span class="s3">.</span><span class="s1">readJson</span><span class="s3">) {</span>
+					<span class="s1">resolver</span><span class="s3">.</span><span class="s1">fileSystem</span><span class="s3">.</span><span class="s1">readJson</span><span class="s3">(</span><span class="s1">descriptionFilePath</span><span class="s3">, (</span><span class="s1">err</span><span class="s3">, </span><span class="s1">content</span><span class="s3">) =&gt; {</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">err</span><span class="s3">.</span><span class="s1">code </span><span class="s3">!== </span><span class="s2">&quot;undefined&quot;</span><span class="s3">) {</span>
+								<span class="s4">if </span><span class="s3">(</span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">missingDependencies</span><span class="s3">) {</span>
+									<span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">missingDependencies</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">descriptionFilePath</span><span class="s3">);</span>
+								<span class="s3">}</span>
+								<span class="s4">return </span><span class="s1">callback</span><span class="s3">();</span>
+							<span class="s3">}</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">fileDependencies</span><span class="s3">) {</span>
+								<span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">fileDependencies</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">descriptionFilePath</span><span class="s3">);</span>
+							<span class="s3">}</span>
+							<span class="s4">return </span><span class="s1">onJson</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+						<span class="s3">}</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">fileDependencies</span><span class="s3">) {</span>
+							<span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">fileDependencies</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">descriptionFilePath</span><span class="s3">);</span>
+						<span class="s3">}</span>
+						<span class="s1">onJson</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{JsonObject} */ </span><span class="s3">(</span><span class="s1">content</span><span class="s3">));</span>
+					<span class="s3">});</span>
+				<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+					<span class="s1">resolver</span><span class="s3">.</span><span class="s1">fileSystem</span><span class="s3">.</span><span class="s1">readFile</span><span class="s3">(</span><span class="s1">descriptionFilePath</span><span class="s3">, (</span><span class="s1">err</span><span class="s3">, </span><span class="s1">content</span><span class="s3">) =&gt; {</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">missingDependencies</span><span class="s3">) {</span>
+								<span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">missingDependencies</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">descriptionFilePath</span><span class="s3">);</span>
+							<span class="s3">}</span>
+							<span class="s4">return </span><span class="s1">callback</span><span class="s3">();</span>
+						<span class="s3">}</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">fileDependencies</span><span class="s3">) {</span>
+							<span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">fileDependencies</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">descriptionFilePath</span><span class="s3">);</span>
+						<span class="s3">}</span>
+
+						<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{JsonObject | undefined} */</span>
+						<span class="s4">let </span><span class="s1">json</span><span class="s3">;</span>
+
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">content</span><span class="s3">) {</span>
+							<span class="s4">try </span><span class="s3">{</span>
+								<span class="s1">json </span><span class="s3">= </span><span class="s1">JSON</span><span class="s3">.</span><span class="s1">parse</span><span class="s3">(</span><span class="s1">content</span><span class="s3">.</span><span class="s1">toString</span><span class="s3">());</span>
+							<span class="s3">} </span><span class="s4">catch </span><span class="s3">(</span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{unknown} */ </span><span class="s1">e</span><span class="s3">) {</span>
+								<span class="s4">return </span><span class="s1">onJson</span><span class="s3">(</span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Error} */ </span><span class="s3">(</span><span class="s1">e</span><span class="s3">));</span>
+							<span class="s3">}</span>
+						<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+							<span class="s4">return </span><span class="s1">onJson</span><span class="s3">(</span><span class="s4">new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">&quot;No content in file&quot;</span><span class="s3">));</span>
+						<span class="s3">}</span>
+
+						<span class="s1">onJson</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, </span><span class="s1">json</span><span class="s3">);</span>
+					<span class="s3">});</span>
+				<span class="s3">}</span>
+
+				<span class="s5">/**</span>
+				 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{null|Error} [err] error</span>
+				 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{JsonObject} [content] content</span>
+				 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+				 <span class="s5">*/</span>
+				<span class="s4">function </span><span class="s1">onJson</span><span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">content</span><span class="s3">) {</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">log</span><span class="s3">)</span>
+							<span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">log</span><span class="s3">(</span>
+								<span class="s1">descriptionFilePath </span><span class="s3">+ </span><span class="s2">&quot; (directory description file): &quot; </span><span class="s3">+ </span><span class="s1">err</span>
+							<span class="s3">);</span>
+						<span class="s4">else</span>
+							<span class="s1">err</span><span class="s3">.</span><span class="s1">message </span><span class="s3">=</span>
+								<span class="s1">descriptionFilePath </span><span class="s3">+ </span><span class="s2">&quot; (directory description file): &quot; </span><span class="s3">+ </span><span class="s1">err</span><span class="s3">;</span>
+						<span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+					<span class="s3">}</span>
+					<span class="s1">callback</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, {</span>
+						<span class="s1">content</span><span class="s3">: </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{JsonObject} */ </span><span class="s3">(</span><span class="s1">content</span><span class="s3">),</span>
+						<span class="s1">directory</span><span class="s3">,</span>
+						<span class="s1">path</span><span class="s3">: </span><span class="s1">descriptionFilePath</span>
+					<span class="s3">});</span>
+				<span class="s3">}</span>
+			<span class="s3">},</span>
+			<span class="s5">/**</span>
+			 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{null|Error} [err] error</span>
+			 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{null|Result} [result] result</span>
+			 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+			 <span class="s5">*/</span>
+			<span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">result</span><span class="s3">) =&gt; {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">result</span><span class="s3">) {</span>
+					<span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, </span><span class="s1">result</span><span class="s3">);</span>
+				<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+					<span class="s4">const </span><span class="s1">dir </span><span class="s3">= </span><span class="s1">cdUp</span><span class="s3">(</span><span class="s1">directory</span><span class="s3">);</span>
+					<span class="s4">if </span><span class="s3">(!</span><span class="s1">dir</span><span class="s3">) {</span>
+						<span class="s4">return </span><span class="s1">callback</span><span class="s3">();</span>
+					<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+						<span class="s1">directory </span><span class="s3">= </span><span class="s1">dir</span><span class="s3">;</span>
+						<span class="s4">return </span><span class="s1">findDescriptionFile</span><span class="s3">();</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+			<span class="s3">}</span>
+		<span class="s3">);</span>
+	<span class="s3">})();</span>
+<span class="s3">}</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{JsonObject} content content</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string|string[]} field field</span>
+ <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{JsonValue | undefined} field data</span>
+ <span class="s5">*/</span>
+<span class="s4">function </span><span class="s1">getField</span><span class="s3">(</span><span class="s1">content</span><span class="s3">, </span><span class="s1">field</span><span class="s3">) {</span>
+	<span class="s4">if </span><span class="s3">(!</span><span class="s1">content</span><span class="s3">) </span><span class="s4">return </span><span class="s1">undefined</span><span class="s3">;</span>
+	<span class="s4">if </span><span class="s3">(</span><span class="s1">Array</span><span class="s3">.</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">field</span><span class="s3">)) {</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{JsonValue} */</span>
+		<span class="s4">let </span><span class="s1">current </span><span class="s3">= </span><span class="s1">content</span><span class="s3">;</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">let </span><span class="s1">j </span><span class="s3">= </span><span class="s7">0</span><span class="s3">; </span><span class="s1">j </span><span class="s3">&lt; </span><span class="s1">field</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">j</span><span class="s3">++) {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">current </span><span class="s3">=== </span><span class="s4">null </span><span class="s3">|| </span><span class="s4">typeof </span><span class="s1">current </span><span class="s3">!== </span><span class="s2">&quot;object&quot;</span><span class="s3">) {</span>
+				<span class="s1">current </span><span class="s3">= </span><span class="s4">null</span><span class="s3">;</span>
+				<span class="s4">break</span><span class="s3">;</span>
+			<span class="s3">}</span>
+			<span class="s1">current </span><span class="s3">= </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{JsonObject} */ </span><span class="s3">(</span><span class="s1">current</span><span class="s3">)[</span><span class="s1">field</span><span class="s3">[</span><span class="s1">j</span><span class="s3">]];</span>
+		<span class="s3">}</span>
+		<span class="s4">return </span><span class="s1">current</span><span class="s3">;</span>
+	<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+		<span class="s4">return </span><span class="s1">content</span><span class="s3">[</span><span class="s1">field</span><span class="s3">];</span>
+	<span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} directory directory</span>
+ <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{string|null} parent directory or null</span>
+ <span class="s5">*/</span>
+<span class="s4">function </span><span class="s1">cdUp</span><span class="s3">(</span><span class="s1">directory</span><span class="s3">) {</span>
+	<span class="s4">if </span><span class="s3">(</span><span class="s1">directory </span><span class="s3">=== </span><span class="s2">&quot;/&quot;</span><span class="s3">) </span><span class="s4">return null</span><span class="s3">;</span>
+	<span class="s4">const </span><span class="s1">i </span><span class="s3">= </span><span class="s1">directory</span><span class="s3">.</span><span class="s1">lastIndexOf</span><span class="s3">(</span><span class="s2">&quot;/&quot;</span><span class="s3">),</span>
+		<span class="s1">j </span><span class="s3">= </span><span class="s1">directory</span><span class="s3">.</span><span class="s1">lastIndexOf</span><span class="s3">(</span><span class="s2">&quot;</span><span class="s4">\\</span><span class="s2">&quot;</span><span class="s3">);</span>
+	<span class="s4">const </span><span class="s1">p </span><span class="s3">= </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s7">0 </span><span class="s3">? </span><span class="s1">j </span><span class="s3">: </span><span class="s1">j </span><span class="s3">&lt; </span><span class="s7">0 </span><span class="s3">? </span><span class="s1">i </span><span class="s3">: </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">j </span><span class="s3">? </span><span class="s1">j </span><span class="s3">: </span><span class="s1">i</span><span class="s3">;</span>
+	<span class="s4">if </span><span class="s3">(</span><span class="s1">p </span><span class="s3">&lt; </span><span class="s7">0</span><span class="s3">) </span><span class="s4">return null</span><span class="s3">;</span>
+	<span class="s4">return </span><span class="s1">directory</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s7">0</span><span class="s3">, </span><span class="s1">p </span><span class="s3">|| </span><span class="s7">1</span><span class="s3">);</span>
+<span class="s3">}</span>
+
+<span class="s1">exports</span><span class="s3">.</span><span class="s1">loadDescriptionFile </span><span class="s3">= </span><span class="s1">loadDescriptionFile</span><span class="s3">;</span>
+<span class="s1">exports</span><span class="s3">.</span><span class="s1">getField </span><span class="s3">= </span><span class="s1">getField</span><span class="s3">;</span>
+<span class="s1">exports</span><span class="s3">.</span><span class="s1">cdUp </span><span class="s3">= </span><span class="s1">cdUp</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

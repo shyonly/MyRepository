@@ -1,0 +1,421 @@
+<html>
+<head>
+<title>help.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #7a7e85;}
+.s7 { color: #42c3d4;}
+.s8 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+help.js</font>
+</center></td></tr></table>
+<pre><span class="s0">const </span><span class="s2">{ </span><span class="s1">humanReadableArgName </span><span class="s2">} = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./argument.js'</span><span class="s2">);</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* TypeScript import types for JSDoc, used by Visual Studio Code IntelliSense and `npm run typescript-checkJS`</span>
+ <span class="s4">* https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html#import-types</span>
+ <span class="s4">* </span><span class="s5">@typedef </span><span class="s4">{ import(&quot;./argument.js&quot;).Argument } Argument</span>
+ <span class="s4">* </span><span class="s5">@typedef </span><span class="s4">{ import(&quot;./command.js&quot;).Command } Command</span>
+ <span class="s4">* </span><span class="s5">@typedef </span><span class="s4">{ import(&quot;./option.js&quot;).Option } Option</span>
+ <span class="s4">*/</span>
+
+<span class="s6">// @ts-check</span>
+
+<span class="s6">// Although this is a class, methods are static in style to allow override using subclass or just functions.</span>
+<span class="s0">class </span><span class="s1">Help </span><span class="s2">{</span>
+  <span class="s1">constructor</span><span class="s2">() {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">helpWidth </span><span class="s2">= </span><span class="s1">undefined</span><span class="s2">;</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">sortSubcommands </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">sortOptions </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+  <span class="s2">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Get an array of the visible subcommands. Includes a placeholder for the implicit help command, if there is one.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Command} cmd</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{Command[]}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">visibleCommands</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">visibleCommands </span><span class="s2">= </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">commands</span><span class="s2">.</span><span class="s1">filter</span><span class="s2">(</span><span class="s1">cmd </span><span class="s2">=&gt; !</span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_hidden</span><span class="s2">);</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_hasImplicitHelpCommand</span><span class="s2">()) {</span>
+      <span class="s6">// Create a command matching the implicit help command.</span>
+      <span class="s0">const </span><span class="s2">[, </span><span class="s1">helpName</span><span class="s2">, </span><span class="s1">helpArgs</span><span class="s2">] = </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_helpCommandnameAndArgs</span><span class="s2">.</span><span class="s1">match</span><span class="s2">(</span><span class="s7">/([^ ]+) *(.*)/</span><span class="s2">);</span>
+      <span class="s0">const </span><span class="s1">helpCommand </span><span class="s2">= </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">createCommand</span><span class="s2">(</span><span class="s1">helpName</span><span class="s2">)</span>
+        <span class="s2">.</span><span class="s1">helpOption</span><span class="s2">(</span><span class="s0">false</span><span class="s2">);</span>
+      <span class="s1">helpCommand</span><span class="s2">.</span><span class="s1">description</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_helpCommandDescription</span><span class="s2">);</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">helpArgs</span><span class="s2">) </span><span class="s1">helpCommand</span><span class="s2">.</span><span class="s1">arguments</span><span class="s2">(</span><span class="s1">helpArgs</span><span class="s2">);</span>
+      <span class="s1">visibleCommands</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">helpCommand</span><span class="s2">);</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">sortSubcommands</span><span class="s2">) {</span>
+      <span class="s1">visibleCommands</span><span class="s2">.</span><span class="s1">sort</span><span class="s2">((</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">) =&gt; {</span>
+        <span class="s6">// @ts-ignore: overloaded return type</span>
+        <span class="s0">return </span><span class="s1">a</span><span class="s2">.</span><span class="s1">name</span><span class="s2">().</span><span class="s1">localeCompare</span><span class="s2">(</span><span class="s1">b</span><span class="s2">.</span><span class="s1">name</span><span class="s2">());</span>
+      <span class="s2">});</span>
+    <span class="s2">}</span>
+    <span class="s0">return </span><span class="s1">visibleCommands</span><span class="s2">;</span>
+  <span class="s2">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Get an array of the visible options. Includes a placeholder for the implicit help option, if there is one.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Command} cmd</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{Option[]}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">visibleOptions</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">visibleOptions </span><span class="s2">= </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">filter</span><span class="s2">((</span><span class="s1">option</span><span class="s2">) =&gt; !</span><span class="s1">option</span><span class="s2">.</span><span class="s1">hidden</span><span class="s2">);</span>
+    <span class="s6">// Implicit help</span>
+    <span class="s0">const </span><span class="s1">showShortHelpFlag </span><span class="s2">= </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_hasHelpOption </span><span class="s2">&amp;&amp; </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_helpShortFlag </span><span class="s2">&amp;&amp; !</span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_findOption</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_helpShortFlag</span><span class="s2">);</span>
+    <span class="s0">const </span><span class="s1">showLongHelpFlag </span><span class="s2">= </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_hasHelpOption </span><span class="s2">&amp;&amp; !</span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_findOption</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_helpLongFlag</span><span class="s2">);</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">showShortHelpFlag </span><span class="s2">|| </span><span class="s1">showLongHelpFlag</span><span class="s2">) {</span>
+      <span class="s0">let </span><span class="s1">helpOption</span><span class="s2">;</span>
+      <span class="s0">if </span><span class="s2">(!</span><span class="s1">showShortHelpFlag</span><span class="s2">) {</span>
+        <span class="s1">helpOption </span><span class="s2">= </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">createOption</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_helpLongFlag</span><span class="s2">, </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_helpDescription</span><span class="s2">);</span>
+      <span class="s2">} </span><span class="s0">else if </span><span class="s2">(!</span><span class="s1">showLongHelpFlag</span><span class="s2">) {</span>
+        <span class="s1">helpOption </span><span class="s2">= </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">createOption</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_helpShortFlag</span><span class="s2">, </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_helpDescription</span><span class="s2">);</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s1">helpOption </span><span class="s2">= </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">createOption</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_helpFlags</span><span class="s2">, </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_helpDescription</span><span class="s2">);</span>
+      <span class="s2">}</span>
+      <span class="s1">visibleOptions</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">helpOption</span><span class="s2">);</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">sortOptions</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">getSortKey </span><span class="s2">= (</span><span class="s1">option</span><span class="s2">) =&gt; {</span>
+        <span class="s6">// WYSIWYG for order displayed in help with short before long, no special handling for negated.</span>
+        <span class="s0">return </span><span class="s1">option</span><span class="s2">.</span><span class="s1">short </span><span class="s2">? </span><span class="s1">option</span><span class="s2">.</span><span class="s1">short</span><span class="s2">.</span><span class="s1">replace</span><span class="s2">(</span><span class="s7">/^-/</span><span class="s2">, </span><span class="s3">''</span><span class="s2">) : </span><span class="s1">option</span><span class="s2">.</span><span class="s1">long</span><span class="s2">.</span><span class="s1">replace</span><span class="s2">(</span><span class="s7">/^--/</span><span class="s2">, </span><span class="s3">''</span><span class="s2">);</span>
+      <span class="s2">};</span>
+      <span class="s1">visibleOptions</span><span class="s2">.</span><span class="s1">sort</span><span class="s2">((</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">) =&gt; {</span>
+        <span class="s0">return </span><span class="s1">getSortKey</span><span class="s2">(</span><span class="s1">a</span><span class="s2">).</span><span class="s1">localeCompare</span><span class="s2">(</span><span class="s1">getSortKey</span><span class="s2">(</span><span class="s1">b</span><span class="s2">));</span>
+      <span class="s2">});</span>
+    <span class="s2">}</span>
+    <span class="s0">return </span><span class="s1">visibleOptions</span><span class="s2">;</span>
+  <span class="s2">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Get an array of the arguments if any have a description.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Command} cmd</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{Argument[]}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">visibleArguments</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">) {</span>
+    <span class="s6">// Side effect! Apply the legacy descriptions before the arguments are displayed.</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_argsDescription</span><span class="s2">) {</span>
+      <span class="s1">cmd</span><span class="s2">.</span><span class="s1">_args</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">argument </span><span class="s2">=&gt; {</span>
+        <span class="s1">argument</span><span class="s2">.</span><span class="s1">description </span><span class="s2">= </span><span class="s1">argument</span><span class="s2">.</span><span class="s1">description </span><span class="s2">|| </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_argsDescription</span><span class="s2">[</span><span class="s1">argument</span><span class="s2">.</span><span class="s1">name</span><span class="s2">()] || </span><span class="s3">''</span><span class="s2">;</span>
+      <span class="s2">});</span>
+    <span class="s2">}</span>
+
+    <span class="s6">// If there are any arguments with a description then return all the arguments.</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_args</span><span class="s2">.</span><span class="s1">find</span><span class="s2">(</span><span class="s1">argument </span><span class="s2">=&gt; </span><span class="s1">argument</span><span class="s2">.</span><span class="s1">description</span><span class="s2">)) {</span>
+      <span class="s0">return </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_args</span><span class="s2">;</span>
+    <span class="s2">};</span>
+    <span class="s0">return </span><span class="s2">[];</span>
+  <span class="s2">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Get the command term to show in the list of subcommands.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Command} cmd</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{string}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">subcommandTerm</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">) {</span>
+    <span class="s6">// Legacy. Ignores custom usage string, and nested commands.</span>
+    <span class="s0">const </span><span class="s1">args </span><span class="s2">= </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_args</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">arg </span><span class="s2">=&gt; </span><span class="s1">humanReadableArgName</span><span class="s2">(</span><span class="s1">arg</span><span class="s2">)).</span><span class="s1">join</span><span class="s2">(</span><span class="s3">' '</span><span class="s2">);</span>
+    <span class="s0">return </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_name </span><span class="s2">+</span>
+      <span class="s2">(</span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_aliases</span><span class="s2">[</span><span class="s8">0</span><span class="s2">] ? </span><span class="s3">'|' </span><span class="s2">+ </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_aliases</span><span class="s2">[</span><span class="s8">0</span><span class="s2">] : </span><span class="s3">''</span><span class="s2">) +</span>
+      <span class="s2">(</span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">length </span><span class="s2">? </span><span class="s3">' [options]' </span><span class="s2">: </span><span class="s3">''</span><span class="s2">) + </span><span class="s6">// simplistic check for non-help option</span>
+      <span class="s2">(</span><span class="s1">args </span><span class="s2">? </span><span class="s3">' ' </span><span class="s2">+ </span><span class="s1">args </span><span class="s2">: </span><span class="s3">''</span><span class="s2">);</span>
+  <span class="s2">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Get the option term to show in the list of options.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Option} option</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{string}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">optionTerm</span><span class="s2">(</span><span class="s1">option</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">option</span><span class="s2">.</span><span class="s1">flags</span><span class="s2">;</span>
+  <span class="s2">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Get the argument term to show in the list of arguments.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Argument} argument</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{string}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">argumentTerm</span><span class="s2">(</span><span class="s1">argument</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">argument</span><span class="s2">.</span><span class="s1">name</span><span class="s2">();</span>
+  <span class="s2">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Get the longest command term length.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Command} cmd</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Help} helper</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{number}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">longestSubcommandTermLength</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">, </span><span class="s1">helper</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">visibleCommands</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">).</span><span class="s1">reduce</span><span class="s2">((</span><span class="s1">max</span><span class="s2">, </span><span class="s1">command</span><span class="s2">) =&gt; {</span>
+      <span class="s0">return </span><span class="s1">Math</span><span class="s2">.</span><span class="s1">max</span><span class="s2">(</span><span class="s1">max</span><span class="s2">, </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">subcommandTerm</span><span class="s2">(</span><span class="s1">command</span><span class="s2">).</span><span class="s1">length</span><span class="s2">);</span>
+    <span class="s2">}, </span><span class="s8">0</span><span class="s2">);</span>
+  <span class="s2">};</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Get the longest option term length.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Command} cmd</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Help} helper</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{number}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">longestOptionTermLength</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">, </span><span class="s1">helper</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">visibleOptions</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">).</span><span class="s1">reduce</span><span class="s2">((</span><span class="s1">max</span><span class="s2">, </span><span class="s1">option</span><span class="s2">) =&gt; {</span>
+      <span class="s0">return </span><span class="s1">Math</span><span class="s2">.</span><span class="s1">max</span><span class="s2">(</span><span class="s1">max</span><span class="s2">, </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">optionTerm</span><span class="s2">(</span><span class="s1">option</span><span class="s2">).</span><span class="s1">length</span><span class="s2">);</span>
+    <span class="s2">}, </span><span class="s8">0</span><span class="s2">);</span>
+  <span class="s2">};</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Get the longest argument term length.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Command} cmd</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Help} helper</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{number}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">longestArgumentTermLength</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">, </span><span class="s1">helper</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">visibleArguments</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">).</span><span class="s1">reduce</span><span class="s2">((</span><span class="s1">max</span><span class="s2">, </span><span class="s1">argument</span><span class="s2">) =&gt; {</span>
+      <span class="s0">return </span><span class="s1">Math</span><span class="s2">.</span><span class="s1">max</span><span class="s2">(</span><span class="s1">max</span><span class="s2">, </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">argumentTerm</span><span class="s2">(</span><span class="s1">argument</span><span class="s2">).</span><span class="s1">length</span><span class="s2">);</span>
+    <span class="s2">}, </span><span class="s8">0</span><span class="s2">);</span>
+  <span class="s2">};</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Get the command usage to be displayed at the top of the built-in help.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Command} cmd</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{string}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">commandUsage</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">) {</span>
+    <span class="s6">// Usage</span>
+    <span class="s0">let </span><span class="s1">cmdName </span><span class="s2">= </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_name</span><span class="s2">;</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_aliases</span><span class="s2">[</span><span class="s8">0</span><span class="s2">]) {</span>
+      <span class="s1">cmdName </span><span class="s2">= </span><span class="s1">cmdName </span><span class="s2">+ </span><span class="s3">'|' </span><span class="s2">+ </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">_aliases</span><span class="s2">[</span><span class="s8">0</span><span class="s2">];</span>
+    <span class="s2">}</span>
+    <span class="s0">let </span><span class="s1">parentCmdNames </span><span class="s2">= </span><span class="s3">''</span><span class="s2">;</span>
+    <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">parentCmd </span><span class="s2">= </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">parent</span><span class="s2">; </span><span class="s1">parentCmd</span><span class="s2">; </span><span class="s1">parentCmd </span><span class="s2">= </span><span class="s1">parentCmd</span><span class="s2">.</span><span class="s1">parent</span><span class="s2">) {</span>
+      <span class="s1">parentCmdNames </span><span class="s2">= </span><span class="s1">parentCmd</span><span class="s2">.</span><span class="s1">name</span><span class="s2">() + </span><span class="s3">' ' </span><span class="s2">+ </span><span class="s1">parentCmdNames</span><span class="s2">;</span>
+    <span class="s2">}</span>
+    <span class="s0">return </span><span class="s1">parentCmdNames </span><span class="s2">+ </span><span class="s1">cmdName </span><span class="s2">+ </span><span class="s3">' ' </span><span class="s2">+ </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">usage</span><span class="s2">();</span>
+  <span class="s2">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Get the description for the command.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Command} cmd</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{string}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">commandDescription</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">) {</span>
+    <span class="s6">// @ts-ignore: overloaded return type</span>
+    <span class="s0">return </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">description</span><span class="s2">();</span>
+  <span class="s2">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Get the command description to show in the list of subcommands.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Command} cmd</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{string}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">subcommandDescription</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">) {</span>
+    <span class="s6">// @ts-ignore: overloaded return type</span>
+    <span class="s0">return </span><span class="s1">cmd</span><span class="s2">.</span><span class="s1">description</span><span class="s2">();</span>
+  <span class="s2">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Get the option description to show in the list of options.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Option} option</span>
+   <span class="s4">* </span><span class="s5">@return </span><span class="s4">{string}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">optionDescription</span><span class="s2">(</span><span class="s1">option</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">extraInfo </span><span class="s2">= [];</span>
+    <span class="s6">// Some of these do not make sense for negated boolean and suppress for backwards compatibility.</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">option</span><span class="s2">.</span><span class="s1">argChoices </span><span class="s2">&amp;&amp; !</span><span class="s1">option</span><span class="s2">.</span><span class="s1">negate</span><span class="s2">) {</span>
+      <span class="s1">extraInfo</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span>
+        <span class="s6">// use stringify to match the display of the default value</span>
+        <span class="s3">`choices: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">option</span><span class="s2">.</span><span class="s1">argChoices</span><span class="s2">.</span><span class="s1">map</span><span class="s2">((</span><span class="s1">choice</span><span class="s2">) =&gt; </span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">stringify</span><span class="s2">(</span><span class="s1">choice</span><span class="s2">)).</span><span class="s1">join</span><span class="s2">(</span><span class="s3">', '</span><span class="s2">)}</span><span class="s3">`</span><span class="s2">);</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">option</span><span class="s2">.</span><span class="s1">defaultValue </span><span class="s2">!== </span><span class="s1">undefined </span><span class="s2">&amp;&amp; !</span><span class="s1">option</span><span class="s2">.</span><span class="s1">negate</span><span class="s2">) {</span>
+      <span class="s1">extraInfo</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s3">`default: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">option</span><span class="s2">.</span><span class="s1">defaultValueDescription </span><span class="s2">|| </span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">stringify</span><span class="s2">(</span><span class="s1">option</span><span class="s2">.</span><span class="s1">defaultValue</span><span class="s2">)}</span><span class="s3">`</span><span class="s2">);</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">option</span><span class="s2">.</span><span class="s1">envVar </span><span class="s2">!== </span><span class="s1">undefined</span><span class="s2">) {</span>
+      <span class="s1">extraInfo</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s3">`env: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">option</span><span class="s2">.</span><span class="s1">envVar</span><span class="s2">}</span><span class="s3">`</span><span class="s2">);</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">extraInfo</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s8">0</span><span class="s2">) {</span>
+      <span class="s0">return </span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">option</span><span class="s2">.</span><span class="s1">description</span><span class="s2">} </span><span class="s3">(</span><span class="s1">$</span><span class="s2">{</span><span class="s1">extraInfo</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s3">', '</span><span class="s2">)}</span><span class="s3">)`</span><span class="s2">;</span>
+    <span class="s2">}</span>
+
+    <span class="s0">return </span><span class="s1">option</span><span class="s2">.</span><span class="s1">description</span><span class="s2">;</span>
+  <span class="s2">};</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Get the argument description to show in the list of arguments.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Argument} argument</span>
+   <span class="s4">* </span><span class="s5">@return </span><span class="s4">{string}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">argumentDescription</span><span class="s2">(</span><span class="s1">argument</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">extraInfo </span><span class="s2">= [];</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">argument</span><span class="s2">.</span><span class="s1">argChoices</span><span class="s2">) {</span>
+      <span class="s1">extraInfo</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span>
+        <span class="s6">// use stringify to match the display of the default value</span>
+        <span class="s3">`choices: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">argument</span><span class="s2">.</span><span class="s1">argChoices</span><span class="s2">.</span><span class="s1">map</span><span class="s2">((</span><span class="s1">choice</span><span class="s2">) =&gt; </span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">stringify</span><span class="s2">(</span><span class="s1">choice</span><span class="s2">)).</span><span class="s1">join</span><span class="s2">(</span><span class="s3">', '</span><span class="s2">)}</span><span class="s3">`</span><span class="s2">);</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">argument</span><span class="s2">.</span><span class="s1">defaultValue </span><span class="s2">!== </span><span class="s1">undefined</span><span class="s2">) {</span>
+      <span class="s1">extraInfo</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s3">`default: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">argument</span><span class="s2">.</span><span class="s1">defaultValueDescription </span><span class="s2">|| </span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">stringify</span><span class="s2">(</span><span class="s1">argument</span><span class="s2">.</span><span class="s1">defaultValue</span><span class="s2">)}</span><span class="s3">`</span><span class="s2">);</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">extraInfo</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s8">0</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">extraDescripton </span><span class="s2">= </span><span class="s3">`(</span><span class="s1">$</span><span class="s2">{</span><span class="s1">extraInfo</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s3">', '</span><span class="s2">)}</span><span class="s3">)`</span><span class="s2">;</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">argument</span><span class="s2">.</span><span class="s1">description</span><span class="s2">) {</span>
+        <span class="s0">return </span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">argument</span><span class="s2">.</span><span class="s1">description</span><span class="s2">} </span><span class="s1">$</span><span class="s2">{</span><span class="s1">extraDescripton</span><span class="s2">}</span><span class="s3">`</span><span class="s2">;</span>
+      <span class="s2">}</span>
+      <span class="s0">return </span><span class="s1">extraDescripton</span><span class="s2">;</span>
+    <span class="s2">}</span>
+    <span class="s0">return </span><span class="s1">argument</span><span class="s2">.</span><span class="s1">description</span><span class="s2">;</span>
+  <span class="s2">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Generate the built-in help text.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Command} cmd</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Help} helper</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{string}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">formatHelp</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">, </span><span class="s1">helper</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">termWidth </span><span class="s2">= </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">padWidth</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">, </span><span class="s1">helper</span><span class="s2">);</span>
+    <span class="s0">const </span><span class="s1">helpWidth </span><span class="s2">= </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">helpWidth </span><span class="s2">|| </span><span class="s8">80</span><span class="s2">;</span>
+    <span class="s0">const </span><span class="s1">itemIndentWidth </span><span class="s2">= </span><span class="s8">2</span><span class="s2">;</span>
+    <span class="s0">const </span><span class="s1">itemSeparatorWidth </span><span class="s2">= </span><span class="s8">2</span><span class="s2">; </span><span class="s6">// between term and description</span>
+    <span class="s0">function </span><span class="s1">formatItem</span><span class="s2">(</span><span class="s1">term</span><span class="s2">, </span><span class="s1">description</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">description</span><span class="s2">) {</span>
+        <span class="s0">const </span><span class="s1">fullText </span><span class="s2">= </span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">term</span><span class="s2">.</span><span class="s1">padEnd</span><span class="s2">(</span><span class="s1">termWidth </span><span class="s2">+ </span><span class="s1">itemSeparatorWidth</span><span class="s2">)}</span><span class="s1">$</span><span class="s2">{</span><span class="s1">description</span><span class="s2">}</span><span class="s3">`</span><span class="s2">;</span>
+        <span class="s0">return </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">wrap</span><span class="s2">(</span><span class="s1">fullText</span><span class="s2">, </span><span class="s1">helpWidth </span><span class="s2">- </span><span class="s1">itemIndentWidth</span><span class="s2">, </span><span class="s1">termWidth </span><span class="s2">+ </span><span class="s1">itemSeparatorWidth</span><span class="s2">);</span>
+      <span class="s2">}</span>
+      <span class="s0">return </span><span class="s1">term</span><span class="s2">;</span>
+    <span class="s2">};</span>
+    <span class="s0">function </span><span class="s1">formatList</span><span class="s2">(</span><span class="s1">textArray</span><span class="s2">) {</span>
+      <span class="s0">return </span><span class="s1">textArray</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s3">'</span><span class="s0">\n</span><span class="s3">'</span><span class="s2">).</span><span class="s1">replace</span><span class="s2">(</span><span class="s7">/^/gm</span><span class="s2">, </span><span class="s3">' '</span><span class="s2">.</span><span class="s1">repeat</span><span class="s2">(</span><span class="s1">itemIndentWidth</span><span class="s2">));</span>
+    <span class="s2">}</span>
+
+    <span class="s6">// Usage</span>
+    <span class="s0">let </span><span class="s1">output </span><span class="s2">= [</span><span class="s3">`Usage: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">helper</span><span class="s2">.</span><span class="s1">commandUsage</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">)}</span><span class="s3">`</span><span class="s2">, </span><span class="s3">''</span><span class="s2">];</span>
+
+    <span class="s6">// Description</span>
+    <span class="s0">const </span><span class="s1">commandDescription </span><span class="s2">= </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">commandDescription</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">);</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">commandDescription</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s8">0</span><span class="s2">) {</span>
+      <span class="s1">output </span><span class="s2">= </span><span class="s1">output</span><span class="s2">.</span><span class="s1">concat</span><span class="s2">([</span><span class="s1">commandDescription</span><span class="s2">, </span><span class="s3">''</span><span class="s2">]);</span>
+    <span class="s2">}</span>
+
+    <span class="s6">// Arguments</span>
+    <span class="s0">const </span><span class="s1">argumentList </span><span class="s2">= </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">visibleArguments</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">).</span><span class="s1">map</span><span class="s2">((</span><span class="s1">argument</span><span class="s2">) =&gt; {</span>
+      <span class="s0">return </span><span class="s1">formatItem</span><span class="s2">(</span><span class="s1">helper</span><span class="s2">.</span><span class="s1">argumentTerm</span><span class="s2">(</span><span class="s1">argument</span><span class="s2">), </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">argumentDescription</span><span class="s2">(</span><span class="s1">argument</span><span class="s2">));</span>
+    <span class="s2">});</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">argumentList</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s8">0</span><span class="s2">) {</span>
+      <span class="s1">output </span><span class="s2">= </span><span class="s1">output</span><span class="s2">.</span><span class="s1">concat</span><span class="s2">([</span><span class="s3">'Arguments:'</span><span class="s2">, </span><span class="s1">formatList</span><span class="s2">(</span><span class="s1">argumentList</span><span class="s2">), </span><span class="s3">''</span><span class="s2">]);</span>
+    <span class="s2">}</span>
+
+    <span class="s6">// Options</span>
+    <span class="s0">const </span><span class="s1">optionList </span><span class="s2">= </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">visibleOptions</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">).</span><span class="s1">map</span><span class="s2">((</span><span class="s1">option</span><span class="s2">) =&gt; {</span>
+      <span class="s0">return </span><span class="s1">formatItem</span><span class="s2">(</span><span class="s1">helper</span><span class="s2">.</span><span class="s1">optionTerm</span><span class="s2">(</span><span class="s1">option</span><span class="s2">), </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">optionDescription</span><span class="s2">(</span><span class="s1">option</span><span class="s2">));</span>
+    <span class="s2">});</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">optionList</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s8">0</span><span class="s2">) {</span>
+      <span class="s1">output </span><span class="s2">= </span><span class="s1">output</span><span class="s2">.</span><span class="s1">concat</span><span class="s2">([</span><span class="s3">'Options:'</span><span class="s2">, </span><span class="s1">formatList</span><span class="s2">(</span><span class="s1">optionList</span><span class="s2">), </span><span class="s3">''</span><span class="s2">]);</span>
+    <span class="s2">}</span>
+
+    <span class="s6">// Commands</span>
+    <span class="s0">const </span><span class="s1">commandList </span><span class="s2">= </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">visibleCommands</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">).</span><span class="s1">map</span><span class="s2">((</span><span class="s1">cmd</span><span class="s2">) =&gt; {</span>
+      <span class="s0">return </span><span class="s1">formatItem</span><span class="s2">(</span><span class="s1">helper</span><span class="s2">.</span><span class="s1">subcommandTerm</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">), </span><span class="s1">helper</span><span class="s2">.</span><span class="s1">subcommandDescription</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">));</span>
+    <span class="s2">});</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">commandList</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s8">0</span><span class="s2">) {</span>
+      <span class="s1">output </span><span class="s2">= </span><span class="s1">output</span><span class="s2">.</span><span class="s1">concat</span><span class="s2">([</span><span class="s3">'Commands:'</span><span class="s2">, </span><span class="s1">formatList</span><span class="s2">(</span><span class="s1">commandList</span><span class="s2">), </span><span class="s3">''</span><span class="s2">]);</span>
+    <span class="s2">}</span>
+
+    <span class="s0">return </span><span class="s1">output</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s3">'</span><span class="s0">\n</span><span class="s3">'</span><span class="s2">);</span>
+  <span class="s2">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Calculate the pad width from the maximum term length.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Command} cmd</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Help} helper</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{number}</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">padWidth</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">, </span><span class="s1">helper</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">Math</span><span class="s2">.</span><span class="s1">max</span><span class="s2">(</span>
+      <span class="s1">helper</span><span class="s2">.</span><span class="s1">longestOptionTermLength</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">, </span><span class="s1">helper</span><span class="s2">),</span>
+      <span class="s1">helper</span><span class="s2">.</span><span class="s1">longestSubcommandTermLength</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">, </span><span class="s1">helper</span><span class="s2">),</span>
+      <span class="s1">helper</span><span class="s2">.</span><span class="s1">longestArgumentTermLength</span><span class="s2">(</span><span class="s1">cmd</span><span class="s2">, </span><span class="s1">helper</span><span class="s2">)</span>
+    <span class="s2">);</span>
+  <span class="s2">};</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Wrap the given string to width characters per line, with lines after the first indented.</span>
+   <span class="s4">* Do not wrap if insufficient room for wrapping (minColumnWidth), or string is manually formatted.</span>
+   <span class="s4">*</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} str</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} width</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} indent</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} [minColumnWidth=40]</span>
+   <span class="s4">* </span><span class="s5">@return </span><span class="s4">{string}</span>
+   <span class="s4">*</span>
+   <span class="s4">*/</span>
+
+  <span class="s1">wrap</span><span class="s2">(</span><span class="s1">str</span><span class="s2">, </span><span class="s1">width</span><span class="s2">, </span><span class="s1">indent</span><span class="s2">, </span><span class="s1">minColumnWidth </span><span class="s2">= </span><span class="s8">40</span><span class="s2">) {</span>
+    <span class="s6">// Detect manually wrapped and indented strings by searching for line breaks</span>
+    <span class="s6">// followed by multiple spaces/tabs.</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">str</span><span class="s2">.</span><span class="s1">match</span><span class="s2">(</span><span class="s7">/[\n]\s+/</span><span class="s2">)) </span><span class="s0">return </span><span class="s1">str</span><span class="s2">;</span>
+    <span class="s6">// Do not wrap if not enough room for a wrapped column of text (as could end up with a word per line).</span>
+    <span class="s0">const </span><span class="s1">columnWidth </span><span class="s2">= </span><span class="s1">width </span><span class="s2">- </span><span class="s1">indent</span><span class="s2">;</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">columnWidth </span><span class="s2">&lt; </span><span class="s1">minColumnWidth</span><span class="s2">) </span><span class="s0">return </span><span class="s1">str</span><span class="s2">;</span>
+
+    <span class="s0">const </span><span class="s1">leadingStr </span><span class="s2">= </span><span class="s1">str</span><span class="s2">.</span><span class="s1">substr</span><span class="s2">(</span><span class="s8">0</span><span class="s2">, </span><span class="s1">indent</span><span class="s2">);</span>
+    <span class="s0">const </span><span class="s1">columnText </span><span class="s2">= </span><span class="s1">str</span><span class="s2">.</span><span class="s1">substr</span><span class="s2">(</span><span class="s1">indent</span><span class="s2">);</span>
+
+    <span class="s0">const </span><span class="s1">indentString </span><span class="s2">= </span><span class="s3">' '</span><span class="s2">.</span><span class="s1">repeat</span><span class="s2">(</span><span class="s1">indent</span><span class="s2">);</span>
+    <span class="s0">const </span><span class="s1">regex </span><span class="s2">= </span><span class="s0">new </span><span class="s1">RegExp</span><span class="s2">(</span><span class="s3">'.{1,' </span><span class="s2">+ (</span><span class="s1">columnWidth </span><span class="s2">- </span><span class="s8">1</span><span class="s2">) + </span><span class="s3">'}([</span><span class="s0">\\</span><span class="s3">s</span><span class="s0">\u200B</span><span class="s3">]|$)|[^</span><span class="s0">\\</span><span class="s3">s</span><span class="s0">\u200B</span><span class="s3">]+?([</span><span class="s0">\\</span><span class="s3">s</span><span class="s0">\u200B</span><span class="s3">]|$)'</span><span class="s2">, </span><span class="s3">'g'</span><span class="s2">);</span>
+    <span class="s0">const </span><span class="s1">lines </span><span class="s2">= </span><span class="s1">columnText</span><span class="s2">.</span><span class="s1">match</span><span class="s2">(</span><span class="s1">regex</span><span class="s2">) || [];</span>
+    <span class="s0">return </span><span class="s1">leadingStr </span><span class="s2">+ </span><span class="s1">lines</span><span class="s2">.</span><span class="s1">map</span><span class="s2">((</span><span class="s1">line</span><span class="s2">, </span><span class="s1">i</span><span class="s2">) =&gt; {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">line</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(-</span><span class="s8">1</span><span class="s2">) === </span><span class="s3">'</span><span class="s0">\n</span><span class="s3">'</span><span class="s2">) {</span>
+        <span class="s1">line </span><span class="s2">= </span><span class="s1">line</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s8">0</span><span class="s2">, </span><span class="s1">line</span><span class="s2">.</span><span class="s1">length </span><span class="s2">- </span><span class="s8">1</span><span class="s2">);</span>
+      <span class="s2">}</span>
+      <span class="s0">return </span><span class="s2">((</span><span class="s1">i </span><span class="s2">&gt; </span><span class="s8">0</span><span class="s2">) ? </span><span class="s1">indentString </span><span class="s2">: </span><span class="s3">''</span><span class="s2">) + </span><span class="s1">line</span><span class="s2">.</span><span class="s1">trimRight</span><span class="s2">();</span>
+    <span class="s2">}).</span><span class="s1">join</span><span class="s2">(</span><span class="s3">'</span><span class="s0">\n</span><span class="s3">'</span><span class="s2">);</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s1">exports</span><span class="s2">.</span><span class="s1">Help </span><span class="s2">= </span><span class="s1">Help</span><span class="s2">;</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,371 @@
+<html>
+<head>
+<title>apiWatch.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+apiWatch.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">isRef</span><span class="s2">, </span><span class="s1">Ref </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./reactivity/ref'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">ComputedRef </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./reactivity/computed'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">isReactive</span><span class="s2">, </span><span class="s1">isShallow </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./reactivity/reactive'</span>
+<span class="s0">import </span><span class="s2">{</span>
+  <span class="s1">warn</span><span class="s2">,</span>
+  <span class="s1">noop</span><span class="s2">,</span>
+  <span class="s1">isArray</span><span class="s2">,</span>
+  <span class="s1">isFunction</span><span class="s2">,</span>
+  <span class="s1">emptyObject</span><span class="s2">,</span>
+  <span class="s1">hasChanged</span><span class="s2">,</span>
+  <span class="s1">isServerRendering</span><span class="s2">,</span>
+  <span class="s1">invokeWithErrorHandling</span>
+<span class="s2">} </span><span class="s1">from </span><span class="s3">'core/util'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">currentInstance </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./currentInstance'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">traverse </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'core/observer/traverse'</span>
+<span class="s0">import </span><span class="s1">Watcher from </span><span class="s3">'../core/observer/watcher'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">queueWatcher </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../core/observer/scheduler'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">DebuggerOptions </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./debug'</span>
+
+<span class="s0">const </span><span class="s1">WATCHER </span><span class="s2">= </span><span class="s3">`watcher`</span>
+<span class="s0">const </span><span class="s1">WATCHER_CB </span><span class="s2">= </span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">WATCHER</span><span class="s2">} </span><span class="s3">callback`</span>
+<span class="s0">const </span><span class="s1">WATCHER_GETTER </span><span class="s2">= </span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">WATCHER</span><span class="s2">} </span><span class="s3">getter`</span>
+<span class="s0">const </span><span class="s1">WATCHER_CLEANUP </span><span class="s2">= </span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">WATCHER</span><span class="s2">} </span><span class="s3">cleanup`</span>
+
+<span class="s0">export </span><span class="s1">type WatchEffect </span><span class="s2">= (</span><span class="s1">onCleanup</span><span class="s2">: </span><span class="s1">OnCleanup</span><span class="s2">) =&gt; </span><span class="s0">void</span>
+
+<span class="s0">export </span><span class="s1">type WatchSource</span><span class="s2">&lt;</span><span class="s1">T </span><span class="s2">= </span><span class="s1">any</span><span class="s2">&gt; = </span><span class="s1">Ref</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">&gt; | </span><span class="s1">ComputedRef</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">&gt; | (() =&gt; </span><span class="s1">T</span><span class="s2">)</span>
+
+<span class="s0">export </span><span class="s1">type WatchCallback</span><span class="s2">&lt;</span><span class="s1">V </span><span class="s2">= </span><span class="s1">any</span><span class="s2">, </span><span class="s1">OV </span><span class="s2">= </span><span class="s1">any</span><span class="s2">&gt; = (</span>
+  <span class="s1">value</span><span class="s2">: </span><span class="s1">V</span><span class="s2">,</span>
+  <span class="s1">oldValue</span><span class="s2">: </span><span class="s1">OV</span><span class="s2">,</span>
+  <span class="s1">onCleanup</span><span class="s2">: </span><span class="s1">OnCleanup</span>
+<span class="s2">) =&gt; </span><span class="s1">any</span>
+
+<span class="s1">type MapSources</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">, </span><span class="s1">Immediate</span><span class="s2">&gt; = {</span>
+  <span class="s2">[</span><span class="s1">K </span><span class="s0">in </span><span class="s1">keyof T</span><span class="s2">]: </span><span class="s1">T</span><span class="s2">[</span><span class="s1">K</span><span class="s2">] </span><span class="s0">extends </span><span class="s1">WatchSource</span><span class="s2">&lt;</span><span class="s1">infer V</span><span class="s2">&gt;</span>
+    <span class="s2">? </span><span class="s1">Immediate </span><span class="s0">extends true</span>
+      <span class="s2">? </span><span class="s1">V </span><span class="s2">| </span><span class="s1">undefined</span>
+      <span class="s2">: </span><span class="s1">V</span>
+    <span class="s2">: </span><span class="s1">T</span><span class="s2">[</span><span class="s1">K</span><span class="s2">] </span><span class="s0">extends </span><span class="s1">object</span>
+    <span class="s2">? </span><span class="s1">Immediate </span><span class="s0">extends true</span>
+      <span class="s2">? </span><span class="s1">T</span><span class="s2">[</span><span class="s1">K</span><span class="s2">] | </span><span class="s1">undefined</span>
+      <span class="s2">: </span><span class="s1">T</span><span class="s2">[</span><span class="s1">K</span><span class="s2">]</span>
+    <span class="s2">: </span><span class="s1">never</span>
+<span class="s2">}</span>
+
+<span class="s1">type OnCleanup </span><span class="s2">= (</span><span class="s1">cleanupFn</span><span class="s2">: () =&gt; </span><span class="s0">void</span><span class="s2">) =&gt; </span><span class="s0">void</span>
+
+<span class="s0">export interface </span><span class="s1">WatchOptionsBase </span><span class="s0">extends </span><span class="s1">DebuggerOptions </span><span class="s2">{</span>
+  <span class="s1">flush</span><span class="s2">?: </span><span class="s3">'pre' </span><span class="s2">| </span><span class="s3">'post' </span><span class="s2">| </span><span class="s3">'sync'</span>
+<span class="s2">}</span>
+
+<span class="s0">export interface </span><span class="s1">WatchOptions</span><span class="s2">&lt;</span><span class="s1">Immediate </span><span class="s2">= </span><span class="s1">boolean</span><span class="s2">&gt; </span><span class="s0">extends </span><span class="s1">WatchOptionsBase </span><span class="s2">{</span>
+  <span class="s1">immediate</span><span class="s2">?: </span><span class="s1">Immediate</span>
+  <span class="s1">deep</span><span class="s2">?: </span><span class="s1">boolean</span>
+<span class="s2">}</span>
+
+<span class="s0">export </span><span class="s1">type WatchStopHandle </span><span class="s2">= () =&gt; </span><span class="s0">void</span>
+
+<span class="s4">// Simple effect.</span>
+<span class="s0">export function </span><span class="s1">watchEffect</span><span class="s2">(</span>
+  <span class="s1">effect</span><span class="s2">: </span><span class="s1">WatchEffect</span><span class="s2">,</span>
+  <span class="s1">options</span><span class="s2">?: </span><span class="s1">WatchOptionsBase</span>
+<span class="s2">): </span><span class="s1">WatchStopHandle </span><span class="s2">{</span>
+  <span class="s0">return </span><span class="s1">doWatch</span><span class="s2">(</span><span class="s1">effect</span><span class="s2">, </span><span class="s0">null</span><span class="s2">, </span><span class="s1">options</span><span class="s2">)</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">watchPostEffect</span><span class="s2">(</span>
+  <span class="s1">effect</span><span class="s2">: </span><span class="s1">WatchEffect</span><span class="s2">,</span>
+  <span class="s1">options</span><span class="s2">?: </span><span class="s1">DebuggerOptions</span>
+<span class="s2">) {</span>
+  <span class="s0">return </span><span class="s1">doWatch</span><span class="s2">(</span>
+    <span class="s1">effect</span><span class="s2">,</span>
+    <span class="s0">null</span><span class="s2">,</span>
+    <span class="s2">(</span><span class="s1">__DEV__</span>
+      <span class="s2">? { </span><span class="s1">...options</span><span class="s2">, </span><span class="s1">flush</span><span class="s2">: </span><span class="s3">'post' </span><span class="s2">}</span>
+      <span class="s2">: { </span><span class="s1">flush</span><span class="s2">: </span><span class="s3">'post' </span><span class="s2">}) as </span><span class="s1">WatchOptionsBase</span>
+  <span class="s2">)</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">watchSyncEffect</span><span class="s2">(</span>
+  <span class="s1">effect</span><span class="s2">: </span><span class="s1">WatchEffect</span><span class="s2">,</span>
+  <span class="s1">options</span><span class="s2">?: </span><span class="s1">DebuggerOptions</span>
+<span class="s2">) {</span>
+  <span class="s0">return </span><span class="s1">doWatch</span><span class="s2">(</span>
+    <span class="s1">effect</span><span class="s2">,</span>
+    <span class="s0">null</span><span class="s2">,</span>
+    <span class="s2">(</span><span class="s1">__DEV__</span>
+      <span class="s2">? { </span><span class="s1">...options</span><span class="s2">, </span><span class="s1">flush</span><span class="s2">: </span><span class="s3">'sync' </span><span class="s2">}</span>
+      <span class="s2">: { </span><span class="s1">flush</span><span class="s2">: </span><span class="s3">'sync' </span><span class="s2">}) as </span><span class="s1">WatchOptionsBase</span>
+  <span class="s2">)</span>
+<span class="s2">}</span>
+
+<span class="s4">// initial value for watchers to trigger on undefined initial values</span>
+<span class="s0">const </span><span class="s1">INITIAL_WATCHER_VALUE </span><span class="s2">= {}</span>
+
+<span class="s1">type MultiWatchSources </span><span class="s2">= (</span><span class="s1">WatchSource</span><span class="s2">&lt;</span><span class="s1">unknown</span><span class="s2">&gt; | </span><span class="s1">object</span><span class="s2">)[]</span>
+
+<span class="s4">// overload: array of multiple sources + cb</span>
+<span class="s0">export function </span><span class="s1">watch</span><span class="s2">&lt;</span>
+  <span class="s1">T </span><span class="s0">extends </span><span class="s1">MultiWatchSources</span><span class="s2">,</span>
+  <span class="s1">Immediate </span><span class="s0">extends </span><span class="s1">Readonly</span><span class="s2">&lt;</span><span class="s1">boolean</span><span class="s2">&gt; = </span><span class="s0">false</span>
+<span class="s2">&gt;(</span>
+  <span class="s1">sources</span><span class="s2">: [</span><span class="s1">...T</span><span class="s2">],</span>
+  <span class="s1">cb</span><span class="s2">: </span><span class="s1">WatchCallback</span><span class="s2">&lt;</span><span class="s1">MapSources</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">, </span><span class="s0">false</span><span class="s2">&gt;, </span><span class="s1">MapSources</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">, </span><span class="s1">Immediate</span><span class="s2">&gt;&gt;,</span>
+  <span class="s1">options</span><span class="s2">?: </span><span class="s1">WatchOptions</span><span class="s2">&lt;</span><span class="s1">Immediate</span><span class="s2">&gt;</span>
+<span class="s2">): </span><span class="s1">WatchStopHandle</span>
+
+<span class="s4">// overload: multiple sources w/ `as const`</span>
+<span class="s4">// watch([foo, bar] as const, () =&gt; {})</span>
+<span class="s4">// somehow [...T] breaks when the type is readonly</span>
+<span class="s0">export function </span><span class="s1">watch</span><span class="s2">&lt;</span>
+  <span class="s1">T </span><span class="s0">extends </span><span class="s1">Readonly</span><span class="s2">&lt;</span><span class="s1">MultiWatchSources</span><span class="s2">&gt;,</span>
+  <span class="s1">Immediate </span><span class="s0">extends </span><span class="s1">Readonly</span><span class="s2">&lt;</span><span class="s1">boolean</span><span class="s2">&gt; = </span><span class="s0">false</span>
+<span class="s2">&gt;(</span>
+  <span class="s1">source</span><span class="s2">: </span><span class="s1">T</span><span class="s2">,</span>
+  <span class="s1">cb</span><span class="s2">: </span><span class="s1">WatchCallback</span><span class="s2">&lt;</span><span class="s1">MapSources</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">, </span><span class="s0">false</span><span class="s2">&gt;, </span><span class="s1">MapSources</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">, </span><span class="s1">Immediate</span><span class="s2">&gt;&gt;,</span>
+  <span class="s1">options</span><span class="s2">?: </span><span class="s1">WatchOptions</span><span class="s2">&lt;</span><span class="s1">Immediate</span><span class="s2">&gt;</span>
+<span class="s2">): </span><span class="s1">WatchStopHandle</span>
+
+<span class="s4">// overload: single source + cb</span>
+<span class="s0">export function </span><span class="s1">watch</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">, </span><span class="s1">Immediate </span><span class="s0">extends </span><span class="s1">Readonly</span><span class="s2">&lt;</span><span class="s1">boolean</span><span class="s2">&gt; = </span><span class="s0">false</span><span class="s2">&gt;(</span>
+  <span class="s1">source</span><span class="s2">: </span><span class="s1">WatchSource</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">&gt;,</span>
+  <span class="s1">cb</span><span class="s2">: </span><span class="s1">WatchCallback</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">, </span><span class="s1">Immediate </span><span class="s0">extends true </span><span class="s2">? </span><span class="s1">T </span><span class="s2">| </span><span class="s1">undefined </span><span class="s2">: </span><span class="s1">T</span><span class="s2">&gt;,</span>
+  <span class="s1">options</span><span class="s2">?: </span><span class="s1">WatchOptions</span><span class="s2">&lt;</span><span class="s1">Immediate</span><span class="s2">&gt;</span>
+<span class="s2">): </span><span class="s1">WatchStopHandle</span>
+
+<span class="s4">// overload: watching reactive object w/ cb</span>
+<span class="s0">export function </span><span class="s1">watch</span><span class="s2">&lt;</span>
+  <span class="s1">T </span><span class="s0">extends </span><span class="s1">object</span><span class="s2">,</span>
+  <span class="s1">Immediate </span><span class="s0">extends </span><span class="s1">Readonly</span><span class="s2">&lt;</span><span class="s1">boolean</span><span class="s2">&gt; = </span><span class="s0">false</span>
+<span class="s2">&gt;(</span>
+  <span class="s1">source</span><span class="s2">: </span><span class="s1">T</span><span class="s2">,</span>
+  <span class="s1">cb</span><span class="s2">: </span><span class="s1">WatchCallback</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">, </span><span class="s1">Immediate </span><span class="s0">extends true </span><span class="s2">? </span><span class="s1">T </span><span class="s2">| </span><span class="s1">undefined </span><span class="s2">: </span><span class="s1">T</span><span class="s2">&gt;,</span>
+  <span class="s1">options</span><span class="s2">?: </span><span class="s1">WatchOptions</span><span class="s2">&lt;</span><span class="s1">Immediate</span><span class="s2">&gt;</span>
+<span class="s2">): </span><span class="s1">WatchStopHandle</span>
+
+<span class="s4">// implementation</span>
+<span class="s0">export function </span><span class="s1">watch</span><span class="s2">&lt;</span><span class="s1">T </span><span class="s2">= </span><span class="s1">any</span><span class="s2">, </span><span class="s1">Immediate </span><span class="s0">extends </span><span class="s1">Readonly</span><span class="s2">&lt;</span><span class="s1">boolean</span><span class="s2">&gt; = </span><span class="s0">false</span><span class="s2">&gt;(</span>
+  <span class="s1">source</span><span class="s2">: </span><span class="s1">T </span><span class="s2">| </span><span class="s1">WatchSource</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">&gt;,</span>
+  <span class="s1">cb</span><span class="s2">: </span><span class="s1">any</span><span class="s2">,</span>
+  <span class="s1">options</span><span class="s2">?: </span><span class="s1">WatchOptions</span><span class="s2">&lt;</span><span class="s1">Immediate</span><span class="s2">&gt;</span>
+<span class="s2">): </span><span class="s1">WatchStopHandle </span><span class="s2">{</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">__DEV__ </span><span class="s2">&amp;&amp; </span><span class="s0">typeof </span><span class="s1">cb </span><span class="s2">!== </span><span class="s3">'function'</span><span class="s2">) {</span>
+    <span class="s1">warn</span><span class="s2">(</span>
+      <span class="s3">`</span><span class="s0">\`</span><span class="s3">watch(fn, options?)</span><span class="s0">\` </span><span class="s3">signature has been moved to a separate API. ` </span><span class="s2">+</span>
+        <span class="s3">`Use </span><span class="s0">\`</span><span class="s3">watchEffect(fn, options?)</span><span class="s0">\` </span><span class="s3">instead. </span><span class="s0">\`</span><span class="s3">watch</span><span class="s0">\` </span><span class="s3">now only ` </span><span class="s2">+</span>
+        <span class="s3">`supports </span><span class="s0">\`</span><span class="s3">watch(source, cb, options?) signature.`</span>
+    <span class="s2">)</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s1">doWatch</span><span class="s2">(</span><span class="s1">source </span><span class="s2">as </span><span class="s1">any</span><span class="s2">, </span><span class="s1">cb</span><span class="s2">, </span><span class="s1">options</span><span class="s2">)</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">doWatch</span><span class="s2">(</span>
+  <span class="s1">source</span><span class="s2">: </span><span class="s1">WatchSource </span><span class="s2">| </span><span class="s1">WatchSource</span><span class="s2">[] | </span><span class="s1">WatchEffect </span><span class="s2">| </span><span class="s1">object</span><span class="s2">,</span>
+  <span class="s1">cb</span><span class="s2">: </span><span class="s1">WatchCallback </span><span class="s2">| </span><span class="s0">null</span><span class="s2">,</span>
+  <span class="s2">{</span>
+    <span class="s1">immediate</span><span class="s2">,</span>
+    <span class="s1">deep</span><span class="s2">,</span>
+    <span class="s1">flush </span><span class="s2">= </span><span class="s3">'pre'</span><span class="s2">,</span>
+    <span class="s1">onTrack</span><span class="s2">,</span>
+    <span class="s1">onTrigger</span>
+  <span class="s2">}: </span><span class="s1">WatchOptions </span><span class="s2">= </span><span class="s1">emptyObject</span>
+<span class="s2">): </span><span class="s1">WatchStopHandle </span><span class="s2">{</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">__DEV__ </span><span class="s2">&amp;&amp; !</span><span class="s1">cb</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">immediate </span><span class="s2">!== </span><span class="s1">undefined</span><span class="s2">) {</span>
+      <span class="s1">warn</span><span class="s2">(</span>
+        <span class="s3">`watch() &quot;immediate&quot; option is only respected when using the ` </span><span class="s2">+</span>
+          <span class="s3">`watch(source, callback, options?) signature.`</span>
+      <span class="s2">)</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">deep </span><span class="s2">!== </span><span class="s1">undefined</span><span class="s2">) {</span>
+      <span class="s1">warn</span><span class="s2">(</span>
+        <span class="s3">`watch() &quot;deep&quot; option is only respected when using the ` </span><span class="s2">+</span>
+          <span class="s3">`watch(source, callback, options?) signature.`</span>
+      <span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+  <span class="s0">const </span><span class="s1">warnInvalidSource </span><span class="s2">= (</span><span class="s1">s</span><span class="s2">: </span><span class="s1">unknown</span><span class="s2">) =&gt; {</span>
+    <span class="s1">warn</span><span class="s2">(</span>
+      <span class="s3">`Invalid watch source: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">s</span><span class="s2">}</span><span class="s3">. A watch source can only be a getter/effect ` </span><span class="s2">+</span>
+        <span class="s3">`function, a ref, a reactive object, or an array of these types.`</span>
+    <span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s0">const </span><span class="s1">instance </span><span class="s2">= </span><span class="s1">currentInstance</span>
+  <span class="s0">const </span><span class="s1">call </span><span class="s2">= (</span><span class="s1">fn</span><span class="s2">: </span><span class="s1">Function</span><span class="s2">, </span><span class="s1">type</span><span class="s2">: </span><span class="s1">string</span><span class="s2">, </span><span class="s1">args</span><span class="s2">: </span><span class="s1">any</span><span class="s2">[] | </span><span class="s0">null </span><span class="s2">= </span><span class="s0">null</span><span class="s2">) =&gt;</span>
+    <span class="s1">invokeWithErrorHandling</span><span class="s2">(</span><span class="s1">fn</span><span class="s2">, </span><span class="s0">null</span><span class="s2">, </span><span class="s1">args</span><span class="s2">, </span><span class="s1">instance</span><span class="s2">, </span><span class="s1">type</span><span class="s2">)</span>
+
+  <span class="s0">let </span><span class="s1">getter</span><span class="s2">: () =&gt; </span><span class="s1">any</span>
+  <span class="s0">let </span><span class="s1">forceTrigger </span><span class="s2">= </span><span class="s0">false</span>
+  <span class="s0">let </span><span class="s1">isMultiSource </span><span class="s2">= </span><span class="s0">false</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isRef</span><span class="s2">(</span><span class="s1">source</span><span class="s2">)) {</span>
+    <span class="s1">getter </span><span class="s2">= () =&gt; </span><span class="s1">source</span><span class="s2">.</span><span class="s1">value</span>
+    <span class="s1">forceTrigger </span><span class="s2">= </span><span class="s1">isShallow</span><span class="s2">(</span><span class="s1">source</span><span class="s2">)</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isReactive</span><span class="s2">(</span><span class="s1">source</span><span class="s2">)) {</span>
+    <span class="s1">getter </span><span class="s2">= () =&gt; {</span>
+      <span class="s2">;(</span><span class="s1">source </span><span class="s2">as </span><span class="s1">any</span><span class="s2">).</span><span class="s1">__ob__</span><span class="s2">.</span><span class="s1">dep</span><span class="s2">.</span><span class="s1">depend</span><span class="s2">()</span>
+      <span class="s0">return </span><span class="s1">source</span>
+    <span class="s2">}</span>
+    <span class="s1">deep </span><span class="s2">= </span><span class="s0">true</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">source</span><span class="s2">)) {</span>
+    <span class="s1">isMultiSource </span><span class="s2">= </span><span class="s0">true</span>
+    <span class="s1">forceTrigger </span><span class="s2">= </span><span class="s1">source</span><span class="s2">.</span><span class="s1">some</span><span class="s2">(</span><span class="s1">s </span><span class="s2">=&gt; </span><span class="s1">isReactive</span><span class="s2">(</span><span class="s1">s</span><span class="s2">) || </span><span class="s1">isShallow</span><span class="s2">(</span><span class="s1">s</span><span class="s2">))</span>
+    <span class="s1">getter </span><span class="s2">= () =&gt;</span>
+      <span class="s1">source</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">s </span><span class="s2">=&gt; {</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">isRef</span><span class="s2">(</span><span class="s1">s</span><span class="s2">)) {</span>
+          <span class="s0">return </span><span class="s1">s</span><span class="s2">.</span><span class="s1">value</span>
+        <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isReactive</span><span class="s2">(</span><span class="s1">s</span><span class="s2">)) {</span>
+          <span class="s0">return </span><span class="s1">traverse</span><span class="s2">(</span><span class="s1">s</span><span class="s2">)</span>
+        <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isFunction</span><span class="s2">(</span><span class="s1">s</span><span class="s2">)) {</span>
+          <span class="s0">return </span><span class="s1">call</span><span class="s2">(</span><span class="s1">s</span><span class="s2">, </span><span class="s1">WATCHER_GETTER</span><span class="s2">)</span>
+        <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+          <span class="s1">__DEV__ </span><span class="s2">&amp;&amp; </span><span class="s1">warnInvalidSource</span><span class="s2">(</span><span class="s1">s</span><span class="s2">)</span>
+        <span class="s2">}</span>
+      <span class="s2">})</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isFunction</span><span class="s2">(</span><span class="s1">source</span><span class="s2">)) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">cb</span><span class="s2">) {</span>
+      <span class="s4">// getter with cb</span>
+      <span class="s1">getter </span><span class="s2">= () =&gt; </span><span class="s1">call</span><span class="s2">(</span><span class="s1">source</span><span class="s2">, </span><span class="s1">WATCHER_GETTER</span><span class="s2">)</span>
+    <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+      <span class="s4">// no cb -&gt; simple effect</span>
+      <span class="s1">getter </span><span class="s2">= () =&gt; {</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">instance </span><span class="s2">&amp;&amp; </span><span class="s1">instance</span><span class="s2">.</span><span class="s1">_isDestroyed</span><span class="s2">) {</span>
+          <span class="s0">return</span>
+        <span class="s2">}</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">cleanup</span><span class="s2">) {</span>
+          <span class="s1">cleanup</span><span class="s2">()</span>
+        <span class="s2">}</span>
+        <span class="s0">return </span><span class="s1">call</span><span class="s2">(</span><span class="s1">source</span><span class="s2">, </span><span class="s1">WATCHER</span><span class="s2">, [</span><span class="s1">onCleanup</span><span class="s2">])</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s1">getter </span><span class="s2">= </span><span class="s1">noop</span>
+    <span class="s1">__DEV__ </span><span class="s2">&amp;&amp; </span><span class="s1">warnInvalidSource</span><span class="s2">(</span><span class="s1">source</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">cb </span><span class="s2">&amp;&amp; </span><span class="s1">deep</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">baseGetter </span><span class="s2">= </span><span class="s1">getter</span>
+    <span class="s1">getter </span><span class="s2">= () =&gt; </span><span class="s1">traverse</span><span class="s2">(</span><span class="s1">baseGetter</span><span class="s2">())</span>
+  <span class="s2">}</span>
+
+  <span class="s0">let </span><span class="s1">cleanup</span><span class="s2">: () =&gt; </span><span class="s0">void</span>
+  <span class="s0">let </span><span class="s1">onCleanup</span><span class="s2">: </span><span class="s1">OnCleanup </span><span class="s2">= (</span><span class="s1">fn</span><span class="s2">: () =&gt; </span><span class="s0">void</span><span class="s2">) =&gt; {</span>
+    <span class="s1">cleanup </span><span class="s2">= </span><span class="s1">watcher</span><span class="s2">.</span><span class="s1">onStop </span><span class="s2">= () =&gt; {</span>
+      <span class="s1">call</span><span class="s2">(</span><span class="s1">fn</span><span class="s2">, </span><span class="s1">WATCHER_CLEANUP</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+  <span class="s4">// in SSR there is no need to setup an actual effect, and it should be noop</span>
+  <span class="s4">// unless it's eager</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isServerRendering</span><span class="s2">()) {</span>
+    <span class="s4">// we will also not call the invalidate callback (+ runner is not set up)</span>
+    <span class="s1">onCleanup </span><span class="s2">= </span><span class="s1">noop</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">cb</span><span class="s2">) {</span>
+      <span class="s1">getter</span><span class="s2">()</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">immediate</span><span class="s2">) {</span>
+      <span class="s1">call</span><span class="s2">(</span><span class="s1">cb</span><span class="s2">, </span><span class="s1">WATCHER_CB</span><span class="s2">, [</span>
+        <span class="s1">getter</span><span class="s2">(),</span>
+        <span class="s1">isMultiSource </span><span class="s2">? [] : </span><span class="s1">undefined</span><span class="s2">,</span>
+        <span class="s1">onCleanup</span>
+      <span class="s2">])</span>
+    <span class="s2">}</span>
+    <span class="s0">return </span><span class="s1">noop</span>
+  <span class="s2">}</span>
+
+  <span class="s0">const </span><span class="s1">watcher </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Watcher</span><span class="s2">(</span><span class="s1">currentInstance</span><span class="s2">, </span><span class="s1">getter</span><span class="s2">, </span><span class="s1">noop</span><span class="s2">, {</span>
+    <span class="s1">lazy</span><span class="s2">: </span><span class="s0">true</span>
+  <span class="s2">})</span>
+  <span class="s1">watcher</span><span class="s2">.</span><span class="s1">noRecurse </span><span class="s2">= !</span><span class="s1">cb</span>
+
+  <span class="s0">let </span><span class="s1">oldValue </span><span class="s2">= </span><span class="s1">isMultiSource </span><span class="s2">? [] : </span><span class="s1">INITIAL_WATCHER_VALUE</span>
+  <span class="s4">// overwrite default run</span>
+  <span class="s1">watcher</span><span class="s2">.</span><span class="s1">run </span><span class="s2">= () =&gt; {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">watcher</span><span class="s2">.</span><span class="s1">active</span><span class="s2">) {</span>
+      <span class="s0">return</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">cb</span><span class="s2">) {</span>
+      <span class="s4">// watch(source, cb)</span>
+      <span class="s0">const </span><span class="s1">newValue </span><span class="s2">= </span><span class="s1">watcher</span><span class="s2">.</span><span class="s1">get</span><span class="s2">()</span>
+      <span class="s0">if </span><span class="s2">(</span>
+        <span class="s1">deep </span><span class="s2">||</span>
+        <span class="s1">forceTrigger </span><span class="s2">||</span>
+        <span class="s2">(</span><span class="s1">isMultiSource</span>
+          <span class="s2">? (</span><span class="s1">newValue </span><span class="s2">as </span><span class="s1">any</span><span class="s2">[]).</span><span class="s1">some</span><span class="s2">((</span><span class="s1">v</span><span class="s2">, </span><span class="s1">i</span><span class="s2">) =&gt;</span>
+              <span class="s1">hasChanged</span><span class="s2">(</span><span class="s1">v</span><span class="s2">, (</span><span class="s1">oldValue </span><span class="s2">as </span><span class="s1">any</span><span class="s2">[])[</span><span class="s1">i</span><span class="s2">])</span>
+            <span class="s2">)</span>
+          <span class="s2">: </span><span class="s1">hasChanged</span><span class="s2">(</span><span class="s1">newValue</span><span class="s2">, </span><span class="s1">oldValue</span><span class="s2">))</span>
+      <span class="s2">) {</span>
+        <span class="s4">// cleanup before running cb again</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">cleanup</span><span class="s2">) {</span>
+          <span class="s1">cleanup</span><span class="s2">()</span>
+        <span class="s2">}</span>
+        <span class="s1">call</span><span class="s2">(</span><span class="s1">cb</span><span class="s2">, </span><span class="s1">WATCHER_CB</span><span class="s2">, [</span>
+          <span class="s1">newValue</span><span class="s2">,</span>
+          <span class="s4">// pass undefined as the old value when it's changed for the first time</span>
+          <span class="s1">oldValue </span><span class="s2">=== </span><span class="s1">INITIAL_WATCHER_VALUE </span><span class="s2">? </span><span class="s1">undefined </span><span class="s2">: </span><span class="s1">oldValue</span><span class="s2">,</span>
+          <span class="s1">onCleanup</span>
+        <span class="s2">])</span>
+        <span class="s1">oldValue </span><span class="s2">= </span><span class="s1">newValue</span>
+      <span class="s2">}</span>
+    <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+      <span class="s4">// watchEffect</span>
+      <span class="s1">watcher</span><span class="s2">.</span><span class="s1">get</span><span class="s2">()</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">flush </span><span class="s2">=== </span><span class="s3">'sync'</span><span class="s2">) {</span>
+    <span class="s1">watcher</span><span class="s2">.</span><span class="s1">update </span><span class="s2">= </span><span class="s1">watcher</span><span class="s2">.</span><span class="s1">run</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">flush </span><span class="s2">=== </span><span class="s3">'post'</span><span class="s2">) {</span>
+    <span class="s1">watcher</span><span class="s2">.</span><span class="s1">post </span><span class="s2">= </span><span class="s0">true</span>
+    <span class="s1">watcher</span><span class="s2">.</span><span class="s1">update </span><span class="s2">= () =&gt; </span><span class="s1">queueWatcher</span><span class="s2">(</span><span class="s1">watcher</span><span class="s2">)</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s4">// pre</span>
+    <span class="s1">watcher</span><span class="s2">.</span><span class="s1">update </span><span class="s2">= () =&gt; {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">instance </span><span class="s2">&amp;&amp; </span><span class="s1">instance </span><span class="s2">=== </span><span class="s1">currentInstance </span><span class="s2">&amp;&amp; !</span><span class="s1">instance</span><span class="s2">.</span><span class="s1">_isMounted</span><span class="s2">) {</span>
+        <span class="s4">// pre-watcher triggered before</span>
+        <span class="s0">const </span><span class="s1">buffer </span><span class="s2">= </span><span class="s1">instance</span><span class="s2">.</span><span class="s1">_preWatchers </span><span class="s2">|| (</span><span class="s1">instance</span><span class="s2">.</span><span class="s1">_preWatchers </span><span class="s2">= [])</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">buffer</span><span class="s2">.</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s1">watcher</span><span class="s2">) &lt; </span><span class="s5">0</span><span class="s2">) </span><span class="s1">buffer</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">watcher</span><span class="s2">)</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s1">queueWatcher</span><span class="s2">(</span><span class="s1">watcher</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">__DEV__</span><span class="s2">) {</span>
+    <span class="s1">watcher</span><span class="s2">.</span><span class="s1">onTrack </span><span class="s2">= </span><span class="s1">onTrack</span>
+    <span class="s1">watcher</span><span class="s2">.</span><span class="s1">onTrigger </span><span class="s2">= </span><span class="s1">onTrigger</span>
+  <span class="s2">}</span>
+
+  <span class="s4">// initial run</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">cb</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">immediate</span><span class="s2">) {</span>
+      <span class="s1">watcher</span><span class="s2">.</span><span class="s1">run</span><span class="s2">()</span>
+    <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+      <span class="s1">oldValue </span><span class="s2">= </span><span class="s1">watcher</span><span class="s2">.</span><span class="s1">get</span><span class="s2">()</span>
+    <span class="s2">}</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">flush </span><span class="s2">=== </span><span class="s3">'post' </span><span class="s2">&amp;&amp; </span><span class="s1">instance</span><span class="s2">) {</span>
+    <span class="s1">instance</span><span class="s2">.</span><span class="s1">$once</span><span class="s2">(</span><span class="s3">'hook:mounted'</span><span class="s2">, () =&gt; </span><span class="s1">watcher</span><span class="s2">.</span><span class="s1">get</span><span class="s2">())</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s1">watcher</span><span class="s2">.</span><span class="s1">get</span><span class="s2">()</span>
+  <span class="s2">}</span>
+
+  <span class="s0">return </span><span class="s2">() =&gt; {</span>
+    <span class="s1">watcher</span><span class="s2">.</span><span class="s1">teardown</span><span class="s2">()</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

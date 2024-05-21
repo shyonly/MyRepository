@@ -1,0 +1,471 @@
+<html>
+<head>
+<title>sqf.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #42c3d4;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+sqf.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+Language: SQF 
+Author: Søren Enevoldsen &lt;senevoldsen90@gmail.com&gt; 
+Contributors: Marvin Saignat &lt;contact@zgmrvn.com&gt;, Dedmen Miller &lt;dedmen@dedmen.de&gt; 
+Description: Scripting language for the Arma game series 
+Website: https://community.bistudio.com/wiki/SQF_syntax 
+Category: scripting 
+*/</span>
+
+<span class="s2">function </span><span class="s1">sqf</span><span class="s3">(</span><span class="s1">hljs</span><span class="s3">) {</span>
+  <span class="s0">// In SQF, a variable start with _</span>
+  <span class="s2">const </span><span class="s1">VARIABLE </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'variable'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s5">/\b_+[a-zA-Z]\w*/</span>
+  <span class="s3">};</span>
+
+  <span class="s0">// In SQF, a function should fit myTag_fnc_myFunction pattern</span>
+  <span class="s0">// https://community.bistudio.com/wiki/Functions_Library_(Arma_3)#Adding_a_Function</span>
+  <span class="s2">const </span><span class="s1">FUNCTION </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'title'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s5">/[a-zA-Z][a-zA-Z0-9]+_fnc_\w*/</span>
+  <span class="s3">};</span>
+
+  <span class="s0">// In SQF strings, quotes matching the start are escaped by adding a consecutive.</span>
+  <span class="s0">// Example of single escaped quotes: &quot; &quot;&quot; &quot; and  ' '' '.</span>
+  <span class="s2">const </span><span class="s1">STRINGS </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'string'</span><span class="s3">,</span>
+    <span class="s1">variants</span><span class="s3">: [</span>
+      <span class="s3">{</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s4">'&quot;'</span><span class="s3">,</span>
+        <span class="s1">end</span><span class="s3">: </span><span class="s4">'&quot;'</span><span class="s3">,</span>
+        <span class="s1">contains</span><span class="s3">: [ {</span>
+          <span class="s1">begin</span><span class="s3">: </span><span class="s4">'&quot;&quot;'</span><span class="s3">,</span>
+          <span class="s1">relevance</span><span class="s3">: </span><span class="s6">0</span>
+        <span class="s3">} ]</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\'</span><span class="s4">'</span><span class="s3">,</span>
+        <span class="s1">end</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\'</span><span class="s4">'</span><span class="s3">,</span>
+        <span class="s1">contains</span><span class="s3">: [ {</span>
+          <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\'\'</span><span class="s4">'</span><span class="s3">,</span>
+          <span class="s1">relevance</span><span class="s3">: </span><span class="s6">0</span>
+        <span class="s3">} ]</span>
+      <span class="s3">}</span>
+    <span class="s3">]</span>
+  <span class="s3">};</span>
+
+  <span class="s0">// list of keywords from:</span>
+  <span class="s0">// https://community.bistudio.com/wiki/PreProcessor_Commands</span>
+  <span class="s2">const </span><span class="s1">PREPROCESSOR </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'meta'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s5">/#\s*[a-z]+\b/</span><span class="s3">,</span>
+    <span class="s1">end</span><span class="s3">: </span><span class="s5">/$/</span><span class="s3">,</span>
+    <span class="s1">keywords</span><span class="s3">: {</span>
+      <span class="s4">'meta-keyword'</span><span class="s3">:</span>
+        <span class="s4">'define undef ifdef ifndef else endif include'</span>
+    <span class="s3">},</span>
+    <span class="s1">contains</span><span class="s3">: [</span>
+      <span class="s3">{</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s5">/\\\n/</span><span class="s3">,</span>
+        <span class="s1">relevance</span><span class="s3">: </span><span class="s6">0</span>
+      <span class="s3">},</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">inherit</span><span class="s3">(</span><span class="s1">STRINGS</span><span class="s3">, {</span>
+        <span class="s1">className</span><span class="s3">: </span><span class="s4">'meta-string'</span>
+      <span class="s3">}),</span>
+      <span class="s3">{</span>
+        <span class="s1">className</span><span class="s3">: </span><span class="s4">'meta-string'</span><span class="s3">,</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s5">/&lt;[^\n&gt;]*&gt;/</span><span class="s3">,</span>
+        <span class="s1">end</span><span class="s3">: </span><span class="s5">/$/</span><span class="s3">,</span>
+        <span class="s1">illegal</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">n'</span>
+      <span class="s3">},</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">C_LINE_COMMENT_MODE</span><span class="s3">,</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">C_BLOCK_COMMENT_MODE</span>
+    <span class="s3">]</span>
+  <span class="s3">};</span>
+
+  <span class="s2">return </span><span class="s3">{</span>
+    <span class="s1">name</span><span class="s3">: </span><span class="s4">'SQF'</span><span class="s3">,</span>
+    <span class="s1">case_insensitive</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+    <span class="s1">keywords</span><span class="s3">: {</span>
+      <span class="s1">keyword</span><span class="s3">:</span>
+        <span class="s4">'case catch default do else exit exitWith for forEach from if ' </span><span class="s3">+</span>
+        <span class="s4">'private switch then throw to try waitUntil while with'</span><span class="s3">,</span>
+      <span class="s1">built_in</span><span class="s3">:</span>
+        <span class="s4">'abs accTime acos action actionIDs actionKeys actionKeysImages actionKeysNames ' </span><span class="s3">+</span>
+        <span class="s4">'actionKeysNamesArray actionName actionParams activateAddons activatedAddons activateKey ' </span><span class="s3">+</span>
+        <span class="s4">'add3DENConnection add3DENEventHandler add3DENLayer addAction addBackpack addBackpackCargo ' </span><span class="s3">+</span>
+        <span class="s4">'addBackpackCargoGlobal addBackpackGlobal addCamShake addCuratorAddons addCuratorCameraArea ' </span><span class="s3">+</span>
+        <span class="s4">'addCuratorEditableObjects addCuratorEditingArea addCuratorPoints addEditorObject addEventHandler ' </span><span class="s3">+</span>
+        <span class="s4">'addForce addGoggles addGroupIcon addHandgunItem addHeadgear addItem addItemCargo ' </span><span class="s3">+</span>
+        <span class="s4">'addItemCargoGlobal addItemPool addItemToBackpack addItemToUniform addItemToVest addLiveStats ' </span><span class="s3">+</span>
+        <span class="s4">'addMagazine addMagazineAmmoCargo addMagazineCargo addMagazineCargoGlobal addMagazineGlobal ' </span><span class="s3">+</span>
+        <span class="s4">'addMagazinePool addMagazines addMagazineTurret addMenu addMenuItem addMissionEventHandler ' </span><span class="s3">+</span>
+        <span class="s4">'addMPEventHandler addMusicEventHandler addOwnedMine addPlayerScores addPrimaryWeaponItem ' </span><span class="s3">+</span>
+        <span class="s4">'addPublicVariableEventHandler addRating addResources addScore addScoreSide addSecondaryWeaponItem ' </span><span class="s3">+</span>
+        <span class="s4">'addSwitchableUnit addTeamMember addToRemainsCollector addTorque addUniform addVehicle addVest ' </span><span class="s3">+</span>
+        <span class="s4">'addWaypoint addWeapon addWeaponCargo addWeaponCargoGlobal addWeaponGlobal addWeaponItem ' </span><span class="s3">+</span>
+        <span class="s4">'addWeaponPool addWeaponTurret admin agent agents AGLToASL aimedAtTarget aimPos airDensityRTD ' </span><span class="s3">+</span>
+        <span class="s4">'airplaneThrottle airportSide AISFinishHeal alive all3DENEntities allAirports allControls ' </span><span class="s3">+</span>
+        <span class="s4">'allCurators allCutLayers allDead allDeadMen allDisplays allGroups allMapMarkers allMines ' </span><span class="s3">+</span>
+        <span class="s4">'allMissionObjects allow3DMode allowCrewInImmobile allowCuratorLogicIgnoreAreas allowDamage ' </span><span class="s3">+</span>
+        <span class="s4">'allowDammage allowFileOperations allowFleeing allowGetIn allowSprint allPlayers allSimpleObjects ' </span><span class="s3">+</span>
+        <span class="s4">'allSites allTurrets allUnits allUnitsUAV allVariables ammo ammoOnPylon and animate animateBay ' </span><span class="s3">+</span>
+        <span class="s4">'animateDoor animatePylon animateSource animationNames animationPhase animationSourcePhase ' </span><span class="s3">+</span>
+        <span class="s4">'animationState append apply armoryPoints arrayIntersect asin ASLToAGL ASLToATL assert ' </span><span class="s3">+</span>
+        <span class="s4">'assignAsCargo assignAsCargoIndex assignAsCommander assignAsDriver assignAsGunner assignAsTurret ' </span><span class="s3">+</span>
+        <span class="s4">'assignCurator assignedCargo assignedCommander assignedDriver assignedGunner assignedItems ' </span><span class="s3">+</span>
+        <span class="s4">'assignedTarget assignedTeam assignedVehicle assignedVehicleRole assignItem assignTeam ' </span><span class="s3">+</span>
+        <span class="s4">'assignToAirport atan atan2 atg ATLToASL attachedObject attachedObjects attachedTo attachObject ' </span><span class="s3">+</span>
+        <span class="s4">'attachTo attackEnabled backpack backpackCargo backpackContainer backpackItems backpackMagazines ' </span><span class="s3">+</span>
+        <span class="s4">'backpackSpaceFor behaviour benchmark binocular boundingBox boundingBoxReal boundingCenter ' </span><span class="s3">+</span>
+        <span class="s4">'breakOut breakTo briefingName buildingExit buildingPos buttonAction buttonSetAction cadetMode ' </span><span class="s3">+</span>
+        <span class="s4">'call callExtension camCommand camCommit camCommitPrepared camCommitted camConstuctionSetParams ' </span><span class="s3">+</span>
+        <span class="s4">'camCreate camDestroy cameraEffect cameraEffectEnableHUD cameraInterest cameraOn cameraView ' </span><span class="s3">+</span>
+        <span class="s4">'campaignConfigFile camPreload camPreloaded camPrepareBank camPrepareDir camPrepareDive ' </span><span class="s3">+</span>
+        <span class="s4">'camPrepareFocus camPrepareFov camPrepareFovRange camPreparePos camPrepareRelPos camPrepareTarget ' </span><span class="s3">+</span>
+        <span class="s4">'camSetBank camSetDir camSetDive camSetFocus camSetFov camSetFovRange camSetPos camSetRelPos ' </span><span class="s3">+</span>
+        <span class="s4">'camSetTarget camTarget camUseNVG canAdd canAddItemToBackpack canAddItemToUniform canAddItemToVest ' </span><span class="s3">+</span>
+        <span class="s4">'cancelSimpleTaskDestination canFire canMove canSlingLoad canStand canSuspend ' </span><span class="s3">+</span>
+        <span class="s4">'canTriggerDynamicSimulation canUnloadInCombat canVehicleCargo captive captiveNum cbChecked ' </span><span class="s3">+</span>
+        <span class="s4">'cbSetChecked ceil channelEnabled cheatsEnabled checkAIFeature checkVisibility className ' </span><span class="s3">+</span>
+        <span class="s4">'clearAllItemsFromBackpack clearBackpackCargo clearBackpackCargoGlobal clearGroupIcons ' </span><span class="s3">+</span>
+        <span class="s4">'clearItemCargo clearItemCargoGlobal clearItemPool clearMagazineCargo clearMagazineCargoGlobal ' </span><span class="s3">+</span>
+        <span class="s4">'clearMagazinePool clearOverlay clearRadio clearWeaponCargo clearWeaponCargoGlobal clearWeaponPool ' </span><span class="s3">+</span>
+        <span class="s4">'clientOwner closeDialog closeDisplay closeOverlay collapseObjectTree collect3DENHistory ' </span><span class="s3">+</span>
+        <span class="s4">'collectiveRTD combatMode commandArtilleryFire commandChat commander commandFire commandFollow ' </span><span class="s3">+</span>
+        <span class="s4">'commandFSM commandGetOut commandingMenu commandMove commandRadio commandStop ' </span><span class="s3">+</span>
+        <span class="s4">'commandSuppressiveFire commandTarget commandWatch comment commitOverlay compile compileFinal ' </span><span class="s3">+</span>
+        <span class="s4">'completedFSM composeText configClasses configFile configHierarchy configName configProperties ' </span><span class="s3">+</span>
+        <span class="s4">'configSourceAddonList configSourceMod configSourceModList confirmSensorTarget ' </span><span class="s3">+</span>
+        <span class="s4">'connectTerminalToUAV controlsGroupCtrl copyFromClipboard copyToClipboard copyWaypoints cos count ' </span><span class="s3">+</span>
+        <span class="s4">'countEnemy countFriendly countSide countType countUnknown create3DENComposition create3DENEntity ' </span><span class="s3">+</span>
+        <span class="s4">'createAgent createCenter createDialog createDiaryLink createDiaryRecord createDiarySubject ' </span><span class="s3">+</span>
+        <span class="s4">'createDisplay createGearDialog createGroup createGuardedPoint createLocation createMarker ' </span><span class="s3">+</span>
+        <span class="s4">'createMarkerLocal createMenu createMine createMissionDisplay createMPCampaignDisplay ' </span><span class="s3">+</span>
+        <span class="s4">'createSimpleObject createSimpleTask createSite createSoundSource createTask createTeam ' </span><span class="s3">+</span>
+        <span class="s4">'createTrigger createUnit createVehicle createVehicleCrew createVehicleLocal crew ctAddHeader ' </span><span class="s3">+</span>
+        <span class="s4">'ctAddRow ctClear ctCurSel ctData ctFindHeaderRows ctFindRowHeader ctHeaderControls ctHeaderCount ' </span><span class="s3">+</span>
+        <span class="s4">'ctRemoveHeaders ctRemoveRows ctrlActivate ctrlAddEventHandler ctrlAngle ctrlAutoScrollDelay ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlAutoScrollRewind ctrlAutoScrollSpeed ctrlChecked ctrlClassName ctrlCommit ctrlCommitted ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlCreate ctrlDelete ctrlEnable ctrlEnabled ctrlFade ctrlHTMLLoaded ctrlIDC ctrlIDD ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlMapAnimAdd ctrlMapAnimClear ctrlMapAnimCommit ctrlMapAnimDone ctrlMapCursor ctrlMapMouseOver ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlMapScale ctrlMapScreenToWorld ctrlMapWorldToScreen ctrlModel ctrlModelDirAndUp ctrlModelScale ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlParent ctrlParentControlsGroup ctrlPosition ctrlRemoveAllEventHandlers ctrlRemoveEventHandler ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlScale ctrlSetActiveColor ctrlSetAngle ctrlSetAutoScrollDelay ctrlSetAutoScrollRewind ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlSetAutoScrollSpeed ctrlSetBackgroundColor ctrlSetChecked ctrlSetEventHandler ctrlSetFade ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlSetFocus ctrlSetFont ctrlSetFontH1 ctrlSetFontH1B ctrlSetFontH2 ctrlSetFontH2B ctrlSetFontH3 ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlSetFontH3B ctrlSetFontH4 ctrlSetFontH4B ctrlSetFontH5 ctrlSetFontH5B ctrlSetFontH6 ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlSetFontH6B ctrlSetFontHeight ctrlSetFontHeightH1 ctrlSetFontHeightH2 ctrlSetFontHeightH3 ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlSetFontHeightH4 ctrlSetFontHeightH5 ctrlSetFontHeightH6 ctrlSetFontHeightSecondary ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlSetFontP ctrlSetFontPB ctrlSetFontSecondary ctrlSetForegroundColor ctrlSetModel ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlSetModelDirAndUp ctrlSetModelScale ctrlSetPixelPrecision ctrlSetPosition ctrlSetScale ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlSetStructuredText ctrlSetText ctrlSetTextColor ctrlSetTooltip ctrlSetTooltipColorBox ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlSetTooltipColorShade ctrlSetTooltipColorText ctrlShow ctrlShown ctrlText ctrlTextHeight ' </span><span class="s3">+</span>
+        <span class="s4">'ctrlTextWidth ctrlType ctrlVisible ctRowControls ctRowCount ctSetCurSel ctSetData ' </span><span class="s3">+</span>
+        <span class="s4">'ctSetHeaderTemplate ctSetRowTemplate ctSetValue ctValue curatorAddons curatorCamera ' </span><span class="s3">+</span>
+        <span class="s4">'curatorCameraArea curatorCameraAreaCeiling curatorCoef curatorEditableObjects curatorEditingArea ' </span><span class="s3">+</span>
+        <span class="s4">'curatorEditingAreaType curatorMouseOver curatorPoints curatorRegisteredObjects curatorSelected ' </span><span class="s3">+</span>
+        <span class="s4">'curatorWaypointCost current3DENOperation currentChannel currentCommand currentMagazine ' </span><span class="s3">+</span>
+        <span class="s4">'currentMagazineDetail currentMagazineDetailTurret currentMagazineTurret currentMuzzle ' </span><span class="s3">+</span>
+        <span class="s4">'currentNamespace currentTask currentTasks currentThrowable currentVisionMode currentWaypoint ' </span><span class="s3">+</span>
+        <span class="s4">'currentWeapon currentWeaponMode currentWeaponTurret currentZeroing cursorObject cursorTarget ' </span><span class="s3">+</span>
+        <span class="s4">'customChat customRadio cutFadeOut cutObj cutRsc cutText damage date dateToNumber daytime ' </span><span class="s3">+</span>
+        <span class="s4">'deActivateKey debriefingText debugFSM debugLog deg delete3DENEntities deleteAt deleteCenter ' </span><span class="s3">+</span>
+        <span class="s4">'deleteCollection deleteEditorObject deleteGroup deleteGroupWhenEmpty deleteIdentity ' </span><span class="s3">+</span>
+        <span class="s4">'deleteLocation deleteMarker deleteMarkerLocal deleteRange deleteResources deleteSite deleteStatus ' </span><span class="s3">+</span>
+        <span class="s4">'deleteTeam deleteVehicle deleteVehicleCrew deleteWaypoint detach detectedMines ' </span><span class="s3">+</span>
+        <span class="s4">'diag_activeMissionFSMs diag_activeScripts diag_activeSQFScripts diag_activeSQSScripts ' </span><span class="s3">+</span>
+        <span class="s4">'diag_captureFrame diag_captureFrameToFile diag_captureSlowFrame diag_codePerformance ' </span><span class="s3">+</span>
+        <span class="s4">'diag_drawMode diag_enable diag_enabled diag_fps diag_fpsMin diag_frameNo diag_lightNewLoad ' </span><span class="s3">+</span>
+        <span class="s4">'diag_list diag_log diag_logSlowFrame diag_mergeConfigFile diag_recordTurretLimits ' </span><span class="s3">+</span>
+        <span class="s4">'diag_setLightNew diag_tickTime diag_toggle dialog diarySubjectExists didJIP didJIPOwner ' </span><span class="s3">+</span>
+        <span class="s4">'difficulty difficultyEnabled difficultyEnabledRTD difficultyOption direction directSay disableAI ' </span><span class="s3">+</span>
+        <span class="s4">'disableCollisionWith disableConversation disableDebriefingStats disableMapIndicators ' </span><span class="s3">+</span>
+        <span class="s4">'disableNVGEquipment disableRemoteSensors disableSerialization disableTIEquipment ' </span><span class="s3">+</span>
+        <span class="s4">'disableUAVConnectability disableUserInput displayAddEventHandler displayCtrl displayParent ' </span><span class="s3">+</span>
+        <span class="s4">'displayRemoveAllEventHandlers displayRemoveEventHandler displaySetEventHandler dissolveTeam ' </span><span class="s3">+</span>
+        <span class="s4">'distance distance2D distanceSqr distributionRegion do3DENAction doArtilleryFire doFire doFollow ' </span><span class="s3">+</span>
+        <span class="s4">'doFSM doGetOut doMove doorPhase doStop doSuppressiveFire doTarget doWatch drawArrow drawEllipse ' </span><span class="s3">+</span>
+        <span class="s4">'drawIcon drawIcon3D drawLine drawLine3D drawLink drawLocation drawPolygon drawRectangle ' </span><span class="s3">+</span>
+        <span class="s4">'drawTriangle driver drop dynamicSimulationDistance dynamicSimulationDistanceCoef ' </span><span class="s3">+</span>
+        <span class="s4">'dynamicSimulationEnabled dynamicSimulationSystemEnabled echo edit3DENMissionAttributes editObject ' </span><span class="s3">+</span>
+        <span class="s4">'editorSetEventHandler effectiveCommander emptyPositions enableAI enableAIFeature ' </span><span class="s3">+</span>
+        <span class="s4">'enableAimPrecision enableAttack enableAudioFeature enableAutoStartUpRTD enableAutoTrimRTD ' </span><span class="s3">+</span>
+        <span class="s4">'enableCamShake enableCaustics enableChannel enableCollisionWith enableCopilot ' </span><span class="s3">+</span>
+        <span class="s4">'enableDebriefingStats enableDiagLegend enableDynamicSimulation enableDynamicSimulationSystem ' </span><span class="s3">+</span>
+        <span class="s4">'enableEndDialog enableEngineArtillery enableEnvironment enableFatigue enableGunLights ' </span><span class="s3">+</span>
+        <span class="s4">'enableInfoPanelComponent enableIRLasers enableMimics enablePersonTurret enableRadio enableReload ' </span><span class="s3">+</span>
+        <span class="s4">'enableRopeAttach enableSatNormalOnDetail enableSaving enableSentences enableSimulation ' </span><span class="s3">+</span>
+        <span class="s4">'enableSimulationGlobal enableStamina enableTeamSwitch enableTraffic enableUAVConnectability ' </span><span class="s3">+</span>
+        <span class="s4">'enableUAVWaypoints enableVehicleCargo enableVehicleSensor enableWeaponDisassembly ' </span><span class="s3">+</span>
+        <span class="s4">'endLoadingScreen endMission engineOn enginesIsOnRTD enginesRpmRTD enginesTorqueRTD entities ' </span><span class="s3">+</span>
+        <span class="s4">'environmentEnabled estimatedEndServerTime estimatedTimeLeft evalObjectArgument everyBackpack ' </span><span class="s3">+</span>
+        <span class="s4">'everyContainer exec execEditorScript execFSM execVM exp expectedDestination exportJIPMessages ' </span><span class="s3">+</span>
+        <span class="s4">'eyeDirection eyePos face faction fadeMusic fadeRadio fadeSound fadeSpeech failMission ' </span><span class="s3">+</span>
+        <span class="s4">'fillWeaponsFromPool find findCover findDisplay findEditorObject findEmptyPosition ' </span><span class="s3">+</span>
+        <span class="s4">'findEmptyPositionReady findIf findNearestEnemy finishMissionInit finite fire fireAtTarget ' </span><span class="s3">+</span>
+        <span class="s4">'firstBackpack flag flagAnimationPhase flagOwner flagSide flagTexture fleeing floor flyInHeight ' </span><span class="s3">+</span>
+        <span class="s4">'flyInHeightASL fog fogForecast fogParams forceAddUniform forcedMap forceEnd forceFlagTexture ' </span><span class="s3">+</span>
+        <span class="s4">'forceFollowRoad forceMap forceRespawn forceSpeed forceWalk forceWeaponFire forceWeatherChange ' </span><span class="s3">+</span>
+        <span class="s4">'forEachMember forEachMemberAgent forEachMemberTeam forgetTarget format formation ' </span><span class="s3">+</span>
+        <span class="s4">'formationDirection formationLeader formationMembers formationPosition formationTask formatText ' </span><span class="s3">+</span>
+        <span class="s4">'formLeader freeLook fromEditor fuel fullCrew gearIDCAmmoCount gearSlotAmmoCount gearSlotData ' </span><span class="s3">+</span>
+        <span class="s4">'get3DENActionState get3DENAttribute get3DENCamera get3DENConnections get3DENEntity ' </span><span class="s3">+</span>
+        <span class="s4">'get3DENEntityID get3DENGrid get3DENIconsVisible get3DENLayerEntities get3DENLinesVisible ' </span><span class="s3">+</span>
+        <span class="s4">'get3DENMissionAttribute get3DENMouseOver get3DENSelected getAimingCoef getAllEnvSoundControllers ' </span><span class="s3">+</span>
+        <span class="s4">'getAllHitPointsDamage getAllOwnedMines getAllSoundControllers getAmmoCargo getAnimAimPrecision ' </span><span class="s3">+</span>
+        <span class="s4">'getAnimSpeedCoef getArray getArtilleryAmmo getArtilleryComputerSettings getArtilleryETA ' </span><span class="s3">+</span>
+        <span class="s4">'getAssignedCuratorLogic getAssignedCuratorUnit getBackpackCargo getBleedingRemaining ' </span><span class="s3">+</span>
+        <span class="s4">'getBurningValue getCameraViewDirection getCargoIndex getCenterOfMass getClientState ' </span><span class="s3">+</span>
+        <span class="s4">'getClientStateNumber getCompatiblePylonMagazines getConnectedUAV getContainerMaxLoad ' </span><span class="s3">+</span>
+        <span class="s4">'getCursorObjectParams getCustomAimCoef getDammage getDescription getDir getDirVisual ' </span><span class="s3">+</span>
+        <span class="s4">'getDLCAssetsUsage getDLCAssetsUsageByName getDLCs getEditorCamera getEditorMode ' </span><span class="s3">+</span>
+        <span class="s4">'getEditorObjectScope getElevationOffset getEnvSoundController getFatigue getForcedFlagTexture ' </span><span class="s3">+</span>
+        <span class="s4">'getFriend getFSMVariable getFuelCargo getGroupIcon getGroupIconParams getGroupIcons getHideFrom ' </span><span class="s3">+</span>
+        <span class="s4">'getHit getHitIndex getHitPointDamage getItemCargo getMagazineCargo getMarkerColor getMarkerPos ' </span><span class="s3">+</span>
+        <span class="s4">'getMarkerSize getMarkerType getMass getMissionConfig getMissionConfigValue getMissionDLCs ' </span><span class="s3">+</span>
+        <span class="s4">'getMissionLayerEntities getModelInfo getMousePosition getMusicPlayedTime getNumber ' </span><span class="s3">+</span>
+        <span class="s4">'getObjectArgument getObjectChildren getObjectDLC getObjectMaterials getObjectProxy ' </span><span class="s3">+</span>
+        <span class="s4">'getObjectTextures getObjectType getObjectViewDistance getOxygenRemaining getPersonUsedDLCs ' </span><span class="s3">+</span>
+        <span class="s4">'getPilotCameraDirection getPilotCameraPosition getPilotCameraRotation getPilotCameraTarget ' </span><span class="s3">+</span>
+        <span class="s4">'getPlateNumber getPlayerChannel getPlayerScores getPlayerUID getPos getPosASL getPosASLVisual ' </span><span class="s3">+</span>
+        <span class="s4">'getPosASLW getPosATL getPosATLVisual getPosVisual getPosWorld getPylonMagazines getRelDir ' </span><span class="s3">+</span>
+        <span class="s4">'getRelPos getRemoteSensorsDisabled getRepairCargo getResolution getShadowDistance getShotParents ' </span><span class="s3">+</span>
+        <span class="s4">'getSlingLoad getSoundController getSoundControllerResult getSpeed getStamina getStatValue ' </span><span class="s3">+</span>
+        <span class="s4">'getSuppression getTerrainGrid getTerrainHeightASL getText getTotalDLCUsageTime getUnitLoadout ' </span><span class="s3">+</span>
+        <span class="s4">'getUnitTrait getUserMFDText getUserMFDvalue getVariable getVehicleCargo getWeaponCargo ' </span><span class="s3">+</span>
+        <span class="s4">'getWeaponSway getWingsOrientationRTD getWingsPositionRTD getWPPos glanceAt globalChat globalRadio ' </span><span class="s3">+</span>
+        <span class="s4">'goggles goto group groupChat groupFromNetId groupIconSelectable groupIconsVisible groupId ' </span><span class="s3">+</span>
+        <span class="s4">'groupOwner groupRadio groupSelectedUnits groupSelectUnit gunner gusts halt handgunItems ' </span><span class="s3">+</span>
+        <span class="s4">'handgunMagazine handgunWeapon handsHit hasInterface hasPilotCamera hasWeapon hcAllGroups ' </span><span class="s3">+</span>
+        <span class="s4">'hcGroupParams hcLeader hcRemoveAllGroups hcRemoveGroup hcSelected hcSelectGroup hcSetGroup ' </span><span class="s3">+</span>
+        <span class="s4">'hcShowBar hcShownBar headgear hideBody hideObject hideObjectGlobal hideSelection hint hintC ' </span><span class="s3">+</span>
+        <span class="s4">'hintCadet hintSilent hmd hostMission htmlLoad HUDMovementLevels humidity image importAllGroups ' </span><span class="s3">+</span>
+        <span class="s4">'importance in inArea inAreaArray incapacitatedState inflame inflamed infoPanel ' </span><span class="s3">+</span>
+        <span class="s4">'infoPanelComponentEnabled infoPanelComponents infoPanels inGameUISetEventHandler inheritsFrom ' </span><span class="s3">+</span>
+        <span class="s4">'initAmbientLife inPolygon inputAction inRangeOfArtillery insertEditorObject intersect is3DEN ' </span><span class="s3">+</span>
+        <span class="s4">'is3DENMultiplayer isAbleToBreathe isAgent isArray isAutoHoverOn isAutonomous isAutotest ' </span><span class="s3">+</span>
+        <span class="s4">'isBleeding isBurning isClass isCollisionLightOn isCopilotEnabled isDamageAllowed isDedicated ' </span><span class="s3">+</span>
+        <span class="s4">'isDLCAvailable isEngineOn isEqualTo isEqualType isEqualTypeAll isEqualTypeAny isEqualTypeArray ' </span><span class="s3">+</span>
+        <span class="s4">'isEqualTypeParams isFilePatchingEnabled isFlashlightOn isFlatEmpty isForcedWalk isFormationLeader ' </span><span class="s3">+</span>
+        <span class="s4">'isGroupDeletedWhenEmpty isHidden isInRemainsCollector isInstructorFigureEnabled isIRLaserOn ' </span><span class="s3">+</span>
+        <span class="s4">'isKeyActive isKindOf isLaserOn isLightOn isLocalized isManualFire isMarkedForCollection ' </span><span class="s3">+</span>
+        <span class="s4">'isMultiplayer isMultiplayerSolo isNil isNull isNumber isObjectHidden isObjectRTD isOnRoad ' </span><span class="s3">+</span>
+        <span class="s4">'isPipEnabled isPlayer isRealTime isRemoteExecuted isRemoteExecutedJIP isServer isShowing3DIcons ' </span><span class="s3">+</span>
+        <span class="s4">'isSimpleObject isSprintAllowed isStaminaEnabled isSteamMission isStreamFriendlyUIEnabled isText ' </span><span class="s3">+</span>
+        <span class="s4">'isTouchingGround isTurnedOut isTutHintsEnabled isUAVConnectable isUAVConnected isUIContext ' </span><span class="s3">+</span>
+        <span class="s4">'isUniformAllowed isVehicleCargo isVehicleRadarOn isVehicleSensorEnabled isWalking ' </span><span class="s3">+</span>
+        <span class="s4">'isWeaponDeployed isWeaponRested itemCargo items itemsWithMagazines join joinAs joinAsSilent ' </span><span class="s3">+</span>
+        <span class="s4">'joinSilent joinString kbAddDatabase kbAddDatabaseTargets kbAddTopic kbHasTopic kbReact ' </span><span class="s3">+</span>
+        <span class="s4">'kbRemoveTopic kbTell kbWasSaid keyImage keyName knowsAbout land landAt landResult language ' </span><span class="s3">+</span>
+        <span class="s4">'laserTarget lbAdd lbClear lbColor lbColorRight lbCurSel lbData lbDelete lbIsSelected lbPicture ' </span><span class="s3">+</span>
+        <span class="s4">'lbPictureRight lbSelection lbSetColor lbSetColorRight lbSetCurSel lbSetData lbSetPicture ' </span><span class="s3">+</span>
+        <span class="s4">'lbSetPictureColor lbSetPictureColorDisabled lbSetPictureColorSelected lbSetPictureRight ' </span><span class="s3">+</span>
+        <span class="s4">'lbSetPictureRightColor lbSetPictureRightColorDisabled lbSetPictureRightColorSelected ' </span><span class="s3">+</span>
+        <span class="s4">'lbSetSelectColor lbSetSelectColorRight lbSetSelected lbSetText lbSetTextRight lbSetTooltip ' </span><span class="s3">+</span>
+        <span class="s4">'lbSetValue lbSize lbSort lbSortByValue lbText lbTextRight lbValue leader leaderboardDeInit ' </span><span class="s3">+</span>
+        <span class="s4">'leaderboardGetRows leaderboardInit leaderboardRequestRowsFriends leaderboardsRequestUploadScore ' </span><span class="s3">+</span>
+        <span class="s4">'leaderboardsRequestUploadScoreKeepBest leaderboardState leaveVehicle libraryCredits ' </span><span class="s3">+</span>
+        <span class="s4">'libraryDisclaimers lifeState lightAttachObject lightDetachObject lightIsOn lightnings limitSpeed ' </span><span class="s3">+</span>
+        <span class="s4">'linearConversion lineIntersects lineIntersectsObjs lineIntersectsSurfaces lineIntersectsWith ' </span><span class="s3">+</span>
+        <span class="s4">'linkItem list listObjects listRemoteTargets listVehicleSensors ln lnbAddArray lnbAddColumn ' </span><span class="s3">+</span>
+        <span class="s4">'lnbAddRow lnbClear lnbColor lnbCurSelRow lnbData lnbDeleteColumn lnbDeleteRow ' </span><span class="s3">+</span>
+        <span class="s4">'lnbGetColumnsPosition lnbPicture lnbSetColor lnbSetColumnsPos lnbSetCurSelRow lnbSetData ' </span><span class="s3">+</span>
+        <span class="s4">'lnbSetPicture lnbSetText lnbSetValue lnbSize lnbSort lnbSortByValue lnbText lnbValue load loadAbs ' </span><span class="s3">+</span>
+        <span class="s4">'loadBackpack loadFile loadGame loadIdentity loadMagazine loadOverlay loadStatus loadUniform ' </span><span class="s3">+</span>
+        <span class="s4">'loadVest local localize locationPosition lock lockCameraTo lockCargo lockDriver locked ' </span><span class="s3">+</span>
+        <span class="s4">'lockedCargo lockedDriver lockedTurret lockIdentity lockTurret lockWP log logEntities logNetwork ' </span><span class="s3">+</span>
+        <span class="s4">'logNetworkTerminate lookAt lookAtPos magazineCargo magazines magazinesAllTurrets magazinesAmmo ' </span><span class="s3">+</span>
+        <span class="s4">'magazinesAmmoCargo magazinesAmmoFull magazinesDetail magazinesDetailBackpack ' </span><span class="s3">+</span>
+        <span class="s4">'magazinesDetailUniform magazinesDetailVest magazinesTurret magazineTurretAmmo mapAnimAdd ' </span><span class="s3">+</span>
+        <span class="s4">'mapAnimClear mapAnimCommit mapAnimDone mapCenterOnCamera mapGridPosition markAsFinishedOnSteam ' </span><span class="s3">+</span>
+        <span class="s4">'markerAlpha markerBrush markerColor markerDir markerPos markerShape markerSize markerText ' </span><span class="s3">+</span>
+        <span class="s4">'markerType max members menuAction menuAdd menuChecked menuClear menuCollapse menuData menuDelete ' </span><span class="s3">+</span>
+        <span class="s4">'menuEnable menuEnabled menuExpand menuHover menuPicture menuSetAction menuSetCheck menuSetData ' </span><span class="s3">+</span>
+        <span class="s4">'menuSetPicture menuSetValue menuShortcut menuShortcutText menuSize menuSort menuText menuURL ' </span><span class="s3">+</span>
+        <span class="s4">'menuValue min mineActive mineDetectedBy missionConfigFile missionDifficulty missionName ' </span><span class="s3">+</span>
+        <span class="s4">'missionNamespace missionStart missionVersion mod modelToWorld modelToWorldVisual ' </span><span class="s3">+</span>
+        <span class="s4">'modelToWorldVisualWorld modelToWorldWorld modParams moonIntensity moonPhase morale move ' </span><span class="s3">+</span>
+        <span class="s4">'move3DENCamera moveInAny moveInCargo moveInCommander moveInDriver moveInGunner moveInTurret ' </span><span class="s3">+</span>
+        <span class="s4">'moveObjectToEnd moveOut moveTime moveTo moveToCompleted moveToFailed musicVolume name nameSound ' </span><span class="s3">+</span>
+        <span class="s4">'nearEntities nearestBuilding nearestLocation nearestLocations nearestLocationWithDubbing ' </span><span class="s3">+</span>
+        <span class="s4">'nearestObject nearestObjects nearestTerrainObjects nearObjects nearObjectsReady nearRoads ' </span><span class="s3">+</span>
+        <span class="s4">'nearSupplies nearTargets needReload netId netObjNull newOverlay nextMenuItemIndex ' </span><span class="s3">+</span>
+        <span class="s4">'nextWeatherChange nMenuItems not numberOfEnginesRTD numberToDate objectCurators objectFromNetId ' </span><span class="s3">+</span>
+        <span class="s4">'objectParent objStatus onBriefingGroup onBriefingNotes onBriefingPlan onBriefingTeamSwitch ' </span><span class="s3">+</span>
+        <span class="s4">'onCommandModeChanged onDoubleClick onEachFrame onGroupIconClick onGroupIconOverEnter ' </span><span class="s3">+</span>
+        <span class="s4">'onGroupIconOverLeave onHCGroupSelectionChanged onMapSingleClick onPlayerConnected ' </span><span class="s3">+</span>
+        <span class="s4">'onPlayerDisconnected onPreloadFinished onPreloadStarted onShowNewObject onTeamSwitch ' </span><span class="s3">+</span>
+        <span class="s4">'openCuratorInterface openDLCPage openMap openSteamApp openYoutubeVideo or orderGetIn overcast ' </span><span class="s3">+</span>
+        <span class="s4">'overcastForecast owner param params parseNumber parseSimpleArray parseText parsingNamespace ' </span><span class="s3">+</span>
+        <span class="s4">'particlesQuality pickWeaponPool pitch pixelGrid pixelGridBase pixelGridNoUIScale pixelH pixelW ' </span><span class="s3">+</span>
+        <span class="s4">'playableSlotsNumber playableUnits playAction playActionNow player playerRespawnTime playerSide ' </span><span class="s3">+</span>
+        <span class="s4">'playersNumber playGesture playMission playMove playMoveNow playMusic playScriptedMission ' </span><span class="s3">+</span>
+        <span class="s4">'playSound playSound3D position positionCameraToWorld posScreenToWorld posWorldToScreen ' </span><span class="s3">+</span>
+        <span class="s4">'ppEffectAdjust ppEffectCommit ppEffectCommitted ppEffectCreate ppEffectDestroy ppEffectEnable ' </span><span class="s3">+</span>
+        <span class="s4">'ppEffectEnabled ppEffectForceInNVG precision preloadCamera preloadObject preloadSound ' </span><span class="s3">+</span>
+        <span class="s4">'preloadTitleObj preloadTitleRsc preprocessFile preprocessFileLineNumbers primaryWeapon ' </span><span class="s3">+</span>
+        <span class="s4">'primaryWeaponItems primaryWeaponMagazine priority processDiaryLink productVersion profileName ' </span><span class="s3">+</span>
+        <span class="s4">'profileNamespace profileNameSteam progressLoadingScreen progressPosition progressSetPosition ' </span><span class="s3">+</span>
+        <span class="s4">'publicVariable publicVariableClient publicVariableServer pushBack pushBackUnique putWeaponPool ' </span><span class="s3">+</span>
+        <span class="s4">'queryItemsPool queryMagazinePool queryWeaponPool rad radioChannelAdd radioChannelCreate ' </span><span class="s3">+</span>
+        <span class="s4">'radioChannelRemove radioChannelSetCallSign radioChannelSetLabel radioVolume rain rainbow random ' </span><span class="s3">+</span>
+        <span class="s4">'rank rankId rating rectangular registeredTasks registerTask reload reloadEnabled remoteControl ' </span><span class="s3">+</span>
+        <span class="s4">'remoteExec remoteExecCall remoteExecutedOwner remove3DENConnection remove3DENEventHandler ' </span><span class="s3">+</span>
+        <span class="s4">'remove3DENLayer removeAction removeAll3DENEventHandlers removeAllActions removeAllAssignedItems ' </span><span class="s3">+</span>
+        <span class="s4">'removeAllContainers removeAllCuratorAddons removeAllCuratorCameraAreas ' </span><span class="s3">+</span>
+        <span class="s4">'removeAllCuratorEditingAreas removeAllEventHandlers removeAllHandgunItems removeAllItems ' </span><span class="s3">+</span>
+        <span class="s4">'removeAllItemsWithMagazines removeAllMissionEventHandlers removeAllMPEventHandlers ' </span><span class="s3">+</span>
+        <span class="s4">'removeAllMusicEventHandlers removeAllOwnedMines removeAllPrimaryWeaponItems removeAllWeapons ' </span><span class="s3">+</span>
+        <span class="s4">'removeBackpack removeBackpackGlobal removeCuratorAddons removeCuratorCameraArea ' </span><span class="s3">+</span>
+        <span class="s4">'removeCuratorEditableObjects removeCuratorEditingArea removeDrawIcon removeDrawLinks ' </span><span class="s3">+</span>
+        <span class="s4">'removeEventHandler removeFromRemainsCollector removeGoggles removeGroupIcon removeHandgunItem ' </span><span class="s3">+</span>
+        <span class="s4">'removeHeadgear removeItem removeItemFromBackpack removeItemFromUniform removeItemFromVest ' </span><span class="s3">+</span>
+        <span class="s4">'removeItems removeMagazine removeMagazineGlobal removeMagazines removeMagazinesTurret ' </span><span class="s3">+</span>
+        <span class="s4">'removeMagazineTurret removeMenuItem removeMissionEventHandler removeMPEventHandler ' </span><span class="s3">+</span>
+        <span class="s4">'removeMusicEventHandler removeOwnedMine removePrimaryWeaponItem removeSecondaryWeaponItem ' </span><span class="s3">+</span>
+        <span class="s4">'removeSimpleTask removeSwitchableUnit removeTeamMember removeUniform removeVest removeWeapon ' </span><span class="s3">+</span>
+        <span class="s4">'removeWeaponAttachmentCargo removeWeaponCargo removeWeaponGlobal removeWeaponTurret ' </span><span class="s3">+</span>
+        <span class="s4">'reportRemoteTarget requiredVersion resetCamShake resetSubgroupDirection resize resources ' </span><span class="s3">+</span>
+        <span class="s4">'respawnVehicle restartEditorCamera reveal revealMine reverse reversedMouseY roadAt ' </span><span class="s3">+</span>
+        <span class="s4">'roadsConnectedTo roleDescription ropeAttachedObjects ropeAttachedTo ropeAttachEnabled ' </span><span class="s3">+</span>
+        <span class="s4">'ropeAttachTo ropeCreate ropeCut ropeDestroy ropeDetach ropeEndPosition ropeLength ropes ' </span><span class="s3">+</span>
+        <span class="s4">'ropeUnwind ropeUnwound rotorsForcesRTD rotorsRpmRTD round runInitScript safeZoneH safeZoneW ' </span><span class="s3">+</span>
+        <span class="s4">'safeZoneWAbs safeZoneX safeZoneXAbs safeZoneY save3DENInventory saveGame saveIdentity ' </span><span class="s3">+</span>
+        <span class="s4">'saveJoysticks saveOverlay saveProfileNamespace saveStatus saveVar savingEnabled say say2D say3D ' </span><span class="s3">+</span>
+        <span class="s4">'scopeName score scoreSide screenshot screenToWorld scriptDone scriptName scudState ' </span><span class="s3">+</span>
+        <span class="s4">'secondaryWeapon secondaryWeaponItems secondaryWeaponMagazine select selectBestPlaces ' </span><span class="s3">+</span>
+        <span class="s4">'selectDiarySubject selectedEditorObjects selectEditorObject selectionNames selectionPosition ' </span><span class="s3">+</span>
+        <span class="s4">'selectLeader selectMax selectMin selectNoPlayer selectPlayer selectRandom selectRandomWeighted ' </span><span class="s3">+</span>
+        <span class="s4">'selectWeapon selectWeaponTurret sendAUMessage sendSimpleCommand sendTask sendTaskResult ' </span><span class="s3">+</span>
+        <span class="s4">'sendUDPMessage serverCommand serverCommandAvailable serverCommandExecutable serverName serverTime ' </span><span class="s3">+</span>
+        <span class="s4">'set set3DENAttribute set3DENAttributes set3DENGrid set3DENIconsVisible set3DENLayer ' </span><span class="s3">+</span>
+        <span class="s4">'set3DENLinesVisible set3DENLogicType set3DENMissionAttribute set3DENMissionAttributes ' </span><span class="s3">+</span>
+        <span class="s4">'set3DENModelsVisible set3DENObjectType set3DENSelected setAccTime setActualCollectiveRTD ' </span><span class="s3">+</span>
+        <span class="s4">'setAirplaneThrottle setAirportSide setAmmo setAmmoCargo setAmmoOnPylon setAnimSpeedCoef ' </span><span class="s3">+</span>
+        <span class="s4">'setAperture setApertureNew setArmoryPoints setAttributes setAutonomous setBehaviour ' </span><span class="s3">+</span>
+        <span class="s4">'setBleedingRemaining setBrakesRTD setCameraInterest setCamShakeDefParams setCamShakeParams ' </span><span class="s3">+</span>
+        <span class="s4">'setCamUseTI setCaptive setCenterOfMass setCollisionLight setCombatMode setCompassOscillation ' </span><span class="s3">+</span>
+        <span class="s4">'setConvoySeparation setCuratorCameraAreaCeiling setCuratorCoef setCuratorEditingAreaType ' </span><span class="s3">+</span>
+        <span class="s4">'setCuratorWaypointCost setCurrentChannel setCurrentTask setCurrentWaypoint setCustomAimCoef ' </span><span class="s3">+</span>
+        <span class="s4">'setCustomWeightRTD setDamage setDammage setDate setDebriefingText setDefaultCamera setDestination ' </span><span class="s3">+</span>
+        <span class="s4">'setDetailMapBlendPars setDir setDirection setDrawIcon setDriveOnPath setDropInterval ' </span><span class="s3">+</span>
+        <span class="s4">'setDynamicSimulationDistance setDynamicSimulationDistanceCoef setEditorMode setEditorObjectScope ' </span><span class="s3">+</span>
+        <span class="s4">'setEffectCondition setEngineRPMRTD setFace setFaceAnimation setFatigue setFeatureType ' </span><span class="s3">+</span>
+        <span class="s4">'setFlagAnimationPhase setFlagOwner setFlagSide setFlagTexture setFog setFormation ' </span><span class="s3">+</span>
+        <span class="s4">'setFormationTask setFormDir setFriend setFromEditor setFSMVariable setFuel setFuelCargo ' </span><span class="s3">+</span>
+        <span class="s4">'setGroupIcon setGroupIconParams setGroupIconsSelectable setGroupIconsVisible setGroupId ' </span><span class="s3">+</span>
+        <span class="s4">'setGroupIdGlobal setGroupOwner setGusts setHideBehind setHit setHitIndex setHitPointDamage ' </span><span class="s3">+</span>
+        <span class="s4">'setHorizonParallaxCoef setHUDMovementLevels setIdentity setImportance setInfoPanel setLeader ' </span><span class="s3">+</span>
+        <span class="s4">'setLightAmbient setLightAttenuation setLightBrightness setLightColor setLightDayLight ' </span><span class="s3">+</span>
+        <span class="s4">'setLightFlareMaxDistance setLightFlareSize setLightIntensity setLightnings setLightUseFlare ' </span><span class="s3">+</span>
+        <span class="s4">'setLocalWindParams setMagazineTurretAmmo setMarkerAlpha setMarkerAlphaLocal setMarkerBrush ' </span><span class="s3">+</span>
+        <span class="s4">'setMarkerBrushLocal setMarkerColor setMarkerColorLocal setMarkerDir setMarkerDirLocal ' </span><span class="s3">+</span>
+        <span class="s4">'setMarkerPos setMarkerPosLocal setMarkerShape setMarkerShapeLocal setMarkerSize ' </span><span class="s3">+</span>
+        <span class="s4">'setMarkerSizeLocal setMarkerText setMarkerTextLocal setMarkerType setMarkerTypeLocal setMass ' </span><span class="s3">+</span>
+        <span class="s4">'setMimic setMousePosition setMusicEffect setMusicEventHandler setName setNameSound ' </span><span class="s3">+</span>
+        <span class="s4">'setObjectArguments setObjectMaterial setObjectMaterialGlobal setObjectProxy setObjectTexture ' </span><span class="s3">+</span>
+        <span class="s4">'setObjectTextureGlobal setObjectViewDistance setOvercast setOwner setOxygenRemaining ' </span><span class="s3">+</span>
+        <span class="s4">'setParticleCircle setParticleClass setParticleFire setParticleParams setParticleRandom ' </span><span class="s3">+</span>
+        <span class="s4">'setPilotCameraDirection setPilotCameraRotation setPilotCameraTarget setPilotLight setPiPEffect ' </span><span class="s3">+</span>
+        <span class="s4">'setPitch setPlateNumber setPlayable setPlayerRespawnTime setPos setPosASL setPosASL2 setPosASLW ' </span><span class="s3">+</span>
+        <span class="s4">'setPosATL setPosition setPosWorld setPylonLoadOut setPylonsPriority setRadioMsg setRain ' </span><span class="s3">+</span>
+        <span class="s4">'setRainbow setRandomLip setRank setRectangular setRepairCargo setRotorBrakeRTD setShadowDistance ' </span><span class="s3">+</span>
+        <span class="s4">'setShotParents setSide setSimpleTaskAlwaysVisible setSimpleTaskCustomData ' </span><span class="s3">+</span>
+        <span class="s4">'setSimpleTaskDescription setSimpleTaskDestination setSimpleTaskTarget setSimpleTaskType ' </span><span class="s3">+</span>
+        <span class="s4">'setSimulWeatherLayers setSize setSkill setSlingLoad setSoundEffect setSpeaker setSpeech ' </span><span class="s3">+</span>
+        <span class="s4">'setSpeedMode setStamina setStaminaScheme setStatValue setSuppression setSystemOfUnits ' </span><span class="s3">+</span>
+        <span class="s4">'setTargetAge setTaskMarkerOffset setTaskResult setTaskState setTerrainGrid setText ' </span><span class="s3">+</span>
+        <span class="s4">'setTimeMultiplier setTitleEffect setTrafficDensity setTrafficDistance setTrafficGap ' </span><span class="s3">+</span>
+        <span class="s4">'setTrafficSpeed setTriggerActivation setTriggerArea setTriggerStatements setTriggerText ' </span><span class="s3">+</span>
+        <span class="s4">'setTriggerTimeout setTriggerType setType setUnconscious setUnitAbility setUnitLoadout setUnitPos ' </span><span class="s3">+</span>
+        <span class="s4">'setUnitPosWeak setUnitRank setUnitRecoilCoefficient setUnitTrait setUnloadInCombat ' </span><span class="s3">+</span>
+        <span class="s4">'setUserActionText setUserMFDText setUserMFDvalue setVariable setVectorDir setVectorDirAndUp ' </span><span class="s3">+</span>
+        <span class="s4">'setVectorUp setVehicleAmmo setVehicleAmmoDef setVehicleArmor setVehicleCargo setVehicleId ' </span><span class="s3">+</span>
+        <span class="s4">'setVehicleLock setVehiclePosition setVehicleRadar setVehicleReceiveRemoteTargets ' </span><span class="s3">+</span>
+        <span class="s4">'setVehicleReportOwnPosition setVehicleReportRemoteTargets setVehicleTIPars setVehicleVarName ' </span><span class="s3">+</span>
+        <span class="s4">'setVelocity setVelocityModelSpace setVelocityTransformation setViewDistance ' </span><span class="s3">+</span>
+        <span class="s4">'setVisibleIfTreeCollapsed setWantedRPMRTD setWaves setWaypointBehaviour setWaypointCombatMode ' </span><span class="s3">+</span>
+        <span class="s4">'setWaypointCompletionRadius setWaypointDescription setWaypointForceBehaviour setWaypointFormation ' </span><span class="s3">+</span>
+        <span class="s4">'setWaypointHousePosition setWaypointLoiterRadius setWaypointLoiterType setWaypointName ' </span><span class="s3">+</span>
+        <span class="s4">'setWaypointPosition setWaypointScript setWaypointSpeed setWaypointStatements setWaypointTimeout ' </span><span class="s3">+</span>
+        <span class="s4">'setWaypointType setWaypointVisible setWeaponReloadingTime setWind setWindDir setWindForce ' </span><span class="s3">+</span>
+        <span class="s4">'setWindStr setWingForceScaleRTD setWPPos show3DIcons showChat showCinemaBorder showCommandingMenu ' </span><span class="s3">+</span>
+        <span class="s4">'showCompass showCuratorCompass showGPS showHUD showLegend showMap shownArtilleryComputer ' </span><span class="s3">+</span>
+        <span class="s4">'shownChat shownCompass shownCuratorCompass showNewEditorObject shownGPS shownHUD shownMap ' </span><span class="s3">+</span>
+        <span class="s4">'shownPad shownRadio shownScoretable shownUAVFeed shownWarrant shownWatch showPad showRadio ' </span><span class="s3">+</span>
+        <span class="s4">'showScoretable showSubtitles showUAVFeed showWarrant showWatch showWaypoint showWaypoints side ' </span><span class="s3">+</span>
+        <span class="s4">'sideChat sideEnemy sideFriendly sideRadio simpleTasks simulationEnabled simulCloudDensity ' </span><span class="s3">+</span>
+        <span class="s4">'simulCloudOcclusion simulInClouds simulWeatherSync sin size sizeOf skill skillFinal skipTime ' </span><span class="s3">+</span>
+        <span class="s4">'sleep sliderPosition sliderRange sliderSetPosition sliderSetRange sliderSetSpeed sliderSpeed ' </span><span class="s3">+</span>
+        <span class="s4">'slingLoadAssistantShown soldierMagazines someAmmo sort soundVolume spawn speaker speed speedMode ' </span><span class="s3">+</span>
+        <span class="s4">'splitString sqrt squadParams stance startLoadingScreen step stop stopEngineRTD stopped str ' </span><span class="s3">+</span>
+        <span class="s4">'sunOrMoon supportInfo suppressFor surfaceIsWater surfaceNormal surfaceType swimInDepth ' </span><span class="s3">+</span>
+        <span class="s4">'switchableUnits switchAction switchCamera switchGesture switchLight switchMove ' </span><span class="s3">+</span>
+        <span class="s4">'synchronizedObjects synchronizedTriggers synchronizedWaypoints synchronizeObjectsAdd ' </span><span class="s3">+</span>
+        <span class="s4">'synchronizeObjectsRemove synchronizeTrigger synchronizeWaypoint systemChat systemOfUnits tan ' </span><span class="s3">+</span>
+        <span class="s4">'targetKnowledge targets targetsAggregate targetsQuery taskAlwaysVisible taskChildren ' </span><span class="s3">+</span>
+        <span class="s4">'taskCompleted taskCustomData taskDescription taskDestination taskHint taskMarkerOffset taskParent ' </span><span class="s3">+</span>
+        <span class="s4">'taskResult taskState taskType teamMember teamName teams teamSwitch teamSwitchEnabled teamType ' </span><span class="s3">+</span>
+        <span class="s4">'terminate terrainIntersect terrainIntersectASL terrainIntersectAtASL text textLog textLogFormat ' </span><span class="s3">+</span>
+        <span class="s4">'tg time timeMultiplier titleCut titleFadeOut titleObj titleRsc titleText toArray toFixed toLower ' </span><span class="s3">+</span>
+        <span class="s4">'toString toUpper triggerActivated triggerActivation triggerArea triggerAttachedVehicle ' </span><span class="s3">+</span>
+        <span class="s4">'triggerAttachObject triggerAttachVehicle triggerDynamicSimulation triggerStatements triggerText ' </span><span class="s3">+</span>
+        <span class="s4">'triggerTimeout triggerTimeoutCurrent triggerType turretLocal turretOwner turretUnit tvAdd tvClear ' </span><span class="s3">+</span>
+        <span class="s4">'tvCollapse tvCollapseAll tvCount tvCurSel tvData tvDelete tvExpand tvExpandAll tvPicture ' </span><span class="s3">+</span>
+        <span class="s4">'tvSetColor tvSetCurSel tvSetData tvSetPicture tvSetPictureColor tvSetPictureColorDisabled ' </span><span class="s3">+</span>
+        <span class="s4">'tvSetPictureColorSelected tvSetPictureRight tvSetPictureRightColor tvSetPictureRightColorDisabled ' </span><span class="s3">+</span>
+        <span class="s4">'tvSetPictureRightColorSelected tvSetText tvSetTooltip tvSetValue tvSort tvSortByValue tvText ' </span><span class="s3">+</span>
+        <span class="s4">'tvTooltip tvValue type typeName typeOf UAVControl uiNamespace uiSleep unassignCurator ' </span><span class="s3">+</span>
+        <span class="s4">'unassignItem unassignTeam unassignVehicle underwater uniform uniformContainer uniformItems ' </span><span class="s3">+</span>
+        <span class="s4">'uniformMagazines unitAddons unitAimPosition unitAimPositionVisual unitBackpack unitIsUAV unitPos ' </span><span class="s3">+</span>
+        <span class="s4">'unitReady unitRecoilCoefficient units unitsBelowHeight unlinkItem unlockAchievement ' </span><span class="s3">+</span>
+        <span class="s4">'unregisterTask updateDrawIcon updateMenuItem updateObjectTree useAISteeringComponent ' </span><span class="s3">+</span>
+        <span class="s4">'useAudioTimeForMoves userInputDisabled vectorAdd vectorCos vectorCrossProduct vectorDiff ' </span><span class="s3">+</span>
+        <span class="s4">'vectorDir vectorDirVisual vectorDistance vectorDistanceSqr vectorDotProduct vectorFromTo ' </span><span class="s3">+</span>
+        <span class="s4">'vectorMagnitude vectorMagnitudeSqr vectorModelToWorld vectorModelToWorldVisual vectorMultiply ' </span><span class="s3">+</span>
+        <span class="s4">'vectorNormalized vectorUp vectorUpVisual vectorWorldToModel vectorWorldToModelVisual vehicle ' </span><span class="s3">+</span>
+        <span class="s4">'vehicleCargoEnabled vehicleChat vehicleRadio vehicleReceiveRemoteTargets vehicleReportOwnPosition ' </span><span class="s3">+</span>
+        <span class="s4">'vehicleReportRemoteTargets vehicles vehicleVarName velocity velocityModelSpace verifySignature ' </span><span class="s3">+</span>
+        <span class="s4">'vest vestContainer vestItems vestMagazines viewDistance visibleCompass visibleGPS visibleMap ' </span><span class="s3">+</span>
+        <span class="s4">'visiblePosition visiblePositionASL visibleScoretable visibleWatch waves waypointAttachedObject ' </span><span class="s3">+</span>
+        <span class="s4">'waypointAttachedVehicle waypointAttachObject waypointAttachVehicle waypointBehaviour ' </span><span class="s3">+</span>
+        <span class="s4">'waypointCombatMode waypointCompletionRadius waypointDescription waypointForceBehaviour ' </span><span class="s3">+</span>
+        <span class="s4">'waypointFormation waypointHousePosition waypointLoiterRadius waypointLoiterType waypointName ' </span><span class="s3">+</span>
+        <span class="s4">'waypointPosition waypoints waypointScript waypointsEnabledUAV waypointShow waypointSpeed ' </span><span class="s3">+</span>
+        <span class="s4">'waypointStatements waypointTimeout waypointTimeoutCurrent waypointType waypointVisible ' </span><span class="s3">+</span>
+        <span class="s4">'weaponAccessories weaponAccessoriesCargo weaponCargo weaponDirection weaponInertia weaponLowered ' </span><span class="s3">+</span>
+        <span class="s4">'weapons weaponsItems weaponsItemsCargo weaponState weaponsTurret weightRTD WFSideText wind '</span><span class="s3">,</span>
+      <span class="s1">literal</span><span class="s3">:</span>
+        <span class="s4">'blufor civilian configNull controlNull displayNull east endl false grpNull independent lineBreak ' </span><span class="s3">+</span>
+        <span class="s4">'locationNull nil objNull opfor pi resistance scriptNull sideAmbientLife sideEmpty sideLogic ' </span><span class="s3">+</span>
+        <span class="s4">'sideUnknown taskNull teamMemberNull true west'</span>
+    <span class="s3">},</span>
+    <span class="s1">contains</span><span class="s3">: [</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">C_LINE_COMMENT_MODE</span><span class="s3">,</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">C_BLOCK_COMMENT_MODE</span><span class="s3">,</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">NUMBER_MODE</span><span class="s3">,</span>
+      <span class="s1">VARIABLE</span><span class="s3">,</span>
+      <span class="s1">FUNCTION</span><span class="s3">,</span>
+      <span class="s1">STRINGS</span><span class="s3">,</span>
+      <span class="s1">PREPROCESSOR</span>
+    <span class="s3">],</span>
+    <span class="s1">illegal</span><span class="s3">: </span><span class="s5">/#|^\$ /</span>
+  <span class="s3">};</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">sqf</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

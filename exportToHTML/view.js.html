@@ -1,0 +1,177 @@
+<html>
+<head>
+<title>view.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+view.js</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">warn </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../util/warn'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">extend </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../util/misc'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">handleRouteEntered </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../util/route'</span>
+
+<span class="s0">export default </span><span class="s2">{</span>
+  <span class="s1">name</span><span class="s2">: </span><span class="s3">'RouterView'</span><span class="s2">,</span>
+  <span class="s1">functional</span><span class="s2">: </span><span class="s0">true</span><span class="s2">,</span>
+  <span class="s1">props</span><span class="s2">: {</span>
+    <span class="s1">name</span><span class="s2">: {</span>
+      <span class="s1">type</span><span class="s2">: </span><span class="s1">String</span><span class="s2">,</span>
+      <span class="s0">default</span><span class="s2">: </span><span class="s3">'default'</span>
+    <span class="s2">}</span>
+  <span class="s2">},</span>
+  <span class="s1">render </span><span class="s2">(</span><span class="s1">_</span><span class="s2">, { </span><span class="s1">props</span><span class="s2">, </span><span class="s1">children</span><span class="s2">, </span><span class="s1">parent</span><span class="s2">, </span><span class="s1">data </span><span class="s2">}) {</span>
+    <span class="s4">// used by devtools to display a router-view badge</span>
+    <span class="s1">data</span><span class="s2">.</span><span class="s1">routerView </span><span class="s2">= </span><span class="s0">true</span>
+
+    <span class="s4">// directly use parent context's createElement() function</span>
+    <span class="s4">// so that components rendered by router-view can resolve named slots</span>
+    <span class="s0">const </span><span class="s1">h </span><span class="s2">= </span><span class="s1">parent</span><span class="s2">.</span><span class="s1">$createElement</span>
+    <span class="s0">const </span><span class="s1">name </span><span class="s2">= </span><span class="s1">props</span><span class="s2">.</span><span class="s1">name</span>
+    <span class="s0">const </span><span class="s1">route </span><span class="s2">= </span><span class="s1">parent</span><span class="s2">.</span><span class="s1">$route</span>
+    <span class="s0">const </span><span class="s1">cache </span><span class="s2">= </span><span class="s1">parent</span><span class="s2">.</span><span class="s1">_routerViewCache </span><span class="s2">|| (</span><span class="s1">parent</span><span class="s2">.</span><span class="s1">_routerViewCache </span><span class="s2">= {})</span>
+
+    <span class="s4">// determine current view depth, also check to see if the tree</span>
+    <span class="s4">// has been toggled inactive but kept-alive.</span>
+    <span class="s0">let </span><span class="s1">depth </span><span class="s2">= </span><span class="s5">0</span>
+    <span class="s0">let </span><span class="s1">inactive </span><span class="s2">= </span><span class="s0">false</span>
+    <span class="s0">while </span><span class="s2">(</span><span class="s1">parent </span><span class="s2">&amp;&amp; </span><span class="s1">parent</span><span class="s2">.</span><span class="s1">_routerRoot </span><span class="s2">!== </span><span class="s1">parent</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">vnodeData </span><span class="s2">= </span><span class="s1">parent</span><span class="s2">.</span><span class="s1">$vnode </span><span class="s2">? </span><span class="s1">parent</span><span class="s2">.</span><span class="s1">$vnode</span><span class="s2">.</span><span class="s1">data </span><span class="s2">: {}</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">vnodeData</span><span class="s2">.</span><span class="s1">routerView</span><span class="s2">) {</span>
+        <span class="s1">depth</span><span class="s2">++</span>
+      <span class="s2">}</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">vnodeData</span><span class="s2">.</span><span class="s1">keepAlive </span><span class="s2">&amp;&amp; </span><span class="s1">parent</span><span class="s2">.</span><span class="s1">_directInactive </span><span class="s2">&amp;&amp; </span><span class="s1">parent</span><span class="s2">.</span><span class="s1">_inactive</span><span class="s2">) {</span>
+        <span class="s1">inactive </span><span class="s2">= </span><span class="s0">true</span>
+      <span class="s2">}</span>
+      <span class="s1">parent </span><span class="s2">= </span><span class="s1">parent</span><span class="s2">.</span><span class="s1">$parent</span>
+    <span class="s2">}</span>
+    <span class="s1">data</span><span class="s2">.</span><span class="s1">routerViewDepth </span><span class="s2">= </span><span class="s1">depth</span>
+
+    <span class="s4">// render previous view if the tree is inactive and kept-alive</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">inactive</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">cachedData </span><span class="s2">= </span><span class="s1">cache</span><span class="s2">[</span><span class="s1">name</span><span class="s2">]</span>
+      <span class="s0">const </span><span class="s1">cachedComponent </span><span class="s2">= </span><span class="s1">cachedData </span><span class="s2">&amp;&amp; </span><span class="s1">cachedData</span><span class="s2">.</span><span class="s1">component</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">cachedComponent</span><span class="s2">) {</span>
+        <span class="s4">// #2301</span>
+        <span class="s4">// pass props</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">cachedData</span><span class="s2">.</span><span class="s1">configProps</span><span class="s2">) {</span>
+          <span class="s1">fillPropsinData</span><span class="s2">(</span><span class="s1">cachedComponent</span><span class="s2">, </span><span class="s1">data</span><span class="s2">, </span><span class="s1">cachedData</span><span class="s2">.</span><span class="s1">route</span><span class="s2">, </span><span class="s1">cachedData</span><span class="s2">.</span><span class="s1">configProps</span><span class="s2">)</span>
+        <span class="s2">}</span>
+        <span class="s0">return </span><span class="s1">h</span><span class="s2">(</span><span class="s1">cachedComponent</span><span class="s2">, </span><span class="s1">data</span><span class="s2">, </span><span class="s1">children</span><span class="s2">)</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s4">// render previous empty view</span>
+        <span class="s0">return </span><span class="s1">h</span><span class="s2">()</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s0">const </span><span class="s1">matched </span><span class="s2">= </span><span class="s1">route</span><span class="s2">.</span><span class="s1">matched</span><span class="s2">[</span><span class="s1">depth</span><span class="s2">]</span>
+    <span class="s0">const </span><span class="s1">component </span><span class="s2">= </span><span class="s1">matched </span><span class="s2">&amp;&amp; </span><span class="s1">matched</span><span class="s2">.</span><span class="s1">components</span><span class="s2">[</span><span class="s1">name</span><span class="s2">]</span>
+
+    <span class="s4">// render empty node if no matched route or no config component</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">matched </span><span class="s2">|| !</span><span class="s1">component</span><span class="s2">) {</span>
+      <span class="s1">cache</span><span class="s2">[</span><span class="s1">name</span><span class="s2">] = </span><span class="s0">null</span>
+      <span class="s0">return </span><span class="s1">h</span><span class="s2">()</span>
+    <span class="s2">}</span>
+
+    <span class="s4">// cache component</span>
+    <span class="s1">cache</span><span class="s2">[</span><span class="s1">name</span><span class="s2">] = { </span><span class="s1">component </span><span class="s2">}</span>
+
+    <span class="s4">// attach instance registration hook</span>
+    <span class="s4">// this will be called in the instance's injected lifecycle hooks</span>
+    <span class="s1">data</span><span class="s2">.</span><span class="s1">registerRouteInstance </span><span class="s2">= (</span><span class="s1">vm</span><span class="s2">, </span><span class="s1">val</span><span class="s2">) =&gt; {</span>
+      <span class="s4">// val could be undefined for unregistration</span>
+      <span class="s0">const </span><span class="s1">current </span><span class="s2">= </span><span class="s1">matched</span><span class="s2">.</span><span class="s1">instances</span><span class="s2">[</span><span class="s1">name</span><span class="s2">]</span>
+      <span class="s0">if </span><span class="s2">(</span>
+        <span class="s2">(</span><span class="s1">val </span><span class="s2">&amp;&amp; </span><span class="s1">current </span><span class="s2">!== </span><span class="s1">vm</span><span class="s2">) ||</span>
+        <span class="s2">(!</span><span class="s1">val </span><span class="s2">&amp;&amp; </span><span class="s1">current </span><span class="s2">=== </span><span class="s1">vm</span><span class="s2">)</span>
+      <span class="s2">) {</span>
+        <span class="s1">matched</span><span class="s2">.</span><span class="s1">instances</span><span class="s2">[</span><span class="s1">name</span><span class="s2">] = </span><span class="s1">val</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s4">// also register instance in prepatch hook</span>
+    <span class="s4">// in case the same component instance is reused across different routes</span>
+    <span class="s2">;(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">hook </span><span class="s2">|| (</span><span class="s1">data</span><span class="s2">.</span><span class="s1">hook </span><span class="s2">= {})).</span><span class="s1">prepatch </span><span class="s2">= (</span><span class="s1">_</span><span class="s2">, </span><span class="s1">vnode</span><span class="s2">) =&gt; {</span>
+      <span class="s1">matched</span><span class="s2">.</span><span class="s1">instances</span><span class="s2">[</span><span class="s1">name</span><span class="s2">] = </span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">componentInstance</span>
+    <span class="s2">}</span>
+
+    <span class="s4">// register instance in init hook</span>
+    <span class="s4">// in case kept-alive component be actived when routes changed</span>
+    <span class="s1">data</span><span class="s2">.</span><span class="s1">hook</span><span class="s2">.</span><span class="s1">init </span><span class="s2">= (</span><span class="s1">vnode</span><span class="s2">) =&gt; {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">data</span><span class="s2">.</span><span class="s1">keepAlive </span><span class="s2">&amp;&amp;</span>
+        <span class="s1">vnode</span><span class="s2">.</span><span class="s1">componentInstance </span><span class="s2">&amp;&amp;</span>
+        <span class="s1">vnode</span><span class="s2">.</span><span class="s1">componentInstance </span><span class="s2">!== </span><span class="s1">matched</span><span class="s2">.</span><span class="s1">instances</span><span class="s2">[</span><span class="s1">name</span><span class="s2">]</span>
+      <span class="s2">) {</span>
+        <span class="s1">matched</span><span class="s2">.</span><span class="s1">instances</span><span class="s2">[</span><span class="s1">name</span><span class="s2">] = </span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">componentInstance</span>
+      <span class="s2">}</span>
+
+      <span class="s4">// if the route transition has already been confirmed then we weren't</span>
+      <span class="s4">// able to call the cbs during confirmation as the component was not</span>
+      <span class="s4">// registered yet, so we call it here.</span>
+      <span class="s1">handleRouteEntered</span><span class="s2">(</span><span class="s1">route</span><span class="s2">)</span>
+    <span class="s2">}</span>
+
+    <span class="s0">const </span><span class="s1">configProps </span><span class="s2">= </span><span class="s1">matched</span><span class="s2">.</span><span class="s1">props </span><span class="s2">&amp;&amp; </span><span class="s1">matched</span><span class="s2">.</span><span class="s1">props</span><span class="s2">[</span><span class="s1">name</span><span class="s2">]</span>
+    <span class="s4">// save route and configProps in cache</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">configProps</span><span class="s2">) {</span>
+      <span class="s1">extend</span><span class="s2">(</span><span class="s1">cache</span><span class="s2">[</span><span class="s1">name</span><span class="s2">], {</span>
+        <span class="s1">route</span><span class="s2">,</span>
+        <span class="s1">configProps</span>
+      <span class="s2">})</span>
+      <span class="s1">fillPropsinData</span><span class="s2">(</span><span class="s1">component</span><span class="s2">, </span><span class="s1">data</span><span class="s2">, </span><span class="s1">route</span><span class="s2">, </span><span class="s1">configProps</span><span class="s2">)</span>
+    <span class="s2">}</span>
+
+    <span class="s0">return </span><span class="s1">h</span><span class="s2">(</span><span class="s1">component</span><span class="s2">, </span><span class="s1">data</span><span class="s2">, </span><span class="s1">children</span><span class="s2">)</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">fillPropsinData </span><span class="s2">(</span><span class="s1">component</span><span class="s2">, </span><span class="s1">data</span><span class="s2">, </span><span class="s1">route</span><span class="s2">, </span><span class="s1">configProps</span><span class="s2">) {</span>
+  <span class="s4">// resolve props</span>
+  <span class="s0">let </span><span class="s1">propsToPass </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">props </span><span class="s2">= </span><span class="s1">resolveProps</span><span class="s2">(</span><span class="s1">route</span><span class="s2">, </span><span class="s1">configProps</span><span class="s2">)</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">propsToPass</span><span class="s2">) {</span>
+    <span class="s4">// clone to prevent mutation</span>
+    <span class="s1">propsToPass </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">props </span><span class="s2">= </span><span class="s1">extend</span><span class="s2">({}, </span><span class="s1">propsToPass</span><span class="s2">)</span>
+    <span class="s4">// pass non-declared props as attrs</span>
+    <span class="s0">const </span><span class="s1">attrs </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs </span><span class="s2">|| {}</span>
+    <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">propsToPass</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(!</span><span class="s1">component</span><span class="s2">.</span><span class="s1">props </span><span class="s2">|| !(</span><span class="s1">key </span><span class="s0">in </span><span class="s1">component</span><span class="s2">.</span><span class="s1">props</span><span class="s2">)) {</span>
+        <span class="s1">attrs</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = </span><span class="s1">propsToPass</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+        <span class="s0">delete </span><span class="s1">propsToPass</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">resolveProps </span><span class="s2">(</span><span class="s1">route</span><span class="s2">, </span><span class="s1">config</span><span class="s2">) {</span>
+  <span class="s0">switch </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">config</span><span class="s2">) {</span>
+    <span class="s0">case </span><span class="s3">'undefined'</span><span class="s2">:</span>
+      <span class="s0">return</span>
+    <span class="s0">case </span><span class="s3">'object'</span><span class="s2">:</span>
+      <span class="s0">return </span><span class="s1">config</span>
+    <span class="s0">case </span><span class="s3">'function'</span><span class="s2">:</span>
+      <span class="s0">return </span><span class="s1">config</span><span class="s2">(</span><span class="s1">route</span><span class="s2">)</span>
+    <span class="s0">case </span><span class="s3">'boolean'</span><span class="s2">:</span>
+      <span class="s0">return </span><span class="s1">config </span><span class="s2">? </span><span class="s1">route</span><span class="s2">.</span><span class="s1">params </span><span class="s2">: </span><span class="s1">undefined</span>
+    <span class="s0">default</span><span class="s2">:</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">NODE_ENV </span><span class="s2">!== </span><span class="s3">'production'</span><span class="s2">) {</span>
+        <span class="s1">warn</span><span class="s2">(</span>
+          <span class="s0">false</span><span class="s2">,</span>
+          <span class="s3">`props in &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">route</span><span class="s2">.</span><span class="s1">path</span><span class="s2">}</span><span class="s3">&quot; is a </span><span class="s1">$</span><span class="s2">{</span><span class="s0">typeof </span><span class="s1">config</span><span class="s2">}</span><span class="s3">, ` </span><span class="s2">+</span>
+          <span class="s3">`expecting an object, function or boolean.`</span>
+        <span class="s2">)</span>
+      <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

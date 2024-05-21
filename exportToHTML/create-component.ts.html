@@ -1,0 +1,297 @@
+<html>
+<head>
+<title>create-component.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+create-component.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">VNode from </span><span class="s2">'./vnode'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">isArray </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'core/util'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">resolveConstructorOptions </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'core/instance/init'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">queueActivatedComponent </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'core/observer/scheduler'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">createFunctionalComponent </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./create-functional-component'</span>
+
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">warn</span><span class="s3">, </span><span class="s1">isDef</span><span class="s3">, </span><span class="s1">isUndef</span><span class="s3">, </span><span class="s1">isTrue</span><span class="s3">, </span><span class="s1">isObject </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'../util/index'</span>
+
+<span class="s0">import </span><span class="s3">{</span>
+  <span class="s1">resolveAsyncComponent</span><span class="s3">,</span>
+  <span class="s1">createAsyncPlaceholder</span><span class="s3">,</span>
+  <span class="s1">extractPropsFromVNodeData</span>
+<span class="s3">} </span><span class="s1">from </span><span class="s2">'./helpers/index'</span>
+
+<span class="s0">import </span><span class="s3">{</span>
+  <span class="s1">callHook</span><span class="s3">,</span>
+  <span class="s1">activeInstance</span><span class="s3">,</span>
+  <span class="s1">updateChildComponent</span><span class="s3">,</span>
+  <span class="s1">activateChildComponent</span><span class="s3">,</span>
+  <span class="s1">deactivateChildComponent</span>
+<span class="s3">} </span><span class="s1">from </span><span class="s2">'../instance/lifecycle'</span>
+
+<span class="s0">import </span><span class="s1">type </span><span class="s3">{</span>
+  <span class="s1">MountedComponentVNode</span><span class="s3">,</span>
+  <span class="s1">VNodeData</span><span class="s3">,</span>
+  <span class="s1">VNodeWithData</span>
+<span class="s3">} </span><span class="s1">from </span><span class="s2">'types/vnode'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s3">{ </span><span class="s1">Component </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'types/component'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s3">{ </span><span class="s1">ComponentOptions</span><span class="s3">, </span><span class="s1">InternalComponentOptions </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'types/options'</span>
+
+<span class="s0">export function </span><span class="s1">getComponentName</span><span class="s3">(</span><span class="s1">options</span><span class="s3">: </span><span class="s1">ComponentOptions</span><span class="s3">) {</span>
+  <span class="s0">return </span><span class="s1">options</span><span class="s3">.</span><span class="s1">name </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">.</span><span class="s1">__name </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">.</span><span class="s1">_componentTag</span>
+<span class="s3">}</span>
+
+<span class="s4">// inline hooks to be invoked on component VNodes during patch</span>
+<span class="s0">const </span><span class="s1">componentVNodeHooks </span><span class="s3">= {</span>
+  <span class="s1">init</span><span class="s3">(</span><span class="s1">vnode</span><span class="s3">: </span><span class="s1">VNodeWithData</span><span class="s3">, </span><span class="s1">hydrating</span><span class="s3">: </span><span class="s1">boolean</span><span class="s3">): </span><span class="s1">boolean </span><span class="s3">| </span><span class="s0">void </span><span class="s3">{</span>
+    <span class="s0">if </span><span class="s3">(</span>
+      <span class="s1">vnode</span><span class="s3">.</span><span class="s1">componentInstance </span><span class="s3">&amp;&amp;</span>
+      <span class="s3">!</span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">componentInstance</span><span class="s3">.</span><span class="s1">_isDestroyed </span><span class="s3">&amp;&amp;</span>
+      <span class="s1">vnode</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">keepAlive</span>
+    <span class="s3">) {</span>
+      <span class="s4">// kept-alive components, treat as a patch</span>
+      <span class="s0">const </span><span class="s1">mountedNode</span><span class="s3">: </span><span class="s1">any </span><span class="s3">= </span><span class="s1">vnode </span><span class="s4">// work around flow</span>
+      <span class="s1">componentVNodeHooks</span><span class="s3">.</span><span class="s1">prepatch</span><span class="s3">(</span><span class="s1">mountedNode</span><span class="s3">, </span><span class="s1">mountedNode</span><span class="s3">)</span>
+    <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+      <span class="s0">const </span><span class="s1">child </span><span class="s3">= (</span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">componentInstance </span><span class="s3">= </span><span class="s1">createComponentInstanceForVnode</span><span class="s3">(</span>
+        <span class="s1">vnode</span><span class="s3">,</span>
+        <span class="s1">activeInstance</span>
+      <span class="s3">))</span>
+      <span class="s1">child</span><span class="s3">.</span><span class="s1">$mount</span><span class="s3">(</span><span class="s1">hydrating </span><span class="s3">? </span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">elm </span><span class="s3">: </span><span class="s1">undefined</span><span class="s3">, </span><span class="s1">hydrating</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">},</span>
+
+  <span class="s1">prepatch</span><span class="s3">(</span><span class="s1">oldVnode</span><span class="s3">: </span><span class="s1">MountedComponentVNode</span><span class="s3">, </span><span class="s1">vnode</span><span class="s3">: </span><span class="s1">MountedComponentVNode</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">options </span><span class="s3">= </span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">componentOptions</span>
+    <span class="s0">const </span><span class="s1">child </span><span class="s3">= (</span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">componentInstance </span><span class="s3">= </span><span class="s1">oldVnode</span><span class="s3">.</span><span class="s1">componentInstance</span><span class="s3">)</span>
+    <span class="s1">updateChildComponent</span><span class="s3">(</span>
+      <span class="s1">child</span><span class="s3">,</span>
+      <span class="s1">options</span><span class="s3">.</span><span class="s1">propsData</span><span class="s3">, </span><span class="s4">// updated props</span>
+      <span class="s1">options</span><span class="s3">.</span><span class="s1">listeners</span><span class="s3">, </span><span class="s4">// updated listeners</span>
+      <span class="s1">vnode</span><span class="s3">, </span><span class="s4">// new parent vnode</span>
+      <span class="s1">options</span><span class="s3">.</span><span class="s1">children </span><span class="s4">// new children</span>
+    <span class="s3">)</span>
+  <span class="s3">},</span>
+
+  <span class="s1">insert</span><span class="s3">(</span><span class="s1">vnode</span><span class="s3">: </span><span class="s1">MountedComponentVNode</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s3">{ </span><span class="s1">context</span><span class="s3">, </span><span class="s1">componentInstance </span><span class="s3">} = </span><span class="s1">vnode</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">componentInstance</span><span class="s3">.</span><span class="s1">_isMounted</span><span class="s3">) {</span>
+      <span class="s1">componentInstance</span><span class="s3">.</span><span class="s1">_isMounted </span><span class="s3">= </span><span class="s0">true</span>
+      <span class="s1">callHook</span><span class="s3">(</span><span class="s1">componentInstance</span><span class="s3">, </span><span class="s2">'mounted'</span><span class="s3">)</span>
+    <span class="s3">}</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">keepAlive</span><span class="s3">) {</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">context</span><span class="s3">.</span><span class="s1">_isMounted</span><span class="s3">) {</span>
+        <span class="s4">// vue-router#1212</span>
+        <span class="s4">// During updates, a kept-alive component's child components may</span>
+        <span class="s4">// change, so directly walking the tree here may call activated hooks</span>
+        <span class="s4">// on incorrect children. Instead we push them into a queue which will</span>
+        <span class="s4">// be processed after the whole patch process ended.</span>
+        <span class="s1">queueActivatedComponent</span><span class="s3">(</span><span class="s1">componentInstance</span><span class="s3">)</span>
+      <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+        <span class="s1">activateChildComponent</span><span class="s3">(</span><span class="s1">componentInstance</span><span class="s3">, </span><span class="s0">true </span><span class="s4">/* direct */</span><span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">},</span>
+
+  <span class="s1">destroy</span><span class="s3">(</span><span class="s1">vnode</span><span class="s3">: </span><span class="s1">MountedComponentVNode</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s3">{ </span><span class="s1">componentInstance </span><span class="s3">} = </span><span class="s1">vnode</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">componentInstance</span><span class="s3">.</span><span class="s1">_isDestroyed</span><span class="s3">) {</span>
+      <span class="s0">if </span><span class="s3">(!</span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">keepAlive</span><span class="s3">) {</span>
+        <span class="s1">componentInstance</span><span class="s3">.</span><span class="s1">$destroy</span><span class="s3">()</span>
+      <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+        <span class="s1">deactivateChildComponent</span><span class="s3">(</span><span class="s1">componentInstance</span><span class="s3">, </span><span class="s0">true </span><span class="s4">/* direct */</span><span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">const </span><span class="s1">hooksToMerge </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">(</span><span class="s1">componentVNodeHooks</span><span class="s3">)</span>
+
+<span class="s0">export function </span><span class="s1">createComponent</span><span class="s3">(</span>
+  <span class="s1">Ctor</span><span class="s3">: </span><span class="s0">typeof </span><span class="s1">Component </span><span class="s3">| </span><span class="s1">Function </span><span class="s3">| </span><span class="s1">ComponentOptions </span><span class="s3">| </span><span class="s0">void</span><span class="s3">,</span>
+  <span class="s1">data</span><span class="s3">: </span><span class="s1">VNodeData </span><span class="s3">| </span><span class="s1">undefined</span><span class="s3">,</span>
+  <span class="s1">context</span><span class="s3">: </span><span class="s1">Component</span><span class="s3">,</span>
+  <span class="s1">children</span><span class="s3">?: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt;,</span>
+  <span class="s1">tag</span><span class="s3">?: </span><span class="s1">string</span>
+<span class="s3">): </span><span class="s1">VNode </span><span class="s3">| </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt; | </span><span class="s0">void </span><span class="s3">{</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isUndef</span><span class="s3">(</span><span class="s1">Ctor</span><span class="s3">)) {</span>
+    <span class="s0">return</span>
+  <span class="s3">}</span>
+
+  <span class="s0">const </span><span class="s1">baseCtor </span><span class="s3">= </span><span class="s1">context</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">_base</span>
+
+  <span class="s4">// plain options object: turn it into a constructor</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isObject</span><span class="s3">(</span><span class="s1">Ctor</span><span class="s3">)) {</span>
+    <span class="s1">Ctor </span><span class="s3">= </span><span class="s1">baseCtor</span><span class="s3">.</span><span class="s1">extend</span><span class="s3">(</span><span class="s1">Ctor </span><span class="s3">as </span><span class="s0">typeof </span><span class="s1">Component</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// if at this stage it's not a constructor or an async component factory,</span>
+  <span class="s4">// reject.</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s0">typeof </span><span class="s1">Ctor </span><span class="s3">!== </span><span class="s2">'function'</span><span class="s3">) {</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__</span><span class="s3">) {</span>
+      <span class="s1">warn</span><span class="s3">(</span><span class="s2">`Invalid Component definition: </span><span class="s1">$</span><span class="s3">{</span><span class="s1">String</span><span class="s3">(</span><span class="s1">Ctor</span><span class="s3">)}</span><span class="s2">`</span><span class="s3">, </span><span class="s1">context</span><span class="s3">)</span>
+    <span class="s3">}</span>
+    <span class="s0">return</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// async component</span>
+  <span class="s0">let </span><span class="s1">asyncFactory</span>
+  <span class="s4">// @ts-expect-error</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isUndef</span><span class="s3">(</span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">cid</span><span class="s3">)) {</span>
+    <span class="s1">asyncFactory </span><span class="s3">= </span><span class="s1">Ctor</span>
+    <span class="s1">Ctor </span><span class="s3">= </span><span class="s1">resolveAsyncComponent</span><span class="s3">(</span><span class="s1">asyncFactory</span><span class="s3">, </span><span class="s1">baseCtor</span><span class="s3">)</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">Ctor </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+      <span class="s4">// return a placeholder node for async component, which is rendered</span>
+      <span class="s4">// as a comment node but preserves all the raw information for the node.</span>
+      <span class="s4">// the information will be used for async server-rendering and hydration.</span>
+      <span class="s0">return </span><span class="s1">createAsyncPlaceholder</span><span class="s3">(</span><span class="s1">asyncFactory</span><span class="s3">, </span><span class="s1">data</span><span class="s3">, </span><span class="s1">context</span><span class="s3">, </span><span class="s1">children</span><span class="s3">, </span><span class="s1">tag</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">data </span><span class="s3">= </span><span class="s1">data </span><span class="s3">|| {}</span>
+
+  <span class="s4">// resolve constructor options in case global mixins are applied after</span>
+  <span class="s4">// component constructor creation</span>
+  <span class="s1">resolveConstructorOptions</span><span class="s3">(</span><span class="s1">Ctor </span><span class="s3">as </span><span class="s0">typeof </span><span class="s1">Component</span><span class="s3">)</span>
+
+  <span class="s4">// transform component v-model data into props &amp; events</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isDef</span><span class="s3">(</span><span class="s1">data</span><span class="s3">.</span><span class="s1">model</span><span class="s3">)) {</span>
+    <span class="s4">// @ts-expect-error</span>
+    <span class="s1">transformModel</span><span class="s3">(</span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">options</span><span class="s3">, </span><span class="s1">data</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// extract props</span>
+  <span class="s4">// @ts-expect-error</span>
+  <span class="s0">const </span><span class="s1">propsData </span><span class="s3">= </span><span class="s1">extractPropsFromVNodeData</span><span class="s3">(</span><span class="s1">data</span><span class="s3">, </span><span class="s1">Ctor</span><span class="s3">, </span><span class="s1">tag</span><span class="s3">)</span>
+
+  <span class="s4">// functional component</span>
+  <span class="s4">// @ts-expect-error</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isTrue</span><span class="s3">(</span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">options</span><span class="s3">.</span><span class="s1">functional</span><span class="s3">)) {</span>
+    <span class="s0">return </span><span class="s1">createFunctionalComponent</span><span class="s3">(</span>
+      <span class="s1">Ctor </span><span class="s3">as </span><span class="s0">typeof </span><span class="s1">Component</span><span class="s3">,</span>
+      <span class="s1">propsData</span><span class="s3">,</span>
+      <span class="s1">data</span><span class="s3">,</span>
+      <span class="s1">context</span><span class="s3">,</span>
+      <span class="s1">children</span>
+    <span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// extract listeners, since these needs to be treated as</span>
+  <span class="s4">// child component listeners instead of DOM listeners</span>
+  <span class="s0">const </span><span class="s1">listeners </span><span class="s3">= </span><span class="s1">data</span><span class="s3">.</span><span class="s1">on</span>
+  <span class="s4">// replace with listeners with .native modifier</span>
+  <span class="s4">// so it gets processed during parent component patch.</span>
+  <span class="s1">data</span><span class="s3">.</span><span class="s1">on </span><span class="s3">= </span><span class="s1">data</span><span class="s3">.</span><span class="s1">nativeOn</span>
+
+  <span class="s4">// @ts-expect-error</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isTrue</span><span class="s3">(</span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">options</span><span class="s3">.</span><span class="s1">abstract</span><span class="s3">)) {</span>
+    <span class="s4">// abstract components do not keep anything</span>
+    <span class="s4">// other than props &amp; listeners &amp; slot</span>
+
+    <span class="s4">// work around flow</span>
+    <span class="s0">const </span><span class="s1">slot </span><span class="s3">= </span><span class="s1">data</span><span class="s3">.</span><span class="s1">slot</span>
+    <span class="s1">data </span><span class="s3">= {}</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">slot</span><span class="s3">) {</span>
+      <span class="s1">data</span><span class="s3">.</span><span class="s1">slot </span><span class="s3">= </span><span class="s1">slot</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// install component management hooks onto the placeholder node</span>
+  <span class="s1">installComponentHooks</span><span class="s3">(</span><span class="s1">data</span><span class="s3">)</span>
+
+  <span class="s4">// return a placeholder vnode</span>
+  <span class="s4">// @ts-expect-error</span>
+  <span class="s0">const </span><span class="s1">name </span><span class="s3">= </span><span class="s1">getComponentName</span><span class="s3">(</span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">options</span><span class="s3">) || </span><span class="s1">tag</span>
+  <span class="s0">const </span><span class="s1">vnode </span><span class="s3">= </span><span class="s0">new </span><span class="s1">VNode</span><span class="s3">(</span>
+    <span class="s4">// @ts-expect-error</span>
+    <span class="s2">`vue-component-</span><span class="s1">$</span><span class="s3">{</span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">cid</span><span class="s3">}</span><span class="s1">$</span><span class="s3">{</span><span class="s1">name </span><span class="s3">? </span><span class="s2">`-</span><span class="s1">$</span><span class="s3">{</span><span class="s1">name</span><span class="s3">}</span><span class="s2">` </span><span class="s3">: </span><span class="s2">''</span><span class="s3">}</span><span class="s2">`</span><span class="s3">,</span>
+    <span class="s1">data</span><span class="s3">,</span>
+    <span class="s1">undefined</span><span class="s3">,</span>
+    <span class="s1">undefined</span><span class="s3">,</span>
+    <span class="s1">undefined</span><span class="s3">,</span>
+    <span class="s1">context</span><span class="s3">,</span>
+    <span class="s4">// @ts-expect-error</span>
+    <span class="s3">{ </span><span class="s1">Ctor</span><span class="s3">, </span><span class="s1">propsData</span><span class="s3">, </span><span class="s1">listeners</span><span class="s3">, </span><span class="s1">tag</span><span class="s3">, </span><span class="s1">children </span><span class="s3">},</span>
+    <span class="s1">asyncFactory</span>
+  <span class="s3">)</span>
+
+  <span class="s0">return </span><span class="s1">vnode</span>
+<span class="s3">}</span>
+
+<span class="s0">export function </span><span class="s1">createComponentInstanceForVnode</span><span class="s3">(</span>
+  <span class="s4">// we know it's MountedComponentVNode but flow doesn't</span>
+  <span class="s1">vnode</span><span class="s3">: </span><span class="s1">any</span><span class="s3">,</span>
+  <span class="s4">// activeInstance in lifecycle state</span>
+  <span class="s1">parent</span><span class="s3">?: </span><span class="s1">any</span>
+<span class="s3">): </span><span class="s1">Component </span><span class="s3">{</span>
+  <span class="s0">const </span><span class="s1">options</span><span class="s3">: </span><span class="s1">InternalComponentOptions </span><span class="s3">= {</span>
+    <span class="s1">_isComponent</span><span class="s3">: </span><span class="s0">true</span><span class="s3">,</span>
+    <span class="s1">_parentVnode</span><span class="s3">: </span><span class="s1">vnode</span><span class="s3">,</span>
+    <span class="s1">parent</span>
+  <span class="s3">}</span>
+  <span class="s4">// check inline-template render functions</span>
+  <span class="s0">const </span><span class="s1">inlineTemplate </span><span class="s3">= </span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">inlineTemplate</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isDef</span><span class="s3">(</span><span class="s1">inlineTemplate</span><span class="s3">)) {</span>
+    <span class="s1">options</span><span class="s3">.</span><span class="s1">render </span><span class="s3">= </span><span class="s1">inlineTemplate</span><span class="s3">.</span><span class="s1">render</span>
+    <span class="s1">options</span><span class="s3">.</span><span class="s1">staticRenderFns </span><span class="s3">= </span><span class="s1">inlineTemplate</span><span class="s3">.</span><span class="s1">staticRenderFns</span>
+  <span class="s3">}</span>
+  <span class="s0">return new </span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">componentOptions</span><span class="s3">.</span><span class="s1">Ctor</span><span class="s3">(</span><span class="s1">options</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s0">function </span><span class="s1">installComponentHooks</span><span class="s3">(</span><span class="s1">data</span><span class="s3">: </span><span class="s1">VNodeData</span><span class="s3">) {</span>
+  <span class="s0">const </span><span class="s1">hooks </span><span class="s3">= </span><span class="s1">data</span><span class="s3">.</span><span class="s1">hook </span><span class="s3">|| (</span><span class="s1">data</span><span class="s3">.</span><span class="s1">hook </span><span class="s3">= {})</span>
+  <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">hooksToMerge</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+    <span class="s0">const </span><span class="s1">key </span><span class="s3">= </span><span class="s1">hooksToMerge</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+    <span class="s0">const </span><span class="s1">existing </span><span class="s3">= </span><span class="s1">hooks</span><span class="s3">[</span><span class="s1">key</span><span class="s3">]</span>
+    <span class="s0">const </span><span class="s1">toMerge </span><span class="s3">= </span><span class="s1">componentVNodeHooks</span><span class="s3">[</span><span class="s1">key</span><span class="s3">]</span>
+    <span class="s4">// @ts-expect-error</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">existing </span><span class="s3">!== </span><span class="s1">toMerge </span><span class="s3">&amp;&amp; !(</span><span class="s1">existing </span><span class="s3">&amp;&amp; </span><span class="s1">existing</span><span class="s3">.</span><span class="s1">_merged</span><span class="s3">)) {</span>
+      <span class="s1">hooks</span><span class="s3">[</span><span class="s1">key</span><span class="s3">] = </span><span class="s1">existing </span><span class="s3">? </span><span class="s1">mergeHook</span><span class="s3">(</span><span class="s1">toMerge</span><span class="s3">, </span><span class="s1">existing</span><span class="s3">) : </span><span class="s1">toMerge</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">function </span><span class="s1">mergeHook</span><span class="s3">(</span><span class="s1">f1</span><span class="s3">: </span><span class="s1">any</span><span class="s3">, </span><span class="s1">f2</span><span class="s3">: </span><span class="s1">any</span><span class="s3">): </span><span class="s1">Function </span><span class="s3">{</span>
+  <span class="s0">const </span><span class="s1">merged </span><span class="s3">= (</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">) =&gt; {</span>
+    <span class="s4">// flow complains about extra args which is why we use any</span>
+    <span class="s1">f1</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span>
+    <span class="s1">f2</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span>
+  <span class="s3">}</span>
+  <span class="s1">merged</span><span class="s3">.</span><span class="s1">_merged </span><span class="s3">= </span><span class="s0">true</span>
+  <span class="s0">return </span><span class="s1">merged</span>
+<span class="s3">}</span>
+
+<span class="s4">// transform component v-model info (value and callback) into</span>
+<span class="s4">// prop and event handler respectively.</span>
+<span class="s0">function </span><span class="s1">transformModel</span><span class="s3">(</span><span class="s1">options</span><span class="s3">, </span><span class="s1">data</span><span class="s3">: </span><span class="s1">any</span><span class="s3">) {</span>
+  <span class="s0">const </span><span class="s1">prop </span><span class="s3">= (</span><span class="s1">options</span><span class="s3">.</span><span class="s1">model </span><span class="s3">&amp;&amp; </span><span class="s1">options</span><span class="s3">.</span><span class="s1">model</span><span class="s3">.</span><span class="s1">prop</span><span class="s3">) || </span><span class="s2">'value'</span>
+  <span class="s0">const </span><span class="s1">event </span><span class="s3">= (</span><span class="s1">options</span><span class="s3">.</span><span class="s1">model </span><span class="s3">&amp;&amp; </span><span class="s1">options</span><span class="s3">.</span><span class="s1">model</span><span class="s3">.</span><span class="s1">event</span><span class="s3">) || </span><span class="s2">'input'</span>
+  <span class="s3">;(</span><span class="s1">data</span><span class="s3">.</span><span class="s1">attrs </span><span class="s3">|| (</span><span class="s1">data</span><span class="s3">.</span><span class="s1">attrs </span><span class="s3">= {}))[</span><span class="s1">prop</span><span class="s3">] = </span><span class="s1">data</span><span class="s3">.</span><span class="s1">model</span><span class="s3">.</span><span class="s1">value</span>
+  <span class="s0">const </span><span class="s1">on </span><span class="s3">= </span><span class="s1">data</span><span class="s3">.</span><span class="s1">on </span><span class="s3">|| (</span><span class="s1">data</span><span class="s3">.</span><span class="s1">on </span><span class="s3">= {})</span>
+  <span class="s0">const </span><span class="s1">existing </span><span class="s3">= </span><span class="s1">on</span><span class="s3">[</span><span class="s1">event</span><span class="s3">]</span>
+  <span class="s0">const </span><span class="s1">callback </span><span class="s3">= </span><span class="s1">data</span><span class="s3">.</span><span class="s1">model</span><span class="s3">.</span><span class="s1">callback</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isDef</span><span class="s3">(</span><span class="s1">existing</span><span class="s3">)) {</span>
+    <span class="s0">if </span><span class="s3">(</span>
+      <span class="s1">isArray</span><span class="s3">(</span><span class="s1">existing</span><span class="s3">)</span>
+        <span class="s3">? </span><span class="s1">existing</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) === -</span><span class="s5">1</span>
+        <span class="s3">: </span><span class="s1">existing </span><span class="s3">!== </span><span class="s1">callback</span>
+    <span class="s3">) {</span>
+      <span class="s1">on</span><span class="s3">[</span><span class="s1">event</span><span class="s3">] = [</span><span class="s1">callback</span><span class="s3">].</span><span class="s1">concat</span><span class="s3">(</span><span class="s1">existing</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+    <span class="s1">on</span><span class="s3">[</span><span class="s1">event</span><span class="s3">] = </span><span class="s1">callback</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

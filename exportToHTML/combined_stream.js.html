@@ -1,0 +1,230 @@
+<html>
+<head>
+<title>combined_stream.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+combined_stream.js</font>
+</center></td></tr></table>
+<pre><span class="s0">var </span><span class="s1">util </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'util'</span><span class="s2">);</span>
+<span class="s0">var </span><span class="s1">Stream </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'stream'</span><span class="s2">).</span><span class="s1">Stream</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">DelayedStream </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'delayed-stream'</span><span class="s2">);</span>
+
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= </span><span class="s1">CombinedStream</span><span class="s2">;</span>
+<span class="s0">function </span><span class="s1">CombinedStream</span><span class="s2">() {</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">writable </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">readable </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">dataSize </span><span class="s2">= </span><span class="s4">0</span><span class="s2">;</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">maxDataSize </span><span class="s2">= </span><span class="s4">2 </span><span class="s2">* </span><span class="s4">1024 </span><span class="s2">* </span><span class="s4">1024</span><span class="s2">;</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">pauseStreams </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_released </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_streams </span><span class="s2">= [];</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_currentStream </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_insideLoop </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_pendingNext </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+<span class="s2">}</span>
+<span class="s1">util</span><span class="s2">.</span><span class="s1">inherits</span><span class="s2">(</span><span class="s1">CombinedStream</span><span class="s2">, </span><span class="s1">Stream</span><span class="s2">);</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">create </span><span class="s2">= </span><span class="s0">function</span><span class="s2">(</span><span class="s1">options</span><span class="s2">) {</span>
+  <span class="s0">var </span><span class="s1">combinedStream </span><span class="s2">= </span><span class="s0">new this</span><span class="s2">();</span>
+
+  <span class="s1">options </span><span class="s2">= </span><span class="s1">options </span><span class="s2">|| {};</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">var </span><span class="s1">option </span><span class="s0">in </span><span class="s1">options</span><span class="s2">) {</span>
+    <span class="s1">combinedStream</span><span class="s2">[</span><span class="s1">option</span><span class="s2">] = </span><span class="s1">options</span><span class="s2">[</span><span class="s1">option</span><span class="s2">];</span>
+  <span class="s2">}</span>
+
+  <span class="s0">return </span><span class="s1">combinedStream</span><span class="s2">;</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">isStreamLike </span><span class="s2">= </span><span class="s0">function</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">) {</span>
+  <span class="s0">return </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">stream </span><span class="s2">!== </span><span class="s3">'function'</span><span class="s2">)</span>
+    <span class="s2">&amp;&amp; (</span><span class="s0">typeof </span><span class="s1">stream </span><span class="s2">!== </span><span class="s3">'string'</span><span class="s2">)</span>
+    <span class="s2">&amp;&amp; (</span><span class="s0">typeof </span><span class="s1">stream </span><span class="s2">!== </span><span class="s3">'boolean'</span><span class="s2">)</span>
+    <span class="s2">&amp;&amp; (</span><span class="s0">typeof </span><span class="s1">stream </span><span class="s2">!== </span><span class="s3">'number'</span><span class="s2">)</span>
+    <span class="s2">&amp;&amp; (!</span><span class="s1">Buffer</span><span class="s2">.</span><span class="s1">isBuffer</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">));</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">append </span><span class="s2">= </span><span class="s0">function</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">) {</span>
+  <span class="s0">var </span><span class="s1">isStreamLike </span><span class="s2">= </span><span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">isStreamLike</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">);</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isStreamLike</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!(</span><span class="s1">stream </span><span class="s0">instanceof </span><span class="s1">DelayedStream</span><span class="s2">)) {</span>
+      <span class="s0">var </span><span class="s1">newStream </span><span class="s2">= </span><span class="s1">DelayedStream</span><span class="s2">.</span><span class="s1">create</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">, {</span>
+        <span class="s1">maxDataSize</span><span class="s2">: </span><span class="s1">Infinity</span><span class="s2">,</span>
+        <span class="s1">pauseStream</span><span class="s2">: </span><span class="s0">this</span><span class="s2">.</span><span class="s1">pauseStreams</span><span class="s2">,</span>
+      <span class="s2">});</span>
+      <span class="s1">stream</span><span class="s2">.</span><span class="s1">on</span><span class="s2">(</span><span class="s3">'data'</span><span class="s2">, </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_checkDataSize</span><span class="s2">.</span><span class="s1">bind</span><span class="s2">(</span><span class="s0">this</span><span class="s2">));</span>
+      <span class="s1">stream </span><span class="s2">= </span><span class="s1">newStream</span><span class="s2">;</span>
+    <span class="s2">}</span>
+
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">_handleErrors</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">);</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">pauseStreams</span><span class="s2">) {</span>
+      <span class="s1">stream</span><span class="s2">.</span><span class="s1">pause</span><span class="s2">();</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_streams</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">);</span>
+  <span class="s0">return this</span><span class="s2">;</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">pipe </span><span class="s2">= </span><span class="s0">function</span><span class="s2">(</span><span class="s1">dest</span><span class="s2">, </span><span class="s1">options</span><span class="s2">) {</span>
+  <span class="s1">Stream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">pipe</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s0">this</span><span class="s2">, </span><span class="s1">dest</span><span class="s2">, </span><span class="s1">options</span><span class="s2">);</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">resume</span><span class="s2">();</span>
+  <span class="s0">return </span><span class="s1">dest</span><span class="s2">;</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">_getNext </span><span class="s2">= </span><span class="s0">function</span><span class="s2">() {</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_currentStream </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">_insideLoop</span><span class="s2">) {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">_pendingNext </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+    <span class="s0">return</span><span class="s2">; </span><span class="s5">// defer call</span>
+  <span class="s2">}</span>
+
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_insideLoop </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+  <span class="s0">try </span><span class="s2">{</span>
+    <span class="s0">do </span><span class="s2">{</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">_pendingNext </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">_realGetNext</span><span class="s2">();</span>
+    <span class="s2">} </span><span class="s0">while </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">_pendingNext</span><span class="s2">);</span>
+  <span class="s2">} </span><span class="s0">finally </span><span class="s2">{</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">_insideLoop </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+  <span class="s2">}</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">_realGetNext </span><span class="s2">= </span><span class="s0">function</span><span class="s2">() {</span>
+  <span class="s0">var </span><span class="s1">stream </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_streams</span><span class="s2">.</span><span class="s1">shift</span><span class="s2">();</span>
+
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">stream </span><span class="s2">== </span><span class="s3">'undefined'</span><span class="s2">) {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">end</span><span class="s2">();</span>
+    <span class="s0">return</span><span class="s2">;</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">stream </span><span class="s2">!== </span><span class="s3">'function'</span><span class="s2">) {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">_pipeNext</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">);</span>
+    <span class="s0">return</span><span class="s2">;</span>
+  <span class="s2">}</span>
+
+  <span class="s0">var </span><span class="s1">getStream </span><span class="s2">= </span><span class="s1">stream</span><span class="s2">;</span>
+  <span class="s1">getStream</span><span class="s2">(</span><span class="s0">function</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">) {</span>
+    <span class="s0">var </span><span class="s1">isStreamLike </span><span class="s2">= </span><span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">isStreamLike</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">);</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isStreamLike</span><span class="s2">) {</span>
+      <span class="s1">stream</span><span class="s2">.</span><span class="s1">on</span><span class="s2">(</span><span class="s3">'data'</span><span class="s2">, </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_checkDataSize</span><span class="s2">.</span><span class="s1">bind</span><span class="s2">(</span><span class="s0">this</span><span class="s2">));</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">_handleErrors</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">);</span>
+    <span class="s2">}</span>
+
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">_pipeNext</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">);</span>
+  <span class="s2">}.</span><span class="s1">bind</span><span class="s2">(</span><span class="s0">this</span><span class="s2">));</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">_pipeNext </span><span class="s2">= </span><span class="s0">function</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">) {</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_currentStream </span><span class="s2">= </span><span class="s1">stream</span><span class="s2">;</span>
+
+  <span class="s0">var </span><span class="s1">isStreamLike </span><span class="s2">= </span><span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">isStreamLike</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">);</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isStreamLike</span><span class="s2">) {</span>
+    <span class="s1">stream</span><span class="s2">.</span><span class="s1">on</span><span class="s2">(</span><span class="s3">'end'</span><span class="s2">, </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_getNext</span><span class="s2">.</span><span class="s1">bind</span><span class="s2">(</span><span class="s0">this</span><span class="s2">));</span>
+    <span class="s1">stream</span><span class="s2">.</span><span class="s1">pipe</span><span class="s2">(</span><span class="s0">this</span><span class="s2">, {</span><span class="s1">end</span><span class="s2">: </span><span class="s0">false</span><span class="s2">});</span>
+    <span class="s0">return</span><span class="s2">;</span>
+  <span class="s2">}</span>
+
+  <span class="s0">var </span><span class="s1">value </span><span class="s2">= </span><span class="s1">stream</span><span class="s2">;</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s1">value</span><span class="s2">);</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_getNext</span><span class="s2">();</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">_handleErrors </span><span class="s2">= </span><span class="s0">function</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">) {</span>
+  <span class="s0">var </span><span class="s1">self </span><span class="s2">= </span><span class="s0">this</span><span class="s2">;</span>
+  <span class="s1">stream</span><span class="s2">.</span><span class="s1">on</span><span class="s2">(</span><span class="s3">'error'</span><span class="s2">, </span><span class="s0">function</span><span class="s2">(</span><span class="s1">err</span><span class="s2">) {</span>
+    <span class="s1">self</span><span class="s2">.</span><span class="s1">_emitError</span><span class="s2">(</span><span class="s1">err</span><span class="s2">);</span>
+  <span class="s2">});</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">write </span><span class="s2">= </span><span class="s0">function</span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">emit</span><span class="s2">(</span><span class="s3">'data'</span><span class="s2">, </span><span class="s1">data</span><span class="s2">);</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">pause </span><span class="s2">= </span><span class="s0">function</span><span class="s2">() {</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s0">this</span><span class="s2">.</span><span class="s1">pauseStreams</span><span class="s2">) {</span>
+    <span class="s0">return</span><span class="s2">;</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">pauseStreams </span><span class="s2">&amp;&amp; </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_currentStream </span><span class="s2">&amp;&amp; </span><span class="s0">typeof</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">_currentStream</span><span class="s2">.</span><span class="s1">pause</span><span class="s2">) == </span><span class="s3">'function'</span><span class="s2">) </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_currentStream</span><span class="s2">.</span><span class="s1">pause</span><span class="s2">();</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">emit</span><span class="s2">(</span><span class="s3">'pause'</span><span class="s2">);</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">resume </span><span class="s2">= </span><span class="s0">function</span><span class="s2">() {</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s0">this</span><span class="s2">.</span><span class="s1">_released</span><span class="s2">) {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">_released </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">writable </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">_getNext</span><span class="s2">();</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">pauseStreams </span><span class="s2">&amp;&amp; </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_currentStream </span><span class="s2">&amp;&amp; </span><span class="s0">typeof</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">_currentStream</span><span class="s2">.</span><span class="s1">resume</span><span class="s2">) == </span><span class="s3">'function'</span><span class="s2">) </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_currentStream</span><span class="s2">.</span><span class="s1">resume</span><span class="s2">();</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">emit</span><span class="s2">(</span><span class="s3">'resume'</span><span class="s2">);</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">end </span><span class="s2">= </span><span class="s0">function</span><span class="s2">() {</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_reset</span><span class="s2">();</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">emit</span><span class="s2">(</span><span class="s3">'end'</span><span class="s2">);</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">destroy </span><span class="s2">= </span><span class="s0">function</span><span class="s2">() {</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_reset</span><span class="s2">();</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">emit</span><span class="s2">(</span><span class="s3">'close'</span><span class="s2">);</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">_reset </span><span class="s2">= </span><span class="s0">function</span><span class="s2">() {</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">writable </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_streams </span><span class="s2">= [];</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_currentStream </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">_checkDataSize </span><span class="s2">= </span><span class="s0">function</span><span class="s2">() {</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_updateDataSize</span><span class="s2">();</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">dataSize </span><span class="s2">&lt;= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">maxDataSize</span><span class="s2">) {</span>
+    <span class="s0">return</span><span class="s2">;</span>
+  <span class="s2">}</span>
+
+  <span class="s0">var </span><span class="s1">message </span><span class="s2">=</span>
+    <span class="s3">'DelayedStream#maxDataSize of ' </span><span class="s2">+ </span><span class="s0">this</span><span class="s2">.</span><span class="s1">maxDataSize </span><span class="s2">+ </span><span class="s3">' bytes exceeded.'</span><span class="s2">;</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_emitError</span><span class="s2">(</span><span class="s0">new </span><span class="s1">Error</span><span class="s2">(</span><span class="s1">message</span><span class="s2">));</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">_updateDataSize </span><span class="s2">= </span><span class="s0">function</span><span class="s2">() {</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">dataSize </span><span class="s2">= </span><span class="s4">0</span><span class="s2">;</span>
+
+  <span class="s0">var </span><span class="s1">self </span><span class="s2">= </span><span class="s0">this</span><span class="s2">;</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_streams</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s0">function</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">stream</span><span class="s2">.</span><span class="s1">dataSize</span><span class="s2">) {</span>
+      <span class="s0">return</span><span class="s2">;</span>
+    <span class="s2">}</span>
+
+    <span class="s1">self</span><span class="s2">.</span><span class="s1">dataSize </span><span class="s2">+= </span><span class="s1">stream</span><span class="s2">.</span><span class="s1">dataSize</span><span class="s2">;</span>
+  <span class="s2">});</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">_currentStream </span><span class="s2">&amp;&amp; </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_currentStream</span><span class="s2">.</span><span class="s1">dataSize</span><span class="s2">) {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">dataSize </span><span class="s2">+= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_currentStream</span><span class="s2">.</span><span class="s1">dataSize</span><span class="s2">;</span>
+  <span class="s2">}</span>
+<span class="s2">};</span>
+
+<span class="s1">CombinedStream</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">_emitError </span><span class="s2">= </span><span class="s0">function</span><span class="s2">(</span><span class="s1">err</span><span class="s2">) {</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">_reset</span><span class="s2">();</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">emit</span><span class="s2">(</span><span class="s3">'error'</span><span class="s2">, </span><span class="s1">err</span><span class="s2">);</span>
+<span class="s2">};</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,422 @@
+<html>
+<head>
+<title>serve.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #67a37c; font-style: italic;}
+.s7 { color: #7a7e85;}
+.s8 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+serve.js</font>
+</center></td></tr></table>
+<pre><span class="s0">const </span><span class="s2">{</span>
+  <span class="s1">info</span><span class="s2">,</span>
+  <span class="s1">error</span><span class="s2">,</span>
+  <span class="s1">hasProjectYarn</span><span class="s2">,</span>
+  <span class="s1">hasProjectPnpm</span><span class="s2">,</span>
+  <span class="s1">IpcMessenger</span>
+<span class="s2">} = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'@vue/cli-shared-utils'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s1">getBaseUrl </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'../util/getBaseUrl'</span><span class="s2">)</span>
+
+<span class="s0">const </span><span class="s1">defaults </span><span class="s2">= {</span>
+  <span class="s1">host</span><span class="s2">: </span><span class="s3">'0.0.0.0'</span><span class="s2">,</span>
+  <span class="s1">port</span><span class="s2">: </span><span class="s4">8080</span><span class="s2">,</span>
+  <span class="s1">https</span><span class="s2">: </span><span class="s0">false</span>
+<span class="s2">}</span>
+
+<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{import('@vue/cli-service').ServicePlugin} */</span>
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= (</span><span class="s1">api</span><span class="s2">, </span><span class="s1">options</span><span class="s2">) =&gt; {</span>
+  <span class="s0">const </span><span class="s1">baseUrl </span><span class="s2">= </span><span class="s1">getBaseUrl</span><span class="s2">(</span><span class="s1">options</span><span class="s2">)</span>
+  <span class="s1">api</span><span class="s2">.</span><span class="s1">registerCommand</span><span class="s2">(</span><span class="s3">'serve'</span><span class="s2">, {</span>
+    <span class="s1">description</span><span class="s2">: </span><span class="s3">'start development server'</span><span class="s2">,</span>
+    <span class="s1">usage</span><span class="s2">: </span><span class="s3">'vue-cli-service serve [options] [entry]'</span><span class="s2">,</span>
+    <span class="s1">options</span><span class="s2">: {</span>
+      <span class="s3">'--open'</span><span class="s2">: </span><span class="s3">`open browser on server start`</span><span class="s2">,</span>
+      <span class="s3">'--copy'</span><span class="s2">: </span><span class="s3">`copy url to clipboard on server start`</span><span class="s2">,</span>
+      <span class="s3">'--stdin'</span><span class="s2">: </span><span class="s3">`close when stdin ends`</span><span class="s2">,</span>
+      <span class="s3">'--mode'</span><span class="s2">: </span><span class="s3">`specify env mode (default: development)`</span><span class="s2">,</span>
+      <span class="s3">'--host'</span><span class="s2">: </span><span class="s3">`specify host (default: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">defaults</span><span class="s2">.</span><span class="s1">host</span><span class="s2">}</span><span class="s3">)`</span><span class="s2">,</span>
+      <span class="s3">'--port'</span><span class="s2">: </span><span class="s3">`specify port (default: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">defaults</span><span class="s2">.</span><span class="s1">port</span><span class="s2">}</span><span class="s3">)`</span><span class="s2">,</span>
+      <span class="s3">'--https'</span><span class="s2">: </span><span class="s3">`use https (default: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">defaults</span><span class="s2">.</span><span class="s1">https</span><span class="s2">}</span><span class="s3">)`</span><span class="s2">,</span>
+      <span class="s3">'--public'</span><span class="s2">: </span><span class="s3">`specify the public network URL for the HMR client`</span><span class="s2">,</span>
+      <span class="s3">'--skip-plugins'</span><span class="s2">: </span><span class="s3">`comma-separated list of plugin names to skip for this run`</span>
+    <span class="s2">}</span>
+  <span class="s2">}, </span><span class="s1">async </span><span class="s0">function </span><span class="s1">serve </span><span class="s2">(</span><span class="s1">args</span><span class="s2">) {</span>
+    <span class="s1">info</span><span class="s2">(</span><span class="s3">'Starting development server...'</span><span class="s2">)</span>
+
+    <span class="s7">// although this is primarily a dev server, it is possible that we</span>
+    <span class="s7">// are running it in a mode with a production env, e.g. in E2E tests.</span>
+    <span class="s0">const </span><span class="s1">isInContainer </span><span class="s2">= </span><span class="s1">checkInContainer</span><span class="s2">()</span>
+    <span class="s0">const </span><span class="s1">isProduction </span><span class="s2">= </span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">NODE_ENV </span><span class="s2">=== </span><span class="s3">'production'</span>
+
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">chalk </span><span class="s2">} = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'@vue/cli-shared-utils'</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">webpack </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'webpack'</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">WebpackDevServer </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'webpack-dev-server'</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">portfinder </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'portfinder'</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">prepareURLs </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'../util/prepareURLs'</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">prepareProxy </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'../util/prepareProxy'</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">launchEditorMiddleware </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'launch-editor-middleware'</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">validateWebpackConfig </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'../util/validateWebpackConfig'</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">isAbsoluteUrl </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'../util/isAbsoluteUrl'</span><span class="s2">)</span>
+
+    <span class="s7">// configs that only matters for dev server</span>
+    <span class="s1">api</span><span class="s2">.</span><span class="s1">chainWebpack</span><span class="s2">(</span><span class="s1">webpackConfig </span><span class="s2">=&gt; {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">NODE_ENV </span><span class="s2">!== </span><span class="s3">'production' </span><span class="s2">&amp;&amp; </span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">NODE_ENV </span><span class="s2">!== </span><span class="s3">'test'</span><span class="s2">) {</span>
+        <span class="s0">if </span><span class="s2">(!</span><span class="s1">webpackConfig</span><span class="s2">.</span><span class="s1">get</span><span class="s2">(</span><span class="s3">'devtool'</span><span class="s2">)) {</span>
+          <span class="s1">webpackConfig</span>
+            <span class="s2">.</span><span class="s1">devtool</span><span class="s2">(</span><span class="s3">'eval-cheap-module-source-map'</span><span class="s2">)</span>
+        <span class="s2">}</span>
+
+        <span class="s7">// https://github.com/webpack/webpack/issues/6642</span>
+        <span class="s7">// https://github.com/vuejs/vue-cli/issues/3539</span>
+        <span class="s1">webpackConfig</span>
+          <span class="s2">.</span><span class="s1">output</span>
+            <span class="s2">.</span><span class="s1">globalObject</span><span class="s2">(</span><span class="s3">`(typeof self !== 'undefined' ? self : this)`</span><span class="s2">)</span>
+
+        <span class="s0">if </span><span class="s2">(</span>
+          <span class="s2">!</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">VUE_CLI_TEST </span><span class="s2">&amp;&amp;</span>
+          <span class="s2">(!</span><span class="s1">options</span><span class="s2">.</span><span class="s1">devServer</span><span class="s2">.</span><span class="s1">client </span><span class="s2">||</span>
+            <span class="s1">options</span><span class="s2">.</span><span class="s1">devServer</span><span class="s2">.</span><span class="s1">client</span><span class="s2">.</span><span class="s1">progress </span><span class="s2">!== </span><span class="s0">false</span><span class="s2">)</span>
+        <span class="s2">) {</span>
+          <span class="s7">// the default progress plugin won't show progress due to infrastructreLogging.level</span>
+          <span class="s1">webpackConfig</span>
+            <span class="s2">.</span><span class="s1">plugin</span><span class="s2">(</span><span class="s3">'progress'</span><span class="s2">)</span>
+            <span class="s2">.</span><span class="s1">use</span><span class="s2">(</span><span class="s1">require</span><span class="s2">(</span><span class="s3">'progress-webpack-plugin'</span><span class="s2">))</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+    <span class="s2">})</span>
+
+    <span class="s7">// resolve webpack config</span>
+    <span class="s0">const </span><span class="s1">webpackConfig </span><span class="s2">= </span><span class="s1">api</span><span class="s2">.</span><span class="s1">resolveWebpackConfig</span><span class="s2">()</span>
+
+    <span class="s7">// check for common config errors</span>
+    <span class="s1">validateWebpackConfig</span><span class="s2">(</span><span class="s1">webpackConfig</span><span class="s2">, </span><span class="s1">api</span><span class="s2">, </span><span class="s1">options</span><span class="s2">)</span>
+
+    <span class="s7">// load user devServer options with higher priority than devServer</span>
+    <span class="s7">// in webpack config</span>
+    <span class="s0">const </span><span class="s1">projectDevServerOptions </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">assign</span><span class="s2">(</span>
+      <span class="s1">webpackConfig</span><span class="s2">.</span><span class="s1">devServer </span><span class="s2">|| {},</span>
+      <span class="s1">options</span><span class="s2">.</span><span class="s1">devServer</span>
+    <span class="s2">)</span>
+
+    <span class="s7">// expose advanced stats</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">args</span><span class="s2">.</span><span class="s1">dashboard</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">DashboardPlugin </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'../webpack/DashboardPlugin'</span><span class="s2">)</span>
+      <span class="s1">webpackConfig</span><span class="s2">.</span><span class="s1">plugins</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s0">new </span><span class="s1">DashboardPlugin</span><span class="s2">({</span>
+        <span class="s1">type</span><span class="s2">: </span><span class="s3">'serve'</span>
+      <span class="s2">}))</span>
+    <span class="s2">}</span>
+
+    <span class="s7">// entry arg</span>
+    <span class="s0">const </span><span class="s1">entry </span><span class="s2">= </span><span class="s1">args</span><span class="s2">.</span><span class="s1">_</span><span class="s2">[</span><span class="s4">0</span><span class="s2">]</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">entry</span><span class="s2">) {</span>
+      <span class="s1">webpackConfig</span><span class="s2">.</span><span class="s1">entry </span><span class="s2">= {</span>
+        <span class="s1">app</span><span class="s2">: </span><span class="s1">api</span><span class="s2">.</span><span class="s1">resolve</span><span class="s2">(</span><span class="s1">entry</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s7">// resolve server options</span>
+    <span class="s0">const </span><span class="s1">modesUseHttps </span><span class="s2">= [</span><span class="s3">'https'</span><span class="s2">, </span><span class="s3">'http2'</span><span class="s2">]</span>
+    <span class="s0">const </span><span class="s1">serversUseHttps </span><span class="s2">= [</span><span class="s3">'https'</span><span class="s2">, </span><span class="s3">'spdy'</span><span class="s2">]</span>
+    <span class="s0">const </span><span class="s1">optionsUseHttps </span><span class="s2">= </span><span class="s1">modesUseHttps</span><span class="s2">.</span><span class="s1">some</span><span class="s2">(</span><span class="s1">modeName </span><span class="s2">=&gt; !!</span><span class="s1">projectDevServerOptions</span><span class="s2">[</span><span class="s1">modeName</span><span class="s2">]) ||</span>
+      <span class="s2">(</span><span class="s0">typeof </span><span class="s1">projectDevServerOptions</span><span class="s2">.</span><span class="s1">server </span><span class="s2">=== </span><span class="s3">'string' </span><span class="s2">&amp;&amp; </span><span class="s1">serversUseHttps</span><span class="s2">.</span><span class="s1">includes</span><span class="s2">(</span><span class="s1">projectDevServerOptions</span><span class="s2">.</span><span class="s1">server</span><span class="s2">)) ||</span>
+      <span class="s2">(</span><span class="s0">typeof </span><span class="s1">projectDevServerOptions</span><span class="s2">.</span><span class="s1">server </span><span class="s2">=== </span><span class="s3">'object' </span><span class="s2">&amp;&amp; </span><span class="s1">projectDevServerOptions</span><span class="s2">.</span><span class="s1">server </span><span class="s2">!== </span><span class="s0">null </span><span class="s2">&amp;&amp; </span><span class="s1">serversUseHttps</span><span class="s2">.</span><span class="s1">includes</span><span class="s2">(</span><span class="s1">projectDevServerOptions</span><span class="s2">.</span><span class="s1">server</span><span class="s2">.</span><span class="s1">type</span><span class="s2">))</span>
+    <span class="s0">const </span><span class="s1">useHttps </span><span class="s2">= </span><span class="s1">args</span><span class="s2">.</span><span class="s1">https </span><span class="s2">|| </span><span class="s1">optionsUseHttps </span><span class="s2">|| </span><span class="s1">defaults</span><span class="s2">.</span><span class="s1">https</span>
+    <span class="s0">const </span><span class="s1">protocol </span><span class="s2">= </span><span class="s1">useHttps </span><span class="s2">? </span><span class="s3">'https' </span><span class="s2">: </span><span class="s3">'http'</span>
+    <span class="s0">const </span><span class="s1">host </span><span class="s2">= </span><span class="s1">args</span><span class="s2">.</span><span class="s1">host </span><span class="s2">|| </span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">HOST </span><span class="s2">|| </span><span class="s1">projectDevServerOptions</span><span class="s2">.</span><span class="s1">host </span><span class="s2">|| </span><span class="s1">defaults</span><span class="s2">.</span><span class="s1">host</span>
+    <span class="s1">portfinder</span><span class="s2">.</span><span class="s1">basePort </span><span class="s2">= </span><span class="s1">args</span><span class="s2">.</span><span class="s1">port </span><span class="s2">|| </span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">PORT </span><span class="s2">|| </span><span class="s1">projectDevServerOptions</span><span class="s2">.</span><span class="s1">port </span><span class="s2">|| </span><span class="s1">defaults</span><span class="s2">.</span><span class="s1">port</span>
+    <span class="s0">const </span><span class="s1">port </span><span class="s2">= </span><span class="s0">await </span><span class="s1">portfinder</span><span class="s2">.</span><span class="s1">getPortPromise</span><span class="s2">()</span>
+    <span class="s0">const </span><span class="s1">rawPublicUrl </span><span class="s2">= </span><span class="s1">args</span><span class="s2">.</span><span class="s1">public </span><span class="s2">|| </span><span class="s1">projectDevServerOptions</span><span class="s2">.</span><span class="s1">public</span>
+    <span class="s0">const </span><span class="s1">publicUrl </span><span class="s2">= </span><span class="s1">rawPublicUrl</span>
+      <span class="s2">? </span><span class="s8">/^[a-zA-Z]+:\/\//</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">rawPublicUrl</span><span class="s2">)</span>
+        <span class="s2">? </span><span class="s1">rawPublicUrl</span>
+        <span class="s2">: </span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">protocol</span><span class="s2">}</span><span class="s3">://</span><span class="s1">$</span><span class="s2">{</span><span class="s1">rawPublicUrl</span><span class="s2">}</span><span class="s3">`</span>
+      <span class="s2">: </span><span class="s0">null</span>
+    <span class="s0">const </span><span class="s1">publicHost </span><span class="s2">= </span><span class="s1">publicUrl </span><span class="s2">? </span><span class="s8">/^[a-zA-Z]+:\/\/([^/?#]+)/</span><span class="s2">.</span><span class="s1">exec</span><span class="s2">(</span><span class="s1">publicUrl</span><span class="s2">)[</span><span class="s4">1</span><span class="s2">] : </span><span class="s1">undefined</span>
+
+    <span class="s0">const </span><span class="s1">urls </span><span class="s2">= </span><span class="s1">prepareURLs</span><span class="s2">(</span>
+      <span class="s1">protocol</span><span class="s2">,</span>
+      <span class="s1">host</span><span class="s2">,</span>
+      <span class="s1">port</span><span class="s2">,</span>
+      <span class="s1">isAbsoluteUrl</span><span class="s2">(</span><span class="s1">baseUrl</span><span class="s2">) ? </span><span class="s3">'/' </span><span class="s2">: </span><span class="s1">baseUrl</span>
+    <span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">localUrlForBrowser </span><span class="s2">= </span><span class="s1">publicUrl </span><span class="s2">|| </span><span class="s1">urls</span><span class="s2">.</span><span class="s1">localUrlForBrowser</span>
+
+    <span class="s0">const </span><span class="s1">proxySettings </span><span class="s2">= </span><span class="s1">prepareProxy</span><span class="s2">(</span>
+      <span class="s1">projectDevServerOptions</span><span class="s2">.</span><span class="s1">proxy</span><span class="s2">,</span>
+      <span class="s1">api</span><span class="s2">.</span><span class="s1">resolve</span><span class="s2">(</span><span class="s3">'public'</span><span class="s2">)</span>
+    <span class="s2">)</span>
+
+    <span class="s7">// inject dev &amp; hot-reload middleware entries</span>
+    <span class="s0">let </span><span class="s1">webSocketURL</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">isProduction</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">publicHost</span><span class="s2">) {</span>
+        <span class="s7">// explicitly configured via devServer.public</span>
+        <span class="s1">webSocketURL </span><span class="s2">= {</span>
+          <span class="s1">protocol</span><span class="s2">: </span><span class="s1">protocol </span><span class="s2">=== </span><span class="s3">'https' </span><span class="s2">? </span><span class="s3">'wss' </span><span class="s2">: </span><span class="s3">'ws'</span><span class="s2">,</span>
+          <span class="s1">hostname</span><span class="s2">: </span><span class="s1">publicHost</span><span class="s2">,</span>
+          <span class="s1">port</span>
+        <span class="s2">}</span>
+      <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isInContainer</span><span class="s2">) {</span>
+        <span class="s7">// can't infer public network url if inside a container</span>
+        <span class="s7">// infer it from the browser instead</span>
+        <span class="s1">webSocketURL </span><span class="s2">= </span><span class="s3">'auto://0.0.0.0:0/ws'</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s7">// otherwise infer the url from the config</span>
+        <span class="s1">webSocketURL </span><span class="s2">= {</span>
+          <span class="s1">protocol</span><span class="s2">: </span><span class="s1">protocol </span><span class="s2">=== </span><span class="s3">'https' </span><span class="s2">? </span><span class="s3">'wss' </span><span class="s2">: </span><span class="s3">'ws'</span><span class="s2">,</span>
+          <span class="s1">hostname</span><span class="s2">: </span><span class="s1">urls</span><span class="s2">.</span><span class="s1">lanUrlForConfig </span><span class="s2">|| </span><span class="s3">'localhost'</span><span class="s2">,</span>
+          <span class="s1">port</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">APPVEYOR</span><span class="s2">) {</span>
+        <span class="s1">webpackConfig</span><span class="s2">.</span><span class="s1">plugins</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span>
+          <span class="s0">new </span><span class="s1">webpack</span><span class="s2">.</span><span class="s1">EntryPlugin</span><span class="s2">(</span><span class="s1">__dirname</span><span class="s2">, </span><span class="s3">'webpack/hot/poll?500'</span><span class="s2">, { </span><span class="s1">name</span><span class="s2">: </span><span class="s1">undefined </span><span class="s2">})</span>
+        <span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">projectTargets </span><span class="s2">} = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'../util/targets'</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">supportsIE </span><span class="s2">= !!</span><span class="s1">projectTargets</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">supportsIE</span><span class="s2">) {</span>
+      <span class="s1">webpackConfig</span><span class="s2">.</span><span class="s1">plugins</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span>
+        <span class="s7">// must use undefined as name,</span>
+        <span class="s7">// to avoid dev server establishing an extra ws connection for the new entry</span>
+        <span class="s0">new </span><span class="s1">webpack</span><span class="s2">.</span><span class="s1">EntryPlugin</span><span class="s2">(</span><span class="s1">__dirname</span><span class="s2">, </span><span class="s3">'whatwg-fetch'</span><span class="s2">, { </span><span class="s1">name</span><span class="s2">: </span><span class="s1">undefined </span><span class="s2">})</span>
+      <span class="s2">)</span>
+    <span class="s2">}</span>
+
+    <span class="s7">// fixme: temporary fix to suppress dev server logging</span>
+    <span class="s7">// should be more robust to show necessary info but not duplicate errors</span>
+    <span class="s1">webpackConfig</span><span class="s2">.</span><span class="s1">infrastructureLogging </span><span class="s2">= { </span><span class="s1">...webpackConfig</span><span class="s2">.</span><span class="s1">infrastructureLogging</span><span class="s2">, </span><span class="s1">level</span><span class="s2">: </span><span class="s3">'none' </span><span class="s2">}</span>
+    <span class="s1">webpackConfig</span><span class="s2">.</span><span class="s1">stats </span><span class="s2">= </span><span class="s3">'errors-only'</span>
+
+    <span class="s7">// create compiler</span>
+    <span class="s0">const </span><span class="s1">compiler </span><span class="s2">= </span><span class="s1">webpack</span><span class="s2">(</span><span class="s1">webpackConfig</span><span class="s2">)</span>
+
+    <span class="s7">// handle compiler error</span>
+    <span class="s1">compiler</span><span class="s2">.</span><span class="s1">hooks</span><span class="s2">.</span><span class="s1">failed</span><span class="s2">.</span><span class="s1">tap</span><span class="s2">(</span><span class="s3">'vue-cli-service serve'</span><span class="s2">, </span><span class="s1">msg </span><span class="s2">=&gt; {</span>
+      <span class="s1">error</span><span class="s2">(</span><span class="s1">msg</span><span class="s2">)</span>
+      <span class="s1">process</span><span class="s2">.</span><span class="s1">exit</span><span class="s2">(</span><span class="s4">1</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s7">// create server</span>
+    <span class="s0">const </span><span class="s1">server </span><span class="s2">= </span><span class="s0">new </span><span class="s1">WebpackDevServer</span><span class="s2">(</span><span class="s1">Object</span><span class="s2">.</span><span class="s1">assign</span><span class="s2">({</span>
+      <span class="s1">historyApiFallback</span><span class="s2">: {</span>
+        <span class="s1">disableDotRule</span><span class="s2">: </span><span class="s0">true</span><span class="s2">,</span>
+        <span class="s1">htmlAcceptHeaders</span><span class="s2">: [</span>
+          <span class="s3">'text/html'</span><span class="s2">,</span>
+          <span class="s3">'application/xhtml+xml'</span>
+        <span class="s2">],</span>
+        <span class="s1">rewrites</span><span class="s2">: </span><span class="s1">genHistoryApiFallbackRewrites</span><span class="s2">(</span><span class="s1">baseUrl</span><span class="s2">, </span><span class="s1">options</span><span class="s2">.</span><span class="s1">pages</span><span class="s2">)</span>
+      <span class="s2">},</span>
+      <span class="s1">hot</span><span class="s2">: !</span><span class="s1">isProduction</span>
+    <span class="s2">}, </span><span class="s1">projectDevServerOptions</span><span class="s2">, {</span>
+      <span class="s1">host</span><span class="s2">,</span>
+      <span class="s1">port</span><span class="s2">,</span>
+
+      <span class="s1">server</span><span class="s2">: {</span>
+        <span class="s1">type</span><span class="s2">: </span><span class="s1">protocol</span><span class="s2">,</span>
+        <span class="s1">...</span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">projectDevServerOptions</span><span class="s2">.</span><span class="s1">server </span><span class="s2">=== </span><span class="s3">'object'</span>
+          <span class="s2">? </span><span class="s1">projectDevServerOptions</span><span class="s2">.</span><span class="s1">server</span>
+          <span class="s2">: {})</span>
+      <span class="s2">},</span>
+
+      <span class="s1">proxy</span><span class="s2">: </span><span class="s1">proxySettings</span><span class="s2">,</span>
+
+      <span class="s0">static</span><span class="s2">: {</span>
+        <span class="s1">directory</span><span class="s2">: </span><span class="s1">api</span><span class="s2">.</span><span class="s1">resolve</span><span class="s2">(</span><span class="s3">'public'</span><span class="s2">),</span>
+        <span class="s1">publicPath</span><span class="s2">: </span><span class="s1">options</span><span class="s2">.</span><span class="s1">publicPath</span><span class="s2">,</span>
+        <span class="s1">watch</span><span class="s2">: !</span><span class="s1">isProduction</span><span class="s2">,</span>
+
+        <span class="s1">...projectDevServerOptions</span><span class="s2">.</span><span class="s1">static</span>
+      <span class="s2">},</span>
+
+      <span class="s1">client</span><span class="s2">: {</span>
+        <span class="s1">webSocketURL</span><span class="s2">,</span>
+
+        <span class="s1">logging</span><span class="s2">: </span><span class="s3">'none'</span><span class="s2">,</span>
+        <span class="s1">overlay</span><span class="s2">: </span><span class="s1">isProduction </span><span class="s7">// TODO disable this</span>
+          <span class="s2">? </span><span class="s0">false</span>
+          <span class="s2">: { </span><span class="s1">warnings</span><span class="s2">: </span><span class="s0">false</span><span class="s2">, </span><span class="s1">errors</span><span class="s2">: </span><span class="s0">true </span><span class="s2">},</span>
+        <span class="s1">progress</span><span class="s2">: !</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">VUE_CLI_TEST</span><span class="s2">,</span>
+
+        <span class="s1">...projectDevServerOptions</span><span class="s2">.</span><span class="s1">client</span>
+      <span class="s2">},</span>
+
+      <span class="s1">open</span><span class="s2">: </span><span class="s1">args</span><span class="s2">.</span><span class="s1">open </span><span class="s2">|| </span><span class="s1">projectDevServerOptions</span><span class="s2">.</span><span class="s1">open</span><span class="s2">,</span>
+      <span class="s1">setupExitSignals</span><span class="s2">: </span><span class="s0">true</span><span class="s2">,</span>
+
+      <span class="s1">setupMiddlewares </span><span class="s2">(</span><span class="s1">middlewares</span><span class="s2">, </span><span class="s1">devServer</span><span class="s2">) {</span>
+        <span class="s7">// launch editor support.</span>
+        <span class="s7">// this works with vue-devtools &amp; @vue/cli-overlay</span>
+        <span class="s1">devServer</span><span class="s2">.</span><span class="s1">app</span><span class="s2">.</span><span class="s1">use</span><span class="s2">(</span><span class="s3">'/__open-in-editor'</span><span class="s2">, </span><span class="s1">launchEditorMiddleware</span><span class="s2">(() =&gt; </span><span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span>
+          <span class="s3">`To specify an editor, specify the EDITOR env variable or ` </span><span class="s2">+</span>
+          <span class="s3">`add &quot;editor&quot; field to your Vue project config.</span><span class="s0">\n</span><span class="s3">`</span>
+        <span class="s2">)))</span>
+
+        <span class="s7">// allow other plugins to register middlewares, e.g. PWA</span>
+        <span class="s7">// todo: migrate to the new API interface</span>
+        <span class="s1">api</span><span class="s2">.</span><span class="s1">service</span><span class="s2">.</span><span class="s1">devServerConfigFns</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">fn </span><span class="s2">=&gt; </span><span class="s1">fn</span><span class="s2">(</span><span class="s1">devServer</span><span class="s2">.</span><span class="s1">app</span><span class="s2">, </span><span class="s1">devServer</span><span class="s2">))</span>
+
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">projectDevServerOptions</span><span class="s2">.</span><span class="s1">setupMiddlewares</span><span class="s2">) {</span>
+          <span class="s0">return </span><span class="s1">projectDevServerOptions</span><span class="s2">.</span><span class="s1">setupMiddlewares</span><span class="s2">(</span><span class="s1">middlewares</span><span class="s2">, </span><span class="s1">devServer</span><span class="s2">)</span>
+        <span class="s2">}</span>
+
+        <span class="s0">return </span><span class="s1">middlewares</span>
+      <span class="s2">}</span>
+    <span class="s2">}), </span><span class="s1">compiler</span><span class="s2">)</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">args</span><span class="s2">.</span><span class="s1">stdin</span><span class="s2">) {</span>
+      <span class="s1">process</span><span class="s2">.</span><span class="s1">stdin</span><span class="s2">.</span><span class="s1">on</span><span class="s2">(</span><span class="s3">'end'</span><span class="s2">, () =&gt; {</span>
+        <span class="s1">server</span><span class="s2">.</span><span class="s1">stopCallback</span><span class="s2">(() =&gt; {</span>
+          <span class="s1">process</span><span class="s2">.</span><span class="s1">exit</span><span class="s2">(</span><span class="s4">0</span><span class="s2">)</span>
+        <span class="s2">})</span>
+      <span class="s2">})</span>
+
+      <span class="s1">process</span><span class="s2">.</span><span class="s1">stdin</span><span class="s2">.</span><span class="s1">resume</span><span class="s2">()</span>
+    <span class="s2">}</span>
+
+    <span class="s7">// on appveyor, killing the process with SIGTERM causes execa to</span>
+    <span class="s7">// throw error</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">VUE_CLI_TEST</span><span class="s2">) {</span>
+      <span class="s1">process</span><span class="s2">.</span><span class="s1">stdin</span><span class="s2">.</span><span class="s1">on</span><span class="s2">(</span><span class="s3">'data'</span><span class="s2">, </span><span class="s1">data </span><span class="s2">=&gt; {</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">toString</span><span class="s2">() === </span><span class="s3">'close'</span><span class="s2">) {</span>
+          <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s3">'got close signal!'</span><span class="s2">)</span>
+          <span class="s1">server</span><span class="s2">.</span><span class="s1">stopCallback</span><span class="s2">(() =&gt; {</span>
+            <span class="s1">process</span><span class="s2">.</span><span class="s1">exit</span><span class="s2">(</span><span class="s4">0</span><span class="s2">)</span>
+          <span class="s2">})</span>
+        <span class="s2">}</span>
+      <span class="s2">})</span>
+    <span class="s2">}</span>
+
+    <span class="s0">return new </span><span class="s1">Promise</span><span class="s2">((</span><span class="s1">resolve</span><span class="s2">, </span><span class="s1">reject</span><span class="s2">) =&gt; {</span>
+      <span class="s7">// log instructions &amp; open browser on first compilation complete</span>
+      <span class="s0">let </span><span class="s1">isFirstCompile </span><span class="s2">= </span><span class="s0">true</span>
+      <span class="s1">compiler</span><span class="s2">.</span><span class="s1">hooks</span><span class="s2">.</span><span class="s1">done</span><span class="s2">.</span><span class="s1">tap</span><span class="s2">(</span><span class="s3">'vue-cli-service serve'</span><span class="s2">, </span><span class="s1">stats </span><span class="s2">=&gt; {</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">stats</span><span class="s2">.</span><span class="s1">hasErrors</span><span class="s2">()) {</span>
+          <span class="s0">return</span>
+        <span class="s2">}</span>
+
+        <span class="s0">let </span><span class="s1">copied </span><span class="s2">= </span><span class="s3">''</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">isFirstCompile </span><span class="s2">&amp;&amp; </span><span class="s1">args</span><span class="s2">.</span><span class="s1">copy</span><span class="s2">) {</span>
+          <span class="s0">try </span><span class="s2">{</span>
+            <span class="s1">require</span><span class="s2">(</span><span class="s3">'clipboardy'</span><span class="s2">).</span><span class="s1">writeSync</span><span class="s2">(</span><span class="s1">localUrlForBrowser</span><span class="s2">)</span>
+            <span class="s1">copied </span><span class="s2">= </span><span class="s1">chalk</span><span class="s2">.</span><span class="s1">dim</span><span class="s2">(</span><span class="s3">'(copied to clipboard)'</span><span class="s2">)</span>
+          <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">_</span><span class="s2">) {</span>
+            <span class="s7">/* catch exception if copy to clipboard isn't supported (e.g. WSL), see issue #3476 */</span>
+          <span class="s2">}</span>
+        <span class="s2">}</span>
+
+        <span class="s0">const </span><span class="s1">networkUrl </span><span class="s2">= </span><span class="s1">publicUrl</span>
+          <span class="s2">? </span><span class="s1">publicUrl</span><span class="s2">.</span><span class="s1">replace</span><span class="s2">(</span><span class="s8">/([^/])$/</span><span class="s2">, </span><span class="s3">'$1/'</span><span class="s2">)</span>
+          <span class="s2">: </span><span class="s1">urls</span><span class="s2">.</span><span class="s1">lanUrlForTerminal</span>
+
+        <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">()</span>
+        <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s3">`  App running at:`</span><span class="s2">)</span>
+        <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s3">`  - Local:   </span><span class="s1">$</span><span class="s2">{</span><span class="s1">chalk</span><span class="s2">.</span><span class="s1">cyan</span><span class="s2">(</span><span class="s1">urls</span><span class="s2">.</span><span class="s1">localUrlForTerminal</span><span class="s2">)} </span><span class="s1">$</span><span class="s2">{</span><span class="s1">copied</span><span class="s2">}</span><span class="s3">`</span><span class="s2">)</span>
+        <span class="s0">if </span><span class="s2">(!</span><span class="s1">isInContainer</span><span class="s2">) {</span>
+          <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s3">`  - Network: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">chalk</span><span class="s2">.</span><span class="s1">cyan</span><span class="s2">(</span><span class="s1">networkUrl</span><span class="s2">)}</span><span class="s3">`</span><span class="s2">)</span>
+        <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+          <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">()</span>
+          <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s1">chalk</span><span class="s2">.</span><span class="s1">yellow</span><span class="s2">(</span><span class="s3">`  It seems you are running Vue CLI inside a container.`</span><span class="s2">))</span>
+          <span class="s0">if </span><span class="s2">(!</span><span class="s1">publicUrl </span><span class="s2">&amp;&amp; </span><span class="s1">options</span><span class="s2">.</span><span class="s1">publicPath </span><span class="s2">&amp;&amp; </span><span class="s1">options</span><span class="s2">.</span><span class="s1">publicPath </span><span class="s2">!== </span><span class="s3">'/'</span><span class="s2">) {</span>
+            <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">()</span>
+            <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s1">chalk</span><span class="s2">.</span><span class="s1">yellow</span><span class="s2">(</span><span class="s3">`  Since you are using a non-root publicPath, the hot-reload socket`</span><span class="s2">))</span>
+            <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s1">chalk</span><span class="s2">.</span><span class="s1">yellow</span><span class="s2">(</span><span class="s3">`  will not be able to infer the correct URL to connect. You should`</span><span class="s2">))</span>
+            <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s1">chalk</span><span class="s2">.</span><span class="s1">yellow</span><span class="s2">(</span><span class="s3">`  explicitly specify the URL via </span><span class="s1">$</span><span class="s2">{</span><span class="s1">chalk</span><span class="s2">.</span><span class="s1">blue</span><span class="s2">(</span><span class="s3">`devServer.public`</span><span class="s2">)}</span><span class="s3">.`</span><span class="s2">))</span>
+            <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">()</span>
+          <span class="s2">}</span>
+          <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s1">chalk</span><span class="s2">.</span><span class="s1">yellow</span><span class="s2">(</span><span class="s3">`  Access the dev server via </span><span class="s1">$</span><span class="s2">{</span><span class="s1">chalk</span><span class="s2">.</span><span class="s1">cyan</span><span class="s2">(</span>
+            <span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">protocol</span><span class="s2">}</span><span class="s3">://localhost:&lt;your container's external mapped port&gt;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">options</span><span class="s2">.</span><span class="s1">publicPath</span><span class="s2">}</span><span class="s3">`</span>
+          <span class="s2">)}</span><span class="s3">`</span><span class="s2">))</span>
+        <span class="s2">}</span>
+        <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">()</span>
+
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">isFirstCompile</span><span class="s2">) {</span>
+          <span class="s1">isFirstCompile </span><span class="s2">= </span><span class="s0">false</span>
+
+          <span class="s0">if </span><span class="s2">(!</span><span class="s1">isProduction</span><span class="s2">) {</span>
+            <span class="s0">const </span><span class="s1">buildCommand </span><span class="s2">= </span><span class="s1">hasProjectYarn</span><span class="s2">(</span><span class="s1">api</span><span class="s2">.</span><span class="s1">getCwd</span><span class="s2">()) ? </span><span class="s3">`yarn build` </span><span class="s2">: </span><span class="s1">hasProjectPnpm</span><span class="s2">(</span><span class="s1">api</span><span class="s2">.</span><span class="s1">getCwd</span><span class="s2">()) ? </span><span class="s3">`pnpm run build` </span><span class="s2">: </span><span class="s3">`npm run build`</span>
+            <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s3">`  Note that the development build is not optimized.`</span><span class="s2">)</span>
+            <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s3">`  To create a production build, run </span><span class="s1">$</span><span class="s2">{</span><span class="s1">chalk</span><span class="s2">.</span><span class="s1">cyan</span><span class="s2">(</span><span class="s1">buildCommand</span><span class="s2">)}</span><span class="s3">.`</span><span class="s2">)</span>
+          <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+            <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s3">`  App is served in production mode.`</span><span class="s2">)</span>
+            <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s3">`  Note this is for preview or E2E testing only.`</span><span class="s2">)</span>
+          <span class="s2">}</span>
+          <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">()</span>
+
+          <span class="s7">// Send final app URL</span>
+          <span class="s0">if </span><span class="s2">(</span><span class="s1">args</span><span class="s2">.</span><span class="s1">dashboard</span><span class="s2">) {</span>
+            <span class="s0">const </span><span class="s1">ipc </span><span class="s2">= </span><span class="s0">new </span><span class="s1">IpcMessenger</span><span class="s2">()</span>
+            <span class="s1">ipc</span><span class="s2">.</span><span class="s1">send</span><span class="s2">({</span>
+              <span class="s1">vueServe</span><span class="s2">: {</span>
+                <span class="s1">url</span><span class="s2">: </span><span class="s1">localUrlForBrowser</span>
+              <span class="s2">}</span>
+            <span class="s2">})</span>
+          <span class="s2">}</span>
+
+          <span class="s7">// resolve returned Promise</span>
+          <span class="s7">// so other commands can do api.service.run('serve').then(...)</span>
+          <span class="s1">resolve</span><span class="s2">({</span>
+            <span class="s1">server</span><span class="s2">,</span>
+            <span class="s1">url</span><span class="s2">: </span><span class="s1">localUrlForBrowser</span>
+          <span class="s2">})</span>
+        <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">VUE_CLI_TEST</span><span class="s2">) {</span>
+          <span class="s7">// signal for test to check HMR</span>
+          <span class="s1">console</span><span class="s2">.</span><span class="s1">log</span><span class="s2">(</span><span class="s3">'App updated'</span><span class="s2">)</span>
+        <span class="s2">}</span>
+      <span class="s2">})</span>
+
+      <span class="s1">server</span><span class="s2">.</span><span class="s1">start</span><span class="s2">().</span><span class="s1">catch</span><span class="s2">(</span><span class="s1">err </span><span class="s2">=&gt; </span><span class="s1">reject</span><span class="s2">(</span><span class="s1">err</span><span class="s2">))</span>
+    <span class="s2">})</span>
+  <span class="s2">})</span>
+<span class="s2">}</span>
+
+<span class="s7">// https://stackoverflow.com/a/20012536</span>
+<span class="s0">function </span><span class="s1">checkInContainer </span><span class="s2">() {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s3">'CODESANDBOX_SSE' </span><span class="s0">in </span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">) {</span>
+    <span class="s0">return true</span>
+  <span class="s2">}</span>
+  <span class="s0">const </span><span class="s1">fs </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'fs'</span><span class="s2">)</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">fs</span><span class="s2">.</span><span class="s1">existsSync</span><span class="s2">(</span><span class="s3">`/proc/1/cgroup`</span><span class="s2">)) {</span>
+    <span class="s0">const </span><span class="s1">content </span><span class="s2">= </span><span class="s1">fs</span><span class="s2">.</span><span class="s1">readFileSync</span><span class="s2">(</span><span class="s3">`/proc/1/cgroup`</span><span class="s2">, </span><span class="s3">'utf-8'</span><span class="s2">)</span>
+    <span class="s0">return </span><span class="s8">/:\/(lxc|docker|kubepods(\.slice)?)\//</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">genHistoryApiFallbackRewrites </span><span class="s2">(</span><span class="s1">baseUrl</span><span class="s2">, </span><span class="s1">pages </span><span class="s2">= {}) {</span>
+  <span class="s0">const </span><span class="s1">path </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'path'</span><span class="s2">)</span>
+  <span class="s0">const </span><span class="s1">multiPageRewrites </span><span class="s2">= </span><span class="s1">Object</span>
+    <span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">pages</span><span class="s2">)</span>
+    <span class="s7">// sort by length in reversed order to avoid overrides</span>
+    <span class="s7">// eg. 'page11' should appear in front of 'page1'</span>
+    <span class="s2">.</span><span class="s1">sort</span><span class="s2">((</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">) =&gt; </span><span class="s1">b</span><span class="s2">.</span><span class="s1">length </span><span class="s2">- </span><span class="s1">a</span><span class="s2">.</span><span class="s1">length</span><span class="s2">)</span>
+    <span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">name </span><span class="s2">=&gt; ({</span>
+      <span class="s1">from</span><span class="s2">: </span><span class="s0">new </span><span class="s1">RegExp</span><span class="s2">(</span><span class="s3">`^/</span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span><span class="s3">`</span><span class="s2">),</span>
+      <span class="s1">to</span><span class="s2">: </span><span class="s1">path</span><span class="s2">.</span><span class="s1">posix</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s1">baseUrl</span><span class="s2">, </span><span class="s1">pages</span><span class="s2">[</span><span class="s1">name</span><span class="s2">].</span><span class="s1">filename </span><span class="s2">|| </span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span><span class="s3">.html`</span><span class="s2">)</span>
+    <span class="s2">}))</span>
+  <span class="s0">return </span><span class="s2">[</span>
+    <span class="s1">...multiPageRewrites</span><span class="s2">,</span>
+    <span class="s2">{ </span><span class="s1">from</span><span class="s2">: </span><span class="s8">/./</span><span class="s2">, </span><span class="s1">to</span><span class="s2">: </span><span class="s1">path</span><span class="s2">.</span><span class="s1">posix</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s1">baseUrl</span><span class="s2">, </span><span class="s3">'index.html'</span><span class="s2">) }</span>
+  <span class="s2">]</span>
+<span class="s2">}</span>
+
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports</span><span class="s2">.</span><span class="s1">defaultModes </span><span class="s2">= {</span>
+  <span class="s1">serve</span><span class="s2">: </span><span class="s3">'development'</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

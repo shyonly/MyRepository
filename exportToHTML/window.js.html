@@ -1,0 +1,196 @@
+<html>
+<head>
+<title>window.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+window.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span>
+
+<span class="s2">var </span><span class="s1">util </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'util'</span><span class="s3">)</span>
+<span class="s2">var </span><span class="s1">EventEmitter </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'events'</span><span class="s3">).</span><span class="s1">EventEmitter</span>
+<span class="s2">var </span><span class="s1">debug </span><span class="s3">= {</span>
+  <span class="s1">server</span><span class="s3">: </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'debug'</span><span class="s3">)(</span><span class="s0">'spdy:window:server'</span><span class="s3">),</span>
+  <span class="s1">client</span><span class="s3">: </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'debug'</span><span class="s3">)(</span><span class="s0">'spdy:window:client'</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">Side </span><span class="s3">(</span><span class="s1">window</span><span class="s3">, </span><span class="s1">name</span><span class="s3">, </span><span class="s1">options</span><span class="s3">) {</span>
+  <span class="s1">EventEmitter</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s2">this</span><span class="s3">)</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">name </span><span class="s3">= </span><span class="s1">name</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">window </span><span class="s3">= </span><span class="s1">window</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">current </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">size</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">max </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">size</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">limit </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">max</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">lowWaterMark </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">lowWaterMark </span><span class="s3">=== </span><span class="s1">undefined</span>
+    <span class="s3">? </span><span class="s2">this</span><span class="s3">.</span><span class="s1">max </span><span class="s3">/ </span><span class="s4">2</span>
+    <span class="s3">: </span><span class="s1">options</span><span class="s3">.</span><span class="s1">lowWaterMark</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_refilling </span><span class="s3">= </span><span class="s2">false</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_refillQueue </span><span class="s3">= []</span>
+<span class="s3">}</span>
+<span class="s1">util</span><span class="s3">.</span><span class="s1">inherits</span><span class="s3">(</span><span class="s1">Side</span><span class="s3">, </span><span class="s1">EventEmitter</span><span class="s3">)</span>
+
+<span class="s1">Side</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">setMax </span><span class="s3">= </span><span class="s2">function </span><span class="s1">setMax </span><span class="s3">(</span><span class="s1">max</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=%d side=%s setMax=%d'</span><span class="s3">,</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">name</span><span class="s3">,</span>
+    <span class="s1">max</span><span class="s3">)</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">max </span><span class="s3">= </span><span class="s1">max</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">lowWaterMark </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">max </span><span class="s3">/ </span><span class="s4">2</span>
+<span class="s3">}</span>
+
+<span class="s1">Side</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">updateMax </span><span class="s3">= </span><span class="s2">function </span><span class="s1">updateMax </span><span class="s3">(</span><span class="s1">max</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">delta </span><span class="s3">= </span><span class="s1">max </span><span class="s3">- </span><span class="s2">this</span><span class="s3">.</span><span class="s1">max</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=%d side=%s updateMax=%d delta=%d'</span><span class="s3">,</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">name</span><span class="s3">,</span>
+    <span class="s1">max</span><span class="s3">,</span>
+    <span class="s1">delta</span><span class="s3">)</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">max </span><span class="s3">= </span><span class="s1">max</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">lowWaterMark </span><span class="s3">= </span><span class="s1">max </span><span class="s3">/ </span><span class="s4">2</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">update</span><span class="s3">(</span><span class="s1">delta</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Side</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">setLowWaterMark </span><span class="s3">= </span><span class="s2">function </span><span class="s1">setLowWaterMark </span><span class="s3">(</span><span class="s1">lwm</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">lowWaterMark </span><span class="s3">= </span><span class="s1">lwm</span>
+<span class="s3">}</span>
+
+<span class="s1">Side</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">update </span><span class="s3">= </span><span class="s2">function </span><span class="s1">update </span><span class="s3">(</span><span class="s1">size</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s5">// Not enough space for the update, wait for refill</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">size </span><span class="s3">&lt;= </span><span class="s4">0 </span><span class="s3">&amp;&amp; </span><span class="s1">callback </span><span class="s3">&amp;&amp; </span><span class="s2">this</span><span class="s3">.</span><span class="s1">isEmpty</span><span class="s3">()) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=%d side=%s wait for refill=%d [%d/%d]'</span><span class="s3">,</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">name</span><span class="s3">,</span>
+      <span class="s3">-</span><span class="s1">size</span><span class="s3">,</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">current</span><span class="s3">,</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">max</span><span class="s3">)</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_refillQueue</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({</span>
+      <span class="s1">size</span><span class="s3">: </span><span class="s1">size</span><span class="s3">,</span>
+      <span class="s1">callback</span><span class="s3">: </span><span class="s1">callback</span>
+    <span class="s3">})</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">current </span><span class="s3">+= </span><span class="s1">size</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">current </span><span class="s3">&gt; </span><span class="s2">this</span><span class="s3">.</span><span class="s1">limit</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'overflow'</span><span class="s3">)</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=%d side=%s update by=%d [%d/%d]'</span><span class="s3">,</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">name</span><span class="s3">,</span>
+    <span class="s1">size</span><span class="s3">,</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">current</span><span class="s3">,</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">max</span><span class="s3">)</span>
+
+  <span class="s5">// Time to send WINDOW_UPDATE</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">size </span><span class="s3">&lt; </span><span class="s4">0 </span><span class="s3">&amp;&amp; </span><span class="s2">this</span><span class="s3">.</span><span class="s1">isDraining</span><span class="s3">()) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=%d side=%s drained'</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">id</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">name</span><span class="s3">)</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'drain'</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s5">// Time to write</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">size </span><span class="s3">&gt; </span><span class="s4">0 </span><span class="s3">&amp;&amp; </span><span class="s2">this</span><span class="s3">.</span><span class="s1">current </span><span class="s3">&gt; </span><span class="s4">0 </span><span class="s3">&amp;&amp; </span><span class="s2">this</span><span class="s3">.</span><span class="s1">current </span><span class="s3">&lt;= </span><span class="s1">size</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=%d side=%s full'</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">id</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">name</span><span class="s3">)</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'full'</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_processRefillQueue</span><span class="s3">()</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) { </span><span class="s1">process</span><span class="s3">.</span><span class="s1">nextTick</span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) }</span>
+<span class="s3">}</span>
+
+<span class="s1">Side</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">getCurrent </span><span class="s3">= </span><span class="s2">function </span><span class="s1">getCurrent </span><span class="s3">() {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">current</span>
+<span class="s3">}</span>
+
+<span class="s1">Side</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">getMax </span><span class="s3">= </span><span class="s2">function </span><span class="s1">getMax </span><span class="s3">() {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">max</span>
+<span class="s3">}</span>
+
+<span class="s1">Side</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">getDelta </span><span class="s3">= </span><span class="s2">function </span><span class="s1">getDelta </span><span class="s3">() {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">max </span><span class="s3">- </span><span class="s2">this</span><span class="s3">.</span><span class="s1">current</span>
+<span class="s3">}</span>
+
+<span class="s1">Side</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">isDraining </span><span class="s3">= </span><span class="s2">function </span><span class="s1">isDraining </span><span class="s3">() {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">current </span><span class="s3">&lt;= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">lowWaterMark</span>
+<span class="s3">}</span>
+
+<span class="s1">Side</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">isEmpty </span><span class="s3">= </span><span class="s2">function </span><span class="s1">isEmpty </span><span class="s3">() {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">current </span><span class="s3">&lt;= </span><span class="s4">0</span>
+<span class="s3">}</span>
+
+<span class="s5">// Private</span>
+
+<span class="s1">Side</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_processRefillQueue </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_processRefillQueue </span><span class="s3">() {</span>
+  <span class="s5">// Prevent recursion</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">_refilling</span><span class="s3">) {</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_refilling </span><span class="s3">= </span><span class="s2">true</span>
+
+  <span class="s2">while </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">_refillQueue</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s4">0</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">item </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_refillQueue</span><span class="s3">[</span><span class="s4">0</span><span class="s3">]</span>
+
+    <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">isEmpty</span><span class="s3">()) {</span>
+      <span class="s2">break</span>
+    <span class="s3">}</span>
+
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=%d side=%s refilled for size=%d'</span><span class="s3">,</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">name</span><span class="s3">,</span>
+      <span class="s3">-</span><span class="s1">item</span><span class="s3">.</span><span class="s1">size</span><span class="s3">)</span>
+
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_refillQueue</span><span class="s3">.</span><span class="s1">shift</span><span class="s3">()</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">update</span><span class="s3">(</span><span class="s1">item</span><span class="s3">.</span><span class="s1">size</span><span class="s3">, </span><span class="s1">item</span><span class="s3">.</span><span class="s1">callback</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_refilling </span><span class="s3">= </span><span class="s2">false</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">Window </span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">id </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">id</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">isServer </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">isServer</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">debug </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">isServer </span><span class="s3">? </span><span class="s1">debug</span><span class="s3">.</span><span class="s1">server </span><span class="s3">: </span><span class="s1">debug</span><span class="s3">.</span><span class="s1">client</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">recv </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Side</span><span class="s3">(</span><span class="s2">this</span><span class="s3">, </span><span class="s0">'recv'</span><span class="s3">, </span><span class="s1">options</span><span class="s3">.</span><span class="s1">recv</span><span class="s3">)</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">send </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Side</span><span class="s3">(</span><span class="s2">this</span><span class="s3">, </span><span class="s0">'send'</span><span class="s3">, </span><span class="s1">options</span><span class="s3">.</span><span class="s1">send</span><span class="s3">)</span>
+<span class="s3">}</span>
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">Window</span>
+
+<span class="s1">Window</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">clone </span><span class="s3">= </span><span class="s2">function </span><span class="s1">clone </span><span class="s3">(</span><span class="s1">id</span><span class="s3">) {</span>
+  <span class="s2">return new </span><span class="s1">Window</span><span class="s3">({</span>
+    <span class="s1">id</span><span class="s3">: </span><span class="s1">id</span><span class="s3">,</span>
+    <span class="s1">isServer</span><span class="s3">: </span><span class="s2">this</span><span class="s3">.</span><span class="s1">isServer</span><span class="s3">,</span>
+    <span class="s1">recv</span><span class="s3">: {</span>
+      <span class="s1">size</span><span class="s3">: </span><span class="s2">this</span><span class="s3">.</span><span class="s1">recv</span><span class="s3">.</span><span class="s1">max</span><span class="s3">,</span>
+      <span class="s1">max</span><span class="s3">: </span><span class="s2">this</span><span class="s3">.</span><span class="s1">recv</span><span class="s3">.</span><span class="s1">limit</span><span class="s3">,</span>
+      <span class="s1">lowWaterMark</span><span class="s3">: </span><span class="s2">this</span><span class="s3">.</span><span class="s1">recv</span><span class="s3">.</span><span class="s1">lowWaterMark</span>
+    <span class="s3">},</span>
+    <span class="s1">send</span><span class="s3">: {</span>
+      <span class="s1">size</span><span class="s3">: </span><span class="s2">this</span><span class="s3">.</span><span class="s1">send</span><span class="s3">.</span><span class="s1">max</span><span class="s3">,</span>
+      <span class="s1">max</span><span class="s3">: </span><span class="s2">this</span><span class="s3">.</span><span class="s1">send</span><span class="s3">.</span><span class="s1">limit</span><span class="s3">,</span>
+      <span class="s1">lowWaterMark</span><span class="s3">: </span><span class="s2">this</span><span class="s3">.</span><span class="s1">send</span><span class="s3">.</span><span class="s1">lowWaterMark</span>
+    <span class="s3">}</span>
+  <span class="s3">})</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

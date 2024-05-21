@@ -1,0 +1,64 @@
+<html>
+<head>
+<title>polyfillsPlugin.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+polyfillsPlugin.js</font>
+</center></td></tr></table>
+<pre><span class="s0">const </span><span class="s2">{ </span><span class="s1">addSideEffect </span><span class="s2">} = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'@babel/helper-module-imports'</span><span class="s2">)</span>
+
+<span class="s4">// slightly modifiled from @babel/preset-env/src/utils</span>
+<span class="s4">// use an absolute path for core-js modules, to fix conflicts of different core-js versions</span>
+<span class="s4">// TODO: remove the `useAbsolutePath` option in v5,</span>
+<span class="s4">// because `core-js` is sure to be present in newer projects;</span>
+<span class="s4">// we only need absolute path for babel runtime helpers, not for polyfills</span>
+<span class="s0">function </span><span class="s1">getModulePath </span><span class="s2">(</span><span class="s1">mod</span><span class="s2">, </span><span class="s1">useAbsolutePath</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">modPath </span><span class="s2">=</span>
+    <span class="s1">mod </span><span class="s2">=== </span><span class="s3">'regenerator-runtime'</span>
+      <span class="s2">? </span><span class="s3">'regenerator-runtime/runtime'</span>
+      <span class="s2">: </span><span class="s3">`core-js/modules/</span><span class="s1">$</span><span class="s2">{</span><span class="s1">mod</span><span class="s2">}</span><span class="s3">`</span>
+  <span class="s0">return </span><span class="s1">useAbsolutePath </span><span class="s2">? </span><span class="s1">require</span><span class="s2">.</span><span class="s1">resolve</span><span class="s2">(</span><span class="s1">modPath</span><span class="s2">) : </span><span class="s1">modPath</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">createImport </span><span class="s2">(</span><span class="s1">path</span><span class="s2">, </span><span class="s1">mod</span><span class="s2">, </span><span class="s1">useAbsolutePath</span><span class="s2">) {</span>
+  <span class="s0">return </span><span class="s1">addSideEffect</span><span class="s2">(</span><span class="s1">path</span><span class="s2">, </span><span class="s1">getModulePath</span><span class="s2">(</span><span class="s1">mod</span><span class="s2">, </span><span class="s1">useAbsolutePath</span><span class="s2">))</span>
+<span class="s2">}</span>
+
+<span class="s4">// add polyfill imports to the first file encountered.</span>
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= (</span>
+  <span class="s2">{ </span><span class="s1">types </span><span class="s2">},</span>
+  <span class="s2">{ </span><span class="s1">polyfills</span><span class="s2">, </span><span class="s1">entryFiles </span><span class="s2">= [], </span><span class="s1">useAbsolutePath </span><span class="s2">}</span>
+<span class="s2">) =&gt; {</span>
+  <span class="s0">return </span><span class="s2">{</span>
+    <span class="s1">name</span><span class="s2">: </span><span class="s3">'vue-cli-inject-polyfills'</span><span class="s2">,</span>
+    <span class="s1">visitor</span><span class="s2">: {</span>
+      <span class="s1">Program </span><span class="s2">(</span><span class="s1">path</span><span class="s2">, </span><span class="s1">state</span><span class="s2">) {</span>
+        <span class="s0">if </span><span class="s2">(!</span><span class="s1">entryFiles</span><span class="s2">.</span><span class="s1">includes</span><span class="s2">(</span><span class="s1">state</span><span class="s2">.</span><span class="s1">filename</span><span class="s2">)) {</span>
+          <span class="s0">return</span>
+        <span class="s2">}</span>
+
+        <span class="s4">// imports are injected in reverse order</span>
+        <span class="s1">polyfills</span>
+          <span class="s2">.</span><span class="s1">slice</span><span class="s2">()</span>
+          <span class="s2">.</span><span class="s1">reverse</span><span class="s2">()</span>
+          <span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">p </span><span class="s2">=&gt; {</span>
+            <span class="s1">createImport</span><span class="s2">(</span><span class="s1">path</span><span class="s2">, </span><span class="s1">p</span><span class="s2">, </span><span class="s1">useAbsolutePath</span><span class="s2">)</span>
+          <span class="s2">})</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,155 @@
+<html>
+<head>
+<title>eventsource.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #2aacb8;}
+.s5 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+eventsource.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span><span class="s1">;</span>
+
+<span class="s3">var </span><span class="s2">Stream      </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'stream'</span><span class="s1">).</span><span class="s2">Stream</span><span class="s1">,</span>
+    <span class="s2">util        </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'util'</span><span class="s1">),</span>
+    <span class="s2">driver      </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'websocket-driver'</span><span class="s1">),</span>
+    <span class="s2">Headers     </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'websocket-driver/lib/websocket/driver/headers'</span><span class="s1">),</span>
+    <span class="s2">API         </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./websocket/api'</span><span class="s1">),</span>
+    <span class="s2">EventTarget </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./websocket/api/event_target'</span><span class="s1">),</span>
+    <span class="s2">Event       </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./websocket/api/event'</span><span class="s1">);</span>
+
+<span class="s3">var </span><span class="s2">EventSource </span><span class="s1">= </span><span class="s3">function</span><span class="s1">(</span><span class="s2">request</span><span class="s1">, </span><span class="s2">response</span><span class="s1">, </span><span class="s2">options</span><span class="s1">) {</span>
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">writable </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+  <span class="s2">options </span><span class="s1">= </span><span class="s2">options </span><span class="s1">|| {};</span>
+
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">_stream </span><span class="s1">= </span><span class="s2">response</span><span class="s1">.</span><span class="s2">socket</span><span class="s1">;</span>
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">_ping   </span><span class="s1">= </span><span class="s2">options</span><span class="s1">.</span><span class="s2">ping  </span><span class="s1">|| </span><span class="s3">this</span><span class="s1">.</span><span class="s2">DEFAULT_PING</span><span class="s1">;</span>
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">_retry  </span><span class="s1">= </span><span class="s2">options</span><span class="s1">.</span><span class="s2">retry </span><span class="s1">|| </span><span class="s3">this</span><span class="s1">.</span><span class="s2">DEFAULT_RETRY</span><span class="s1">;</span>
+
+  <span class="s3">var </span><span class="s2">scheme       </span><span class="s1">= </span><span class="s2">driver</span><span class="s1">.</span><span class="s2">isSecureRequest</span><span class="s1">(</span><span class="s2">request</span><span class="s1">) ? </span><span class="s0">'https:' </span><span class="s1">: </span><span class="s0">'http:'</span><span class="s1">;</span>
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">url         </span><span class="s1">= </span><span class="s2">scheme </span><span class="s1">+ </span><span class="s0">'//' </span><span class="s1">+ </span><span class="s2">request</span><span class="s1">.</span><span class="s2">headers</span><span class="s1">.</span><span class="s2">host </span><span class="s1">+ </span><span class="s2">request</span><span class="s1">.</span><span class="s2">url</span><span class="s1">;</span>
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">lastEventId </span><span class="s1">= </span><span class="s2">request</span><span class="s1">.</span><span class="s2">headers</span><span class="s1">[</span><span class="s0">'last-event-id'</span><span class="s1">] || </span><span class="s0">''</span><span class="s1">;</span>
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">readyState  </span><span class="s1">= </span><span class="s2">API</span><span class="s1">.</span><span class="s2">CONNECTING</span><span class="s1">;</span>
+
+  <span class="s3">var </span><span class="s2">headers </span><span class="s1">= </span><span class="s3">new </span><span class="s2">Headers</span><span class="s1">(),</span>
+      <span class="s2">self    </span><span class="s1">= </span><span class="s3">this</span><span class="s1">;</span>
+
+  <span class="s3">if </span><span class="s1">(</span><span class="s2">options</span><span class="s1">.</span><span class="s2">headers</span><span class="s1">) {</span>
+    <span class="s3">for </span><span class="s1">(</span><span class="s3">var </span><span class="s2">key </span><span class="s3">in </span><span class="s2">options</span><span class="s1">.</span><span class="s2">headers</span><span class="s1">) </span><span class="s2">headers</span><span class="s1">.</span><span class="s2">set</span><span class="s1">(</span><span class="s2">key</span><span class="s1">, </span><span class="s2">options</span><span class="s1">.</span><span class="s2">headers</span><span class="s1">[</span><span class="s2">key</span><span class="s1">]);</span>
+  <span class="s1">}</span>
+
+  <span class="s3">if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_stream </span><span class="s1">|| !</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_stream</span><span class="s1">.</span><span class="s2">writable</span><span class="s1">) </span><span class="s3">return</span><span class="s1">;</span>
+  <span class="s2">process</span><span class="s1">.</span><span class="s2">nextTick</span><span class="s1">(</span><span class="s3">function</span><span class="s1">() { </span><span class="s2">self</span><span class="s1">.</span><span class="s2">_open</span><span class="s1">() });</span>
+
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">_stream</span><span class="s1">.</span><span class="s2">setTimeout</span><span class="s1">(</span><span class="s4">0</span><span class="s1">);</span>
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">_stream</span><span class="s1">.</span><span class="s2">setNoDelay</span><span class="s1">(</span><span class="s3">true</span><span class="s1">);</span>
+
+  <span class="s3">var </span><span class="s2">handshake </span><span class="s1">= </span><span class="s0">'HTTP/1.1 200 OK</span><span class="s3">\r\n</span><span class="s0">' </span><span class="s1">+</span>
+                  <span class="s0">'Content-Type: text/event-stream</span><span class="s3">\r\n</span><span class="s0">' </span><span class="s1">+</span>
+                  <span class="s0">'Cache-Control: no-cache, no-store</span><span class="s3">\r\n</span><span class="s0">' </span><span class="s1">+</span>
+                  <span class="s0">'Connection: close</span><span class="s3">\r\n</span><span class="s0">' </span><span class="s1">+</span>
+                  <span class="s2">headers</span><span class="s1">.</span><span class="s2">toString</span><span class="s1">() +</span>
+                  <span class="s0">'</span><span class="s3">\r\n</span><span class="s0">' </span><span class="s1">+</span>
+                  <span class="s0">'retry: ' </span><span class="s1">+ </span><span class="s2">Math</span><span class="s1">.</span><span class="s2">floor</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_retry </span><span class="s1">* </span><span class="s4">1000</span><span class="s1">) + </span><span class="s0">'</span><span class="s3">\r\n\r\n</span><span class="s0">'</span><span class="s1">;</span>
+
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">_write</span><span class="s1">(</span><span class="s2">handshake</span><span class="s1">);</span>
+
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">_stream</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">'drain'</span><span class="s1">, </span><span class="s3">function</span><span class="s1">() { </span><span class="s2">self</span><span class="s1">.</span><span class="s2">emit</span><span class="s1">(</span><span class="s0">'drain'</span><span class="s1">) });</span>
+
+  <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_ping</span><span class="s1">)</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_pingTimer </span><span class="s1">= </span><span class="s2">setInterval</span><span class="s1">(</span><span class="s3">function</span><span class="s1">() { </span><span class="s2">self</span><span class="s1">.</span><span class="s2">ping</span><span class="s1">() }, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_ping </span><span class="s1">* </span><span class="s4">1000</span><span class="s1">);</span>
+
+  <span class="s1">[</span><span class="s0">'error'</span><span class="s1">, </span><span class="s0">'end'</span><span class="s1">].</span><span class="s2">forEach</span><span class="s1">(</span><span class="s3">function</span><span class="s1">(</span><span class="s2">event</span><span class="s1">) {</span>
+    <span class="s2">self</span><span class="s1">.</span><span class="s2">_stream</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s2">event</span><span class="s1">, </span><span class="s3">function</span><span class="s1">() { </span><span class="s2">self</span><span class="s1">.</span><span class="s2">close</span><span class="s1">() });</span>
+  <span class="s1">});</span>
+<span class="s1">};</span>
+<span class="s2">util</span><span class="s1">.</span><span class="s2">inherits</span><span class="s1">(</span><span class="s2">EventSource</span><span class="s1">, </span><span class="s2">Stream</span><span class="s1">);</span>
+
+<span class="s2">EventSource</span><span class="s1">.</span><span class="s2">isEventSource </span><span class="s1">= </span><span class="s3">function</span><span class="s1">(</span><span class="s2">request</span><span class="s1">) {</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s2">request</span><span class="s1">.</span><span class="s2">method </span><span class="s1">!== </span><span class="s0">'GET'</span><span class="s1">) </span><span class="s3">return false</span><span class="s1">;</span>
+  <span class="s3">var </span><span class="s2">accept </span><span class="s1">= (</span><span class="s2">request</span><span class="s1">.</span><span class="s2">headers</span><span class="s1">.</span><span class="s2">accept </span><span class="s1">|| </span><span class="s0">''</span><span class="s1">).</span><span class="s2">split</span><span class="s1">(</span><span class="s5">/\s*,\s*/</span><span class="s1">);</span>
+  <span class="s3">return </span><span class="s2">accept</span><span class="s1">.</span><span class="s2">indexOf</span><span class="s1">(</span><span class="s0">'text/event-stream'</span><span class="s1">) &gt;= </span><span class="s4">0</span><span class="s1">;</span>
+<span class="s1">};</span>
+
+<span class="s3">var </span><span class="s2">instance </span><span class="s1">= {</span>
+  <span class="s2">DEFAULT_PING</span><span class="s1">:   </span><span class="s4">10</span><span class="s1">,</span>
+  <span class="s2">DEFAULT_RETRY</span><span class="s1">:  </span><span class="s4">5</span><span class="s1">,</span>
+
+  <span class="s2">_write</span><span class="s1">: </span><span class="s3">function</span><span class="s1">(</span><span class="s2">chunk</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">writable</span><span class="s1">) </span><span class="s3">return false</span><span class="s1">;</span>
+    <span class="s3">try </span><span class="s1">{</span>
+      <span class="s3">return this</span><span class="s1">.</span><span class="s2">_stream</span><span class="s1">.</span><span class="s2">write</span><span class="s1">(</span><span class="s2">chunk</span><span class="s1">, </span><span class="s0">'utf8'</span><span class="s1">);</span>
+    <span class="s1">} </span><span class="s3">catch </span><span class="s1">(</span><span class="s2">e</span><span class="s1">) {</span>
+      <span class="s3">return false</span><span class="s1">;</span>
+    <span class="s1">}</span>
+  <span class="s1">},</span>
+
+  <span class="s2">_open</span><span class="s1">: </span><span class="s3">function</span><span class="s1">() {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">readyState </span><span class="s1">!== </span><span class="s2">API</span><span class="s1">.</span><span class="s2">CONNECTING</span><span class="s1">) </span><span class="s3">return</span><span class="s1">;</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">readyState </span><span class="s1">= </span><span class="s2">API</span><span class="s1">.</span><span class="s2">OPEN</span><span class="s1">;</span>
+
+    <span class="s3">var </span><span class="s2">event </span><span class="s1">= </span><span class="s3">new </span><span class="s2">Event</span><span class="s1">(</span><span class="s0">'open'</span><span class="s1">);</span>
+    <span class="s2">event</span><span class="s1">.</span><span class="s2">initEvent</span><span class="s1">(</span><span class="s0">'open'</span><span class="s1">, </span><span class="s3">false</span><span class="s1">, </span><span class="s3">false</span><span class="s1">);</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">dispatchEvent</span><span class="s1">(</span><span class="s2">event</span><span class="s1">);</span>
+  <span class="s1">},</span>
+
+  <span class="s2">write</span><span class="s1">: </span><span class="s3">function</span><span class="s1">(</span><span class="s2">message</span><span class="s1">) {</span>
+    <span class="s3">return this</span><span class="s1">.</span><span class="s2">send</span><span class="s1">(</span><span class="s2">message</span><span class="s1">);</span>
+  <span class="s1">},</span>
+
+  <span class="s2">end</span><span class="s1">: </span><span class="s3">function</span><span class="s1">(</span><span class="s2">message</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">message </span><span class="s1">!== </span><span class="s2">undefined</span><span class="s1">) </span><span class="s3">this</span><span class="s1">.</span><span class="s2">write</span><span class="s1">(</span><span class="s2">message</span><span class="s1">);</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">close</span><span class="s1">();</span>
+  <span class="s1">},</span>
+
+  <span class="s2">send</span><span class="s1">: </span><span class="s3">function</span><span class="s1">(</span><span class="s2">message</span><span class="s1">, </span><span class="s2">options</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">readyState </span><span class="s1">&gt; </span><span class="s2">API</span><span class="s1">.</span><span class="s2">OPEN</span><span class="s1">) </span><span class="s3">return false</span><span class="s1">;</span>
+
+    <span class="s2">message </span><span class="s1">= </span><span class="s2">String</span><span class="s1">(</span><span class="s2">message</span><span class="s1">).</span><span class="s2">replace</span><span class="s1">(</span><span class="s5">/(\r\n|\r|\n)/g</span><span class="s1">, </span><span class="s0">'$1data: '</span><span class="s1">);</span>
+    <span class="s2">options </span><span class="s1">= </span><span class="s2">options </span><span class="s1">|| {};</span>
+
+    <span class="s3">var </span><span class="s2">frame </span><span class="s1">= </span><span class="s0">''</span><span class="s1">;</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">options</span><span class="s1">.</span><span class="s2">event</span><span class="s1">) </span><span class="s2">frame </span><span class="s1">+= </span><span class="s0">'event: ' </span><span class="s1">+ </span><span class="s2">options</span><span class="s1">.</span><span class="s2">event </span><span class="s1">+ </span><span class="s0">'</span><span class="s3">\r\n</span><span class="s0">'</span><span class="s1">;</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">options</span><span class="s1">.</span><span class="s2">id</span><span class="s1">)    </span><span class="s2">frame </span><span class="s1">+= </span><span class="s0">'id: '    </span><span class="s1">+ </span><span class="s2">options</span><span class="s1">.</span><span class="s2">id    </span><span class="s1">+ </span><span class="s0">'</span><span class="s3">\r\n</span><span class="s0">'</span><span class="s1">;</span>
+    <span class="s2">frame </span><span class="s1">+= </span><span class="s0">'data: ' </span><span class="s1">+ </span><span class="s2">message </span><span class="s1">+ </span><span class="s0">'</span><span class="s3">\r\n\r\n</span><span class="s0">'</span><span class="s1">;</span>
+
+    <span class="s3">return this</span><span class="s1">.</span><span class="s2">_write</span><span class="s1">(</span><span class="s2">frame</span><span class="s1">);</span>
+  <span class="s1">},</span>
+
+  <span class="s2">ping</span><span class="s1">: </span><span class="s3">function</span><span class="s1">() {</span>
+    <span class="s3">return this</span><span class="s1">.</span><span class="s2">_write</span><span class="s1">(</span><span class="s0">':</span><span class="s3">\r\n\r\n</span><span class="s0">'</span><span class="s1">);</span>
+  <span class="s1">},</span>
+
+  <span class="s2">close</span><span class="s1">: </span><span class="s3">function</span><span class="s1">() {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">readyState </span><span class="s1">&gt; </span><span class="s2">API</span><span class="s1">.</span><span class="s2">OPEN</span><span class="s1">) </span><span class="s3">return false</span><span class="s1">;</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">readyState </span><span class="s1">= </span><span class="s2">API</span><span class="s1">.</span><span class="s2">CLOSED</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">writable </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_pingTimer</span><span class="s1">) </span><span class="s2">clearInterval</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_pingTimer</span><span class="s1">);</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_stream</span><span class="s1">) </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_stream</span><span class="s1">.</span><span class="s2">end</span><span class="s1">();</span>
+
+    <span class="s3">var </span><span class="s2">event </span><span class="s1">= </span><span class="s3">new </span><span class="s2">Event</span><span class="s1">(</span><span class="s0">'close'</span><span class="s1">);</span>
+    <span class="s2">event</span><span class="s1">.</span><span class="s2">initEvent</span><span class="s1">(</span><span class="s0">'close'</span><span class="s1">, </span><span class="s3">false</span><span class="s1">, </span><span class="s3">false</span><span class="s1">);</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">dispatchEvent</span><span class="s1">(</span><span class="s2">event</span><span class="s1">);</span>
+
+    <span class="s3">return true</span><span class="s1">;</span>
+  <span class="s1">}</span>
+<span class="s1">};</span>
+
+<span class="s3">for </span><span class="s1">(</span><span class="s3">var </span><span class="s2">method </span><span class="s3">in </span><span class="s2">instance</span><span class="s1">) </span><span class="s2">EventSource</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">[</span><span class="s2">method</span><span class="s1">] = </span><span class="s2">instance</span><span class="s1">[</span><span class="s2">method</span><span class="s1">];</span>
+<span class="s3">for </span><span class="s1">(</span><span class="s3">var </span><span class="s2">key </span><span class="s3">in </span><span class="s2">EventTarget</span><span class="s1">) </span><span class="s2">EventSource</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">[</span><span class="s2">key</span><span class="s1">] = </span><span class="s2">EventTarget</span><span class="s1">[</span><span class="s2">key</span><span class="s1">];</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= </span><span class="s2">EventSource</span><span class="s1">;</span>
+</pre>
+</body>
+</html>

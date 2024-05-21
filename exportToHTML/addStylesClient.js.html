@@ -1,0 +1,245 @@
+<html>
+<head>
+<title>addStylesClient.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #6aab73;}
+.s4 { color: #bcbec4;}
+.s5 { color: #2aacb8;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+addStylesClient.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+  MIT License http://www.opensource.org/licenses/mit-license.php 
+  Author Tobias Koppers @sokra 
+  Modified by Evan You @yyx990803 
+*/</span>
+
+<span class="s2">import </span><span class="s1">listToStyles from </span><span class="s3">'./listToStyles'</span>
+
+<span class="s2">var </span><span class="s1">hasDocument </span><span class="s4">= </span><span class="s2">typeof </span><span class="s1">document </span><span class="s4">!== </span><span class="s3">'undefined'</span>
+
+<span class="s2">if </span><span class="s4">(</span><span class="s2">typeof </span><span class="s1">DEBUG </span><span class="s4">!== </span><span class="s3">'undefined' </span><span class="s4">&amp;&amp; </span><span class="s1">DEBUG</span><span class="s4">) {</span>
+  <span class="s2">if </span><span class="s4">(!</span><span class="s1">hasDocument</span><span class="s4">) {</span>
+    <span class="s2">throw new </span><span class="s1">Error</span><span class="s4">(</span>
+    <span class="s3">'vue-style-loader cannot be used in a non-browser environment. ' </span><span class="s4">+</span>
+    <span class="s3">&quot;Use { target: 'node' } in your Webpack config to indicate a server-rendering environment.&quot;</span>
+  <span class="s4">) }</span>
+<span class="s4">}</span>
+
+<span class="s0">/* 
+type StyleObject = { 
+  id: number; 
+  parts: Array&lt;StyleObjectPart&gt; 
+} 
+ 
+type StyleObjectPart = { 
+  css: string; 
+  media: string; 
+  sourceMap: ?string 
+} 
+*/</span>
+
+<span class="s2">var </span><span class="s1">stylesInDom </span><span class="s4">= {</span><span class="s0">/* 
+  [id: number]: { 
+    id: number, 
+    refs: number, 
+    parts: Array&lt;(obj?: StyleObjectPart) =&gt; void&gt; 
+  } 
+*/</span><span class="s4">}</span>
+
+<span class="s2">var </span><span class="s1">head </span><span class="s4">= </span><span class="s1">hasDocument </span><span class="s4">&amp;&amp; (</span><span class="s1">document</span><span class="s4">.</span><span class="s1">head </span><span class="s4">|| </span><span class="s1">document</span><span class="s4">.</span><span class="s1">getElementsByTagName</span><span class="s4">(</span><span class="s3">'head'</span><span class="s4">)[</span><span class="s5">0</span><span class="s4">])</span>
+<span class="s2">var </span><span class="s1">singletonElement </span><span class="s4">= </span><span class="s2">null</span>
+<span class="s2">var </span><span class="s1">singletonCounter </span><span class="s4">= </span><span class="s5">0</span>
+<span class="s2">var </span><span class="s1">isProduction </span><span class="s4">= </span><span class="s2">false</span>
+<span class="s2">var </span><span class="s1">noop </span><span class="s4">= </span><span class="s2">function </span><span class="s4">() {}</span>
+<span class="s2">var </span><span class="s1">options </span><span class="s4">= </span><span class="s2">null</span>
+<span class="s2">var </span><span class="s1">ssrIdKey </span><span class="s4">= </span><span class="s3">'data-vue-ssr-id'</span>
+
+<span class="s0">// Force single-tag solution on IE6-9, which has a hard limit on the # of &lt;style&gt;</span>
+<span class="s0">// tags it will allow on a page</span>
+<span class="s2">var </span><span class="s1">isOldIE </span><span class="s4">= </span><span class="s2">typeof </span><span class="s1">navigator </span><span class="s4">!== </span><span class="s3">'undefined' </span><span class="s4">&amp;&amp; </span><span class="s6">/msie [6-9]\b/</span><span class="s4">.</span><span class="s1">test</span><span class="s4">(</span><span class="s1">navigator</span><span class="s4">.</span><span class="s1">userAgent</span><span class="s4">.</span><span class="s1">toLowerCase</span><span class="s4">())</span>
+
+<span class="s2">export default function </span><span class="s1">addStylesClient </span><span class="s4">(</span><span class="s1">parentId</span><span class="s4">, </span><span class="s1">list</span><span class="s4">, </span><span class="s1">_isProduction</span><span class="s4">, </span><span class="s1">_options</span><span class="s4">) {</span>
+  <span class="s1">isProduction </span><span class="s4">= </span><span class="s1">_isProduction</span>
+
+  <span class="s1">options </span><span class="s4">= </span><span class="s1">_options </span><span class="s4">|| {}</span>
+
+  <span class="s2">var </span><span class="s1">styles </span><span class="s4">= </span><span class="s1">listToStyles</span><span class="s4">(</span><span class="s1">parentId</span><span class="s4">, </span><span class="s1">list</span><span class="s4">)</span>
+  <span class="s1">addStylesToDom</span><span class="s4">(</span><span class="s1">styles</span><span class="s4">)</span>
+
+  <span class="s2">return function </span><span class="s1">update </span><span class="s4">(</span><span class="s1">newList</span><span class="s4">) {</span>
+    <span class="s2">var </span><span class="s1">mayRemove </span><span class="s4">= []</span>
+    <span class="s2">for </span><span class="s4">(</span><span class="s2">var </span><span class="s1">i </span><span class="s4">= </span><span class="s5">0</span><span class="s4">; </span><span class="s1">i </span><span class="s4">&lt; </span><span class="s1">styles</span><span class="s4">.</span><span class="s1">length</span><span class="s4">; </span><span class="s1">i</span><span class="s4">++) {</span>
+      <span class="s2">var </span><span class="s1">item </span><span class="s4">= </span><span class="s1">styles</span><span class="s4">[</span><span class="s1">i</span><span class="s4">]</span>
+      <span class="s2">var </span><span class="s1">domStyle </span><span class="s4">= </span><span class="s1">stylesInDom</span><span class="s4">[</span><span class="s1">item</span><span class="s4">.</span><span class="s1">id</span><span class="s4">]</span>
+      <span class="s1">domStyle</span><span class="s4">.</span><span class="s1">refs</span><span class="s4">--</span>
+      <span class="s1">mayRemove</span><span class="s4">.</span><span class="s1">push</span><span class="s4">(</span><span class="s1">domStyle</span><span class="s4">)</span>
+    <span class="s4">}</span>
+    <span class="s2">if </span><span class="s4">(</span><span class="s1">newList</span><span class="s4">) {</span>
+      <span class="s1">styles </span><span class="s4">= </span><span class="s1">listToStyles</span><span class="s4">(</span><span class="s1">parentId</span><span class="s4">, </span><span class="s1">newList</span><span class="s4">)</span>
+      <span class="s1">addStylesToDom</span><span class="s4">(</span><span class="s1">styles</span><span class="s4">)</span>
+    <span class="s4">} </span><span class="s2">else </span><span class="s4">{</span>
+      <span class="s1">styles </span><span class="s4">= []</span>
+    <span class="s4">}</span>
+    <span class="s2">for </span><span class="s4">(</span><span class="s2">var </span><span class="s1">i </span><span class="s4">= </span><span class="s5">0</span><span class="s4">; </span><span class="s1">i </span><span class="s4">&lt; </span><span class="s1">mayRemove</span><span class="s4">.</span><span class="s1">length</span><span class="s4">; </span><span class="s1">i</span><span class="s4">++) {</span>
+      <span class="s2">var </span><span class="s1">domStyle </span><span class="s4">= </span><span class="s1">mayRemove</span><span class="s4">[</span><span class="s1">i</span><span class="s4">]</span>
+      <span class="s2">if </span><span class="s4">(</span><span class="s1">domStyle</span><span class="s4">.</span><span class="s1">refs </span><span class="s4">=== </span><span class="s5">0</span><span class="s4">) {</span>
+        <span class="s2">for </span><span class="s4">(</span><span class="s2">var </span><span class="s1">j </span><span class="s4">= </span><span class="s5">0</span><span class="s4">; </span><span class="s1">j </span><span class="s4">&lt; </span><span class="s1">domStyle</span><span class="s4">.</span><span class="s1">parts</span><span class="s4">.</span><span class="s1">length</span><span class="s4">; </span><span class="s1">j</span><span class="s4">++) {</span>
+          <span class="s1">domStyle</span><span class="s4">.</span><span class="s1">parts</span><span class="s4">[</span><span class="s1">j</span><span class="s4">]()</span>
+        <span class="s4">}</span>
+        <span class="s2">delete </span><span class="s1">stylesInDom</span><span class="s4">[</span><span class="s1">domStyle</span><span class="s4">.</span><span class="s1">id</span><span class="s4">]</span>
+      <span class="s4">}</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s2">function </span><span class="s1">addStylesToDom </span><span class="s4">(</span><span class="s1">styles </span><span class="s0">/* Array&lt;StyleObject&gt; */</span><span class="s4">) {</span>
+  <span class="s2">for </span><span class="s4">(</span><span class="s2">var </span><span class="s1">i </span><span class="s4">= </span><span class="s5">0</span><span class="s4">; </span><span class="s1">i </span><span class="s4">&lt; </span><span class="s1">styles</span><span class="s4">.</span><span class="s1">length</span><span class="s4">; </span><span class="s1">i</span><span class="s4">++) {</span>
+    <span class="s2">var </span><span class="s1">item </span><span class="s4">= </span><span class="s1">styles</span><span class="s4">[</span><span class="s1">i</span><span class="s4">]</span>
+    <span class="s2">var </span><span class="s1">domStyle </span><span class="s4">= </span><span class="s1">stylesInDom</span><span class="s4">[</span><span class="s1">item</span><span class="s4">.</span><span class="s1">id</span><span class="s4">]</span>
+    <span class="s2">if </span><span class="s4">(</span><span class="s1">domStyle</span><span class="s4">) {</span>
+      <span class="s1">domStyle</span><span class="s4">.</span><span class="s1">refs</span><span class="s4">++</span>
+      <span class="s2">for </span><span class="s4">(</span><span class="s2">var </span><span class="s1">j </span><span class="s4">= </span><span class="s5">0</span><span class="s4">; </span><span class="s1">j </span><span class="s4">&lt; </span><span class="s1">domStyle</span><span class="s4">.</span><span class="s1">parts</span><span class="s4">.</span><span class="s1">length</span><span class="s4">; </span><span class="s1">j</span><span class="s4">++) {</span>
+        <span class="s1">domStyle</span><span class="s4">.</span><span class="s1">parts</span><span class="s4">[</span><span class="s1">j</span><span class="s4">](</span><span class="s1">item</span><span class="s4">.</span><span class="s1">parts</span><span class="s4">[</span><span class="s1">j</span><span class="s4">])</span>
+      <span class="s4">}</span>
+      <span class="s2">for </span><span class="s4">(; </span><span class="s1">j </span><span class="s4">&lt; </span><span class="s1">item</span><span class="s4">.</span><span class="s1">parts</span><span class="s4">.</span><span class="s1">length</span><span class="s4">; </span><span class="s1">j</span><span class="s4">++) {</span>
+        <span class="s1">domStyle</span><span class="s4">.</span><span class="s1">parts</span><span class="s4">.</span><span class="s1">push</span><span class="s4">(</span><span class="s1">addStyle</span><span class="s4">(</span><span class="s1">item</span><span class="s4">.</span><span class="s1">parts</span><span class="s4">[</span><span class="s1">j</span><span class="s4">]))</span>
+      <span class="s4">}</span>
+      <span class="s2">if </span><span class="s4">(</span><span class="s1">domStyle</span><span class="s4">.</span><span class="s1">parts</span><span class="s4">.</span><span class="s1">length </span><span class="s4">&gt; </span><span class="s1">item</span><span class="s4">.</span><span class="s1">parts</span><span class="s4">.</span><span class="s1">length</span><span class="s4">) {</span>
+        <span class="s1">domStyle</span><span class="s4">.</span><span class="s1">parts</span><span class="s4">.</span><span class="s1">length </span><span class="s4">= </span><span class="s1">item</span><span class="s4">.</span><span class="s1">parts</span><span class="s4">.</span><span class="s1">length</span>
+      <span class="s4">}</span>
+    <span class="s4">} </span><span class="s2">else </span><span class="s4">{</span>
+      <span class="s2">var </span><span class="s1">parts </span><span class="s4">= []</span>
+      <span class="s2">for </span><span class="s4">(</span><span class="s2">var </span><span class="s1">j </span><span class="s4">= </span><span class="s5">0</span><span class="s4">; </span><span class="s1">j </span><span class="s4">&lt; </span><span class="s1">item</span><span class="s4">.</span><span class="s1">parts</span><span class="s4">.</span><span class="s1">length</span><span class="s4">; </span><span class="s1">j</span><span class="s4">++) {</span>
+        <span class="s1">parts</span><span class="s4">.</span><span class="s1">push</span><span class="s4">(</span><span class="s1">addStyle</span><span class="s4">(</span><span class="s1">item</span><span class="s4">.</span><span class="s1">parts</span><span class="s4">[</span><span class="s1">j</span><span class="s4">]))</span>
+      <span class="s4">}</span>
+      <span class="s1">stylesInDom</span><span class="s4">[</span><span class="s1">item</span><span class="s4">.</span><span class="s1">id</span><span class="s4">] = { </span><span class="s1">id</span><span class="s4">: </span><span class="s1">item</span><span class="s4">.</span><span class="s1">id</span><span class="s4">, </span><span class="s1">refs</span><span class="s4">: </span><span class="s5">1</span><span class="s4">, </span><span class="s1">parts</span><span class="s4">: </span><span class="s1">parts </span><span class="s4">}</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s2">function </span><span class="s1">createStyleElement </span><span class="s4">() {</span>
+  <span class="s2">var </span><span class="s1">styleElement </span><span class="s4">= </span><span class="s1">document</span><span class="s4">.</span><span class="s1">createElement</span><span class="s4">(</span><span class="s3">'style'</span><span class="s4">)</span>
+  <span class="s1">styleElement</span><span class="s4">.</span><span class="s1">type </span><span class="s4">= </span><span class="s3">'text/css'</span>
+  <span class="s1">head</span><span class="s4">.</span><span class="s1">appendChild</span><span class="s4">(</span><span class="s1">styleElement</span><span class="s4">)</span>
+  <span class="s2">return </span><span class="s1">styleElement</span>
+<span class="s4">}</span>
+
+<span class="s2">function </span><span class="s1">addStyle </span><span class="s4">(</span><span class="s1">obj </span><span class="s0">/* StyleObjectPart */</span><span class="s4">) {</span>
+  <span class="s2">var </span><span class="s1">update</span><span class="s4">, </span><span class="s1">remove</span>
+  <span class="s2">var </span><span class="s1">styleElement </span><span class="s4">= </span><span class="s1">document</span><span class="s4">.</span><span class="s1">querySelector</span><span class="s4">(</span><span class="s3">'style[' </span><span class="s4">+ </span><span class="s1">ssrIdKey </span><span class="s4">+ </span><span class="s3">'~=&quot;' </span><span class="s4">+ </span><span class="s1">obj</span><span class="s4">.</span><span class="s1">id </span><span class="s4">+ </span><span class="s3">'&quot;]'</span><span class="s4">)</span>
+
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">styleElement</span><span class="s4">) {</span>
+    <span class="s2">if </span><span class="s4">(</span><span class="s1">isProduction</span><span class="s4">) {</span>
+      <span class="s0">// has SSR styles and in production mode.</span>
+      <span class="s0">// simply do nothing.</span>
+      <span class="s2">return </span><span class="s1">noop</span>
+    <span class="s4">} </span><span class="s2">else </span><span class="s4">{</span>
+      <span class="s0">// has SSR styles but in dev mode.</span>
+      <span class="s0">// for some reason Chrome can't handle source map in server-rendered</span>
+      <span class="s0">// style tags - source maps in &lt;style&gt; only works if the style tag is</span>
+      <span class="s0">// created and inserted dynamically. So we remove the server rendered</span>
+      <span class="s0">// styles and inject new ones.</span>
+      <span class="s1">styleElement</span><span class="s4">.</span><span class="s1">parentNode</span><span class="s4">.</span><span class="s1">removeChild</span><span class="s4">(</span><span class="s1">styleElement</span><span class="s4">)</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">isOldIE</span><span class="s4">) {</span>
+    <span class="s0">// use singleton mode for IE9.</span>
+    <span class="s2">var </span><span class="s1">styleIndex </span><span class="s4">= </span><span class="s1">singletonCounter</span><span class="s4">++</span>
+    <span class="s1">styleElement </span><span class="s4">= </span><span class="s1">singletonElement </span><span class="s4">|| (</span><span class="s1">singletonElement </span><span class="s4">= </span><span class="s1">createStyleElement</span><span class="s4">())</span>
+    <span class="s1">update </span><span class="s4">= </span><span class="s1">applyToSingletonTag</span><span class="s4">.</span><span class="s1">bind</span><span class="s4">(</span><span class="s2">null</span><span class="s4">, </span><span class="s1">styleElement</span><span class="s4">, </span><span class="s1">styleIndex</span><span class="s4">, </span><span class="s2">false</span><span class="s4">)</span>
+    <span class="s1">remove </span><span class="s4">= </span><span class="s1">applyToSingletonTag</span><span class="s4">.</span><span class="s1">bind</span><span class="s4">(</span><span class="s2">null</span><span class="s4">, </span><span class="s1">styleElement</span><span class="s4">, </span><span class="s1">styleIndex</span><span class="s4">, </span><span class="s2">true</span><span class="s4">)</span>
+  <span class="s4">} </span><span class="s2">else </span><span class="s4">{</span>
+    <span class="s0">// use multi-style-tag mode in all other cases</span>
+    <span class="s1">styleElement </span><span class="s4">= </span><span class="s1">createStyleElement</span><span class="s4">()</span>
+    <span class="s1">update </span><span class="s4">= </span><span class="s1">applyToTag</span><span class="s4">.</span><span class="s1">bind</span><span class="s4">(</span><span class="s2">null</span><span class="s4">, </span><span class="s1">styleElement</span><span class="s4">)</span>
+    <span class="s1">remove </span><span class="s4">= </span><span class="s2">function </span><span class="s4">() {</span>
+      <span class="s1">styleElement</span><span class="s4">.</span><span class="s1">parentNode</span><span class="s4">.</span><span class="s1">removeChild</span><span class="s4">(</span><span class="s1">styleElement</span><span class="s4">)</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+
+  <span class="s1">update</span><span class="s4">(</span><span class="s1">obj</span><span class="s4">)</span>
+
+  <span class="s2">return function </span><span class="s1">updateStyle </span><span class="s4">(</span><span class="s1">newObj </span><span class="s0">/* StyleObjectPart */</span><span class="s4">) {</span>
+    <span class="s2">if </span><span class="s4">(</span><span class="s1">newObj</span><span class="s4">) {</span>
+      <span class="s2">if </span><span class="s4">(</span><span class="s1">newObj</span><span class="s4">.</span><span class="s1">css </span><span class="s4">=== </span><span class="s1">obj</span><span class="s4">.</span><span class="s1">css </span><span class="s4">&amp;&amp;</span>
+          <span class="s1">newObj</span><span class="s4">.</span><span class="s1">media </span><span class="s4">=== </span><span class="s1">obj</span><span class="s4">.</span><span class="s1">media </span><span class="s4">&amp;&amp;</span>
+          <span class="s1">newObj</span><span class="s4">.</span><span class="s1">sourceMap </span><span class="s4">=== </span><span class="s1">obj</span><span class="s4">.</span><span class="s1">sourceMap</span><span class="s4">) {</span>
+        <span class="s2">return</span>
+      <span class="s4">}</span>
+      <span class="s1">update</span><span class="s4">(</span><span class="s1">obj </span><span class="s4">= </span><span class="s1">newObj</span><span class="s4">)</span>
+    <span class="s4">} </span><span class="s2">else </span><span class="s4">{</span>
+      <span class="s1">remove</span><span class="s4">()</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s2">var </span><span class="s1">replaceText </span><span class="s4">= (</span><span class="s2">function </span><span class="s4">() {</span>
+  <span class="s2">var </span><span class="s1">textStore </span><span class="s4">= []</span>
+
+  <span class="s2">return function </span><span class="s4">(</span><span class="s1">index</span><span class="s4">, </span><span class="s1">replacement</span><span class="s4">) {</span>
+    <span class="s1">textStore</span><span class="s4">[</span><span class="s1">index</span><span class="s4">] = </span><span class="s1">replacement</span>
+    <span class="s2">return </span><span class="s1">textStore</span><span class="s4">.</span><span class="s1">filter</span><span class="s4">(</span><span class="s1">Boolean</span><span class="s4">).</span><span class="s1">join</span><span class="s4">(</span><span class="s3">'</span><span class="s2">\n</span><span class="s3">'</span><span class="s4">)</span>
+  <span class="s4">}</span>
+<span class="s4">})()</span>
+
+<span class="s2">function </span><span class="s1">applyToSingletonTag </span><span class="s4">(</span><span class="s1">styleElement</span><span class="s4">, </span><span class="s1">index</span><span class="s4">, </span><span class="s1">remove</span><span class="s4">, </span><span class="s1">obj</span><span class="s4">) {</span>
+  <span class="s2">var </span><span class="s1">css </span><span class="s4">= </span><span class="s1">remove </span><span class="s4">? </span><span class="s3">'' </span><span class="s4">: </span><span class="s1">obj</span><span class="s4">.</span><span class="s1">css</span>
+
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">styleElement</span><span class="s4">.</span><span class="s1">styleSheet</span><span class="s4">) {</span>
+    <span class="s1">styleElement</span><span class="s4">.</span><span class="s1">styleSheet</span><span class="s4">.</span><span class="s1">cssText </span><span class="s4">= </span><span class="s1">replaceText</span><span class="s4">(</span><span class="s1">index</span><span class="s4">, </span><span class="s1">css</span><span class="s4">)</span>
+  <span class="s4">} </span><span class="s2">else </span><span class="s4">{</span>
+    <span class="s2">var </span><span class="s1">cssNode </span><span class="s4">= </span><span class="s1">document</span><span class="s4">.</span><span class="s1">createTextNode</span><span class="s4">(</span><span class="s1">css</span><span class="s4">)</span>
+    <span class="s2">var </span><span class="s1">childNodes </span><span class="s4">= </span><span class="s1">styleElement</span><span class="s4">.</span><span class="s1">childNodes</span>
+    <span class="s2">if </span><span class="s4">(</span><span class="s1">childNodes</span><span class="s4">[</span><span class="s1">index</span><span class="s4">]) </span><span class="s1">styleElement</span><span class="s4">.</span><span class="s1">removeChild</span><span class="s4">(</span><span class="s1">childNodes</span><span class="s4">[</span><span class="s1">index</span><span class="s4">])</span>
+    <span class="s2">if </span><span class="s4">(</span><span class="s1">childNodes</span><span class="s4">.</span><span class="s1">length</span><span class="s4">) {</span>
+      <span class="s1">styleElement</span><span class="s4">.</span><span class="s1">insertBefore</span><span class="s4">(</span><span class="s1">cssNode</span><span class="s4">, </span><span class="s1">childNodes</span><span class="s4">[</span><span class="s1">index</span><span class="s4">])</span>
+    <span class="s4">} </span><span class="s2">else </span><span class="s4">{</span>
+      <span class="s1">styleElement</span><span class="s4">.</span><span class="s1">appendChild</span><span class="s4">(</span><span class="s1">cssNode</span><span class="s4">)</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s2">function </span><span class="s1">applyToTag </span><span class="s4">(</span><span class="s1">styleElement</span><span class="s4">, </span><span class="s1">obj</span><span class="s4">) {</span>
+  <span class="s2">var </span><span class="s1">css </span><span class="s4">= </span><span class="s1">obj</span><span class="s4">.</span><span class="s1">css</span>
+  <span class="s2">var </span><span class="s1">media </span><span class="s4">= </span><span class="s1">obj</span><span class="s4">.</span><span class="s1">media</span>
+  <span class="s2">var </span><span class="s1">sourceMap </span><span class="s4">= </span><span class="s1">obj</span><span class="s4">.</span><span class="s1">sourceMap</span>
+
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">media</span><span class="s4">) {</span>
+    <span class="s1">styleElement</span><span class="s4">.</span><span class="s1">setAttribute</span><span class="s4">(</span><span class="s3">'media'</span><span class="s4">, </span><span class="s1">media</span><span class="s4">)</span>
+  <span class="s4">}</span>
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">options</span><span class="s4">.</span><span class="s1">ssrId</span><span class="s4">) {</span>
+    <span class="s1">styleElement</span><span class="s4">.</span><span class="s1">setAttribute</span><span class="s4">(</span><span class="s1">ssrIdKey</span><span class="s4">, </span><span class="s1">obj</span><span class="s4">.</span><span class="s1">id</span><span class="s4">)</span>
+  <span class="s4">}</span>
+
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">sourceMap</span><span class="s4">) {</span>
+    <span class="s0">// https://developer.chrome.com/devtools/docs/javascript-debugging</span>
+    <span class="s0">// this makes source maps inside style tags work properly in Chrome</span>
+    <span class="s1">css </span><span class="s4">+= </span><span class="s3">'</span><span class="s2">\n</span><span class="s3">/*# sourceURL=' </span><span class="s4">+ </span><span class="s1">sourceMap</span><span class="s4">.</span><span class="s1">sources</span><span class="s4">[</span><span class="s5">0</span><span class="s4">] + </span><span class="s3">' */'</span>
+    <span class="s0">// http://stackoverflow.com/a/26603875</span>
+    <span class="s1">css </span><span class="s4">+= </span><span class="s3">'</span><span class="s2">\n</span><span class="s3">/*# sourceMappingURL=data:application/json;base64,' </span><span class="s4">+ </span><span class="s1">btoa</span><span class="s4">(</span><span class="s1">unescape</span><span class="s4">(</span><span class="s1">encodeURIComponent</span><span class="s4">(</span><span class="s1">JSON</span><span class="s4">.</span><span class="s1">stringify</span><span class="s4">(</span><span class="s1">sourceMap</span><span class="s4">)))) + </span><span class="s3">' */'</span>
+  <span class="s4">}</span>
+
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">styleElement</span><span class="s4">.</span><span class="s1">styleSheet</span><span class="s4">) {</span>
+    <span class="s1">styleElement</span><span class="s4">.</span><span class="s1">styleSheet</span><span class="s4">.</span><span class="s1">cssText </span><span class="s4">= </span><span class="s1">css</span>
+  <span class="s4">} </span><span class="s2">else </span><span class="s4">{</span>
+    <span class="s2">while </span><span class="s4">(</span><span class="s1">styleElement</span><span class="s4">.</span><span class="s1">firstChild</span><span class="s4">) {</span>
+      <span class="s1">styleElement</span><span class="s4">.</span><span class="s1">removeChild</span><span class="s4">(</span><span class="s1">styleElement</span><span class="s4">.</span><span class="s1">firstChild</span><span class="s4">)</span>
+    <span class="s4">}</span>
+    <span class="s1">styleElement</span><span class="s4">.</span><span class="s1">appendChild</span><span class="s4">(</span><span class="s1">document</span><span class="s4">.</span><span class="s1">createTextNode</span><span class="s4">(</span><span class="s1">css</span><span class="s4">))</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+</pre>
+</body>
+</html>

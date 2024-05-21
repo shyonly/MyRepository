@@ -1,0 +1,86 @@
+<html>
+<head>
+<title>generate-helpers.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #7a7e85;}
+.s5 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+generate-helpers.js</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">fs from </span><span class="s2">&quot;fs&quot;</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">join </span><span class="s3">} </span><span class="s1">from </span><span class="s2">&quot;path&quot;</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">URL</span><span class="s3">, </span><span class="s1">fileURLToPath </span><span class="s3">} </span><span class="s1">from </span><span class="s2">&quot;url&quot;</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">minify </span><span class="s3">} </span><span class="s1">from </span><span class="s2">&quot;terser&quot;</span><span class="s3">; </span><span class="s4">// eslint-disable-line import/no-extraneous-dependencies</span>
+
+<span class="s0">const </span><span class="s1">HELPERS_FOLDER </span><span class="s3">= </span><span class="s0">new </span><span class="s1">URL</span><span class="s3">(</span><span class="s2">&quot;../src/helpers&quot;</span><span class="s3">, </span><span class="s0">import</span><span class="s3">.</span><span class="s1">meta</span><span class="s3">.</span><span class="s1">url</span><span class="s3">);</span>
+<span class="s0">const </span><span class="s1">IGNORED_FILES </span><span class="s3">= </span><span class="s0">new </span><span class="s1">Set</span><span class="s3">([</span><span class="s2">&quot;package.json&quot;</span><span class="s3">]);</span>
+
+<span class="s0">export default </span><span class="s1">async </span><span class="s0">function </span><span class="s1">generateHelpers</span><span class="s3">() {</span>
+  <span class="s0">let </span><span class="s1">output </span><span class="s3">= </span><span class="s2">`/* 
+ * This file is auto-generated! Do not modify it directly. 
+ * To re-generate run 'yarn gulp generate-runtime-helpers' 
+ */ 
+ 
+import template from &quot;@babel/template&quot;; 
+ 
+function helper(minVersion: string, source: string) { 
+  return Object.freeze({ 
+    minVersion, 
+    ast: () =&gt; template.program.ast(source, { preserveComments: true }), 
+  }) 
+} 
+ 
+export default Object.freeze({ 
+`</span><span class="s3">;</span>
+
+  <span class="s0">for </span><span class="s3">(</span><span class="s0">const </span><span class="s1">file of </span><span class="s3">(</span><span class="s0">await </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">promises</span><span class="s3">.</span><span class="s1">readdir</span><span class="s3">(</span><span class="s1">HELPERS_FOLDER</span><span class="s3">)).</span><span class="s1">sort</span><span class="s3">()) {</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">IGNORED_FILES</span><span class="s3">.</span><span class="s1">has</span><span class="s3">(</span><span class="s1">file</span><span class="s3">)) </span><span class="s0">continue</span><span class="s3">;</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">file</span><span class="s3">.</span><span class="s1">startsWith</span><span class="s3">(</span><span class="s2">&quot;.&quot;</span><span class="s3">)) </span><span class="s0">continue</span><span class="s3">; </span><span class="s4">// ignore e.g. vim swap files</span>
+
+    <span class="s0">const </span><span class="s3">[</span><span class="s1">helperName</span><span class="s3">] = </span><span class="s1">file</span><span class="s3">.</span><span class="s1">split</span><span class="s3">(</span><span class="s2">&quot;.&quot;</span><span class="s3">);</span>
+
+    <span class="s0">const </span><span class="s1">filePath </span><span class="s3">= </span><span class="s1">join</span><span class="s3">(</span><span class="s1">fileURLToPath</span><span class="s3">(</span><span class="s1">HELPERS_FOLDER</span><span class="s3">), </span><span class="s1">file</span><span class="s3">);</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">file</span><span class="s3">.</span><span class="s1">endsWith</span><span class="s3">(</span><span class="s2">&quot;.js&quot;</span><span class="s3">)) {</span>
+      <span class="s1">console</span><span class="s3">.</span><span class="s1">error</span><span class="s3">(</span><span class="s2">&quot;ignoring&quot;</span><span class="s3">, </span><span class="s1">filePath</span><span class="s3">);</span>
+      <span class="s0">continue</span><span class="s3">;</span>
+    <span class="s3">}</span>
+
+    <span class="s0">const </span><span class="s1">fileContents </span><span class="s3">= </span><span class="s0">await </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">promises</span><span class="s3">.</span><span class="s1">readFile</span><span class="s3">(</span><span class="s1">filePath</span><span class="s3">, </span><span class="s2">&quot;utf8&quot;</span><span class="s3">);</span>
+    <span class="s0">const </span><span class="s1">minVersionMatch </span><span class="s3">= </span><span class="s1">fileContents</span><span class="s3">.</span><span class="s1">match</span><span class="s3">(</span>
+      <span class="s5">/^\s*\/\*\s*@minVersion\s+(?&lt;minVersion&gt;\S+)\s*\*\/\s*$/m</span>
+    <span class="s3">);</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">minVersionMatch</span><span class="s3">) {</span>
+      <span class="s0">throw new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">`@minVersion number missing in </span><span class="s1">$</span><span class="s3">{</span><span class="s1">filePath</span><span class="s3">}</span><span class="s2">`</span><span class="s3">);</span>
+    <span class="s3">}</span>
+    <span class="s0">const </span><span class="s3">{ </span><span class="s1">minVersion </span><span class="s3">} = </span><span class="s1">minVersionMatch</span><span class="s3">.</span><span class="s1">groups</span><span class="s3">;</span>
+
+    <span class="s0">const </span><span class="s1">source </span><span class="s3">= </span><span class="s0">await </span><span class="s1">minify</span><span class="s3">(</span><span class="s1">fileContents</span><span class="s3">, {</span>
+      <span class="s1">mangle</span><span class="s3">: { </span><span class="s1">keep_fnames</span><span class="s3">: </span><span class="s0">true </span><span class="s3">},</span>
+      <span class="s4">// The _typeof helper has a custom directive that we must keep</span>
+      <span class="s1">compress</span><span class="s3">: { </span><span class="s1">directives</span><span class="s3">: </span><span class="s0">false </span><span class="s3">},</span>
+    <span class="s3">});</span>
+
+    <span class="s1">output </span><span class="s3">+= </span><span class="s2">`</span><span class="s0">\ 
+  </span><span class="s1">$</span><span class="s3">{</span><span class="s1">JSON</span><span class="s3">.</span><span class="s1">stringify</span><span class="s3">(</span><span class="s1">helperName</span><span class="s3">)}</span><span class="s2">: helper( 
+    </span><span class="s1">$</span><span class="s3">{</span><span class="s1">JSON</span><span class="s3">.</span><span class="s1">stringify</span><span class="s3">(</span><span class="s1">minVersion</span><span class="s3">)}</span><span class="s2">, 
+    </span><span class="s1">$</span><span class="s3">{</span><span class="s1">JSON</span><span class="s3">.</span><span class="s1">stringify</span><span class="s3">(</span><span class="s1">source</span><span class="s3">.</span><span class="s1">code</span><span class="s3">)}</span><span class="s2">, 
+  ), 
+`</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s1">output </span><span class="s3">+= </span><span class="s2">&quot;});&quot;</span><span class="s3">;</span>
+  <span class="s0">return </span><span class="s1">output</span><span class="s3">;</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

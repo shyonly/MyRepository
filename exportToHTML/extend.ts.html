@@ -1,0 +1,117 @@
+<html>
+<head>
+<title>extend.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #2aacb8;}
+.s6 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+extend.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">ASSET_TYPES </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'shared/constants'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">Component </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/component'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">GlobalAPI </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/global-api'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">defineComputed</span><span class="s2">, </span><span class="s1">proxy </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../instance/state'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">extend</span><span class="s2">, </span><span class="s1">mergeOptions</span><span class="s2">, </span><span class="s1">validateComponentName </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../util/index'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">getComponentName </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../vdom/create-component'</span>
+
+<span class="s0">export function </span><span class="s1">initExtend</span><span class="s2">(</span><span class="s1">Vue</span><span class="s2">: </span><span class="s1">GlobalAPI</span><span class="s2">) {</span>
+  <span class="s4">/**</span>
+   <span class="s4">* Each instance constructor, including Vue, has a unique</span>
+   <span class="s4">* cid. This enables us to create wrapped &quot;child</span>
+   <span class="s4">* constructors&quot; for prototypal inheritance and cache them.</span>
+   <span class="s4">*/</span>
+  <span class="s1">Vue</span><span class="s2">.</span><span class="s1">cid </span><span class="s2">= </span><span class="s5">0</span>
+  <span class="s0">let </span><span class="s1">cid </span><span class="s2">= </span><span class="s5">1</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Class inheritance</span>
+   <span class="s4">*/</span>
+  <span class="s1">Vue</span><span class="s2">.</span><span class="s1">extend </span><span class="s2">= </span><span class="s0">function </span><span class="s2">(</span><span class="s1">extendOptions</span><span class="s2">: </span><span class="s1">any</span><span class="s2">): </span><span class="s0">typeof </span><span class="s1">Component </span><span class="s2">{</span>
+    <span class="s1">extendOptions </span><span class="s2">= </span><span class="s1">extendOptions </span><span class="s2">|| {}</span>
+    <span class="s0">const </span><span class="s1">Super </span><span class="s2">= </span><span class="s0">this</span>
+    <span class="s0">const </span><span class="s1">SuperId </span><span class="s2">= </span><span class="s1">Super</span><span class="s2">.</span><span class="s1">cid</span>
+    <span class="s0">const </span><span class="s1">cachedCtors </span><span class="s2">= </span><span class="s1">extendOptions</span><span class="s2">.</span><span class="s1">_Ctor </span><span class="s2">|| (</span><span class="s1">extendOptions</span><span class="s2">.</span><span class="s1">_Ctor </span><span class="s2">= {})</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">cachedCtors</span><span class="s2">[</span><span class="s1">SuperId</span><span class="s2">]) {</span>
+      <span class="s0">return </span><span class="s1">cachedCtors</span><span class="s2">[</span><span class="s1">SuperId</span><span class="s2">]</span>
+    <span class="s2">}</span>
+
+    <span class="s0">const </span><span class="s1">name </span><span class="s2">=</span>
+      <span class="s1">getComponentName</span><span class="s2">(</span><span class="s1">extendOptions</span><span class="s2">) || </span><span class="s1">getComponentName</span><span class="s2">(</span><span class="s1">Super</span><span class="s2">.</span><span class="s1">options</span><span class="s2">)</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">__DEV__ </span><span class="s2">&amp;&amp; </span><span class="s1">name</span><span class="s2">) {</span>
+      <span class="s1">validateComponentName</span><span class="s2">(</span><span class="s1">name</span><span class="s2">)</span>
+    <span class="s2">}</span>
+
+    <span class="s0">const </span><span class="s1">Sub </span><span class="s2">= </span><span class="s0">function </span><span class="s1">VueComponent</span><span class="s2">(</span><span class="s0">this</span><span class="s2">: </span><span class="s1">any</span><span class="s2">, </span><span class="s1">options</span><span class="s2">: </span><span class="s1">any</span><span class="s2">) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">_init</span><span class="s2">(</span><span class="s1">options</span><span class="s2">)</span>
+    <span class="s2">} as </span><span class="s1">unknown </span><span class="s2">as </span><span class="s0">typeof </span><span class="s1">Component</span>
+    <span class="s1">Sub</span><span class="s2">.</span><span class="s1">prototype </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">create</span><span class="s2">(</span><span class="s1">Super</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">)</span>
+    <span class="s1">Sub</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">constructor </span><span class="s2">= </span><span class="s1">Sub</span>
+    <span class="s1">Sub</span><span class="s2">.</span><span class="s1">cid </span><span class="s2">= </span><span class="s1">cid</span><span class="s2">++</span>
+    <span class="s1">Sub</span><span class="s2">.</span><span class="s1">options </span><span class="s2">= </span><span class="s1">mergeOptions</span><span class="s2">(</span><span class="s1">Super</span><span class="s2">.</span><span class="s1">options</span><span class="s2">, </span><span class="s1">extendOptions</span><span class="s2">)</span>
+    <span class="s1">Sub</span><span class="s2">[</span><span class="s3">'super'</span><span class="s2">] = </span><span class="s1">Super</span>
+
+    <span class="s6">// For props and computed properties, we define the proxy getters on</span>
+    <span class="s6">// the Vue instances at extension time, on the extended prototype. This</span>
+    <span class="s6">// avoids Object.defineProperty calls for each instance created.</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">Sub</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">props</span><span class="s2">) {</span>
+      <span class="s1">initProps</span><span class="s2">(</span><span class="s1">Sub</span><span class="s2">)</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">Sub</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">computed</span><span class="s2">) {</span>
+      <span class="s1">initComputed</span><span class="s2">(</span><span class="s1">Sub</span><span class="s2">)</span>
+    <span class="s2">}</span>
+
+    <span class="s6">// allow further extension/mixin/plugin usage</span>
+    <span class="s1">Sub</span><span class="s2">.</span><span class="s1">extend </span><span class="s2">= </span><span class="s1">Super</span><span class="s2">.</span><span class="s1">extend</span>
+    <span class="s1">Sub</span><span class="s2">.</span><span class="s1">mixin </span><span class="s2">= </span><span class="s1">Super</span><span class="s2">.</span><span class="s1">mixin</span>
+    <span class="s1">Sub</span><span class="s2">.</span><span class="s1">use </span><span class="s2">= </span><span class="s1">Super</span><span class="s2">.</span><span class="s1">use</span>
+
+    <span class="s6">// create asset registers, so extended classes</span>
+    <span class="s6">// can have their private assets too.</span>
+    <span class="s1">ASSET_TYPES</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s0">function </span><span class="s2">(</span><span class="s1">type</span><span class="s2">) {</span>
+      <span class="s1">Sub</span><span class="s2">[</span><span class="s1">type</span><span class="s2">] = </span><span class="s1">Super</span><span class="s2">[</span><span class="s1">type</span><span class="s2">]</span>
+    <span class="s2">})</span>
+    <span class="s6">// enable recursive self-lookup</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">name</span><span class="s2">) {</span>
+      <span class="s1">Sub</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">components</span><span class="s2">[</span><span class="s1">name</span><span class="s2">] = </span><span class="s1">Sub</span>
+    <span class="s2">}</span>
+
+    <span class="s6">// keep a reference to the super options at extension time.</span>
+    <span class="s6">// later at instantiation we can check if Super's options have</span>
+    <span class="s6">// been updated.</span>
+    <span class="s1">Sub</span><span class="s2">.</span><span class="s1">superOptions </span><span class="s2">= </span><span class="s1">Super</span><span class="s2">.</span><span class="s1">options</span>
+    <span class="s1">Sub</span><span class="s2">.</span><span class="s1">extendOptions </span><span class="s2">= </span><span class="s1">extendOptions</span>
+    <span class="s1">Sub</span><span class="s2">.</span><span class="s1">sealedOptions </span><span class="s2">= </span><span class="s1">extend</span><span class="s2">({}, </span><span class="s1">Sub</span><span class="s2">.</span><span class="s1">options</span><span class="s2">)</span>
+
+    <span class="s6">// cache constructor</span>
+    <span class="s1">cachedCtors</span><span class="s2">[</span><span class="s1">SuperId</span><span class="s2">] = </span><span class="s1">Sub</span>
+    <span class="s0">return </span><span class="s1">Sub</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">initProps</span><span class="s2">(</span><span class="s1">Comp</span><span class="s2">: </span><span class="s0">typeof </span><span class="s1">Component</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">props </span><span class="s2">= </span><span class="s1">Comp</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">props</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">props</span><span class="s2">) {</span>
+    <span class="s1">proxy</span><span class="s2">(</span><span class="s1">Comp</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">, </span><span class="s3">`_props`</span><span class="s2">, </span><span class="s1">key</span><span class="s2">)</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">initComputed</span><span class="s2">(</span><span class="s1">Comp</span><span class="s2">: </span><span class="s0">typeof </span><span class="s1">Component</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">computed </span><span class="s2">= </span><span class="s1">Comp</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">computed</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">computed</span><span class="s2">) {</span>
+    <span class="s1">defineComputed</span><span class="s2">(</span><span class="s1">Comp</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">computed</span><span class="s2">[</span><span class="s1">key</span><span class="s2">])</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

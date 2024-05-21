@@ -1,0 +1,492 @@
+<html>
+<head>
+<title>table-body.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #d5b778;}
+.s5 { color: #7a7e85;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+table-body.js</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">arrayFindIndex </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'element-ui/src/utils/util'</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">getCell</span><span class="s2">, </span><span class="s1">getColumnByCell</span><span class="s2">, </span><span class="s1">getRowIdentity</span><span class="s2">, </span><span class="s1">objectEquals </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./util'</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">getStyle</span><span class="s2">, </span><span class="s1">hasClass</span><span class="s2">, </span><span class="s1">removeClass</span><span class="s2">, </span><span class="s1">addClass </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'element-ui/src/utils/dom'</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">ElCheckbox from </span><span class="s3">'element-ui/packages/checkbox'</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">ElTooltip from </span><span class="s3">'element-ui/packages/tooltip'</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">debounce from </span><span class="s3">'throttle-debounce/debounce'</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">LayoutObserver from </span><span class="s3">'./layout-observer'</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">mapStates </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./store/helper'</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">TableRow from </span><span class="s3">'./table-row.js'</span><span class="s2">;</span>
+
+<span class="s0">export default </span><span class="s2">{</span>
+  <span class="s1">name</span><span class="s2">: </span><span class="s3">'ElTableBody'</span><span class="s2">,</span>
+
+  <span class="s1">mixins</span><span class="s2">: [</span><span class="s1">LayoutObserver</span><span class="s2">],</span>
+
+  <span class="s1">components</span><span class="s2">: {</span>
+    <span class="s1">ElCheckbox</span><span class="s2">,</span>
+    <span class="s1">ElTooltip</span><span class="s2">,</span>
+    <span class="s1">TableRow</span>
+  <span class="s2">},</span>
+
+  <span class="s1">props</span><span class="s2">: {</span>
+    <span class="s1">store</span><span class="s2">: {</span>
+      <span class="s1">required</span><span class="s2">: </span><span class="s0">true</span>
+    <span class="s2">},</span>
+    <span class="s1">stripe</span><span class="s2">: </span><span class="s1">Boolean</span><span class="s2">,</span>
+    <span class="s1">context</span><span class="s2">: {},</span>
+    <span class="s1">rowClassName</span><span class="s2">: [</span><span class="s1">String</span><span class="s2">, </span><span class="s1">Function</span><span class="s2">],</span>
+    <span class="s1">rowStyle</span><span class="s2">: [</span><span class="s1">Object</span><span class="s2">, </span><span class="s1">Function</span><span class="s2">],</span>
+    <span class="s1">fixed</span><span class="s2">: </span><span class="s1">String</span><span class="s2">,</span>
+    <span class="s1">highlight</span><span class="s2">: </span><span class="s1">Boolean</span>
+  <span class="s2">},</span>
+
+  <span class="s1">render</span><span class="s2">(</span><span class="s1">h</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">data </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">data </span><span class="s2">|| [];</span>
+    <span class="s0">return </span><span class="s2">(</span>
+      <span class="s4">&lt;table</span>
+        <span class="s2">class</span><span class="s3">=&quot;el-table__body&quot;</span>
+        <span class="s2">cellspacing</span><span class="s3">=&quot;0&quot;</span>
+        <span class="s2">cellpadding</span><span class="s3">=&quot;0&quot;</span>
+        <span class="s2">border</span><span class="s3">=&quot;0&quot;</span><span class="s4">&gt;</span>
+        <span class="s4">&lt;colgroup&gt;</span>
+          <span class="s2">{</span>
+            <span class="s0">this</span><span class="s2">.</span><span class="s1">columns</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">column </span><span class="s2">=&gt; </span><span class="s4">&lt;col </span><span class="s2">name</span><span class="s3">=</span><span class="s2">{</span><span class="s1">column</span><span class="s2">.</span><span class="s1">id</span><span class="s2">} key</span><span class="s3">=</span><span class="s2">{</span><span class="s1">column</span><span class="s2">.</span><span class="s1">id</span><span class="s2">} </span><span class="s4">/&gt;</span><span class="s2">)</span>
+          <span class="s2">}</span>
+        <span class="s4">&lt;/colgroup&gt;</span>
+        <span class="s4">&lt;tbody&gt;</span>
+          <span class="s2">{</span>
+            <span class="s1">data</span><span class="s2">.</span><span class="s1">reduce</span><span class="s2">((</span><span class="s1">acc</span><span class="s2">, </span><span class="s1">row</span><span class="s2">) =&gt; {</span>
+              <span class="s0">return </span><span class="s1">acc</span><span class="s2">.</span><span class="s1">concat</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">wrappedRowRender</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">acc</span><span class="s2">.</span><span class="s1">length</span><span class="s2">));</span>
+            <span class="s2">}, [])</span>
+          <span class="s2">}</span>
+          <span class="s4">&lt;el-tooltip </span><span class="s2">effect</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">table</span><span class="s2">.</span><span class="s1">tooltipEffect</span><span class="s2">} placement</span><span class="s3">=&quot;top&quot; </span><span class="s2">ref</span><span class="s3">=&quot;tooltip&quot; </span><span class="s2">content</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">tooltipContent</span><span class="s2">}</span><span class="s4">&gt;&lt;/el-tooltip&gt;</span>
+        <span class="s4">&lt;/tbody&gt;</span>
+      <span class="s4">&lt;/table&gt;</span>
+    <span class="s2">);</span>
+  <span class="s2">},</span>
+
+  <span class="s1">computed</span><span class="s2">: {</span>
+    <span class="s1">table</span><span class="s2">() {</span>
+      <span class="s0">return this</span><span class="s2">.</span><span class="s1">$parent</span><span class="s2">;</span>
+    <span class="s2">},</span>
+
+    <span class="s1">...mapStates</span><span class="s2">({</span>
+      <span class="s1">data</span><span class="s2">: </span><span class="s3">'data'</span><span class="s2">,</span>
+      <span class="s1">columns</span><span class="s2">: </span><span class="s3">'columns'</span><span class="s2">,</span>
+      <span class="s1">treeIndent</span><span class="s2">: </span><span class="s3">'indent'</span><span class="s2">,</span>
+      <span class="s1">leftFixedLeafCount</span><span class="s2">: </span><span class="s3">'fixedLeafColumnsLength'</span><span class="s2">,</span>
+      <span class="s1">rightFixedLeafCount</span><span class="s2">: </span><span class="s3">'rightFixedLeafColumnsLength'</span><span class="s2">,</span>
+      <span class="s1">columnsCount</span><span class="s2">: </span><span class="s1">states </span><span class="s2">=&gt; </span><span class="s1">states</span><span class="s2">.</span><span class="s1">columns</span><span class="s2">.</span><span class="s1">length</span><span class="s2">,</span>
+      <span class="s1">leftFixedCount</span><span class="s2">: </span><span class="s1">states </span><span class="s2">=&gt; </span><span class="s1">states</span><span class="s2">.</span><span class="s1">fixedColumns</span><span class="s2">.</span><span class="s1">length</span><span class="s2">,</span>
+      <span class="s1">rightFixedCount</span><span class="s2">: </span><span class="s1">states </span><span class="s2">=&gt; </span><span class="s1">states</span><span class="s2">.</span><span class="s1">rightFixedColumns</span><span class="s2">.</span><span class="s1">length</span><span class="s2">,</span>
+      <span class="s1">hasExpandColumn</span><span class="s2">: </span><span class="s1">states </span><span class="s2">=&gt; </span><span class="s1">states</span><span class="s2">.</span><span class="s1">columns</span><span class="s2">.</span><span class="s1">some</span><span class="s2">(({ </span><span class="s1">type </span><span class="s2">}) =&gt; </span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'expand'</span><span class="s2">)</span>
+    <span class="s2">}),</span>
+
+    <span class="s1">columnsHidden</span><span class="s2">() {</span>
+      <span class="s0">return this</span><span class="s2">.</span><span class="s1">columns</span><span class="s2">.</span><span class="s1">map</span><span class="s2">((</span><span class="s1">column</span><span class="s2">, </span><span class="s1">index</span><span class="s2">) =&gt; </span><span class="s0">this</span><span class="s2">.</span><span class="s1">isColumnHidden</span><span class="s2">(</span><span class="s1">index</span><span class="s2">));</span>
+    <span class="s2">},</span>
+
+    <span class="s1">firstDefaultColumnIndex</span><span class="s2">() {</span>
+      <span class="s0">return </span><span class="s1">arrayFindIndex</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">columns</span><span class="s2">, ({ </span><span class="s1">type </span><span class="s2">}) =&gt; </span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'default'</span><span class="s2">);</span>
+    <span class="s2">}</span>
+  <span class="s2">},</span>
+
+  <span class="s1">watch</span><span class="s2">: {</span>
+    <span class="s5">// don't trigger getter of currentRow in getCellClass. see https://jsfiddle.net/oe2b4hqt/</span>
+    <span class="s5">// update DOM manually. see https://github.com/ElemeFE/element/pull/13954/files#diff-9b450c00d0a9dec0ffad5a3176972e40</span>
+    <span class="s3">'store.states.hoverRow'</span><span class="s2">(</span><span class="s1">newVal</span><span class="s2">, </span><span class="s1">oldVal</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(!</span><span class="s0">this</span><span class="s2">.</span><span class="s1">store</span><span class="s2">.</span><span class="s1">states</span><span class="s2">.</span><span class="s1">isComplex </span><span class="s2">|| </span><span class="s0">this</span><span class="s2">.</span><span class="s1">$isServer</span><span class="s2">) </span><span class="s0">return</span><span class="s2">;</span>
+      <span class="s0">let </span><span class="s1">raf </span><span class="s2">= </span><span class="s1">window</span><span class="s2">.</span><span class="s1">requestAnimationFrame</span><span class="s2">;</span>
+      <span class="s0">if </span><span class="s2">(!</span><span class="s1">raf</span><span class="s2">) {</span>
+        <span class="s1">raf </span><span class="s2">= (</span><span class="s1">fn</span><span class="s2">) =&gt; </span><span class="s1">setTimeout</span><span class="s2">(</span><span class="s1">fn</span><span class="s2">, </span><span class="s6">16</span><span class="s2">);</span>
+      <span class="s2">}</span>
+      <span class="s1">raf</span><span class="s2">(() =&gt; {</span>
+        <span class="s0">const </span><span class="s1">rows </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">$el</span><span class="s2">.</span><span class="s1">querySelectorAll</span><span class="s2">(</span><span class="s3">'.el-table__row'</span><span class="s2">);</span>
+        <span class="s0">const </span><span class="s1">oldRow </span><span class="s2">= </span><span class="s1">rows</span><span class="s2">[</span><span class="s1">oldVal</span><span class="s2">];</span>
+        <span class="s0">const </span><span class="s1">newRow </span><span class="s2">= </span><span class="s1">rows</span><span class="s2">[</span><span class="s1">newVal</span><span class="s2">];</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">oldRow</span><span class="s2">) {</span>
+          <span class="s1">removeClass</span><span class="s2">(</span><span class="s1">oldRow</span><span class="s2">, </span><span class="s3">'hover-row'</span><span class="s2">);</span>
+        <span class="s2">}</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">newRow</span><span class="s2">) {</span>
+          <span class="s1">addClass</span><span class="s2">(</span><span class="s1">newRow</span><span class="s2">, </span><span class="s3">'hover-row'</span><span class="s2">);</span>
+        <span class="s2">}</span>
+      <span class="s2">});</span>
+    <span class="s2">}</span>
+  <span class="s2">},</span>
+
+  <span class="s1">data</span><span class="s2">() {</span>
+    <span class="s0">return </span><span class="s2">{</span>
+      <span class="s1">tooltipContent</span><span class="s2">: </span><span class="s3">''</span>
+    <span class="s2">};</span>
+  <span class="s2">},</span>
+
+  <span class="s1">created</span><span class="s2">() {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">activateTooltip </span><span class="s2">= </span><span class="s1">debounce</span><span class="s2">(</span><span class="s6">50</span><span class="s2">, </span><span class="s1">tooltip </span><span class="s2">=&gt; </span><span class="s1">tooltip</span><span class="s2">.</span><span class="s1">handleShowPopper</span><span class="s2">());</span>
+  <span class="s2">},</span>
+
+  <span class="s1">methods</span><span class="s2">: {</span>
+    <span class="s1">getKeyOfRow</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">index</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">rowKey </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">table</span><span class="s2">.</span><span class="s1">rowKey</span><span class="s2">;</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">rowKey</span><span class="s2">) {</span>
+        <span class="s0">return </span><span class="s1">getRowIdentity</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">rowKey</span><span class="s2">);</span>
+      <span class="s2">}</span>
+      <span class="s0">return </span><span class="s1">index</span><span class="s2">;</span>
+    <span class="s2">},</span>
+
+    <span class="s1">isColumnHidden</span><span class="s2">(</span><span class="s1">index</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">fixed </span><span class="s2">=== </span><span class="s0">true </span><span class="s2">|| </span><span class="s0">this</span><span class="s2">.</span><span class="s1">fixed </span><span class="s2">=== </span><span class="s3">'left'</span><span class="s2">) {</span>
+        <span class="s0">return </span><span class="s1">index </span><span class="s2">&gt;= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">leftFixedLeafCount</span><span class="s2">;</span>
+      <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">fixed </span><span class="s2">=== </span><span class="s3">'right'</span><span class="s2">) {</span>
+        <span class="s0">return </span><span class="s1">index </span><span class="s2">&lt; </span><span class="s0">this</span><span class="s2">.</span><span class="s1">columnsCount </span><span class="s2">- </span><span class="s0">this</span><span class="s2">.</span><span class="s1">rightFixedLeafCount</span><span class="s2">;</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s0">return </span><span class="s2">(</span><span class="s1">index </span><span class="s2">&lt; </span><span class="s0">this</span><span class="s2">.</span><span class="s1">leftFixedLeafCount</span><span class="s2">) || (</span><span class="s1">index </span><span class="s2">&gt;= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">columnsCount </span><span class="s2">- </span><span class="s0">this</span><span class="s2">.</span><span class="s1">rightFixedLeafCount</span><span class="s2">);</span>
+      <span class="s2">}</span>
+    <span class="s2">},</span>
+
+    <span class="s1">getSpan</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">column</span><span class="s2">, </span><span class="s1">rowIndex</span><span class="s2">, </span><span class="s1">columnIndex</span><span class="s2">) {</span>
+      <span class="s0">let </span><span class="s1">rowspan </span><span class="s2">= </span><span class="s6">1</span><span class="s2">;</span>
+      <span class="s0">let </span><span class="s1">colspan </span><span class="s2">= </span><span class="s6">1</span><span class="s2">;</span>
+      <span class="s0">const </span><span class="s1">fn </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">table</span><span class="s2">.</span><span class="s1">spanMethod</span><span class="s2">;</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">fn </span><span class="s2">=== </span><span class="s3">'function'</span><span class="s2">) {</span>
+        <span class="s0">const </span><span class="s1">result </span><span class="s2">= </span><span class="s1">fn</span><span class="s2">({</span>
+          <span class="s1">row</span><span class="s2">,</span>
+          <span class="s1">column</span><span class="s2">,</span>
+          <span class="s1">rowIndex</span><span class="s2">,</span>
+          <span class="s1">columnIndex</span>
+        <span class="s2">});</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">result</span><span class="s2">)) {</span>
+          <span class="s1">rowspan </span><span class="s2">= </span><span class="s1">result</span><span class="s2">[</span><span class="s6">0</span><span class="s2">];</span>
+          <span class="s1">colspan </span><span class="s2">= </span><span class="s1">result</span><span class="s2">[</span><span class="s6">1</span><span class="s2">];</span>
+        <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">result </span><span class="s2">=== </span><span class="s3">'object'</span><span class="s2">) {</span>
+          <span class="s1">rowspan </span><span class="s2">= </span><span class="s1">result</span><span class="s2">.</span><span class="s1">rowspan</span><span class="s2">;</span>
+          <span class="s1">colspan </span><span class="s2">= </span><span class="s1">result</span><span class="s2">.</span><span class="s1">colspan</span><span class="s2">;</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+      <span class="s0">return </span><span class="s2">{ </span><span class="s1">rowspan</span><span class="s2">, </span><span class="s1">colspan </span><span class="s2">};</span>
+    <span class="s2">},</span>
+
+    <span class="s1">getRowStyle</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">rowIndex</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">rowStyle </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">table</span><span class="s2">.</span><span class="s1">rowStyle</span><span class="s2">;</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">rowStyle </span><span class="s2">=== </span><span class="s3">'function'</span><span class="s2">) {</span>
+        <span class="s0">return </span><span class="s1">rowStyle</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s0">null</span><span class="s2">, {</span>
+          <span class="s1">row</span><span class="s2">,</span>
+          <span class="s1">rowIndex</span>
+        <span class="s2">});</span>
+      <span class="s2">}</span>
+      <span class="s0">return </span><span class="s1">rowStyle </span><span class="s2">|| </span><span class="s0">null</span><span class="s2">;</span>
+    <span class="s2">},</span>
+
+    <span class="s1">getRowClass</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">rowIndex</span><span class="s2">) {</span>
+      <span class="s0">let </span><span class="s1">selection </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">store</span><span class="s2">.</span><span class="s1">states</span><span class="s2">.</span><span class="s1">selection</span><span class="s2">;</span>
+      <span class="s0">const </span><span class="s1">classes </span><span class="s2">= [</span><span class="s3">'el-table__row'</span><span class="s2">];</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">table</span><span class="s2">.</span><span class="s1">highlightCurrentRow </span><span class="s2">&amp;&amp; </span><span class="s1">row </span><span class="s2">=== </span><span class="s0">this</span><span class="s2">.</span><span class="s1">store</span><span class="s2">.</span><span class="s1">states</span><span class="s2">.</span><span class="s1">currentRow</span><span class="s2">) {</span>
+        <span class="s1">classes</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s3">'current-row'</span><span class="s2">);</span>
+      <span class="s2">}</span>
+
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">table</span><span class="s2">.</span><span class="s1">highlightSelectionRow</span><span class="s2">) {</span>
+        <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s6">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">selection</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+          <span class="s0">if </span><span class="s2">(</span><span class="s1">objectEquals</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">selection</span><span class="s2">[</span><span class="s1">i</span><span class="s2">])) {</span>
+            <span class="s1">classes</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s3">'selection-row'</span><span class="s2">);</span>
+          <span class="s2">}</span>
+        <span class="s2">};</span>
+      <span class="s2">}</span>
+
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">stripe </span><span class="s2">&amp;&amp; </span><span class="s1">rowIndex </span><span class="s2">% </span><span class="s6">2 </span><span class="s2">=== </span><span class="s6">1</span><span class="s2">) {</span>
+        <span class="s1">classes</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s3">'el-table__row--striped'</span><span class="s2">);</span>
+      <span class="s2">}</span>
+      <span class="s0">const </span><span class="s1">rowClassName </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">table</span><span class="s2">.</span><span class="s1">rowClassName</span><span class="s2">;</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">rowClassName </span><span class="s2">=== </span><span class="s3">'string'</span><span class="s2">) {</span>
+        <span class="s1">classes</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">rowClassName</span><span class="s2">);</span>
+      <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">rowClassName </span><span class="s2">=== </span><span class="s3">'function'</span><span class="s2">) {</span>
+        <span class="s1">classes</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">rowClassName</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s0">null</span><span class="s2">, {</span>
+          <span class="s1">row</span><span class="s2">,</span>
+          <span class="s1">rowIndex</span>
+        <span class="s2">}));</span>
+      <span class="s2">}</span>
+
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">store</span><span class="s2">.</span><span class="s1">states</span><span class="s2">.</span><span class="s1">expandRows</span><span class="s2">.</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s1">row</span><span class="s2">) &gt; -</span><span class="s6">1</span><span class="s2">) {</span>
+        <span class="s1">classes</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s3">'expanded'</span><span class="s2">);</span>
+      <span class="s2">}</span>
+
+      <span class="s0">return </span><span class="s1">classes</span><span class="s2">;</span>
+    <span class="s2">},</span>
+
+    <span class="s1">getCellStyle</span><span class="s2">(</span><span class="s1">rowIndex</span><span class="s2">, </span><span class="s1">columnIndex</span><span class="s2">, </span><span class="s1">row</span><span class="s2">, </span><span class="s1">column</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">cellStyle </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">table</span><span class="s2">.</span><span class="s1">cellStyle</span><span class="s2">;</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">cellStyle </span><span class="s2">=== </span><span class="s3">'function'</span><span class="s2">) {</span>
+        <span class="s0">return </span><span class="s1">cellStyle</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s0">null</span><span class="s2">, {</span>
+          <span class="s1">rowIndex</span><span class="s2">,</span>
+          <span class="s1">columnIndex</span><span class="s2">,</span>
+          <span class="s1">row</span><span class="s2">,</span>
+          <span class="s1">column</span>
+        <span class="s2">});</span>
+      <span class="s2">}</span>
+      <span class="s0">return </span><span class="s1">cellStyle</span><span class="s2">;</span>
+    <span class="s2">},</span>
+
+    <span class="s1">getCellClass</span><span class="s2">(</span><span class="s1">rowIndex</span><span class="s2">, </span><span class="s1">columnIndex</span><span class="s2">, </span><span class="s1">row</span><span class="s2">, </span><span class="s1">column</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">classes </span><span class="s2">= [</span><span class="s1">column</span><span class="s2">.</span><span class="s1">id</span><span class="s2">, </span><span class="s1">column</span><span class="s2">.</span><span class="s1">align</span><span class="s2">, </span><span class="s1">column</span><span class="s2">.</span><span class="s1">className</span><span class="s2">];</span>
+
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">isColumnHidden</span><span class="s2">(</span><span class="s1">columnIndex</span><span class="s2">)) {</span>
+        <span class="s1">classes</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s3">'is-hidden'</span><span class="s2">);</span>
+      <span class="s2">}</span>
+
+      <span class="s0">const </span><span class="s1">cellClassName </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">table</span><span class="s2">.</span><span class="s1">cellClassName</span><span class="s2">;</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">cellClassName </span><span class="s2">=== </span><span class="s3">'string'</span><span class="s2">) {</span>
+        <span class="s1">classes</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">cellClassName</span><span class="s2">);</span>
+      <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">cellClassName </span><span class="s2">=== </span><span class="s3">'function'</span><span class="s2">) {</span>
+        <span class="s1">classes</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">cellClassName</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s0">null</span><span class="s2">, {</span>
+          <span class="s1">rowIndex</span><span class="s2">,</span>
+          <span class="s1">columnIndex</span><span class="s2">,</span>
+          <span class="s1">row</span><span class="s2">,</span>
+          <span class="s1">column</span>
+        <span class="s2">}));</span>
+      <span class="s2">}</span>
+
+      <span class="s1">classes</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s3">'el-table__cell'</span><span class="s2">);</span>
+
+      <span class="s0">return </span><span class="s1">classes</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s3">' '</span><span class="s2">);</span>
+    <span class="s2">},</span>
+
+    <span class="s1">getColspanRealWidth</span><span class="s2">(</span><span class="s1">columns</span><span class="s2">, </span><span class="s1">colspan</span><span class="s2">, </span><span class="s1">index</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">colspan </span><span class="s2">&lt; </span><span class="s6">1</span><span class="s2">) {</span>
+        <span class="s0">return </span><span class="s1">columns</span><span class="s2">[</span><span class="s1">index</span><span class="s2">].</span><span class="s1">realWidth</span><span class="s2">;</span>
+      <span class="s2">}</span>
+      <span class="s0">const </span><span class="s1">widthArr </span><span class="s2">= </span><span class="s1">columns</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(({ </span><span class="s1">realWidth </span><span class="s2">}) =&gt; </span><span class="s1">realWidth</span><span class="s2">).</span><span class="s1">slice</span><span class="s2">(</span><span class="s1">index</span><span class="s2">, </span><span class="s1">index </span><span class="s2">+ </span><span class="s1">colspan</span><span class="s2">);</span>
+      <span class="s0">return </span><span class="s1">widthArr</span><span class="s2">.</span><span class="s1">reduce</span><span class="s2">((</span><span class="s1">acc</span><span class="s2">, </span><span class="s1">width</span><span class="s2">) =&gt; </span><span class="s1">acc </span><span class="s2">+ </span><span class="s1">width</span><span class="s2">, -</span><span class="s6">1</span><span class="s2">);</span>
+    <span class="s2">},</span>
+
+    <span class="s1">handleCellMouseEnter</span><span class="s2">(</span><span class="s1">event</span><span class="s2">, </span><span class="s1">row</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">table </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">table</span><span class="s2">;</span>
+      <span class="s0">const </span><span class="s1">cell </span><span class="s2">= </span><span class="s1">getCell</span><span class="s2">(</span><span class="s1">event</span><span class="s2">);</span>
+
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">cell</span><span class="s2">) {</span>
+        <span class="s0">const </span><span class="s1">column </span><span class="s2">= </span><span class="s1">getColumnByCell</span><span class="s2">(</span><span class="s1">table</span><span class="s2">, </span><span class="s1">cell</span><span class="s2">);</span>
+        <span class="s0">const </span><span class="s1">hoverState </span><span class="s2">= </span><span class="s1">table</span><span class="s2">.</span><span class="s1">hoverState </span><span class="s2">= { </span><span class="s1">cell</span><span class="s2">, </span><span class="s1">column</span><span class="s2">, </span><span class="s1">row </span><span class="s2">};</span>
+        <span class="s1">table</span><span class="s2">.</span><span class="s1">$emit</span><span class="s2">(</span><span class="s3">'cell-mouse-enter'</span><span class="s2">, </span><span class="s1">hoverState</span><span class="s2">.</span><span class="s1">row</span><span class="s2">, </span><span class="s1">hoverState</span><span class="s2">.</span><span class="s1">column</span><span class="s2">, </span><span class="s1">hoverState</span><span class="s2">.</span><span class="s1">cell</span><span class="s2">, </span><span class="s1">event</span><span class="s2">);</span>
+      <span class="s2">}</span>
+
+      <span class="s5">// 判断是否text-overflow, 如果是就显示tooltip</span>
+      <span class="s0">const </span><span class="s1">cellChild </span><span class="s2">= </span><span class="s1">event</span><span class="s2">.</span><span class="s1">target</span><span class="s2">.</span><span class="s1">querySelector</span><span class="s2">(</span><span class="s3">'.cell'</span><span class="s2">);</span>
+      <span class="s0">if </span><span class="s2">(!(</span><span class="s1">hasClass</span><span class="s2">(</span><span class="s1">cellChild</span><span class="s2">, </span><span class="s3">'el-tooltip'</span><span class="s2">) &amp;&amp; </span><span class="s1">cellChild</span><span class="s2">.</span><span class="s1">childNodes</span><span class="s2">.</span><span class="s1">length</span><span class="s2">)) {</span>
+        <span class="s0">return</span><span class="s2">;</span>
+      <span class="s2">}</span>
+      <span class="s5">// use range width instead of scrollWidth to determine whether the text is overflowing</span>
+      <span class="s5">// to address a potential FireFox bug: https://bugzilla.mozilla.org/show_bug.cgi?id=1074543#c3</span>
+      <span class="s0">const </span><span class="s1">range </span><span class="s2">= </span><span class="s1">document</span><span class="s2">.</span><span class="s1">createRange</span><span class="s2">();</span>
+      <span class="s1">range</span><span class="s2">.</span><span class="s1">setStart</span><span class="s2">(</span><span class="s1">cellChild</span><span class="s2">, </span><span class="s6">0</span><span class="s2">);</span>
+      <span class="s1">range</span><span class="s2">.</span><span class="s1">setEnd</span><span class="s2">(</span><span class="s1">cellChild</span><span class="s2">, </span><span class="s1">cellChild</span><span class="s2">.</span><span class="s1">childNodes</span><span class="s2">.</span><span class="s1">length</span><span class="s2">);</span>
+      <span class="s0">const </span><span class="s1">rangeWidth </span><span class="s2">= </span><span class="s1">range</span><span class="s2">.</span><span class="s1">getBoundingClientRect</span><span class="s2">().</span><span class="s1">width</span><span class="s2">;</span>
+      <span class="s0">const </span><span class="s1">padding </span><span class="s2">= (</span><span class="s1">parseInt</span><span class="s2">(</span><span class="s1">getStyle</span><span class="s2">(</span><span class="s1">cellChild</span><span class="s2">, </span><span class="s3">'paddingLeft'</span><span class="s2">), </span><span class="s6">10</span><span class="s2">) || </span><span class="s6">0</span><span class="s2">) +</span>
+        <span class="s2">(</span><span class="s1">parseInt</span><span class="s2">(</span><span class="s1">getStyle</span><span class="s2">(</span><span class="s1">cellChild</span><span class="s2">, </span><span class="s3">'paddingRight'</span><span class="s2">), </span><span class="s6">10</span><span class="s2">) || </span><span class="s6">0</span><span class="s2">);</span>
+      <span class="s0">if </span><span class="s2">((</span><span class="s1">rangeWidth </span><span class="s2">+ </span><span class="s1">padding </span><span class="s2">&gt; </span><span class="s1">cellChild</span><span class="s2">.</span><span class="s1">offsetWidth </span><span class="s2">|| </span><span class="s1">cellChild</span><span class="s2">.</span><span class="s1">scrollWidth </span><span class="s2">&gt; </span><span class="s1">cellChild</span><span class="s2">.</span><span class="s1">offsetWidth</span><span class="s2">) &amp;&amp; </span><span class="s0">this</span><span class="s2">.</span><span class="s1">$refs</span><span class="s2">.</span><span class="s1">tooltip</span><span class="s2">) {</span>
+        <span class="s0">const </span><span class="s1">tooltip </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">$refs</span><span class="s2">.</span><span class="s1">tooltip</span><span class="s2">;</span>
+        <span class="s5">// TODO 会引起整个 Table 的重新渲染，需要优化</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">tooltipContent </span><span class="s2">= </span><span class="s1">cell</span><span class="s2">.</span><span class="s1">innerText </span><span class="s2">|| </span><span class="s1">cell</span><span class="s2">.</span><span class="s1">textContent</span><span class="s2">;</span>
+        <span class="s1">tooltip</span><span class="s2">.</span><span class="s1">referenceElm </span><span class="s2">= </span><span class="s1">cell</span><span class="s2">;</span>
+        <span class="s1">tooltip</span><span class="s2">.</span><span class="s1">$refs</span><span class="s2">.</span><span class="s1">popper </span><span class="s2">&amp;&amp; (</span><span class="s1">tooltip</span><span class="s2">.</span><span class="s1">$refs</span><span class="s2">.</span><span class="s1">popper</span><span class="s2">.</span><span class="s1">style</span><span class="s2">.</span><span class="s1">display </span><span class="s2">= </span><span class="s3">'none'</span><span class="s2">);</span>
+        <span class="s1">tooltip</span><span class="s2">.</span><span class="s1">doDestroy</span><span class="s2">();</span>
+        <span class="s1">tooltip</span><span class="s2">.</span><span class="s1">setExpectedState</span><span class="s2">(</span><span class="s0">true</span><span class="s2">);</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">activateTooltip</span><span class="s2">(</span><span class="s1">tooltip</span><span class="s2">);</span>
+      <span class="s2">}</span>
+    <span class="s2">},</span>
+
+    <span class="s1">handleCellMouseLeave</span><span class="s2">(</span><span class="s1">event</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">tooltip </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">$refs</span><span class="s2">.</span><span class="s1">tooltip</span><span class="s2">;</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">tooltip</span><span class="s2">) {</span>
+        <span class="s1">tooltip</span><span class="s2">.</span><span class="s1">setExpectedState</span><span class="s2">(</span><span class="s0">false</span><span class="s2">);</span>
+        <span class="s1">tooltip</span><span class="s2">.</span><span class="s1">handleClosePopper</span><span class="s2">();</span>
+      <span class="s2">}</span>
+      <span class="s0">const </span><span class="s1">cell </span><span class="s2">= </span><span class="s1">getCell</span><span class="s2">(</span><span class="s1">event</span><span class="s2">);</span>
+      <span class="s0">if </span><span class="s2">(!</span><span class="s1">cell</span><span class="s2">) </span><span class="s0">return</span><span class="s2">;</span>
+
+      <span class="s0">const </span><span class="s1">oldHoverState </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">table</span><span class="s2">.</span><span class="s1">hoverState </span><span class="s2">|| {};</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">table</span><span class="s2">.</span><span class="s1">$emit</span><span class="s2">(</span><span class="s3">'cell-mouse-leave'</span><span class="s2">, </span><span class="s1">oldHoverState</span><span class="s2">.</span><span class="s1">row</span><span class="s2">, </span><span class="s1">oldHoverState</span><span class="s2">.</span><span class="s1">column</span><span class="s2">, </span><span class="s1">oldHoverState</span><span class="s2">.</span><span class="s1">cell</span><span class="s2">, </span><span class="s1">event</span><span class="s2">);</span>
+    <span class="s2">},</span>
+
+    <span class="s1">handleMouseEnter</span><span class="s2">: </span><span class="s1">debounce</span><span class="s2">(</span><span class="s6">30</span><span class="s2">, </span><span class="s0">function</span><span class="s2">(</span><span class="s1">index</span><span class="s2">) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">store</span><span class="s2">.</span><span class="s1">commit</span><span class="s2">(</span><span class="s3">'setHoverRow'</span><span class="s2">, </span><span class="s1">index</span><span class="s2">);</span>
+    <span class="s2">}),</span>
+
+    <span class="s1">handleMouseLeave</span><span class="s2">: </span><span class="s1">debounce</span><span class="s2">(</span><span class="s6">30</span><span class="s2">, </span><span class="s0">function</span><span class="s2">() {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">store</span><span class="s2">.</span><span class="s1">commit</span><span class="s2">(</span><span class="s3">'setHoverRow'</span><span class="s2">, </span><span class="s0">null</span><span class="s2">);</span>
+    <span class="s2">}),</span>
+
+    <span class="s1">handleContextMenu</span><span class="s2">(</span><span class="s1">event</span><span class="s2">, </span><span class="s1">row</span><span class="s2">) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">handleEvent</span><span class="s2">(</span><span class="s1">event</span><span class="s2">, </span><span class="s1">row</span><span class="s2">, </span><span class="s3">'contextmenu'</span><span class="s2">);</span>
+    <span class="s2">},</span>
+
+    <span class="s1">handleDoubleClick</span><span class="s2">(</span><span class="s1">event</span><span class="s2">, </span><span class="s1">row</span><span class="s2">) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">handleEvent</span><span class="s2">(</span><span class="s1">event</span><span class="s2">, </span><span class="s1">row</span><span class="s2">, </span><span class="s3">'dblclick'</span><span class="s2">);</span>
+    <span class="s2">},</span>
+
+    <span class="s1">handleClick</span><span class="s2">(</span><span class="s1">event</span><span class="s2">, </span><span class="s1">row</span><span class="s2">) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">store</span><span class="s2">.</span><span class="s1">commit</span><span class="s2">(</span><span class="s3">'setCurrentRow'</span><span class="s2">, </span><span class="s1">row</span><span class="s2">);</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">handleEvent</span><span class="s2">(</span><span class="s1">event</span><span class="s2">, </span><span class="s1">row</span><span class="s2">, </span><span class="s3">'click'</span><span class="s2">);</span>
+    <span class="s2">},</span>
+
+    <span class="s1">handleEvent</span><span class="s2">(</span><span class="s1">event</span><span class="s2">, </span><span class="s1">row</span><span class="s2">, </span><span class="s1">name</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">table </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">table</span><span class="s2">;</span>
+      <span class="s0">const </span><span class="s1">cell </span><span class="s2">= </span><span class="s1">getCell</span><span class="s2">(</span><span class="s1">event</span><span class="s2">);</span>
+      <span class="s0">let </span><span class="s1">column</span><span class="s2">;</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">cell</span><span class="s2">) {</span>
+        <span class="s1">column </span><span class="s2">= </span><span class="s1">getColumnByCell</span><span class="s2">(</span><span class="s1">table</span><span class="s2">, </span><span class="s1">cell</span><span class="s2">);</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">column</span><span class="s2">) {</span>
+          <span class="s1">table</span><span class="s2">.</span><span class="s1">$emit</span><span class="s2">(</span><span class="s3">`cell-</span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span><span class="s3">`</span><span class="s2">, </span><span class="s1">row</span><span class="s2">, </span><span class="s1">column</span><span class="s2">, </span><span class="s1">cell</span><span class="s2">, </span><span class="s1">event</span><span class="s2">);</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+      <span class="s1">table</span><span class="s2">.</span><span class="s1">$emit</span><span class="s2">(</span><span class="s3">`row-</span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span><span class="s3">`</span><span class="s2">, </span><span class="s1">row</span><span class="s2">, </span><span class="s1">column</span><span class="s2">, </span><span class="s1">event</span><span class="s2">);</span>
+    <span class="s2">},</span>
+
+    <span class="s1">rowRender</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">$index</span><span class="s2">, </span><span class="s1">treeRowData</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">treeIndent</span><span class="s2">, </span><span class="s1">columns</span><span class="s2">, </span><span class="s1">firstDefaultColumnIndex </span><span class="s2">} = </span><span class="s0">this</span><span class="s2">;</span>
+      <span class="s0">const </span><span class="s1">rowClasses </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">getRowClass</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">$index</span><span class="s2">);</span>
+      <span class="s0">let </span><span class="s1">display </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">treeRowData</span><span class="s2">) {</span>
+        <span class="s1">rowClasses</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s3">'el-table__row--level-' </span><span class="s2">+ </span><span class="s1">treeRowData</span><span class="s2">.</span><span class="s1">level</span><span class="s2">);</span>
+        <span class="s1">display </span><span class="s2">= </span><span class="s1">treeRowData</span><span class="s2">.</span><span class="s1">display</span><span class="s2">;</span>
+      <span class="s2">}</span>
+      <span class="s5">// 指令 v-show 会覆盖 row-style 中 display</span>
+      <span class="s5">// 使用 :style 代替 v-show https://github.com/ElemeFE/element/issues/16995</span>
+      <span class="s0">let </span><span class="s1">displayStyle </span><span class="s2">= </span><span class="s1">display </span><span class="s2">? </span><span class="s0">null </span><span class="s2">: {</span>
+        <span class="s1">display</span><span class="s2">: </span><span class="s3">'none'</span>
+      <span class="s2">};</span>
+      <span class="s0">return </span><span class="s2">(</span>
+        <span class="s4">&lt;TableRow</span>
+          <span class="s2">style</span><span class="s3">=</span><span class="s2">{[</span><span class="s1">displayStyle</span><span class="s2">, </span><span class="s0">this</span><span class="s2">.</span><span class="s1">getRowStyle</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">$index</span><span class="s2">)]}</span>
+          <span class="s2">class</span><span class="s3">=</span><span class="s2">{</span><span class="s1">rowClasses</span><span class="s2">}</span>
+          <span class="s2">key</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">getKeyOfRow</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">$index</span><span class="s2">)}</span>
+          <span class="s2">nativeOn-dblclick</span><span class="s3">=</span><span class="s2">{(</span><span class="s1">$event</span><span class="s2">) =&gt; </span><span class="s0">this</span><span class="s2">.</span><span class="s1">handleDoubleClick</span><span class="s2">(</span><span class="s1">$event</span><span class="s2">, </span><span class="s1">row</span><span class="s2">)}</span>
+          <span class="s2">nativeOn-click</span><span class="s3">=</span><span class="s2">{(</span><span class="s1">$event</span><span class="s2">) =&gt; </span><span class="s0">this</span><span class="s2">.</span><span class="s1">handleClick</span><span class="s2">(</span><span class="s1">$event</span><span class="s2">, </span><span class="s1">row</span><span class="s2">)}</span>
+          <span class="s2">nativeOn-contextmenu</span><span class="s3">=</span><span class="s2">{(</span><span class="s1">$event</span><span class="s2">) =&gt; </span><span class="s0">this</span><span class="s2">.</span><span class="s1">handleContextMenu</span><span class="s2">(</span><span class="s1">$event</span><span class="s2">, </span><span class="s1">row</span><span class="s2">)}</span>
+          <span class="s2">nativeOn-mouseenter</span><span class="s3">=</span><span class="s2">{</span><span class="s1">_ </span><span class="s2">=&gt; </span><span class="s0">this</span><span class="s2">.</span><span class="s1">handleMouseEnter</span><span class="s2">(</span><span class="s1">$index</span><span class="s2">)}</span>
+          <span class="s2">nativeOn-mouseleave</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">handleMouseLeave</span><span class="s2">}</span>
+          <span class="s2">columns</span><span class="s3">=</span><span class="s2">{</span><span class="s1">columns</span><span class="s2">}</span>
+          <span class="s2">row</span><span class="s3">=</span><span class="s2">{</span><span class="s1">row</span><span class="s2">}</span>
+          <span class="s2">index</span><span class="s3">=</span><span class="s2">{</span><span class="s1">$index</span><span class="s2">}</span>
+          <span class="s2">store</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">store</span><span class="s2">}</span>
+          <span class="s2">context</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">context </span><span class="s2">|| </span><span class="s0">this</span><span class="s2">.</span><span class="s1">table</span><span class="s2">.</span><span class="s1">$vnode</span><span class="s2">.</span><span class="s1">context</span><span class="s2">}</span>
+          <span class="s2">firstDefaultColumnIndex</span><span class="s3">=</span><span class="s2">{</span><span class="s1">firstDefaultColumnIndex</span><span class="s2">}</span>
+          <span class="s2">treeRowData</span><span class="s3">=</span><span class="s2">{</span><span class="s1">treeRowData</span><span class="s2">}</span>
+          <span class="s2">treeIndent</span><span class="s3">=</span><span class="s2">{</span><span class="s1">treeIndent</span><span class="s2">}</span>
+          <span class="s2">columnsHidden</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">columnsHidden</span><span class="s2">}</span>
+          <span class="s2">getSpan</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">getSpan</span><span class="s2">}</span>
+          <span class="s2">getColspanRealWidth</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">getColspanRealWidth</span><span class="s2">}</span>
+          <span class="s2">getCellStyle</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">getCellStyle</span><span class="s2">}</span>
+          <span class="s2">getCellClass</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">getCellClass</span><span class="s2">}</span>
+          <span class="s2">handleCellMouseEnter</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">handleCellMouseEnter</span><span class="s2">}</span>
+          <span class="s2">handleCellMouseLeave</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">handleCellMouseLeave</span><span class="s2">}</span>
+          <span class="s2">isSelected</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">store</span><span class="s2">.</span><span class="s1">isSelected</span><span class="s2">(</span><span class="s1">row</span><span class="s2">)}</span>
+          <span class="s2">isExpanded</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">store</span><span class="s2">.</span><span class="s1">states</span><span class="s2">.</span><span class="s1">expandRows</span><span class="s2">.</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s1">row</span><span class="s2">) &gt; -</span><span class="s6">1</span><span class="s2">}</span>
+          <span class="s2">fixed</span><span class="s3">=</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">fixed</span><span class="s2">}</span>
+        <span class="s4">&gt;</span>
+        <span class="s4">&lt;/TableRow&gt;</span>
+      <span class="s2">);</span>
+    <span class="s2">},</span>
+
+    <span class="s1">wrappedRowRender</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">$index</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">store </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">store</span><span class="s2">;</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">isRowExpanded</span><span class="s2">, </span><span class="s1">assertRowKey </span><span class="s2">} = </span><span class="s1">store</span><span class="s2">;</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">treeData</span><span class="s2">, </span><span class="s1">lazyTreeNodeMap</span><span class="s2">, </span><span class="s1">childrenColumnName</span><span class="s2">, </span><span class="s1">rowKey </span><span class="s2">} = </span><span class="s1">store</span><span class="s2">.</span><span class="s1">states</span><span class="s2">;</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">hasExpandColumn </span><span class="s2">&amp;&amp; </span><span class="s1">isRowExpanded</span><span class="s2">(</span><span class="s1">row</span><span class="s2">)) {</span>
+        <span class="s0">const </span><span class="s1">renderExpanded </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">table</span><span class="s2">.</span><span class="s1">renderExpanded</span><span class="s2">;</span>
+        <span class="s0">const </span><span class="s1">tr </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">rowRender</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">$index</span><span class="s2">);</span>
+        <span class="s0">if </span><span class="s2">(!</span><span class="s1">renderExpanded</span><span class="s2">) {</span>
+          <span class="s1">console</span><span class="s2">.</span><span class="s1">error</span><span class="s2">(</span><span class="s3">'[Element Error]renderExpanded is required.'</span><span class="s2">);</span>
+          <span class="s0">return </span><span class="s1">tr</span><span class="s2">;</span>
+        <span class="s2">}</span>
+        <span class="s5">// 使用二维数组，避免修改 $index</span>
+        <span class="s0">return </span><span class="s2">[[</span>
+          <span class="s1">tr</span><span class="s2">,</span>
+          <span class="s4">&lt;tr </span><span class="s2">key</span><span class="s3">=</span><span class="s2">{</span><span class="s3">'expanded-row__' </span><span class="s2">+ </span><span class="s1">tr</span><span class="s2">.</span><span class="s1">key</span><span class="s2">}</span><span class="s4">&gt;</span>
+            <span class="s4">&lt;td </span><span class="s2">colspan</span><span class="s3">=</span><span class="s2">{ </span><span class="s0">this</span><span class="s2">.</span><span class="s1">columnsCount </span><span class="s2">} class</span><span class="s3">=&quot;el-table__cell el-table__expanded-cell&quot;</span><span class="s4">&gt;</span>
+              <span class="s2">{ </span><span class="s1">renderExpanded</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">$createElement</span><span class="s2">, { </span><span class="s1">row</span><span class="s2">, </span><span class="s1">$index</span><span class="s2">, </span><span class="s1">store</span><span class="s2">: </span><span class="s0">this</span><span class="s2">.</span><span class="s1">store </span><span class="s2">}) }</span>
+            <span class="s4">&lt;/td&gt;</span>
+          <span class="s4">&lt;/tr&gt;</span><span class="s2">]];</span>
+      <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">treeData</span><span class="s2">).</span><span class="s1">length</span><span class="s2">) {</span>
+        <span class="s1">assertRowKey</span><span class="s2">();</span>
+        <span class="s5">// TreeTable 时，rowKey 必须由用户设定，不使用 getKeyOfRow 计算</span>
+        <span class="s5">// 在调用 rowRender 函数时，仍然会计算 rowKey，不太好的操作</span>
+        <span class="s0">const </span><span class="s1">key </span><span class="s2">= </span><span class="s1">getRowIdentity</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">rowKey</span><span class="s2">);</span>
+        <span class="s0">let </span><span class="s1">cur </span><span class="s2">= </span><span class="s1">treeData</span><span class="s2">[</span><span class="s1">key</span><span class="s2">];</span>
+        <span class="s0">let </span><span class="s1">treeRowData </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">cur</span><span class="s2">) {</span>
+          <span class="s1">treeRowData </span><span class="s2">= {</span>
+            <span class="s1">expanded</span><span class="s2">: </span><span class="s1">cur</span><span class="s2">.</span><span class="s1">expanded</span><span class="s2">,</span>
+            <span class="s1">level</span><span class="s2">: </span><span class="s1">cur</span><span class="s2">.</span><span class="s1">level</span><span class="s2">,</span>
+            <span class="s1">display</span><span class="s2">: </span><span class="s0">true</span>
+          <span class="s2">};</span>
+          <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">cur</span><span class="s2">.</span><span class="s1">lazy </span><span class="s2">=== </span><span class="s3">'boolean'</span><span class="s2">) {</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">cur</span><span class="s2">.</span><span class="s1">loaded </span><span class="s2">=== </span><span class="s3">'boolean' </span><span class="s2">&amp;&amp; </span><span class="s1">cur</span><span class="s2">.</span><span class="s1">loaded</span><span class="s2">) {</span>
+              <span class="s1">treeRowData</span><span class="s2">.</span><span class="s1">noLazyChildren </span><span class="s2">= !(</span><span class="s1">cur</span><span class="s2">.</span><span class="s1">children </span><span class="s2">&amp;&amp; </span><span class="s1">cur</span><span class="s2">.</span><span class="s1">children</span><span class="s2">.</span><span class="s1">length</span><span class="s2">);</span>
+            <span class="s2">}</span>
+            <span class="s1">treeRowData</span><span class="s2">.</span><span class="s1">loading </span><span class="s2">= </span><span class="s1">cur</span><span class="s2">.</span><span class="s1">loading</span><span class="s2">;</span>
+          <span class="s2">}</span>
+        <span class="s2">}</span>
+        <span class="s0">const </span><span class="s1">tmp </span><span class="s2">= [</span><span class="s0">this</span><span class="s2">.</span><span class="s1">rowRender</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">$index</span><span class="s2">, </span><span class="s1">treeRowData</span><span class="s2">)];</span>
+        <span class="s5">// 渲染嵌套数据</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">cur</span><span class="s2">) {</span>
+          <span class="s5">// currentRow 记录的是 index，所以还需主动增加 TreeTable 的 index</span>
+          <span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s6">0</span><span class="s2">;</span>
+          <span class="s0">const </span><span class="s1">traverse </span><span class="s2">= (</span><span class="s1">children</span><span class="s2">, </span><span class="s1">parent</span><span class="s2">) =&gt; {</span>
+            <span class="s0">if </span><span class="s2">(!(</span><span class="s1">children </span><span class="s2">&amp;&amp; </span><span class="s1">children</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&amp;&amp; </span><span class="s1">parent</span><span class="s2">)) </span><span class="s0">return</span><span class="s2">;</span>
+            <span class="s1">children</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">node </span><span class="s2">=&gt; {</span>
+              <span class="s5">// 父节点的 display 状态影响子节点的显示状态</span>
+              <span class="s0">const </span><span class="s1">innerTreeRowData </span><span class="s2">= {</span>
+                <span class="s1">display</span><span class="s2">: </span><span class="s1">parent</span><span class="s2">.</span><span class="s1">display </span><span class="s2">&amp;&amp; </span><span class="s1">parent</span><span class="s2">.</span><span class="s1">expanded</span><span class="s2">,</span>
+                <span class="s1">level</span><span class="s2">: </span><span class="s1">parent</span><span class="s2">.</span><span class="s1">level </span><span class="s2">+ </span><span class="s6">1</span>
+              <span class="s2">};</span>
+              <span class="s0">const </span><span class="s1">childKey </span><span class="s2">= </span><span class="s1">getRowIdentity</span><span class="s2">(</span><span class="s1">node</span><span class="s2">, </span><span class="s1">rowKey</span><span class="s2">);</span>
+              <span class="s0">if </span><span class="s2">(</span><span class="s1">childKey </span><span class="s2">=== </span><span class="s1">undefined </span><span class="s2">|| </span><span class="s1">childKey </span><span class="s2">=== </span><span class="s0">null</span><span class="s2">) {</span>
+                <span class="s0">throw new </span><span class="s1">Error</span><span class="s2">(</span><span class="s3">'for nested data item, row-key is required.'</span><span class="s2">);</span>
+              <span class="s2">}</span>
+              <span class="s1">cur </span><span class="s2">= { </span><span class="s1">...treeData</span><span class="s2">[</span><span class="s1">childKey</span><span class="s2">] };</span>
+              <span class="s5">// 对于当前节点，分成有无子节点两种情况。</span>
+              <span class="s5">// 如果包含子节点的，设置 expanded 属性。</span>
+              <span class="s5">// 对于它子节点的 display 属性由它本身的 expanded 与 display 共同决定。</span>
+              <span class="s0">if </span><span class="s2">(</span><span class="s1">cur</span><span class="s2">) {</span>
+                <span class="s1">innerTreeRowData</span><span class="s2">.</span><span class="s1">expanded </span><span class="s2">= </span><span class="s1">cur</span><span class="s2">.</span><span class="s1">expanded</span><span class="s2">;</span>
+                <span class="s5">// 懒加载的某些节点，level 未知</span>
+                <span class="s1">cur</span><span class="s2">.</span><span class="s1">level </span><span class="s2">= </span><span class="s1">cur</span><span class="s2">.</span><span class="s1">level </span><span class="s2">|| </span><span class="s1">innerTreeRowData</span><span class="s2">.</span><span class="s1">level</span><span class="s2">;</span>
+                <span class="s1">cur</span><span class="s2">.</span><span class="s1">display </span><span class="s2">= !!(</span><span class="s1">cur</span><span class="s2">.</span><span class="s1">expanded </span><span class="s2">&amp;&amp; </span><span class="s1">innerTreeRowData</span><span class="s2">.</span><span class="s1">display</span><span class="s2">);</span>
+                <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">cur</span><span class="s2">.</span><span class="s1">lazy </span><span class="s2">=== </span><span class="s3">'boolean'</span><span class="s2">) {</span>
+                  <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">cur</span><span class="s2">.</span><span class="s1">loaded </span><span class="s2">=== </span><span class="s3">'boolean' </span><span class="s2">&amp;&amp; </span><span class="s1">cur</span><span class="s2">.</span><span class="s1">loaded</span><span class="s2">) {</span>
+                    <span class="s1">innerTreeRowData</span><span class="s2">.</span><span class="s1">noLazyChildren </span><span class="s2">= !(</span><span class="s1">cur</span><span class="s2">.</span><span class="s1">children </span><span class="s2">&amp;&amp; </span><span class="s1">cur</span><span class="s2">.</span><span class="s1">children</span><span class="s2">.</span><span class="s1">length</span><span class="s2">);</span>
+                  <span class="s2">}</span>
+                  <span class="s1">innerTreeRowData</span><span class="s2">.</span><span class="s1">loading </span><span class="s2">= </span><span class="s1">cur</span><span class="s2">.</span><span class="s1">loading</span><span class="s2">;</span>
+                <span class="s2">}</span>
+              <span class="s2">}</span>
+              <span class="s1">i</span><span class="s2">++;</span>
+              <span class="s1">tmp</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">rowRender</span><span class="s2">(</span><span class="s1">node</span><span class="s2">, </span><span class="s1">$index </span><span class="s2">+ </span><span class="s1">i</span><span class="s2">, </span><span class="s1">innerTreeRowData</span><span class="s2">));</span>
+              <span class="s0">if </span><span class="s2">(</span><span class="s1">cur</span><span class="s2">) {</span>
+                <span class="s0">const </span><span class="s1">nodes </span><span class="s2">= </span><span class="s1">lazyTreeNodeMap</span><span class="s2">[</span><span class="s1">childKey</span><span class="s2">] || </span><span class="s1">node</span><span class="s2">[</span><span class="s1">childrenColumnName</span><span class="s2">];</span>
+                <span class="s1">traverse</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">, </span><span class="s1">cur</span><span class="s2">);</span>
+              <span class="s2">}</span>
+            <span class="s2">});</span>
+          <span class="s2">};</span>
+          <span class="s5">// 对于 root 节点，display 一定为 true</span>
+          <span class="s1">cur</span><span class="s2">.</span><span class="s1">display </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+          <span class="s0">const </span><span class="s1">nodes </span><span class="s2">= </span><span class="s1">lazyTreeNodeMap</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] || </span><span class="s1">row</span><span class="s2">[</span><span class="s1">childrenColumnName</span><span class="s2">];</span>
+          <span class="s1">traverse</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">, </span><span class="s1">cur</span><span class="s2">);</span>
+        <span class="s2">}</span>
+        <span class="s0">return </span><span class="s1">tmp</span><span class="s2">;</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s0">return this</span><span class="s2">.</span><span class="s1">rowRender</span><span class="s2">(</span><span class="s1">row</span><span class="s2">, </span><span class="s1">$index</span><span class="s2">);</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">};</span>
+</pre>
+</body>
+</html>

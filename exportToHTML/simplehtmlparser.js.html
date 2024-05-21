@@ -1,0 +1,191 @@
+<html>
+<head>
+<title>simplehtmlparser.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #42c3d4;}
+.s5 { color: #2aacb8;}
+.s6 { color: #6aab73;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+simplehtmlparser.js</font>
+</center></td></tr></table>
+<pre><span class="s0">// Copyright 2004 Erik Arvidsson. All Rights Reserved.</span>
+<span class="s0">//</span>
+<span class="s0">// This code is triple licensed using Apache Software License 2.0,</span>
+<span class="s0">// Mozilla Public License or GNU Public License</span>
+<span class="s0">//</span>
+<span class="s0">///////////////////////////////////////////////////////////////////////////////</span>
+<span class="s0">//</span>
+<span class="s0">// Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not</span>
+<span class="s0">// use this file except in compliance with the License.  You may obtain a copy</span>
+<span class="s0">// of the License at http://www.apache.org/licenses/LICENSE-2.0</span>
+<span class="s0">//</span>
+<span class="s0">///////////////////////////////////////////////////////////////////////////////</span>
+<span class="s0">//</span>
+<span class="s0">// The contents of this file are subject to the Mozilla Public License</span>
+<span class="s0">// Version 1.1 (the &quot;License&quot;); you may not use this file except in</span>
+<span class="s0">// compliance with the License. You may obtain a copy of the License at</span>
+<span class="s0">// http://www.mozilla.org/MPL/</span>
+<span class="s0">//</span>
+<span class="s0">// Software distributed under the License is distributed on an &quot;AS IS&quot;</span>
+<span class="s0">// basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the</span>
+<span class="s0">// License for the specific language governing rights and limitations</span>
+<span class="s0">// under the License.</span>
+<span class="s0">//</span>
+<span class="s0">// The Original Code is Simple HTML Parser.</span>
+<span class="s0">//</span>
+<span class="s0">// The Initial Developer of the Original Code is Erik Arvidsson.</span>
+<span class="s0">// Portions created by Erik Arvidssson are Copyright (C) 2004. All Rights</span>
+<span class="s0">// Reserved.</span>
+<span class="s0">//</span>
+<span class="s0">///////////////////////////////////////////////////////////////////////////////</span>
+<span class="s0">//</span>
+<span class="s0">// This program is free software; you can redistribute it and/or</span>
+<span class="s0">// modify it under the terms of the GNU General Public License</span>
+<span class="s0">// as published by the Free Software Foundation; either version 2</span>
+<span class="s0">// of the License, or (at your option) any later version.</span>
+<span class="s0">//</span>
+<span class="s0">// This program is distributed in the hope that it will be useful,</span>
+<span class="s0">// but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="s0">// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="s0">// GNU General Public License for more details.</span>
+<span class="s0">//</span>
+<span class="s0">// You should have received a copy of the GNU General Public License</span>
+<span class="s0">// along with this program; if not, write to the Free Software</span>
+<span class="s0">// Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.</span>
+<span class="s0">//</span>
+<span class="s0">///////////////////////////////////////////////////////////////////////////////</span>
+
+<span class="s0">/* 
+var handler ={ 
+    startElement:   function (sTagName, oAttrs) {}, 
+    endElement:     function (sTagName) {}, 
+    characters:     function (s) {}, 
+    comment:        function (s) {} 
+}; 
+*/</span>
+
+<span class="s2">function </span><span class="s1">SimpleHtmlParser</span><span class="s3">() {}</span>
+
+<span class="s1">SimpleHtmlParser</span><span class="s3">.</span><span class="s1">prototype </span><span class="s3">= {</span>
+    <span class="s1">handler</span><span class="s3">: </span><span class="s2">null</span><span class="s3">,</span>
+
+    <span class="s0">// regexps</span>
+
+    <span class="s1">startTagRe</span><span class="s3">: </span><span class="s4">/^&lt;([^&gt;\s\/]+)((\s+[^=&gt;\s]+(\s*=\s*((\&quot;[^&quot;]*\&quot;)|(\'[^']*\')|[^&gt;\s]+))?)*)\s*\/?\s*&gt;/m</span><span class="s3">,</span>
+    <span class="s1">endTagRe</span><span class="s3">: </span><span class="s4">/^&lt;\/([^&gt;\s]+)[^&gt;]*&gt;/m</span><span class="s3">,</span>
+    <span class="s1">attrRe</span><span class="s3">: </span><span class="s4">/([^=\s]+)(\s*=\s*((\&quot;([^&quot;]*)\&quot;)|(\'([^']*)\')|[^&gt;\s]+))?/gm</span><span class="s3">,</span>
+
+    <span class="s1">parse</span><span class="s3">: </span><span class="s2">function </span><span class="s3">(</span><span class="s1">s</span><span class="s3">, </span><span class="s1">oHandler</span><span class="s3">) {</span>
+        <span class="s2">if </span><span class="s3">(</span><span class="s1">oHandler</span><span class="s3">) </span><span class="s2">this</span><span class="s3">.</span><span class="s1">contentHandler </span><span class="s3">= </span><span class="s1">oHandler</span>
+
+        <span class="s2">var </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span>
+        <span class="s2">var </span><span class="s1">res</span><span class="s3">, </span><span class="s1">lc</span><span class="s3">, </span><span class="s1">lm</span><span class="s3">, </span><span class="s1">rc</span><span class="s3">, </span><span class="s1">index</span>
+        <span class="s2">var </span><span class="s1">treatAsChars </span><span class="s3">= </span><span class="s2">false</span>
+        <span class="s2">var </span><span class="s1">oThis </span><span class="s3">= </span><span class="s2">this</span>
+        <span class="s2">while </span><span class="s3">(</span><span class="s1">s</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s5">0</span><span class="s3">) {</span>
+            <span class="s0">// Comment</span>
+            <span class="s2">if </span><span class="s3">(</span><span class="s1">s</span><span class="s3">.</span><span class="s1">substring</span><span class="s3">(</span><span class="s5">0</span><span class="s3">, </span><span class="s5">4</span><span class="s3">) == </span><span class="s6">'&lt;!--'</span><span class="s3">) {</span>
+                <span class="s1">index </span><span class="s3">= </span><span class="s1">s</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s6">'--&gt;'</span><span class="s3">)</span>
+                <span class="s2">if </span><span class="s3">(</span><span class="s1">index </span><span class="s3">!= -</span><span class="s5">1</span><span class="s3">) {</span>
+                    <span class="s2">this</span><span class="s3">.</span><span class="s1">contentHandler</span><span class="s3">.</span><span class="s1">comment</span><span class="s3">(</span><span class="s1">s</span><span class="s3">.</span><span class="s1">substring</span><span class="s3">(</span><span class="s5">4</span><span class="s3">, </span><span class="s1">index</span><span class="s3">))</span>
+                    <span class="s1">s </span><span class="s3">= </span><span class="s1">s</span><span class="s3">.</span><span class="s1">substring</span><span class="s3">(</span><span class="s1">index </span><span class="s3">+ </span><span class="s5">3</span><span class="s3">)</span>
+                    <span class="s1">treatAsChars </span><span class="s3">= </span><span class="s2">false</span>
+                <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+                    <span class="s1">treatAsChars </span><span class="s3">= </span><span class="s2">true</span>
+                <span class="s3">}</span>
+            <span class="s3">}</span>
+
+            <span class="s0">// end tag</span>
+            <span class="s2">else if </span><span class="s3">(</span><span class="s1">s</span><span class="s3">.</span><span class="s1">substring</span><span class="s3">(</span><span class="s5">0</span><span class="s3">, </span><span class="s5">2</span><span class="s3">) == </span><span class="s6">'&lt;/'</span><span class="s3">) {</span>
+                <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">endTagRe</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">s</span><span class="s3">)) {</span>
+                    <span class="s1">lc </span><span class="s3">= </span><span class="s1">RegExp</span><span class="s3">.</span><span class="s1">leftContext</span>
+                    <span class="s1">lm </span><span class="s3">= </span><span class="s1">RegExp</span><span class="s3">.</span><span class="s1">lastMatch</span>
+                    <span class="s1">rc </span><span class="s3">= </span><span class="s1">RegExp</span><span class="s3">.</span><span class="s1">rightContext</span>
+
+                    <span class="s1">lm</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">endTagRe</span><span class="s3">, </span><span class="s2">function </span><span class="s3">() {</span>
+                        <span class="s2">return </span><span class="s1">oThis</span><span class="s3">.</span><span class="s1">parseEndTag</span><span class="s3">.</span><span class="s1">apply</span><span class="s3">(</span><span class="s1">oThis</span><span class="s3">, </span><span class="s1">arguments</span><span class="s3">)</span>
+                    <span class="s3">})</span>
+
+                    <span class="s1">s </span><span class="s3">= </span><span class="s1">rc</span>
+                    <span class="s1">treatAsChars </span><span class="s3">= </span><span class="s2">false</span>
+                <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+                    <span class="s1">treatAsChars </span><span class="s3">= </span><span class="s2">true</span>
+                <span class="s3">}</span>
+            <span class="s3">}</span>
+            <span class="s0">// start tag</span>
+            <span class="s2">else if </span><span class="s3">(</span><span class="s1">s</span><span class="s3">.</span><span class="s1">charAt</span><span class="s3">(</span><span class="s5">0</span><span class="s3">) == </span><span class="s6">'&lt;'</span><span class="s3">) {</span>
+                <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">startTagRe</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">s</span><span class="s3">)) {</span>
+                    <span class="s1">lc </span><span class="s3">= </span><span class="s1">RegExp</span><span class="s3">.</span><span class="s1">leftContext</span>
+                    <span class="s1">lm </span><span class="s3">= </span><span class="s1">RegExp</span><span class="s3">.</span><span class="s1">lastMatch</span>
+                    <span class="s1">rc </span><span class="s3">= </span><span class="s1">RegExp</span><span class="s3">.</span><span class="s1">rightContext</span>
+
+                    <span class="s1">lm</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">startTagRe</span><span class="s3">, </span><span class="s2">function </span><span class="s3">() {</span>
+                        <span class="s2">return </span><span class="s1">oThis</span><span class="s3">.</span><span class="s1">parseStartTag</span><span class="s3">.</span><span class="s1">apply</span><span class="s3">(</span><span class="s1">oThis</span><span class="s3">, </span><span class="s1">arguments</span><span class="s3">)</span>
+                    <span class="s3">})</span>
+
+                    <span class="s1">s </span><span class="s3">= </span><span class="s1">rc</span>
+                    <span class="s1">treatAsChars </span><span class="s3">= </span><span class="s2">false</span>
+                <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+                    <span class="s1">treatAsChars </span><span class="s3">= </span><span class="s2">true</span>
+                <span class="s3">}</span>
+            <span class="s3">}</span>
+
+            <span class="s2">if </span><span class="s3">(</span><span class="s1">treatAsChars</span><span class="s3">) {</span>
+                <span class="s1">index </span><span class="s3">= </span><span class="s1">s</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s6">'&lt;'</span><span class="s3">)</span>
+                <span class="s2">if </span><span class="s3">(</span><span class="s1">index </span><span class="s3">== -</span><span class="s5">1</span><span class="s3">) {</span>
+                    <span class="s2">this</span><span class="s3">.</span><span class="s1">contentHandler</span><span class="s3">.</span><span class="s1">characters</span><span class="s3">(</span><span class="s1">s</span><span class="s3">)</span>
+                    <span class="s1">s </span><span class="s3">= </span><span class="s6">''</span>
+                <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+                    <span class="s2">this</span><span class="s3">.</span><span class="s1">contentHandler</span><span class="s3">.</span><span class="s1">characters</span><span class="s3">(</span><span class="s1">s</span><span class="s3">.</span><span class="s1">substring</span><span class="s3">(</span><span class="s5">0</span><span class="s3">, </span><span class="s1">index</span><span class="s3">))</span>
+                    <span class="s1">s </span><span class="s3">= </span><span class="s1">s</span><span class="s3">.</span><span class="s1">substring</span><span class="s3">(</span><span class="s1">index</span><span class="s3">)</span>
+                <span class="s3">}</span>
+            <span class="s3">}</span>
+
+            <span class="s1">treatAsChars </span><span class="s3">= </span><span class="s2">true</span>
+        <span class="s3">}</span>
+    <span class="s3">},</span>
+
+    <span class="s1">parseStartTag</span><span class="s3">: </span><span class="s2">function </span><span class="s3">(</span><span class="s1">sTag</span><span class="s3">, </span><span class="s1">sTagName</span><span class="s3">, </span><span class="s1">sRest</span><span class="s3">) {</span>
+        <span class="s2">var </span><span class="s1">attrs </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">parseAttributes</span><span class="s3">(</span><span class="s1">sTagName</span><span class="s3">, </span><span class="s1">sRest</span><span class="s3">)</span>
+        <span class="s2">this</span><span class="s3">.</span><span class="s1">contentHandler</span><span class="s3">.</span><span class="s1">startElement</span><span class="s3">(</span><span class="s1">sTagName</span><span class="s3">, </span><span class="s1">attrs</span><span class="s3">)</span>
+    <span class="s3">},</span>
+
+    <span class="s1">parseEndTag</span><span class="s3">: </span><span class="s2">function </span><span class="s3">(</span><span class="s1">sTag</span><span class="s3">, </span><span class="s1">sTagName</span><span class="s3">) {</span>
+        <span class="s2">this</span><span class="s3">.</span><span class="s1">contentHandler</span><span class="s3">.</span><span class="s1">endElement</span><span class="s3">(</span><span class="s1">sTagName</span><span class="s3">)</span>
+    <span class="s3">},</span>
+
+    <span class="s1">parseAttributes</span><span class="s3">: </span><span class="s2">function </span><span class="s3">(</span><span class="s1">sTagName</span><span class="s3">, </span><span class="s1">s</span><span class="s3">) {</span>
+        <span class="s2">var </span><span class="s1">oThis </span><span class="s3">= </span><span class="s2">this</span>
+        <span class="s2">var </span><span class="s1">attrs </span><span class="s3">= []</span>
+        <span class="s1">s</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">attrRe</span><span class="s3">, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">a0</span><span class="s3">, </span><span class="s1">a1</span><span class="s3">, </span><span class="s1">a2</span><span class="s3">, </span><span class="s1">a3</span><span class="s3">, </span><span class="s1">a4</span><span class="s3">, </span><span class="s1">a5</span><span class="s3">, </span><span class="s1">a6</span><span class="s3">, </span><span class="s1">a7</span><span class="s3">) {</span>
+            <span class="s1">attrs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">oThis</span><span class="s3">.</span><span class="s1">parseAttribute</span><span class="s3">(</span><span class="s1">sTagName</span><span class="s3">, </span><span class="s1">a0</span><span class="s3">, </span><span class="s1">a1</span><span class="s3">, </span><span class="s1">a2</span><span class="s3">, </span><span class="s1">a3</span><span class="s3">, </span><span class="s1">a4</span><span class="s3">, </span><span class="s1">a5</span><span class="s3">, </span><span class="s1">a6</span><span class="s3">, </span><span class="s1">a7</span><span class="s3">))</span>
+        <span class="s3">})</span>
+        <span class="s2">return </span><span class="s1">attrs</span>
+    <span class="s3">},</span>
+
+    <span class="s1">parseAttribute</span><span class="s3">: </span><span class="s2">function </span><span class="s3">(</span><span class="s1">sTagName</span><span class="s3">, </span><span class="s1">sAttribute</span><span class="s3">, </span><span class="s1">sName</span><span class="s3">) {</span>
+        <span class="s2">var </span><span class="s1">value </span><span class="s3">= </span><span class="s6">''</span>
+        <span class="s2">if </span><span class="s3">(</span><span class="s1">arguments</span><span class="s3">[</span><span class="s5">7</span><span class="s3">]) </span><span class="s1">value </span><span class="s3">= </span><span class="s1">arguments</span><span class="s3">[</span><span class="s5">8</span><span class="s3">]</span>
+        <span class="s2">else if </span><span class="s3">(</span><span class="s1">arguments</span><span class="s3">[</span><span class="s5">5</span><span class="s3">]) </span><span class="s1">value </span><span class="s3">= </span><span class="s1">arguments</span><span class="s3">[</span><span class="s5">6</span><span class="s3">]</span>
+        <span class="s2">else if </span><span class="s3">(</span><span class="s1">arguments</span><span class="s3">[</span><span class="s5">3</span><span class="s3">]) </span><span class="s1">value </span><span class="s3">= </span><span class="s1">arguments</span><span class="s3">[</span><span class="s5">4</span><span class="s3">]</span>
+
+        <span class="s2">var </span><span class="s1">empty </span><span class="s3">= !</span><span class="s1">value </span><span class="s3">&amp;&amp; !</span><span class="s1">arguments</span><span class="s3">[</span><span class="s5">3</span><span class="s3">]</span>
+        <span class="s2">return </span><span class="s3">{ </span><span class="s1">name</span><span class="s3">: </span><span class="s1">sName</span><span class="s3">, </span><span class="s1">value</span><span class="s3">: </span><span class="s1">empty </span><span class="s3">? </span><span class="s2">null </span><span class="s3">: </span><span class="s1">value </span><span class="s3">}</span>
+    <span class="s3">},</span>
+<span class="s3">}</span>
+
+<span class="s0">// export default SimpleHtmlParser</span>
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">SimpleHtmlParser</span>
+</pre>
+</body>
+</html>

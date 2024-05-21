@@ -1,0 +1,61 @@
+<html>
+<head>
+<title>merge-hook.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+merge-hook.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">VNode from </span><span class="s2">'../vnode'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">createFnInvoker </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./update-listeners'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">remove</span><span class="s3">, </span><span class="s1">isDef</span><span class="s3">, </span><span class="s1">isUndef</span><span class="s3">, </span><span class="s1">isTrue </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'shared/util'</span>
+
+<span class="s0">export function </span><span class="s1">mergeVNodeHook</span><span class="s3">(</span>
+  <span class="s1">def</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;,</span>
+  <span class="s1">hookKey</span><span class="s3">: </span><span class="s1">string</span><span class="s3">,</span>
+  <span class="s1">hook</span><span class="s3">: </span><span class="s1">Function</span>
+<span class="s3">) {</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">def </span><span class="s0">instanceof </span><span class="s1">VNode</span><span class="s3">) {</span>
+    <span class="s1">def </span><span class="s3">= </span><span class="s1">def</span><span class="s3">.</span><span class="s1">data</span><span class="s3">!.</span><span class="s1">hook </span><span class="s3">|| (</span><span class="s1">def</span><span class="s3">.</span><span class="s1">data</span><span class="s3">!.</span><span class="s1">hook </span><span class="s3">= {})</span>
+  <span class="s3">}</span>
+  <span class="s0">let </span><span class="s1">invoker</span>
+  <span class="s0">const </span><span class="s1">oldHook </span><span class="s3">= </span><span class="s1">def</span><span class="s3">[</span><span class="s1">hookKey</span><span class="s3">]</span>
+
+  <span class="s0">function </span><span class="s1">wrappedHook</span><span class="s3">() {</span>
+    <span class="s1">hook</span><span class="s3">.</span><span class="s1">apply</span><span class="s3">(</span><span class="s0">this</span><span class="s3">, </span><span class="s1">arguments</span><span class="s3">)</span>
+    <span class="s4">// important: remove merged hook to ensure it's called only once</span>
+    <span class="s4">// and prevent memory leak</span>
+    <span class="s1">remove</span><span class="s3">(</span><span class="s1">invoker</span><span class="s3">.</span><span class="s1">fns</span><span class="s3">, </span><span class="s1">wrappedHook</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isUndef</span><span class="s3">(</span><span class="s1">oldHook</span><span class="s3">)) {</span>
+    <span class="s4">// no existing hook</span>
+    <span class="s1">invoker </span><span class="s3">= </span><span class="s1">createFnInvoker</span><span class="s3">([</span><span class="s1">wrappedHook</span><span class="s3">])</span>
+  <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+    <span class="s4">/* istanbul ignore if */</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">isDef</span><span class="s3">(</span><span class="s1">oldHook</span><span class="s3">.</span><span class="s1">fns</span><span class="s3">) &amp;&amp; </span><span class="s1">isTrue</span><span class="s3">(</span><span class="s1">oldHook</span><span class="s3">.</span><span class="s1">merged</span><span class="s3">)) {</span>
+      <span class="s4">// already a merged invoker</span>
+      <span class="s1">invoker </span><span class="s3">= </span><span class="s1">oldHook</span>
+      <span class="s1">invoker</span><span class="s3">.</span><span class="s1">fns</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">wrappedHook</span><span class="s3">)</span>
+    <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+      <span class="s4">// existing plain hook</span>
+      <span class="s1">invoker </span><span class="s3">= </span><span class="s1">createFnInvoker</span><span class="s3">([</span><span class="s1">oldHook</span><span class="s3">, </span><span class="s1">wrappedHook</span><span class="s3">])</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">invoker</span><span class="s3">.</span><span class="s1">merged </span><span class="s3">= </span><span class="s0">true</span>
+  <span class="s1">def</span><span class="s3">[</span><span class="s1">hookKey</span><span class="s3">] = </span><span class="s1">invoker</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

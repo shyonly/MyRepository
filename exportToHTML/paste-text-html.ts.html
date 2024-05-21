@@ -1,0 +1,243 @@
+<html>
+<head>
+<title>paste-text-html.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #67a37c; font-style: italic;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #6aab73;}
+.s5 { color: #bcbec4;}
+.s6 { color: #42c3d4;}
+.s7 { color: #7a7e85;}
+.s8 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+paste-text-html.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* </span><span class="s1">@description </span><span class="s0">粘贴 text html</span>
+ <span class="s0">* </span><span class="s1">@author </span><span class="s0">wangfupeng</span>
+ <span class="s0">*/</span>
+
+<span class="s3">import </span><span class="s2">Editor from </span><span class="s4">'../../editor/index'</span>
+<span class="s3">import </span><span class="s5">{ </span><span class="s2">getPasteText</span><span class="s5">, </span><span class="s2">getPasteHtml </span><span class="s5">} </span><span class="s2">from </span><span class="s4">'../paste/paste-event'</span>
+<span class="s3">import </span><span class="s5">{ </span><span class="s2">isFunction </span><span class="s5">} </span><span class="s2">from </span><span class="s4">'../../utils/util'</span>
+<span class="s3">import </span><span class="s5">{ </span><span class="s2">urlRegex </span><span class="s5">} </span><span class="s2">from </span><span class="s4">'../../utils/const'</span>
+<span class="s3">import </span><span class="s5">{ </span><span class="s2">DomElement </span><span class="s5">} </span><span class="s2">from </span><span class="s4">'../../utils/dom-core'</span>
+
+<span class="s0">/**</span>
+ <span class="s0">* 格式化html</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">val 粘贴的html</span>
+ <span class="s0">* </span><span class="s1">@author </span><span class="s0">Gavin</span>
+ <span class="s0">* </span><span class="s1">@description</span>
+    <span class="s0">格式化html，需要特别注意</span>
+    <span class="s0">功能：</span>
+        <span class="s0">1. 将htmlText中的div，都替换成p标签</span>
+        <span class="s0">2. 将处理后的htmlText模拟先插入到真实dom中，处理P截断问题。</span>
+
+    <span class="s0">注意点：</span>
+        <span class="s0">由于P不能嵌套p，会导致标签截断，从而将&lt;p&gt;&lt;p&gt;xx&lt;/p&gt;&lt;/p&gt;这样一个结构插入到页面时，会出现很多问题，包括光标位置问题，页面凭空多很多元素的问题。</span>
+ <span class="s0">*/</span>
+<span class="s3">function </span><span class="s2">formatHtml</span><span class="s5">(</span><span class="s2">htmlText</span><span class="s5">: </span><span class="s2">string</span><span class="s5">) {</span>
+    <span class="s3">const </span><span class="s2">paste </span><span class="s5">= </span><span class="s2">htmlText</span>
+        <span class="s5">.</span><span class="s2">replace</span><span class="s5">(</span><span class="s6">/&lt;div&gt;/gim</span><span class="s5">, </span><span class="s4">'&lt;p&gt;'</span><span class="s5">) </span><span class="s7">// div 全部替换为 p 标签</span>
+        <span class="s5">.</span><span class="s2">replace</span><span class="s5">(</span><span class="s6">/&lt;\/div&gt;/gim</span><span class="s5">, </span><span class="s4">'&lt;/p&gt;'</span><span class="s5">)</span>
+        <span class="s5">.</span><span class="s2">trim</span><span class="s5">() </span><span class="s7">// 去除''</span>
+
+    <span class="s7">// 模拟插入到真实dom中</span>
+    <span class="s3">const </span><span class="s2">tempContainer </span><span class="s5">= </span><span class="s2">document</span><span class="s5">.</span><span class="s2">createElement</span><span class="s5">(</span><span class="s4">'div'</span><span class="s5">)</span>
+
+    <span class="s2">tempContainer</span><span class="s5">.</span><span class="s2">innerHTML </span><span class="s5">= </span><span class="s2">paste</span>
+
+    <span class="s3">return </span><span class="s2">tempContainer</span><span class="s5">.</span><span class="s2">innerHTML</span><span class="s5">.</span><span class="s2">replace</span><span class="s5">(</span><span class="s6">/&lt;p&gt;&lt;\/p&gt;/gim</span><span class="s5">, </span><span class="s4">''</span><span class="s5">) </span><span class="s7">// 将被截断的p，都替换掉</span>
+<span class="s5">}</span>
+
+<span class="s0">/**</span>
+ <span class="s0">* 格式化html</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">val 粘贴的html</span>
+ <span class="s0">* </span><span class="s1">@author </span><span class="s0">liuwei</span>
+ <span class="s0">*/</span>
+<span class="s3">function </span><span class="s2">formatCode</span><span class="s5">(</span><span class="s2">val</span><span class="s5">: </span><span class="s2">string</span><span class="s5">) {</span>
+    <span class="s3">let </span><span class="s2">pasteText </span><span class="s5">= </span><span class="s2">val</span><span class="s5">.</span><span class="s2">replace</span><span class="s5">(</span><span class="s6">/&lt;br&gt;|&lt;br\/&gt;/gm</span><span class="s5">, </span><span class="s4">'</span><span class="s3">\n</span><span class="s4">'</span><span class="s5">).</span><span class="s2">replace</span><span class="s5">(</span><span class="s6">/&lt;[^&gt;]+&gt;/gm</span><span class="s5">, </span><span class="s4">''</span><span class="s5">)</span>
+
+    <span class="s3">return </span><span class="s2">pasteText</span>
+<span class="s5">}</span>
+
+<span class="s0">/**</span>
+ <span class="s0">* 判断html是否使用P标签包裹</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">html 粘贴的html</span>
+ <span class="s0">* </span><span class="s1">@author </span><span class="s0">luochao</span>
+ <span class="s0">*/</span>
+<span class="s3">function </span><span class="s2">isParagraphHtml</span><span class="s5">(</span><span class="s2">html</span><span class="s5">: </span><span class="s2">string</span><span class="s5">): </span><span class="s2">boolean </span><span class="s5">{</span>
+    <span class="s3">if </span><span class="s5">(</span><span class="s2">html </span><span class="s5">=== </span><span class="s4">''</span><span class="s5">) </span><span class="s3">return false</span>
+
+    <span class="s3">const </span><span class="s2">container </span><span class="s5">= </span><span class="s2">document</span><span class="s5">.</span><span class="s2">createElement</span><span class="s5">(</span><span class="s4">'div'</span><span class="s5">)</span>
+    <span class="s2">container</span><span class="s5">.</span><span class="s2">innerHTML </span><span class="s5">= </span><span class="s2">html</span>
+
+    <span class="s3">return </span><span class="s2">container</span><span class="s5">.</span><span class="s2">firstChild</span><span class="s5">?.</span><span class="s2">nodeName </span><span class="s5">=== </span><span class="s4">'P'</span>
+<span class="s5">}</span>
+
+<span class="s0">/**</span>
+ <span class="s0">* 判断当前选区是否是空段落</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">topElem 选区顶层元素</span>
+ <span class="s0">* </span><span class="s1">@author </span><span class="s0">luochao</span>
+ <span class="s0">*/</span>
+<span class="s3">function </span><span class="s2">isEmptyParagraph</span><span class="s5">(</span><span class="s2">topElem</span><span class="s5">: </span><span class="s2">DomElement </span><span class="s5">| </span><span class="s2">undefined</span><span class="s5">): </span><span class="s2">boolean </span><span class="s5">{</span>
+    <span class="s3">if </span><span class="s5">(!</span><span class="s2">topElem</span><span class="s5">?.</span><span class="s2">length</span><span class="s5">) </span><span class="s3">return false</span>
+
+    <span class="s3">const </span><span class="s2">dom </span><span class="s5">= </span><span class="s2">topElem</span><span class="s5">.</span><span class="s2">elems</span><span class="s5">[</span><span class="s8">0</span><span class="s5">]</span>
+
+    <span class="s3">return </span><span class="s2">dom</span><span class="s5">.</span><span class="s2">nodeName </span><span class="s5">=== </span><span class="s4">'P' </span><span class="s5">&amp;&amp; </span><span class="s2">dom</span><span class="s5">.</span><span class="s2">innerHTML </span><span class="s5">=== </span><span class="s4">'&lt;br&gt;'</span>
+<span class="s5">}</span>
+
+<span class="s0">/**</span>
+ <span class="s0">* 粘贴文本和 html</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">editor 编辑器对象</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">pasteEvents 粘贴事件列表</span>
+ <span class="s0">*/</span>
+<span class="s3">function </span><span class="s2">pasteTextHtml</span><span class="s5">(</span><span class="s2">editor</span><span class="s5">: </span><span class="s2">Editor</span><span class="s5">, </span><span class="s2">pasteEvents</span><span class="s5">: </span><span class="s2">Function</span><span class="s5">[]) {</span>
+    <span class="s3">function </span><span class="s2">fn</span><span class="s5">(</span><span class="s2">e</span><span class="s5">: </span><span class="s2">Event</span><span class="s5">) {</span>
+        <span class="s7">// 获取配置</span>
+        <span class="s3">const </span><span class="s2">config </span><span class="s5">= </span><span class="s2">editor</span><span class="s5">.</span><span class="s2">config</span>
+        <span class="s3">const </span><span class="s2">pasteFilterStyle </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">pasteFilterStyle</span>
+        <span class="s3">const </span><span class="s2">pasteIgnoreImg </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">pasteIgnoreImg</span>
+        <span class="s3">const </span><span class="s2">pasteTextHandle </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">pasteTextHandle</span>
+
+        <span class="s7">// 获取粘贴的文字</span>
+        <span class="s3">let </span><span class="s2">pasteHtml </span><span class="s5">= </span><span class="s2">getPasteHtml</span><span class="s5">(</span><span class="s2">e </span><span class="s5">as </span><span class="s2">ClipboardEvent</span><span class="s5">, </span><span class="s2">pasteFilterStyle</span><span class="s5">, </span><span class="s2">pasteIgnoreImg</span><span class="s5">)</span>
+        <span class="s3">let </span><span class="s2">pasteText </span><span class="s5">= </span><span class="s2">getPasteText</span><span class="s5">(</span><span class="s2">e </span><span class="s5">as </span><span class="s2">ClipboardEvent</span><span class="s5">)</span>
+        <span class="s2">pasteText </span><span class="s5">= </span><span class="s2">pasteText</span><span class="s5">.</span><span class="s2">replace</span><span class="s5">(</span><span class="s6">/\n/gm</span><span class="s5">, </span><span class="s4">'&lt;br&gt;'</span><span class="s5">)</span>
+        <span class="s7">// 当前选区所在的 DOM 节点</span>
+        <span class="s3">const </span><span class="s2">$selectionElem </span><span class="s5">= </span><span class="s2">editor</span><span class="s5">.</span><span class="s2">selection</span><span class="s5">.</span><span class="s2">getSelectionContainerElem</span><span class="s5">()</span>
+        <span class="s3">if </span><span class="s5">(!</span><span class="s2">$selectionElem</span><span class="s5">) {</span>
+            <span class="s3">return</span>
+        <span class="s5">}</span>
+        <span class="s3">const </span><span class="s2">nodeName </span><span class="s5">= </span><span class="s2">$selectionElem</span><span class="s5">?.</span><span class="s2">getNodeName</span><span class="s5">()</span>
+        <span class="s3">const </span><span class="s2">$topElem </span><span class="s5">= </span><span class="s2">$selectionElem</span><span class="s5">?.</span><span class="s2">getNodeTop</span><span class="s5">(</span><span class="s2">editor</span><span class="s5">)</span>
+        <span class="s7">// 当前节点顶级可能没有</span>
+        <span class="s3">let </span><span class="s2">topNodeName</span><span class="s5">: </span><span class="s2">string </span><span class="s5">= </span><span class="s4">''</span>
+        <span class="s3">if </span><span class="s5">(</span><span class="s2">$topElem</span><span class="s5">.</span><span class="s2">elems</span><span class="s5">[</span><span class="s8">0</span><span class="s5">]) {</span>
+            <span class="s2">topNodeName </span><span class="s5">= </span><span class="s2">$topElem</span><span class="s5">?.</span><span class="s2">getNodeName</span><span class="s5">()</span>
+        <span class="s5">}</span>
+        <span class="s7">// code 中只能粘贴纯文本</span>
+        <span class="s3">if </span><span class="s5">(</span><span class="s2">nodeName </span><span class="s5">=== </span><span class="s4">'CODE' </span><span class="s5">|| </span><span class="s2">topNodeName </span><span class="s5">=== </span><span class="s4">'PRE'</span><span class="s5">) {</span>
+            <span class="s3">if </span><span class="s5">(</span><span class="s2">pasteTextHandle </span><span class="s5">&amp;&amp; </span><span class="s2">isFunction</span><span class="s5">(</span><span class="s2">pasteTextHandle</span><span class="s5">)) {</span>
+                <span class="s7">// 用户自定义过滤处理粘贴内容</span>
+                <span class="s2">pasteText </span><span class="s5">= </span><span class="s4">'' </span><span class="s5">+ (</span><span class="s2">pasteTextHandle</span><span class="s5">(</span><span class="s2">pasteText</span><span class="s5">) || </span><span class="s4">''</span><span class="s5">)</span>
+            <span class="s5">}</span>
+            <span class="s2">editor</span><span class="s5">.</span><span class="s2">cmd</span><span class="s5">.</span><span class="s2">do</span><span class="s5">(</span><span class="s4">'insertHTML'</span><span class="s5">, </span><span class="s2">formatCode</span><span class="s5">(</span><span class="s2">pasteText</span><span class="s5">))</span>
+            <span class="s3">return</span>
+        <span class="s5">}</span>
+
+        <span class="s7">// 如果用户开启闭粘贴样式注释则将复制进来为url的直接转为链接 否则不转换。</span>
+        <span class="s7">//  在群中有用户提到关闭样式粘贴复制的文字进来后链接直接转为文字了，不符合预期，这里优化下</span>
+        <span class="s3">if </span><span class="s5">(</span><span class="s2">urlRegex</span><span class="s5">.</span><span class="s2">test</span><span class="s5">(</span><span class="s2">pasteText</span><span class="s5">) &amp;&amp; </span><span class="s2">pasteFilterStyle</span><span class="s5">) {</span>
+            <span class="s7">//当复制的内容为链接时，也应该判断用户是否定义了处理粘贴的事件</span>
+            <span class="s3">if </span><span class="s5">(</span><span class="s2">pasteTextHandle </span><span class="s5">&amp;&amp; </span><span class="s2">isFunction</span><span class="s5">(</span><span class="s2">pasteTextHandle</span><span class="s5">)) {</span>
+                <span class="s7">// 用户自定义过滤处理粘贴内容</span>
+                <span class="s2">pasteText </span><span class="s5">= </span><span class="s4">'' </span><span class="s5">+ (</span><span class="s2">pasteTextHandle</span><span class="s5">(</span><span class="s2">pasteText</span><span class="s5">) || </span><span class="s4">''</span><span class="s5">) </span><span class="s7">// html</span>
+            <span class="s5">}</span>
+
+            <span class="s7">// 当复制一个链接和文本时，需要区分出文本和a链接, 如：http://www.baidu.com  搜索。 issue: #3129</span>
+            <span class="s7">// 目前也支持粘贴文案：粘贴http://www.baidu.com粘贴http://www.baidu.com，连个链接。</span>
+            <span class="s3">const </span><span class="s2">resultText </span><span class="s5">= </span><span class="s2">pasteText</span><span class="s5">.</span><span class="s2">replace</span><span class="s5">(</span><span class="s2">urlRegex</span><span class="s5">, </span><span class="s3">function </span><span class="s5">(</span><span class="s2">link</span><span class="s5">: </span><span class="s2">string</span><span class="s5">) {</span>
+                <span class="s3">return </span><span class="s4">`&lt;a href=&quot;</span><span class="s2">$</span><span class="s5">{</span><span class="s2">link</span><span class="s5">}</span><span class="s4">&quot; target=&quot;_blank&quot;&gt;</span><span class="s2">$</span><span class="s5">{</span><span class="s2">link</span><span class="s5">}</span><span class="s4">&lt;/a&gt;`</span>
+            <span class="s5">})</span>
+            <span class="s3">const </span><span class="s2">range </span><span class="s5">= </span><span class="s2">editor</span><span class="s5">.</span><span class="s2">selection</span><span class="s5">.</span><span class="s2">getRange</span><span class="s5">()</span>
+
+            <span class="s7">// 文本转义问题，如果直接使用innerHTML插入html结构，地址中的特殊字符会被转义</span>
+            <span class="s7">// 先生成元素，替换里面的文本，利用insertElem插入到页面</span>
+            <span class="s3">const </span><span class="s2">div </span><span class="s5">= </span><span class="s2">document</span><span class="s5">.</span><span class="s2">createElement</span><span class="s5">(</span><span class="s4">'div'</span><span class="s5">)</span>
+            <span class="s3">const </span><span class="s2">fragment </span><span class="s5">= </span><span class="s2">document</span><span class="s5">.</span><span class="s2">createDocumentFragment</span><span class="s5">()</span>
+
+            <span class="s2">div</span><span class="s5">.</span><span class="s2">innerHTML </span><span class="s5">= </span><span class="s2">resultText</span>
+
+            <span class="s3">if </span><span class="s5">(</span><span class="s2">range </span><span class="s5">== </span><span class="s3">null</span><span class="s5">) </span><span class="s3">return</span>
+
+            <span class="s7">// 将div里的dom结构，搬到fragment里</span>
+            <span class="s3">while </span><span class="s5">(</span><span class="s2">div</span><span class="s5">.</span><span class="s2">childNodes</span><span class="s5">.</span><span class="s2">length</span><span class="s5">) {</span>
+                <span class="s2">fragment</span><span class="s5">.</span><span class="s2">append</span><span class="s5">(</span><span class="s2">div</span><span class="s5">.</span><span class="s2">childNodes</span><span class="s5">[</span><span class="s8">0</span><span class="s5">])</span>
+            <span class="s5">}</span>
+
+            <span class="s7">// 修改a 链接文案，使用innerText插入文本，这样就避免了使用innerHTML时把特殊符号转义</span>
+            <span class="s3">const </span><span class="s2">linkEle </span><span class="s5">= </span><span class="s2">fragment</span><span class="s5">.</span><span class="s2">querySelectorAll</span><span class="s5">(</span><span class="s4">'a'</span><span class="s5">)</span>
+            <span class="s2">linkEle</span><span class="s5">.</span><span class="s2">forEach</span><span class="s5">(</span><span class="s2">ele </span><span class="s5">=&gt; {</span>
+                <span class="s2">ele</span><span class="s5">.</span><span class="s2">innerText </span><span class="s5">= </span><span class="s2">ele</span><span class="s5">.</span><span class="s2">href</span>
+            <span class="s5">})</span>
+
+            <span class="s3">if </span><span class="s5">(</span><span class="s2">range</span><span class="s5">.</span><span class="s2">insertNode</span><span class="s5">) {</span>
+                <span class="s2">range</span><span class="s5">.</span><span class="s2">deleteContents</span><span class="s5">()</span>
+                <span class="s2">range</span><span class="s5">.</span><span class="s2">insertNode</span><span class="s5">(</span><span class="s2">fragment</span><span class="s5">)</span>
+            <span class="s5">}</span>
+
+            <span class="s2">editor</span><span class="s5">.</span><span class="s2">selection</span><span class="s5">.</span><span class="s2">clearWindowSelectionRange</span><span class="s5">()</span>
+
+            <span class="s3">return</span>
+        <span class="s5">}</span>
+        <span class="s7">// table 中（td、th），待开发。。。</span>
+        <span class="s3">if </span><span class="s5">(!</span><span class="s2">pasteHtml</span><span class="s5">) {</span>
+            <span class="s3">return</span>
+        <span class="s5">}</span>
+        <span class="s3">try </span><span class="s5">{</span>
+            <span class="s7">// firefox 中，获取的 pasteHtml 可能是没有 &lt;ul&gt; 包裹的 &lt;li&gt;</span>
+            <span class="s7">// 因此执行 insertHTML 会报错</span>
+            <span class="s3">if </span><span class="s5">(</span><span class="s2">pasteTextHandle </span><span class="s5">&amp;&amp; </span><span class="s2">isFunction</span><span class="s5">(</span><span class="s2">pasteTextHandle</span><span class="s5">)) {</span>
+                <span class="s7">// 用户自定义过滤处理粘贴内容</span>
+                <span class="s2">pasteHtml </span><span class="s5">= </span><span class="s4">'' </span><span class="s5">+ (</span><span class="s2">pasteTextHandle</span><span class="s5">(</span><span class="s2">pasteHtml</span><span class="s5">) || </span><span class="s4">''</span><span class="s5">) </span><span class="s7">// html</span>
+            <span class="s5">}</span>
+            <span class="s7">// 粘贴的html的是否是css的style样式</span>
+            <span class="s3">let </span><span class="s2">isCssStyle</span><span class="s5">: </span><span class="s2">boolean </span><span class="s5">= </span><span class="s6">/[\.\#\@]?\w+[ ]+\{[^}]*\}/</span><span class="s5">.</span><span class="s2">test</span><span class="s5">(</span><span class="s2">pasteHtml</span><span class="s5">) </span><span class="s7">// eslint-disable-line</span>
+            <span class="s7">// 经过处理后还是包含暴露的css样式则直接插入它的text</span>
+            <span class="s3">if </span><span class="s5">(</span><span class="s2">isCssStyle </span><span class="s5">&amp;&amp; </span><span class="s2">pasteFilterStyle</span><span class="s5">) {</span>
+                <span class="s2">editor</span><span class="s5">.</span><span class="s2">cmd</span><span class="s5">.</span><span class="s2">do</span><span class="s5">(</span><span class="s4">'insertHTML'</span><span class="s5">, </span><span class="s4">`</span><span class="s2">$</span><span class="s5">{</span><span class="s2">formatHtml</span><span class="s5">(</span><span class="s2">pasteText</span><span class="s5">)}</span><span class="s4">`</span><span class="s5">) </span><span class="s7">// text</span>
+            <span class="s5">} </span><span class="s3">else </span><span class="s5">{</span>
+                <span class="s3">const </span><span class="s2">html </span><span class="s5">= </span><span class="s2">formatHtml</span><span class="s5">(</span><span class="s2">pasteHtml</span><span class="s5">)</span>
+                <span class="s7">// 如果是段落，为了兼容 firefox 和 chrome差异，自定义插入</span>
+                <span class="s3">if </span><span class="s5">(</span><span class="s2">isParagraphHtml</span><span class="s5">(</span><span class="s2">html</span><span class="s5">)) {</span>
+                    <span class="s3">const </span><span class="s2">$textEl </span><span class="s5">= </span><span class="s2">editor</span><span class="s5">.</span><span class="s2">$textElem</span>
+                    <span class="s2">editor</span><span class="s5">.</span><span class="s2">cmd</span><span class="s5">.</span><span class="s2">do</span><span class="s5">(</span><span class="s4">'insertHTML'</span><span class="s5">, </span><span class="s2">html</span><span class="s5">)</span>
+                    <span class="s7">// 全选的情况下覆盖原有内容</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">$textEl</span><span class="s5">.</span><span class="s2">equal</span><span class="s5">(</span><span class="s2">$selectionElem</span><span class="s5">)) {</span>
+                        <span class="s7">// 更新选区</span>
+                        <span class="s2">editor</span><span class="s5">.</span><span class="s2">selection</span><span class="s5">.</span><span class="s2">createEmptyRange</span><span class="s5">()</span>
+                        <span class="s3">return</span>
+                    <span class="s5">}</span>
+                    <span class="s7">// 如果选区是空段落，移除空段落</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">isEmptyParagraph</span><span class="s5">(</span><span class="s2">$topElem</span><span class="s5">)) {</span>
+                        <span class="s2">$topElem</span><span class="s5">.</span><span class="s2">remove</span><span class="s5">()</span>
+                    <span class="s5">}</span>
+                <span class="s5">} </span><span class="s3">else </span><span class="s5">{</span>
+                    <span class="s2">editor</span><span class="s5">.</span><span class="s2">cmd</span><span class="s5">.</span><span class="s2">do</span><span class="s5">(</span><span class="s4">'insertHTML'</span><span class="s5">, </span><span class="s2">html</span><span class="s5">)</span>
+
+                    <span class="s7">// 如果用户从百度等网站点击复制得到的图片是一串img标签且待src的http地址</span>
+                    <span class="s7">// 见 https://github.com/wangeditor-team/wangEditor/issues/3119</span>
+                    <span class="s7">// 如果是走用户定义的图片上传逻辑</span>
+                    <span class="s7">// const isHasOnlyImgEleReg = /^&lt;img [^&gt;]*src=['&quot;]([^'&quot;]+)[^&gt;]*&gt;$/g</span>
+                    <span class="s7">// if (!isHasOnlyImgEleReg.test(html)) {</span>
+                    <span class="s7">//     editor.cmd.do('insertHTML', html)</span>
+                    <span class="s7">// }</span>
+                <span class="s5">}</span>
+            <span class="s5">}</span>
+        <span class="s5">} </span><span class="s3">catch </span><span class="s5">(</span><span class="s2">ex</span><span class="s5">) {</span>
+            <span class="s7">// 此时使用 pasteText 来兼容一下</span>
+            <span class="s3">if </span><span class="s5">(</span><span class="s2">pasteTextHandle </span><span class="s5">&amp;&amp; </span><span class="s2">isFunction</span><span class="s5">(</span><span class="s2">pasteTextHandle</span><span class="s5">)) {</span>
+                <span class="s7">// 用户自定义过滤处理粘贴内容</span>
+                <span class="s2">pasteText </span><span class="s5">= </span><span class="s4">'' </span><span class="s5">+ (</span><span class="s2">pasteTextHandle</span><span class="s5">(</span><span class="s2">pasteText</span><span class="s5">) || </span><span class="s4">''</span><span class="s5">)</span>
+            <span class="s5">}</span>
+            <span class="s2">editor</span><span class="s5">.</span><span class="s2">cmd</span><span class="s5">.</span><span class="s2">do</span><span class="s5">(</span><span class="s4">'insertHTML'</span><span class="s5">, </span><span class="s4">`</span><span class="s2">$</span><span class="s5">{</span><span class="s2">formatHtml</span><span class="s5">(</span><span class="s2">pasteText</span><span class="s5">)}</span><span class="s4">`</span><span class="s5">) </span><span class="s7">// text</span>
+        <span class="s5">}</span>
+    <span class="s5">}</span>
+
+    <span class="s2">pasteEvents</span><span class="s5">.</span><span class="s2">push</span><span class="s5">(</span><span class="s2">fn</span><span class="s5">)</span>
+<span class="s5">}</span>
+
+<span class="s3">export default </span><span class="s2">pasteTextHtml</span>
+</pre>
+</body>
+</html>

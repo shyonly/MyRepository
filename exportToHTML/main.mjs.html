@@ -1,0 +1,169 @@
+<html>
+<head>
+<title>main.mjs</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+main.mjs</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">shorthandData </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./shorthand-data.mjs'</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">bubbleSort </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./bubble-sort.mjs'</span><span class="s2">;</span>
+
+<span class="s0">const </span><span class="s1">builtInOrders </span><span class="s2">= [</span>
+  <span class="s3">'alphabetical'</span><span class="s2">,</span>
+  <span class="s3">'concentric-css'</span><span class="s2">,</span>
+  <span class="s3">'smacss'</span><span class="s2">,</span>
+<span class="s2">];</span>
+
+<span class="s0">export const </span><span class="s1">cssDeclarationSorter </span><span class="s2">= ({ </span><span class="s1">order </span><span class="s2">= </span><span class="s3">'alphabetical'</span><span class="s2">, </span><span class="s1">keepOverrides </span><span class="s2">= </span><span class="s0">false </span><span class="s2">} = {}) =&gt; ({</span>
+  <span class="s1">postcssPlugin</span><span class="s2">: </span><span class="s3">'css-declaration-sorter'</span><span class="s2">,</span>
+  <span class="s1">OnceExit </span><span class="s2">(</span><span class="s1">css</span><span class="s2">) {</span>
+    <span class="s0">let </span><span class="s1">withKeepOverrides </span><span class="s2">= </span><span class="s1">comparator </span><span class="s2">=&gt; </span><span class="s1">comparator</span><span class="s2">;</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">keepOverrides</span><span class="s2">) {</span>
+      <span class="s1">withKeepOverrides </span><span class="s2">= </span><span class="s1">withOverridesComparator</span><span class="s2">(</span><span class="s1">shorthandData</span><span class="s2">);</span>
+    <span class="s2">}</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">order </span><span class="s2">=== </span><span class="s3">'function'</span><span class="s2">) {</span>
+      <span class="s0">return </span><span class="s1">processCss</span><span class="s2">({ </span><span class="s1">css</span><span class="s2">, </span><span class="s1">comparator</span><span class="s2">: </span><span class="s1">withKeepOverrides</span><span class="s2">(</span><span class="s1">order</span><span class="s2">) });</span>
+    <span class="s2">}</span>
+
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">builtInOrders</span><span class="s2">.</span><span class="s1">includes</span><span class="s2">(</span><span class="s1">order</span><span class="s2">))</span>
+      <span class="s0">return </span><span class="s1">Promise</span><span class="s2">.</span><span class="s1">reject</span><span class="s2">(</span>
+        <span class="s1">Error</span><span class="s2">([</span>
+          <span class="s3">`Invalid built-in order '</span><span class="s1">$</span><span class="s2">{</span><span class="s1">order</span><span class="s2">}</span><span class="s3">' provided.`</span><span class="s2">,</span>
+          <span class="s3">`Available built-in orders are: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">builtInOrders</span><span class="s2">}</span><span class="s3">`</span><span class="s2">,</span>
+        <span class="s2">].</span><span class="s1">join</span><span class="s2">(</span><span class="s3">'</span><span class="s0">\n</span><span class="s3">'</span><span class="s2">))</span>
+      <span class="s2">);</span>
+
+    <span class="s0">return import</span><span class="s2">(</span><span class="s3">`../orders/</span><span class="s1">$</span><span class="s2">{</span><span class="s1">order</span><span class="s2">}</span><span class="s3">.mjs`</span><span class="s2">)</span>
+      <span class="s2">.</span><span class="s1">then</span><span class="s2">(({ </span><span class="s1">properties </span><span class="s2">}) =&gt; </span><span class="s1">processCss</span><span class="s2">({</span>
+        <span class="s1">css</span><span class="s2">,</span>
+        <span class="s1">comparator</span><span class="s2">: </span><span class="s1">withKeepOverrides</span><span class="s2">(</span><span class="s1">orderComparator</span><span class="s2">(</span><span class="s1">properties</span><span class="s2">)),</span>
+      <span class="s2">}));</span>
+  <span class="s2">},</span>
+<span class="s2">});</span>
+
+<span class="s1">cssDeclarationSorter</span><span class="s2">.</span><span class="s1">postcss </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+
+<span class="s4">// Kept for backward compatibility</span>
+<span class="s0">export default </span><span class="s1">cssDeclarationSorter</span><span class="s2">;</span>
+
+<span class="s0">function </span><span class="s1">processCss </span><span class="s2">({ </span><span class="s1">css</span><span class="s2">, </span><span class="s1">comparator </span><span class="s2">}) {</span>
+  <span class="s0">const </span><span class="s1">comments </span><span class="s2">= [];</span>
+  <span class="s0">const </span><span class="s1">rulesCache </span><span class="s2">= [];</span>
+
+  <span class="s1">css</span><span class="s2">.</span><span class="s1">walk</span><span class="s2">(</span><span class="s1">node </span><span class="s2">=&gt; {</span>
+    <span class="s0">const </span><span class="s1">nodes </span><span class="s2">= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">nodes</span><span class="s2">;</span>
+    <span class="s0">const </span><span class="s1">type </span><span class="s2">= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">type</span><span class="s2">;</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'comment'</span><span class="s2">) {</span>
+      <span class="s4">// Don't do anything to root comments or the last newline comment</span>
+      <span class="s0">const </span><span class="s1">isNewlineNode </span><span class="s2">= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">raws</span><span class="s2">.</span><span class="s1">before </span><span class="s2">&amp;&amp; </span><span class="s1">node</span><span class="s2">.</span><span class="s1">raws</span><span class="s2">.</span><span class="s1">before</span><span class="s2">.</span><span class="s1">includes</span><span class="s2">(</span><span class="s3">'</span><span class="s0">\n</span><span class="s3">'</span><span class="s2">);</span>
+      <span class="s0">const </span><span class="s1">lastNewlineNode </span><span class="s2">= </span><span class="s1">isNewlineNode </span><span class="s2">&amp;&amp; !</span><span class="s1">node</span><span class="s2">.</span><span class="s1">next</span><span class="s2">();</span>
+      <span class="s0">const </span><span class="s1">onlyNode </span><span class="s2">= !</span><span class="s1">node</span><span class="s2">.</span><span class="s1">prev</span><span class="s2">() &amp;&amp; !</span><span class="s1">node</span><span class="s2">.</span><span class="s1">next</span><span class="s2">() || !</span><span class="s1">node</span><span class="s2">.</span><span class="s1">parent</span><span class="s2">;</span>
+
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">lastNewlineNode </span><span class="s2">|| </span><span class="s1">onlyNode </span><span class="s2">|| </span><span class="s1">node</span><span class="s2">.</span><span class="s1">parent</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'root'</span><span class="s2">) {</span>
+        <span class="s0">return</span><span class="s2">;</span>
+      <span class="s2">}</span>
+
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">isNewlineNode</span><span class="s2">) {</span>
+        <span class="s0">const </span><span class="s1">pairedNode </span><span class="s2">= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">next</span><span class="s2">() || </span><span class="s1">node</span><span class="s2">.</span><span class="s1">prev</span><span class="s2">();</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">pairedNode</span><span class="s2">) {</span>
+          <span class="s1">comments</span><span class="s2">.</span><span class="s1">unshift</span><span class="s2">({</span>
+            <span class="s3">'comment'</span><span class="s2">: </span><span class="s1">node</span><span class="s2">,</span>
+            <span class="s3">'pairedNode'</span><span class="s2">: </span><span class="s1">pairedNode</span><span class="s2">,</span>
+            <span class="s3">'insertPosition'</span><span class="s2">: </span><span class="s1">node</span><span class="s2">.</span><span class="s1">next</span><span class="s2">() ? </span><span class="s3">'Before' </span><span class="s2">: </span><span class="s3">'After'</span><span class="s2">,</span>
+          <span class="s2">});</span>
+          <span class="s1">node</span><span class="s2">.</span><span class="s1">remove</span><span class="s2">();</span>
+        <span class="s2">}</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s0">const </span><span class="s1">pairedNode </span><span class="s2">= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">prev</span><span class="s2">() || </span><span class="s1">node</span><span class="s2">.</span><span class="s1">next</span><span class="s2">();</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">pairedNode</span><span class="s2">) {</span>
+          <span class="s1">comments</span><span class="s2">.</span><span class="s1">push</span><span class="s2">({</span>
+            <span class="s3">'comment'</span><span class="s2">: </span><span class="s1">node</span><span class="s2">,</span>
+            <span class="s3">'pairedNode'</span><span class="s2">: </span><span class="s1">pairedNode</span><span class="s2">,</span>
+            <span class="s3">'insertPosition'</span><span class="s2">: </span><span class="s3">'After'</span><span class="s2">,</span>
+          <span class="s2">});</span>
+          <span class="s1">node</span><span class="s2">.</span><span class="s1">remove</span><span class="s2">();</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+      <span class="s0">return</span><span class="s2">;</span>
+    <span class="s2">}</span>
+
+    <span class="s4">// Add rule-like nodes to a cache so that we can remove all</span>
+    <span class="s4">// comment nodes before we start sorting.</span>
+    <span class="s0">const </span><span class="s1">isRule </span><span class="s2">= </span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'rule' </span><span class="s2">|| </span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'atrule'</span><span class="s2">;</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isRule </span><span class="s2">&amp;&amp; </span><span class="s1">nodes </span><span class="s2">&amp;&amp; </span><span class="s1">nodes</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s5">1</span><span class="s2">) {</span>
+      <span class="s1">rulesCache</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">);</span>
+    <span class="s2">}</span>
+  <span class="s2">});</span>
+
+  <span class="s4">// Perform a sort once all comment nodes are removed</span>
+  <span class="s1">rulesCache</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">nodes </span><span class="s2">=&gt; {</span>
+    <span class="s1">sortCssDeclarations</span><span class="s2">({ </span><span class="s1">nodes</span><span class="s2">, </span><span class="s1">comparator </span><span class="s2">});</span>
+  <span class="s2">});</span>
+
+  <span class="s4">// Add comments back to the nodes they are paired with</span>
+  <span class="s1">comments</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">node </span><span class="s2">=&gt; {</span>
+    <span class="s0">const </span><span class="s1">pairedNode </span><span class="s2">= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">pairedNode</span><span class="s2">;</span>
+    <span class="s1">node</span><span class="s2">.</span><span class="s1">comment</span><span class="s2">.</span><span class="s1">remove</span><span class="s2">();</span>
+    <span class="s1">pairedNode</span><span class="s2">.</span><span class="s1">parent </span><span class="s2">&amp;&amp; </span><span class="s1">pairedNode</span><span class="s2">.</span><span class="s1">parent</span><span class="s2">[</span><span class="s3">'insert' </span><span class="s2">+ </span><span class="s1">node</span><span class="s2">.</span><span class="s1">insertPosition</span><span class="s2">](</span><span class="s1">pairedNode</span><span class="s2">, </span><span class="s1">node</span><span class="s2">.</span><span class="s1">comment</span><span class="s2">);</span>
+  <span class="s2">});</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">sortCssDeclarations </span><span class="s2">({ </span><span class="s1">nodes</span><span class="s2">, </span><span class="s1">comparator </span><span class="s2">}) {</span>
+  <span class="s1">bubbleSort</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">, (</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">) =&gt; {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">a</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'decl' </span><span class="s2">&amp;&amp; </span><span class="s1">b</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'decl'</span><span class="s2">) {</span>
+      <span class="s0">return </span><span class="s1">comparator</span><span class="s2">(</span><span class="s1">a</span><span class="s2">.</span><span class="s1">prop</span><span class="s2">, </span><span class="s1">b</span><span class="s2">.</span><span class="s1">prop</span><span class="s2">);</span>
+    <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+      <span class="s0">return </span><span class="s1">compareDifferentType</span><span class="s2">(</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">);</span>
+    <span class="s2">}</span>
+  <span class="s2">});</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">withOverridesComparator </span><span class="s2">(</span><span class="s1">shorthandData</span><span class="s2">) {</span>
+  <span class="s0">return function </span><span class="s2">(</span><span class="s1">comparator</span><span class="s2">) {</span>
+    <span class="s0">return function </span><span class="s2">(</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">) {</span>
+      <span class="s1">a </span><span class="s2">= </span><span class="s1">removeVendorPrefix</span><span class="s2">(</span><span class="s1">a</span><span class="s2">);</span>
+      <span class="s1">b </span><span class="s2">= </span><span class="s1">removeVendorPrefix</span><span class="s2">(</span><span class="s1">b</span><span class="s2">);</span>
+
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">shorthandData</span><span class="s2">[</span><span class="s1">a</span><span class="s2">] &amp;&amp; </span><span class="s1">shorthandData</span><span class="s2">[</span><span class="s1">a</span><span class="s2">].</span><span class="s1">includes</span><span class="s2">(</span><span class="s1">b</span><span class="s2">)) </span><span class="s0">return </span><span class="s5">0</span><span class="s2">;</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">shorthandData</span><span class="s2">[</span><span class="s1">b</span><span class="s2">] &amp;&amp; </span><span class="s1">shorthandData</span><span class="s2">[</span><span class="s1">b</span><span class="s2">].</span><span class="s1">includes</span><span class="s2">(</span><span class="s1">a</span><span class="s2">)) </span><span class="s0">return </span><span class="s5">0</span><span class="s2">;</span>
+
+      <span class="s0">return </span><span class="s1">comparator</span><span class="s2">(</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">);</span>
+    <span class="s2">};</span>
+  <span class="s2">};</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">orderComparator </span><span class="s2">(</span><span class="s1">order</span><span class="s2">) {</span>
+  <span class="s0">return function </span><span class="s2">(</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">order</span><span class="s2">.</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s1">a</span><span class="s2">) - </span><span class="s1">order</span><span class="s2">.</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s1">b</span><span class="s2">);</span>
+  <span class="s2">};</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">compareDifferentType </span><span class="s2">(</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">b</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'atrule' </span><span class="s2">|| </span><span class="s1">a</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'atrule'</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s5">0</span><span class="s2">;</span>
+  <span class="s2">}</span>
+
+  <span class="s0">return </span><span class="s1">a</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'decl' </span><span class="s2">? -</span><span class="s5">1 </span><span class="s2">: </span><span class="s1">b</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'decl' </span><span class="s2">? </span><span class="s5">1 </span><span class="s2">: </span><span class="s5">0</span><span class="s2">;</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">removeVendorPrefix </span><span class="s2">(</span><span class="s1">property</span><span class="s2">) {</span>
+  <span class="s0">return </span><span class="s1">property</span><span class="s2">.</span><span class="s1">replace</span><span class="s2">(</span><span class="s6">/^-\w+-/</span><span class="s2">, </span><span class="s3">''</span><span class="s2">);</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

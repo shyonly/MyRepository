@@ -1,0 +1,215 @@
+<html>
+<head>
+<title>random.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #67a37c; font-style: italic;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #bcbec4;}
+.s5 { color: #6aab73;}
+.s6 { color: #7a7e85;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+random.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* An API for getting cryptographically-secure random bytes. The bytes are</span>
+ <span class="s0">* generated using the Fortuna algorithm devised by Bruce Schneier and</span>
+ <span class="s0">* Niels Ferguson.</span>
+ <span class="s0">*</span>
+ <span class="s0">* Getting strong random bytes is not yet easy to do in javascript. The only</span>
+ <span class="s0">* truish random entropy that can be collected is from the mouse, keyboard, or</span>
+ <span class="s0">* from timing with respect to page loads, etc. This generator makes a poor</span>
+ <span class="s0">* attempt at providing random bytes when those sources haven't yet provided</span>
+ <span class="s0">* enough entropy to initially seed or to reseed the PRNG.</span>
+ <span class="s0">*</span>
+ <span class="s0">* </span><span class="s1">@author </span><span class="s0">Dave Longley</span>
+ <span class="s0">*</span>
+ <span class="s0">* Copyright (c) 2009-2014 Digital Bazaar, Inc.</span>
+ <span class="s0">*/</span>
+<span class="s3">var </span><span class="s2">forge </span><span class="s4">= </span><span class="s2">require</span><span class="s4">(</span><span class="s5">'./forge'</span><span class="s4">);</span>
+<span class="s2">require</span><span class="s4">(</span><span class="s5">'./aes'</span><span class="s4">);</span>
+<span class="s2">require</span><span class="s4">(</span><span class="s5">'./sha256'</span><span class="s4">);</span>
+<span class="s2">require</span><span class="s4">(</span><span class="s5">'./prng'</span><span class="s4">);</span>
+<span class="s2">require</span><span class="s4">(</span><span class="s5">'./util'</span><span class="s4">);</span>
+
+<span class="s4">(</span><span class="s3">function</span><span class="s4">() {</span>
+
+<span class="s6">// forge.random already defined</span>
+<span class="s3">if</span><span class="s4">(</span><span class="s2">forge</span><span class="s4">.</span><span class="s2">random </span><span class="s4">&amp;&amp; </span><span class="s2">forge</span><span class="s4">.</span><span class="s2">random</span><span class="s4">.</span><span class="s2">getBytes</span><span class="s4">) {</span>
+  <span class="s2">module</span><span class="s4">.</span><span class="s2">exports </span><span class="s4">= </span><span class="s2">forge</span><span class="s4">.</span><span class="s2">random</span><span class="s4">;</span>
+  <span class="s3">return</span><span class="s4">;</span>
+<span class="s4">}</span>
+
+<span class="s4">(</span><span class="s3">function</span><span class="s4">(</span><span class="s2">jQuery</span><span class="s4">) {</span>
+
+<span class="s6">// the default prng plugin, uses AES-128</span>
+<span class="s3">var </span><span class="s2">prng_aes </span><span class="s4">= {};</span>
+<span class="s3">var </span><span class="s2">_prng_aes_output </span><span class="s4">= </span><span class="s3">new </span><span class="s2">Array</span><span class="s4">(</span><span class="s7">4</span><span class="s4">);</span>
+<span class="s3">var </span><span class="s2">_prng_aes_buffer </span><span class="s4">= </span><span class="s2">forge</span><span class="s4">.</span><span class="s2">util</span><span class="s4">.</span><span class="s2">createBuffer</span><span class="s4">();</span>
+<span class="s2">prng_aes</span><span class="s4">.</span><span class="s2">formatKey </span><span class="s4">= </span><span class="s3">function</span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+  <span class="s6">// convert the key into 32-bit integers</span>
+  <span class="s3">var </span><span class="s2">tmp </span><span class="s4">= </span><span class="s2">forge</span><span class="s4">.</span><span class="s2">util</span><span class="s4">.</span><span class="s2">createBuffer</span><span class="s4">(</span><span class="s2">key</span><span class="s4">);</span>
+  <span class="s2">key </span><span class="s4">= </span><span class="s3">new </span><span class="s2">Array</span><span class="s4">(</span><span class="s7">4</span><span class="s4">);</span>
+  <span class="s2">key</span><span class="s4">[</span><span class="s7">0</span><span class="s4">] = </span><span class="s2">tmp</span><span class="s4">.</span><span class="s2">getInt32</span><span class="s4">();</span>
+  <span class="s2">key</span><span class="s4">[</span><span class="s7">1</span><span class="s4">] = </span><span class="s2">tmp</span><span class="s4">.</span><span class="s2">getInt32</span><span class="s4">();</span>
+  <span class="s2">key</span><span class="s4">[</span><span class="s7">2</span><span class="s4">] = </span><span class="s2">tmp</span><span class="s4">.</span><span class="s2">getInt32</span><span class="s4">();</span>
+  <span class="s2">key</span><span class="s4">[</span><span class="s7">3</span><span class="s4">] = </span><span class="s2">tmp</span><span class="s4">.</span><span class="s2">getInt32</span><span class="s4">();</span>
+
+  <span class="s6">// return the expanded key</span>
+  <span class="s3">return </span><span class="s2">forge</span><span class="s4">.</span><span class="s2">aes</span><span class="s4">.</span><span class="s2">_expandKey</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s3">false</span><span class="s4">);</span>
+<span class="s4">};</span>
+<span class="s2">prng_aes</span><span class="s4">.</span><span class="s2">formatSeed </span><span class="s4">= </span><span class="s3">function</span><span class="s4">(</span><span class="s2">seed</span><span class="s4">) {</span>
+  <span class="s6">// convert seed into 32-bit integers</span>
+  <span class="s3">var </span><span class="s2">tmp </span><span class="s4">= </span><span class="s2">forge</span><span class="s4">.</span><span class="s2">util</span><span class="s4">.</span><span class="s2">createBuffer</span><span class="s4">(</span><span class="s2">seed</span><span class="s4">);</span>
+  <span class="s2">seed </span><span class="s4">= </span><span class="s3">new </span><span class="s2">Array</span><span class="s4">(</span><span class="s7">4</span><span class="s4">);</span>
+  <span class="s2">seed</span><span class="s4">[</span><span class="s7">0</span><span class="s4">] = </span><span class="s2">tmp</span><span class="s4">.</span><span class="s2">getInt32</span><span class="s4">();</span>
+  <span class="s2">seed</span><span class="s4">[</span><span class="s7">1</span><span class="s4">] = </span><span class="s2">tmp</span><span class="s4">.</span><span class="s2">getInt32</span><span class="s4">();</span>
+  <span class="s2">seed</span><span class="s4">[</span><span class="s7">2</span><span class="s4">] = </span><span class="s2">tmp</span><span class="s4">.</span><span class="s2">getInt32</span><span class="s4">();</span>
+  <span class="s2">seed</span><span class="s4">[</span><span class="s7">3</span><span class="s4">] = </span><span class="s2">tmp</span><span class="s4">.</span><span class="s2">getInt32</span><span class="s4">();</span>
+  <span class="s3">return </span><span class="s2">seed</span><span class="s4">;</span>
+<span class="s4">};</span>
+<span class="s2">prng_aes</span><span class="s4">.</span><span class="s2">cipher </span><span class="s4">= </span><span class="s3">function</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">seed</span><span class="s4">) {</span>
+  <span class="s2">forge</span><span class="s4">.</span><span class="s2">aes</span><span class="s4">.</span><span class="s2">_updateBlock</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">seed</span><span class="s4">, </span><span class="s2">_prng_aes_output</span><span class="s4">, </span><span class="s3">false</span><span class="s4">);</span>
+  <span class="s2">_prng_aes_buffer</span><span class="s4">.</span><span class="s2">putInt32</span><span class="s4">(</span><span class="s2">_prng_aes_output</span><span class="s4">[</span><span class="s7">0</span><span class="s4">]);</span>
+  <span class="s2">_prng_aes_buffer</span><span class="s4">.</span><span class="s2">putInt32</span><span class="s4">(</span><span class="s2">_prng_aes_output</span><span class="s4">[</span><span class="s7">1</span><span class="s4">]);</span>
+  <span class="s2">_prng_aes_buffer</span><span class="s4">.</span><span class="s2">putInt32</span><span class="s4">(</span><span class="s2">_prng_aes_output</span><span class="s4">[</span><span class="s7">2</span><span class="s4">]);</span>
+  <span class="s2">_prng_aes_buffer</span><span class="s4">.</span><span class="s2">putInt32</span><span class="s4">(</span><span class="s2">_prng_aes_output</span><span class="s4">[</span><span class="s7">3</span><span class="s4">]);</span>
+  <span class="s3">return </span><span class="s2">_prng_aes_buffer</span><span class="s4">.</span><span class="s2">getBytes</span><span class="s4">();</span>
+<span class="s4">};</span>
+<span class="s2">prng_aes</span><span class="s4">.</span><span class="s2">increment </span><span class="s4">= </span><span class="s3">function</span><span class="s4">(</span><span class="s2">seed</span><span class="s4">) {</span>
+  <span class="s6">// FIXME: do we care about carry or signed issues?</span>
+  <span class="s4">++</span><span class="s2">seed</span><span class="s4">[</span><span class="s7">3</span><span class="s4">];</span>
+  <span class="s3">return </span><span class="s2">seed</span><span class="s4">;</span>
+<span class="s4">};</span>
+<span class="s2">prng_aes</span><span class="s4">.</span><span class="s2">md </span><span class="s4">= </span><span class="s2">forge</span><span class="s4">.</span><span class="s2">md</span><span class="s4">.</span><span class="s2">sha256</span><span class="s4">;</span>
+
+<span class="s0">/**</span>
+ <span class="s0">* Creates a new PRNG.</span>
+ <span class="s0">*/</span>
+<span class="s3">function </span><span class="s2">spawnPrng</span><span class="s4">() {</span>
+  <span class="s3">var </span><span class="s2">ctx </span><span class="s4">= </span><span class="s2">forge</span><span class="s4">.</span><span class="s2">prng</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s2">prng_aes</span><span class="s4">);</span>
+
+  <span class="s0">/**</span>
+   <span class="s0">* Gets random bytes. If a native secure crypto API is unavailable, this</span>
+   <span class="s0">* method tries to make the bytes more unpredictable by drawing from data that</span>
+   <span class="s0">* can be collected from the user of the browser, eg: mouse movement.</span>
+   <span class="s0">*</span>
+   <span class="s0">* If a callback is given, this method will be called asynchronously.</span>
+   <span class="s0">*</span>
+   <span class="s0">* </span><span class="s1">@param </span><span class="s0">count the number of random bytes to get.</span>
+   <span class="s0">* </span><span class="s1">@param </span><span class="s0">[callback(err, bytes)] called once the operation completes.</span>
+   <span class="s0">*</span>
+   <span class="s0">* </span><span class="s1">@return </span><span class="s0">the random bytes in a string.</span>
+   <span class="s0">*/</span>
+  <span class="s2">ctx</span><span class="s4">.</span><span class="s2">getBytes </span><span class="s4">= </span><span class="s3">function</span><span class="s4">(</span><span class="s2">count</span><span class="s4">, </span><span class="s2">callback</span><span class="s4">) {</span>
+    <span class="s3">return </span><span class="s2">ctx</span><span class="s4">.</span><span class="s2">generate</span><span class="s4">(</span><span class="s2">count</span><span class="s4">, </span><span class="s2">callback</span><span class="s4">);</span>
+  <span class="s4">};</span>
+
+  <span class="s0">/**</span>
+   <span class="s0">* Gets random bytes asynchronously. If a native secure crypto API is</span>
+   <span class="s0">* unavailable, this method tries to make the bytes more unpredictable by</span>
+   <span class="s0">* drawing from data that can be collected from the user of the browser,</span>
+   <span class="s0">* eg: mouse movement.</span>
+   <span class="s0">*</span>
+   <span class="s0">* </span><span class="s1">@param </span><span class="s0">count the number of random bytes to get.</span>
+   <span class="s0">*</span>
+   <span class="s0">* </span><span class="s1">@return </span><span class="s0">the random bytes in a string.</span>
+   <span class="s0">*/</span>
+  <span class="s2">ctx</span><span class="s4">.</span><span class="s2">getBytesSync </span><span class="s4">= </span><span class="s3">function</span><span class="s4">(</span><span class="s2">count</span><span class="s4">) {</span>
+    <span class="s3">return </span><span class="s2">ctx</span><span class="s4">.</span><span class="s2">generate</span><span class="s4">(</span><span class="s2">count</span><span class="s4">);</span>
+  <span class="s4">};</span>
+
+  <span class="s3">return </span><span class="s2">ctx</span><span class="s4">;</span>
+<span class="s4">}</span>
+
+<span class="s6">// create default prng context</span>
+<span class="s3">var </span><span class="s2">_ctx </span><span class="s4">= </span><span class="s2">spawnPrng</span><span class="s4">();</span>
+
+<span class="s6">// add other sources of entropy only if window.crypto.getRandomValues is not</span>
+<span class="s6">// available -- otherwise this source will be automatically used by the prng</span>
+<span class="s3">var </span><span class="s2">getRandomValues </span><span class="s4">= </span><span class="s3">null</span><span class="s4">;</span>
+<span class="s3">var </span><span class="s2">globalScope </span><span class="s4">= </span><span class="s2">forge</span><span class="s4">.</span><span class="s2">util</span><span class="s4">.</span><span class="s2">globalScope</span><span class="s4">;</span>
+<span class="s3">var </span><span class="s2">_crypto </span><span class="s4">= </span><span class="s2">globalScope</span><span class="s4">.</span><span class="s2">crypto </span><span class="s4">|| </span><span class="s2">globalScope</span><span class="s4">.</span><span class="s2">msCrypto</span><span class="s4">;</span>
+<span class="s3">if</span><span class="s4">(</span><span class="s2">_crypto </span><span class="s4">&amp;&amp; </span><span class="s2">_crypto</span><span class="s4">.</span><span class="s2">getRandomValues</span><span class="s4">) {</span>
+  <span class="s2">getRandomValues </span><span class="s4">= </span><span class="s3">function</span><span class="s4">(</span><span class="s2">arr</span><span class="s4">) {</span>
+    <span class="s3">return </span><span class="s2">_crypto</span><span class="s4">.</span><span class="s2">getRandomValues</span><span class="s4">(</span><span class="s2">arr</span><span class="s4">);</span>
+  <span class="s4">};</span>
+<span class="s4">}</span>
+
+<span class="s3">if</span><span class="s4">(</span><span class="s2">forge</span><span class="s4">.</span><span class="s2">options</span><span class="s4">.</span><span class="s2">usePureJavaScript </span><span class="s4">||</span>
+  <span class="s4">(!</span><span class="s2">forge</span><span class="s4">.</span><span class="s2">util</span><span class="s4">.</span><span class="s2">isNodejs </span><span class="s4">&amp;&amp; !</span><span class="s2">getRandomValues</span><span class="s4">)) {</span>
+  <span class="s6">// if this is a web worker, do not use weak entropy, instead register to</span>
+  <span class="s6">// receive strong entropy asynchronously from the main thread</span>
+  <span class="s3">if</span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">window </span><span class="s4">=== </span><span class="s5">'undefined' </span><span class="s4">|| </span><span class="s2">window</span><span class="s4">.</span><span class="s2">document </span><span class="s4">=== </span><span class="s2">undefined</span><span class="s4">) {</span>
+    <span class="s6">// FIXME:</span>
+  <span class="s4">}</span>
+
+  <span class="s6">// get load time entropy</span>
+  <span class="s2">_ctx</span><span class="s4">.</span><span class="s2">collectInt</span><span class="s4">(+</span><span class="s3">new </span><span class="s2">Date</span><span class="s4">(), </span><span class="s7">32</span><span class="s4">);</span>
+
+  <span class="s6">// add some entropy from navigator object</span>
+  <span class="s3">if</span><span class="s4">(</span><span class="s3">typeof</span><span class="s4">(</span><span class="s2">navigator</span><span class="s4">) !== </span><span class="s5">'undefined'</span><span class="s4">) {</span>
+    <span class="s3">var </span><span class="s2">_navBytes </span><span class="s4">= </span><span class="s5">''</span><span class="s4">;</span>
+    <span class="s3">for</span><span class="s4">(</span><span class="s3">var </span><span class="s2">key </span><span class="s3">in </span><span class="s2">navigator</span><span class="s4">) {</span>
+      <span class="s3">try </span><span class="s4">{</span>
+        <span class="s3">if</span><span class="s4">(</span><span class="s3">typeof</span><span class="s4">(</span><span class="s2">navigator</span><span class="s4">[</span><span class="s2">key</span><span class="s4">]) == </span><span class="s5">'string'</span><span class="s4">) {</span>
+          <span class="s2">_navBytes </span><span class="s4">+= </span><span class="s2">navigator</span><span class="s4">[</span><span class="s2">key</span><span class="s4">];</span>
+        <span class="s4">}</span>
+      <span class="s4">} </span><span class="s3">catch</span><span class="s4">(</span><span class="s2">e</span><span class="s4">) {</span>
+        <span class="s6">/* Some navigator keys might not be accessible, e.g. the geolocation 
+          attribute throws an exception if touched in Mozilla chrome:// 
+          context. 
+ 
+          Silently ignore this and just don't use this as a source of 
+          entropy. */</span>
+      <span class="s4">}</span>
+    <span class="s4">}</span>
+    <span class="s2">_ctx</span><span class="s4">.</span><span class="s2">collect</span><span class="s4">(</span><span class="s2">_navBytes</span><span class="s4">);</span>
+    <span class="s2">_navBytes </span><span class="s4">= </span><span class="s3">null</span><span class="s4">;</span>
+  <span class="s4">}</span>
+
+  <span class="s6">// add mouse and keyboard collectors if jquery is available</span>
+  <span class="s3">if</span><span class="s4">(</span><span class="s2">jQuery</span><span class="s4">) {</span>
+    <span class="s6">// set up mouse entropy capture</span>
+    <span class="s2">jQuery</span><span class="s4">().</span><span class="s2">mousemove</span><span class="s4">(</span><span class="s3">function</span><span class="s4">(</span><span class="s2">e</span><span class="s4">) {</span>
+      <span class="s6">// add mouse coords</span>
+      <span class="s2">_ctx</span><span class="s4">.</span><span class="s2">collectInt</span><span class="s4">(</span><span class="s2">e</span><span class="s4">.</span><span class="s2">clientX</span><span class="s4">, </span><span class="s7">16</span><span class="s4">);</span>
+      <span class="s2">_ctx</span><span class="s4">.</span><span class="s2">collectInt</span><span class="s4">(</span><span class="s2">e</span><span class="s4">.</span><span class="s2">clientY</span><span class="s4">, </span><span class="s7">16</span><span class="s4">);</span>
+    <span class="s4">});</span>
+
+    <span class="s6">// set up keyboard entropy capture</span>
+    <span class="s2">jQuery</span><span class="s4">().</span><span class="s2">keypress</span><span class="s4">(</span><span class="s3">function</span><span class="s4">(</span><span class="s2">e</span><span class="s4">) {</span>
+      <span class="s2">_ctx</span><span class="s4">.</span><span class="s2">collectInt</span><span class="s4">(</span><span class="s2">e</span><span class="s4">.</span><span class="s2">charCode</span><span class="s4">, </span><span class="s7">8</span><span class="s4">);</span>
+    <span class="s4">});</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s6">/* Random API */</span>
+<span class="s3">if</span><span class="s4">(!</span><span class="s2">forge</span><span class="s4">.</span><span class="s2">random</span><span class="s4">) {</span>
+  <span class="s2">forge</span><span class="s4">.</span><span class="s2">random </span><span class="s4">= </span><span class="s2">_ctx</span><span class="s4">;</span>
+<span class="s4">} </span><span class="s3">else </span><span class="s4">{</span>
+  <span class="s6">// extend forge.random with _ctx</span>
+  <span class="s3">for</span><span class="s4">(</span><span class="s3">var </span><span class="s2">key </span><span class="s3">in </span><span class="s2">_ctx</span><span class="s4">) {</span>
+    <span class="s2">forge</span><span class="s4">.</span><span class="s2">random</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s2">_ctx</span><span class="s4">[</span><span class="s2">key</span><span class="s4">];</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s6">// expose spawn PRNG</span>
+<span class="s2">forge</span><span class="s4">.</span><span class="s2">random</span><span class="s4">.</span><span class="s2">createInstance </span><span class="s4">= </span><span class="s2">spawnPrng</span><span class="s4">;</span>
+
+<span class="s2">module</span><span class="s4">.</span><span class="s2">exports </span><span class="s4">= </span><span class="s2">forge</span><span class="s4">.</span><span class="s2">random</span><span class="s4">;</span>
+
+<span class="s4">})(</span><span class="s3">typeof</span><span class="s4">(</span><span class="s2">jQuery</span><span class="s4">) !== </span><span class="s5">'undefined' </span><span class="s4">? </span><span class="s2">jQuery </span><span class="s4">: </span><span class="s3">null</span><span class="s4">);</span>
+
+<span class="s4">})();</span>
+</pre>
+</body>
+</html>

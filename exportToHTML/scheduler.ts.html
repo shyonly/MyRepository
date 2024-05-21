@@ -1,0 +1,222 @@
+<html>
+<head>
+<title>scheduler.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #2aacb8;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+scheduler.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">type Watcher from </span><span class="s2">'./watcher'</span>
+<span class="s0">import </span><span class="s1">config from </span><span class="s2">'../config'</span>
+<span class="s0">import </span><span class="s1">Dep</span><span class="s3">, { </span><span class="s1">cleanupDeps </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./dep'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">callHook</span><span class="s3">, </span><span class="s1">activateChildComponent </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'../instance/lifecycle'</span>
+
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">warn</span><span class="s3">, </span><span class="s1">nextTick</span><span class="s3">, </span><span class="s1">devtools</span><span class="s3">, </span><span class="s1">inBrowser</span><span class="s3">, </span><span class="s1">isIE </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'../util/index'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s3">{ </span><span class="s1">Component </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'types/component'</span>
+
+<span class="s0">export const </span><span class="s1">MAX_UPDATE_COUNT </span><span class="s3">= </span><span class="s4">100</span>
+
+<span class="s0">const </span><span class="s1">queue</span><span class="s3">: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">Watcher</span><span class="s3">&gt; = []</span>
+<span class="s0">const </span><span class="s1">activatedChildren</span><span class="s3">: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">Component</span><span class="s3">&gt; = []</span>
+<span class="s0">let </span><span class="s1">has</span><span class="s3">: { [</span><span class="s1">key</span><span class="s3">: </span><span class="s1">number</span><span class="s3">]: </span><span class="s0">true </span><span class="s3">| </span><span class="s1">undefined </span><span class="s3">| </span><span class="s0">null </span><span class="s3">} = {}</span>
+<span class="s0">let </span><span class="s1">circular</span><span class="s3">: { [</span><span class="s1">key</span><span class="s3">: </span><span class="s1">number</span><span class="s3">]: </span><span class="s1">number </span><span class="s3">} = {}</span>
+<span class="s0">let </span><span class="s1">waiting </span><span class="s3">= </span><span class="s0">false</span>
+<span class="s0">let </span><span class="s1">flushing </span><span class="s3">= </span><span class="s0">false</span>
+<span class="s0">let </span><span class="s1">index </span><span class="s3">= </span><span class="s4">0</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* Reset the scheduler's state.</span>
+ <span class="s5">*/</span>
+<span class="s0">function </span><span class="s1">resetSchedulerState</span><span class="s3">() {</span>
+  <span class="s1">index </span><span class="s3">= </span><span class="s1">queue</span><span class="s3">.</span><span class="s1">length </span><span class="s3">= </span><span class="s1">activatedChildren</span><span class="s3">.</span><span class="s1">length </span><span class="s3">= </span><span class="s4">0</span>
+  <span class="s1">has </span><span class="s3">= {}</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__</span><span class="s3">) {</span>
+    <span class="s1">circular </span><span class="s3">= {}</span>
+  <span class="s3">}</span>
+  <span class="s1">waiting </span><span class="s3">= </span><span class="s1">flushing </span><span class="s3">= </span><span class="s0">false</span>
+<span class="s3">}</span>
+
+<span class="s6">// Async edge case #6566 requires saving the timestamp when event listeners are</span>
+<span class="s6">// attached. However, calling performance.now() has a perf overhead especially</span>
+<span class="s6">// if the page has thousands of event listeners. Instead, we take a timestamp</span>
+<span class="s6">// every time the scheduler flushes and use that for all event listeners</span>
+<span class="s6">// attached during that flush.</span>
+<span class="s0">export let </span><span class="s1">currentFlushTimestamp </span><span class="s3">= </span><span class="s4">0</span>
+
+<span class="s6">// Async edge case fix requires storing an event listener's attach timestamp.</span>
+<span class="s0">let </span><span class="s1">getNow</span><span class="s3">: () =&gt; </span><span class="s1">number </span><span class="s3">= </span><span class="s1">Date</span><span class="s3">.</span><span class="s1">now</span>
+
+<span class="s6">// Determine what event timestamp the browser is using. Annoyingly, the</span>
+<span class="s6">// timestamp can either be hi-res (relative to page load) or low-res</span>
+<span class="s6">// (relative to UNIX epoch), so in order to compare time we have to use the</span>
+<span class="s6">// same timestamp type when saving the flush timestamp.</span>
+<span class="s6">// All IE versions use low-res event timestamps, and have problematic clock</span>
+<span class="s6">// implementations (#9632)</span>
+<span class="s0">if </span><span class="s3">(</span><span class="s1">inBrowser </span><span class="s3">&amp;&amp; !</span><span class="s1">isIE</span><span class="s3">) {</span>
+  <span class="s0">const </span><span class="s1">performance </span><span class="s3">= </span><span class="s1">window</span><span class="s3">.</span><span class="s1">performance</span>
+  <span class="s0">if </span><span class="s3">(</span>
+    <span class="s1">performance </span><span class="s3">&amp;&amp;</span>
+    <span class="s0">typeof </span><span class="s1">performance</span><span class="s3">.</span><span class="s1">now </span><span class="s3">=== </span><span class="s2">'function' </span><span class="s3">&amp;&amp;</span>
+    <span class="s1">getNow</span><span class="s3">() &gt; </span><span class="s1">document</span><span class="s3">.</span><span class="s1">createEvent</span><span class="s3">(</span><span class="s2">'Event'</span><span class="s3">).</span><span class="s1">timeStamp</span>
+  <span class="s3">) {</span>
+    <span class="s6">// if the event timestamp, although evaluated AFTER the Date.now(), is</span>
+    <span class="s6">// smaller than it, it means the event is using a hi-res timestamp,</span>
+    <span class="s6">// and we need to use the hi-res version for event listener timestamps as</span>
+    <span class="s6">// well.</span>
+    <span class="s1">getNow </span><span class="s3">= () =&gt; </span><span class="s1">performance</span><span class="s3">.</span><span class="s1">now</span><span class="s3">()</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">const </span><span class="s1">sortCompareFn </span><span class="s3">= (</span><span class="s1">a</span><span class="s3">: </span><span class="s1">Watcher</span><span class="s3">, </span><span class="s1">b</span><span class="s3">: </span><span class="s1">Watcher</span><span class="s3">): </span><span class="s1">number </span><span class="s3">=&gt; {</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">a</span><span class="s3">.</span><span class="s1">post</span><span class="s3">) {</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">b</span><span class="s3">.</span><span class="s1">post</span><span class="s3">) </span><span class="s0">return </span><span class="s4">1</span>
+  <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s1">b</span><span class="s3">.</span><span class="s1">post</span><span class="s3">) {</span>
+    <span class="s0">return </span><span class="s3">-</span><span class="s4">1</span>
+  <span class="s3">}</span>
+  <span class="s0">return </span><span class="s1">a</span><span class="s3">.</span><span class="s1">id </span><span class="s3">- </span><span class="s1">b</span><span class="s3">.</span><span class="s1">id</span>
+<span class="s3">}</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* Flush both queues and run the watchers.</span>
+ <span class="s5">*/</span>
+<span class="s0">function </span><span class="s1">flushSchedulerQueue</span><span class="s3">() {</span>
+  <span class="s1">currentFlushTimestamp </span><span class="s3">= </span><span class="s1">getNow</span><span class="s3">()</span>
+  <span class="s1">flushing </span><span class="s3">= </span><span class="s0">true</span>
+  <span class="s0">let </span><span class="s1">watcher</span><span class="s3">, </span><span class="s1">id</span>
+
+  <span class="s6">// Sort queue before flush.</span>
+  <span class="s6">// This ensures that:</span>
+  <span class="s6">// 1. Components are updated from parent to child. (because parent is always</span>
+  <span class="s6">//    created before the child)</span>
+  <span class="s6">// 2. A component's user watchers are run before its render watcher (because</span>
+  <span class="s6">//    user watchers are created before the render watcher)</span>
+  <span class="s6">// 3. If a component is destroyed during a parent component's watcher run,</span>
+  <span class="s6">//    its watchers can be skipped.</span>
+  <span class="s1">queue</span><span class="s3">.</span><span class="s1">sort</span><span class="s3">(</span><span class="s1">sortCompareFn</span><span class="s3">)</span>
+
+  <span class="s6">// do not cache length because more watchers might be pushed</span>
+  <span class="s6">// as we run existing watchers</span>
+  <span class="s0">for </span><span class="s3">(</span><span class="s1">index </span><span class="s3">= </span><span class="s4">0</span><span class="s3">; </span><span class="s1">index </span><span class="s3">&lt; </span><span class="s1">queue</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">index</span><span class="s3">++) {</span>
+    <span class="s1">watcher </span><span class="s3">= </span><span class="s1">queue</span><span class="s3">[</span><span class="s1">index</span><span class="s3">]</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">watcher</span><span class="s3">.</span><span class="s1">before</span><span class="s3">) {</span>
+      <span class="s1">watcher</span><span class="s3">.</span><span class="s1">before</span><span class="s3">()</span>
+    <span class="s3">}</span>
+    <span class="s1">id </span><span class="s3">= </span><span class="s1">watcher</span><span class="s3">.</span><span class="s1">id</span>
+    <span class="s1">has</span><span class="s3">[</span><span class="s1">id</span><span class="s3">] = </span><span class="s0">null</span>
+    <span class="s1">watcher</span><span class="s3">.</span><span class="s1">run</span><span class="s3">()</span>
+    <span class="s6">// in dev build, check and stop circular updates.</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__ </span><span class="s3">&amp;&amp; </span><span class="s1">has</span><span class="s3">[</span><span class="s1">id</span><span class="s3">] != </span><span class="s0">null</span><span class="s3">) {</span>
+      <span class="s1">circular</span><span class="s3">[</span><span class="s1">id</span><span class="s3">] = (</span><span class="s1">circular</span><span class="s3">[</span><span class="s1">id</span><span class="s3">] || </span><span class="s4">0</span><span class="s3">) + </span><span class="s4">1</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">circular</span><span class="s3">[</span><span class="s1">id</span><span class="s3">] &gt; </span><span class="s1">MAX_UPDATE_COUNT</span><span class="s3">) {</span>
+        <span class="s1">warn</span><span class="s3">(</span>
+          <span class="s2">'You may have an infinite update loop ' </span><span class="s3">+</span>
+            <span class="s3">(</span><span class="s1">watcher</span><span class="s3">.</span><span class="s1">user</span>
+              <span class="s3">? </span><span class="s2">`in watcher with expression &quot;</span><span class="s1">$</span><span class="s3">{</span><span class="s1">watcher</span><span class="s3">.</span><span class="s1">expression</span><span class="s3">}</span><span class="s2">&quot;`</span>
+              <span class="s3">: </span><span class="s2">`in a component render function.`</span><span class="s3">),</span>
+          <span class="s1">watcher</span><span class="s3">.</span><span class="s1">vm</span>
+        <span class="s3">)</span>
+        <span class="s0">break</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s6">// keep copies of post queues before resetting state</span>
+  <span class="s0">const </span><span class="s1">activatedQueue </span><span class="s3">= </span><span class="s1">activatedChildren</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">()</span>
+  <span class="s0">const </span><span class="s1">updatedQueue </span><span class="s3">= </span><span class="s1">queue</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">()</span>
+
+  <span class="s1">resetSchedulerState</span><span class="s3">()</span>
+
+  <span class="s6">// call component updated and activated hooks</span>
+  <span class="s1">callActivatedHooks</span><span class="s3">(</span><span class="s1">activatedQueue</span><span class="s3">)</span>
+  <span class="s1">callUpdatedHooks</span><span class="s3">(</span><span class="s1">updatedQueue</span><span class="s3">)</span>
+  <span class="s1">cleanupDeps</span><span class="s3">()</span>
+
+  <span class="s6">// devtool hook</span>
+  <span class="s6">/* istanbul ignore if */</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">devtools </span><span class="s3">&amp;&amp; </span><span class="s1">config</span><span class="s3">.</span><span class="s1">devtools</span><span class="s3">) {</span>
+    <span class="s1">devtools</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s2">'flush'</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">function </span><span class="s1">callUpdatedHooks</span><span class="s3">(</span><span class="s1">queue</span><span class="s3">: </span><span class="s1">Watcher</span><span class="s3">[]) {</span>
+  <span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s1">queue</span><span class="s3">.</span><span class="s1">length</span>
+  <span class="s0">while </span><span class="s3">(</span><span class="s1">i</span><span class="s3">--) {</span>
+    <span class="s0">const </span><span class="s1">watcher </span><span class="s3">= </span><span class="s1">queue</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+    <span class="s0">const </span><span class="s1">vm </span><span class="s3">= </span><span class="s1">watcher</span><span class="s3">.</span><span class="s1">vm</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">vm </span><span class="s3">&amp;&amp; </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_watcher </span><span class="s3">=== </span><span class="s1">watcher </span><span class="s3">&amp;&amp; </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_isMounted </span><span class="s3">&amp;&amp; !</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_isDestroyed</span><span class="s3">) {</span>
+      <span class="s1">callHook</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s2">'updated'</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* Queue a kept-alive component that was activated during patch.</span>
+ <span class="s5">* The queue will be processed after the entire tree has been patched.</span>
+ <span class="s5">*/</span>
+<span class="s0">export function </span><span class="s1">queueActivatedComponent</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">: </span><span class="s1">Component</span><span class="s3">) {</span>
+  <span class="s6">// setting _inactive to false here so that a render function can</span>
+  <span class="s6">// rely on checking whether it's in an inactive tree (e.g. router-view)</span>
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">_inactive </span><span class="s3">= </span><span class="s0">false</span>
+  <span class="s1">activatedChildren</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s0">function </span><span class="s1">callActivatedHooks</span><span class="s3">(</span><span class="s1">queue</span><span class="s3">) {</span>
+  <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s4">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">queue</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+    <span class="s1">queue</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">_inactive </span><span class="s3">= </span><span class="s0">true</span>
+    <span class="s1">activateChildComponent</span><span class="s3">(</span><span class="s1">queue</span><span class="s3">[</span><span class="s1">i</span><span class="s3">], </span><span class="s0">true </span><span class="s6">/* true */</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* Push a watcher into the watcher queue.</span>
+ <span class="s5">* Jobs with duplicate IDs will be skipped unless it's</span>
+ <span class="s5">* pushed when the queue is being flushed.</span>
+ <span class="s5">*/</span>
+<span class="s0">export function </span><span class="s1">queueWatcher</span><span class="s3">(</span><span class="s1">watcher</span><span class="s3">: </span><span class="s1">Watcher</span><span class="s3">) {</span>
+  <span class="s0">const </span><span class="s1">id </span><span class="s3">= </span><span class="s1">watcher</span><span class="s3">.</span><span class="s1">id</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">has</span><span class="s3">[</span><span class="s1">id</span><span class="s3">] != </span><span class="s0">null</span><span class="s3">) {</span>
+    <span class="s0">return</span>
+  <span class="s3">}</span>
+
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">watcher </span><span class="s3">=== </span><span class="s1">Dep</span><span class="s3">.</span><span class="s1">target </span><span class="s3">&amp;&amp; </span><span class="s1">watcher</span><span class="s3">.</span><span class="s1">noRecurse</span><span class="s3">) {</span>
+    <span class="s0">return</span>
+  <span class="s3">}</span>
+
+  <span class="s1">has</span><span class="s3">[</span><span class="s1">id</span><span class="s3">] = </span><span class="s0">true</span>
+  <span class="s0">if </span><span class="s3">(!</span><span class="s1">flushing</span><span class="s3">) {</span>
+    <span class="s1">queue</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">watcher</span><span class="s3">)</span>
+  <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+    <span class="s6">// if already flushing, splice the watcher based on its id</span>
+    <span class="s6">// if already past its id, it will be run next immediately.</span>
+    <span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s1">queue</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s4">1</span>
+    <span class="s0">while </span><span class="s3">(</span><span class="s1">i </span><span class="s3">&gt; </span><span class="s1">index </span><span class="s3">&amp;&amp; </span><span class="s1">queue</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">id </span><span class="s3">&gt; </span><span class="s1">watcher</span><span class="s3">.</span><span class="s1">id</span><span class="s3">) {</span>
+      <span class="s1">i</span><span class="s3">--</span>
+    <span class="s3">}</span>
+    <span class="s1">queue</span><span class="s3">.</span><span class="s1">splice</span><span class="s3">(</span><span class="s1">i </span><span class="s3">+ </span><span class="s4">1</span><span class="s3">, </span><span class="s4">0</span><span class="s3">, </span><span class="s1">watcher</span><span class="s3">)</span>
+  <span class="s3">}</span>
+  <span class="s6">// queue the flush</span>
+  <span class="s0">if </span><span class="s3">(!</span><span class="s1">waiting</span><span class="s3">) {</span>
+    <span class="s1">waiting </span><span class="s3">= </span><span class="s0">true</span>
+
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__ </span><span class="s3">&amp;&amp; !</span><span class="s1">config</span><span class="s3">.</span><span class="s1">async</span><span class="s3">) {</span>
+      <span class="s1">flushSchedulerQueue</span><span class="s3">()</span>
+      <span class="s0">return</span>
+    <span class="s3">}</span>
+    <span class="s1">nextTick</span><span class="s3">(</span><span class="s1">flushSchedulerQueue</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

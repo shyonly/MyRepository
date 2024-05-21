@@ -1,0 +1,127 @@
+<html>
+<head>
+<title>SyncAsyncFileSystemDecorator.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #cf8e6d;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+SyncAsyncFileSystemDecorator.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+    MIT License http://www.opensource.org/licenses/mit-license.php 
+    Author Tobias Koppers @sokra 
+*/</span>
+
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;./Resolver&quot;).FileSystem} FileSystem */</span>
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;./Resolver&quot;).SyncFileSystem} SyncFileSystem */</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{SyncFileSystem} fs file system implementation</span>
+ <span class="s4">* </span><span class="s5">@constructor</span>
+ <span class="s4">*/</span>
+<span class="s6">function </span><span class="s1">SyncAsyncFileSystemDecorator</span><span class="s3">(</span><span class="s1">fs</span><span class="s3">) {</span>
+	<span class="s6">this</span><span class="s3">.</span><span class="s1">fs </span><span class="s3">= </span><span class="s1">fs</span><span class="s3">;</span>
+
+	<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{FileSystem[&quot;lstat&quot;] | undefined} */</span>
+	<span class="s6">this</span><span class="s3">.</span><span class="s1">lstat </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+	<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{SyncFileSystem[&quot;lstatSync&quot;] | undefined} */</span>
+	<span class="s6">this</span><span class="s3">.</span><span class="s1">lstatSync </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+	<span class="s6">const </span><span class="s1">lstatSync </span><span class="s3">= </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">lstatSync</span><span class="s3">;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">lstatSync</span><span class="s3">) {</span>
+		<span class="s6">this</span><span class="s3">.</span><span class="s1">lstat </span><span class="s3">= (</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) =&gt; {</span>
+			<span class="s6">let </span><span class="s1">result</span><span class="s3">;</span>
+			<span class="s6">try </span><span class="s3">{</span>
+				<span class="s1">result </span><span class="s3">= </span><span class="s1">lstatSync</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">fs</span><span class="s3">, </span><span class="s1">arg</span><span class="s3">);</span>
+			<span class="s3">} </span><span class="s6">catch </span><span class="s3">(</span><span class="s1">e</span><span class="s3">) {</span>
+				<span class="s0">// @ts-ignore</span>
+				<span class="s6">return </span><span class="s3">(</span><span class="s1">callback </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">)(</span><span class="s1">e</span><span class="s3">);</span>
+			<span class="s3">}</span>
+			<span class="s0">// @ts-ignore</span>
+			<span class="s3">(</span><span class="s1">callback </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">)(</span><span class="s6">null</span><span class="s3">, </span><span class="s1">result</span><span class="s3">);</span>
+		<span class="s3">};</span>
+		<span class="s6">this</span><span class="s3">.</span><span class="s1">lstatSync </span><span class="s3">= (</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">) =&gt; </span><span class="s1">lstatSync</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">fs</span><span class="s3">, </span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">);</span>
+	<span class="s3">}</span>
+	<span class="s0">// @ts-ignore</span>
+	<span class="s6">this</span><span class="s3">.</span><span class="s1">stat </span><span class="s3">= (</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) =&gt; {</span>
+		<span class="s6">let </span><span class="s1">result</span><span class="s3">;</span>
+		<span class="s6">try </span><span class="s3">{</span>
+			<span class="s1">result </span><span class="s3">= </span><span class="s1">callback </span><span class="s3">? </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">statSync</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">) : </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">statSync</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">);</span>
+		<span class="s3">} </span><span class="s6">catch </span><span class="s3">(</span><span class="s1">e</span><span class="s3">) {</span>
+			<span class="s6">return </span><span class="s3">(</span><span class="s1">callback </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">)(</span><span class="s1">e</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s3">(</span><span class="s1">callback </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">)(</span><span class="s6">null</span><span class="s3">, </span><span class="s1">result</span><span class="s3">);</span>
+	<span class="s3">};</span>
+	<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{SyncFileSystem[&quot;statSync&quot;]} */</span>
+	<span class="s6">this</span><span class="s3">.</span><span class="s1">statSync </span><span class="s3">= (</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">) =&gt; </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">statSync</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">);</span>
+	<span class="s0">// @ts-ignore</span>
+	<span class="s6">this</span><span class="s3">.</span><span class="s1">readdir </span><span class="s3">= (</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) =&gt; {</span>
+		<span class="s6">let </span><span class="s1">result</span><span class="s3">;</span>
+		<span class="s6">try </span><span class="s3">{</span>
+			<span class="s1">result </span><span class="s3">= </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">readdirSync</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">);</span>
+		<span class="s3">} </span><span class="s6">catch </span><span class="s3">(</span><span class="s1">e</span><span class="s3">) {</span>
+			<span class="s6">return </span><span class="s3">(</span><span class="s1">callback </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">)(</span><span class="s1">e</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s3">(</span><span class="s1">callback </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">)(</span><span class="s6">null</span><span class="s3">, </span><span class="s1">result</span><span class="s3">);</span>
+	<span class="s3">};</span>
+	<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{SyncFileSystem[&quot;readdirSync&quot;]} */</span>
+	<span class="s6">this</span><span class="s3">.</span><span class="s1">readdirSync </span><span class="s3">= (</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">) =&gt; </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">readdirSync</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">);</span>
+	<span class="s0">// @ts-ignore</span>
+	<span class="s6">this</span><span class="s3">.</span><span class="s1">readFile </span><span class="s3">= (</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) =&gt; {</span>
+		<span class="s6">let </span><span class="s1">result</span><span class="s3">;</span>
+		<span class="s6">try </span><span class="s3">{</span>
+			<span class="s1">result </span><span class="s3">= </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">readFileSync</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">);</span>
+		<span class="s3">} </span><span class="s6">catch </span><span class="s3">(</span><span class="s1">e</span><span class="s3">) {</span>
+			<span class="s6">return </span><span class="s3">(</span><span class="s1">callback </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">)(</span><span class="s1">e</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s3">(</span><span class="s1">callback </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">)(</span><span class="s6">null</span><span class="s3">, </span><span class="s1">result</span><span class="s3">);</span>
+	<span class="s3">};</span>
+	<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{SyncFileSystem[&quot;readFileSync&quot;]} */</span>
+	<span class="s6">this</span><span class="s3">.</span><span class="s1">readFileSync </span><span class="s3">= (</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">) =&gt; </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">readFileSync</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">);</span>
+	<span class="s0">// @ts-ignore</span>
+	<span class="s6">this</span><span class="s3">.</span><span class="s1">readlink </span><span class="s3">= (</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) =&gt; {</span>
+		<span class="s6">let </span><span class="s1">result</span><span class="s3">;</span>
+		<span class="s6">try </span><span class="s3">{</span>
+			<span class="s1">result </span><span class="s3">= </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">readlinkSync</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">);</span>
+		<span class="s3">} </span><span class="s6">catch </span><span class="s3">(</span><span class="s1">e</span><span class="s3">) {</span>
+			<span class="s6">return </span><span class="s3">(</span><span class="s1">callback </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">)(</span><span class="s1">e</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s3">(</span><span class="s1">callback </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">)(</span><span class="s6">null</span><span class="s3">, </span><span class="s1">result</span><span class="s3">);</span>
+	<span class="s3">};</span>
+	<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{SyncFileSystem[&quot;readlinkSync&quot;]} */</span>
+	<span class="s6">this</span><span class="s3">.</span><span class="s1">readlinkSync </span><span class="s3">= (</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">) =&gt; </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">readlinkSync</span><span class="s3">(</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">);</span>
+	<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{FileSystem[&quot;readJson&quot;] | undefined} */</span>
+	<span class="s6">this</span><span class="s3">.</span><span class="s1">readJson </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+	<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{SyncFileSystem[&quot;readJsonSync&quot;] | undefined} */</span>
+	<span class="s6">this</span><span class="s3">.</span><span class="s1">readJsonSync </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+	<span class="s6">const </span><span class="s1">readJsonSync </span><span class="s3">= </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">readJsonSync</span><span class="s3">;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">readJsonSync</span><span class="s3">) {</span>
+		<span class="s6">this</span><span class="s3">.</span><span class="s1">readJson </span><span class="s3">= (</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) =&gt; {</span>
+			<span class="s6">let </span><span class="s1">result</span><span class="s3">;</span>
+			<span class="s6">try </span><span class="s3">{</span>
+				<span class="s1">result </span><span class="s3">= </span><span class="s1">readJsonSync</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">fs</span><span class="s3">, </span><span class="s1">arg</span><span class="s3">);</span>
+			<span class="s3">} </span><span class="s6">catch </span><span class="s3">(</span><span class="s1">e</span><span class="s3">) {</span>
+				<span class="s0">// @ts-ignore</span>
+				<span class="s6">return </span><span class="s3">(</span><span class="s1">callback </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">)(</span><span class="s1">e</span><span class="s3">);</span>
+			<span class="s3">}</span>
+			<span class="s3">(</span><span class="s1">callback </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">)(</span><span class="s6">null</span><span class="s3">, </span><span class="s1">result</span><span class="s3">);</span>
+		<span class="s3">};</span>
+		<span class="s6">this</span><span class="s3">.</span><span class="s1">readJsonSync </span><span class="s3">= (</span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">) =&gt; </span><span class="s1">readJsonSync</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">fs</span><span class="s3">, </span><span class="s1">arg</span><span class="s3">, </span><span class="s1">options</span><span class="s3">);</span>
+	<span class="s3">}</span>
+<span class="s3">}</span>
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">SyncAsyncFileSystemDecorator</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

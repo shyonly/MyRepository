@@ -1,0 +1,170 @@
+<html>
+<head>
+<title>moonscript.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #42c3d4;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+moonscript.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+Language: MoonScript 
+Author: Billy Quith &lt;chinbillybilbo@gmail.com&gt; 
+Description: MoonScript is a programming language that transcompiles to Lua. 
+Origin: coffeescript.js 
+Website: http://moonscript.org/ 
+Category: scripting 
+*/</span>
+
+<span class="s2">function </span><span class="s1">moonscript</span><span class="s3">(</span><span class="s1">hljs</span><span class="s3">) {</span>
+  <span class="s2">const </span><span class="s1">KEYWORDS </span><span class="s3">= {</span>
+    <span class="s1">keyword</span><span class="s3">:</span>
+      <span class="s0">// Moonscript keywords</span>
+      <span class="s4">'if then not for in while do return else elseif break continue switch and or ' </span><span class="s3">+</span>
+      <span class="s4">'unless when class extends super local import export from using'</span><span class="s3">,</span>
+    <span class="s1">literal</span><span class="s3">:</span>
+      <span class="s4">'true false nil'</span><span class="s3">,</span>
+    <span class="s1">built_in</span><span class="s3">:</span>
+      <span class="s4">'_G _VERSION assert collectgarbage dofile error getfenv getmetatable ipairs load ' </span><span class="s3">+</span>
+      <span class="s4">'loadfile loadstring module next pairs pcall print rawequal rawget rawset require ' </span><span class="s3">+</span>
+      <span class="s4">'select setfenv setmetatable tonumber tostring type unpack xpcall coroutine debug ' </span><span class="s3">+</span>
+      <span class="s4">'io math os package string table'</span>
+  <span class="s3">};</span>
+  <span class="s2">const </span><span class="s1">JS_IDENT_RE </span><span class="s3">= </span><span class="s4">'[A-Za-z$_][0-9A-Za-z$_]*'</span><span class="s3">;</span>
+  <span class="s2">const </span><span class="s1">SUBST </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'subst'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s5">/#\{/</span><span class="s3">,</span>
+    <span class="s1">end</span><span class="s3">: </span><span class="s5">/\}/</span><span class="s3">,</span>
+    <span class="s1">keywords</span><span class="s3">: </span><span class="s1">KEYWORDS</span>
+  <span class="s3">};</span>
+  <span class="s2">const </span><span class="s1">EXPRESSIONS </span><span class="s3">= [</span>
+    <span class="s1">hljs</span><span class="s3">.</span><span class="s1">inherit</span><span class="s3">(</span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">C_NUMBER_MODE</span><span class="s3">,</span>
+      <span class="s3">{</span>
+        <span class="s1">starts</span><span class="s3">: {</span>
+          <span class="s1">end</span><span class="s3">: </span><span class="s4">'(</span><span class="s2">\\</span><span class="s4">s*/)?'</span><span class="s3">,</span>
+          <span class="s1">relevance</span><span class="s3">: </span><span class="s6">0</span>
+        <span class="s3">}</span>
+      <span class="s3">}), </span><span class="s0">// a number tries to eat the following slash to prevent treating it as a regexp</span>
+    <span class="s3">{</span>
+      <span class="s1">className</span><span class="s3">: </span><span class="s4">'string'</span><span class="s3">,</span>
+      <span class="s1">variants</span><span class="s3">: [</span>
+        <span class="s3">{</span>
+          <span class="s1">begin</span><span class="s3">: </span><span class="s5">/'/</span><span class="s3">,</span>
+          <span class="s1">end</span><span class="s3">: </span><span class="s5">/'/</span><span class="s3">,</span>
+          <span class="s1">contains</span><span class="s3">: [ </span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">BACKSLASH_ESCAPE </span><span class="s3">]</span>
+        <span class="s3">},</span>
+        <span class="s3">{</span>
+          <span class="s1">begin</span><span class="s3">: </span><span class="s5">/&quot;/</span><span class="s3">,</span>
+          <span class="s1">end</span><span class="s3">: </span><span class="s5">/&quot;/</span><span class="s3">,</span>
+          <span class="s1">contains</span><span class="s3">: [</span>
+            <span class="s1">hljs</span><span class="s3">.</span><span class="s1">BACKSLASH_ESCAPE</span><span class="s3">,</span>
+            <span class="s1">SUBST</span>
+          <span class="s3">]</span>
+        <span class="s3">}</span>
+      <span class="s3">]</span>
+    <span class="s3">},</span>
+    <span class="s3">{</span>
+      <span class="s1">className</span><span class="s3">: </span><span class="s4">'built_in'</span><span class="s3">,</span>
+      <span class="s1">begin</span><span class="s3">: </span><span class="s4">'@__' </span><span class="s3">+ </span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">IDENT_RE</span>
+    <span class="s3">},</span>
+    <span class="s3">{</span>
+      <span class="s1">begin</span><span class="s3">: </span><span class="s4">'@' </span><span class="s3">+ </span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">IDENT_RE </span><span class="s0">// relevance booster on par with CoffeeScript</span>
+    <span class="s3">},</span>
+    <span class="s3">{</span>
+      <span class="s1">begin</span><span class="s3">: </span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">IDENT_RE </span><span class="s3">+ </span><span class="s4">'</span><span class="s2">\\\\</span><span class="s4">' </span><span class="s3">+ </span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">IDENT_RE </span><span class="s0">// inst\method</span>
+    <span class="s3">}</span>
+  <span class="s3">];</span>
+  <span class="s1">SUBST</span><span class="s3">.</span><span class="s1">contains </span><span class="s3">= </span><span class="s1">EXPRESSIONS</span><span class="s3">;</span>
+
+  <span class="s2">const </span><span class="s1">TITLE </span><span class="s3">= </span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">inherit</span><span class="s3">(</span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">TITLE_MODE</span><span class="s3">, {</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s1">JS_IDENT_RE</span>
+  <span class="s3">});</span>
+  <span class="s2">const </span><span class="s1">POSSIBLE_PARAMS_RE </span><span class="s3">= </span><span class="s4">'(</span><span class="s2">\\</span><span class="s4">(.*</span><span class="s2">\\</span><span class="s4">)</span><span class="s2">\\</span><span class="s4">s*)?</span><span class="s2">\\</span><span class="s4">B[-=]&gt;'</span><span class="s3">;</span>
+  <span class="s2">const </span><span class="s1">PARAMS </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'params'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">([^</span><span class="s2">\\</span><span class="s4">(]'</span><span class="s3">,</span>
+    <span class="s1">returnBegin</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+    <span class="s0">/* We need another contained nameless mode to not have every nested 
+    pair of parens to be called &quot;params&quot; */</span>
+    <span class="s1">contains</span><span class="s3">: [</span>
+      <span class="s3">{</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s5">/\(/</span><span class="s3">,</span>
+        <span class="s1">end</span><span class="s3">: </span><span class="s5">/\)/</span><span class="s3">,</span>
+        <span class="s1">keywords</span><span class="s3">: </span><span class="s1">KEYWORDS</span><span class="s3">,</span>
+        <span class="s1">contains</span><span class="s3">: [ </span><span class="s4">'self' </span><span class="s3">].</span><span class="s1">concat</span><span class="s3">(</span><span class="s1">EXPRESSIONS</span><span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">]</span>
+  <span class="s3">};</span>
+
+  <span class="s2">return </span><span class="s3">{</span>
+    <span class="s1">name</span><span class="s3">: </span><span class="s4">'MoonScript'</span><span class="s3">,</span>
+    <span class="s1">aliases</span><span class="s3">: [ </span><span class="s4">'moon' </span><span class="s3">],</span>
+    <span class="s1">keywords</span><span class="s3">: </span><span class="s1">KEYWORDS</span><span class="s3">,</span>
+    <span class="s1">illegal</span><span class="s3">: </span><span class="s5">/\/\*/</span><span class="s3">,</span>
+    <span class="s1">contains</span><span class="s3">: </span><span class="s1">EXPRESSIONS</span><span class="s3">.</span><span class="s1">concat</span><span class="s3">([</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">COMMENT</span><span class="s3">(</span><span class="s4">'--'</span><span class="s3">, </span><span class="s4">'$'</span><span class="s3">),</span>
+      <span class="s3">{</span>
+        <span class="s1">className</span><span class="s3">: </span><span class="s4">'function'</span><span class="s3">, </span><span class="s0">// function: -&gt; =&gt;</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s4">'^</span><span class="s2">\\</span><span class="s4">s*' </span><span class="s3">+ </span><span class="s1">JS_IDENT_RE </span><span class="s3">+ </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">s*=</span><span class="s2">\\</span><span class="s4">s*' </span><span class="s3">+ </span><span class="s1">POSSIBLE_PARAMS_RE</span><span class="s3">,</span>
+        <span class="s1">end</span><span class="s3">: </span><span class="s4">'[-=]&gt;'</span><span class="s3">,</span>
+        <span class="s1">returnBegin</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+        <span class="s1">contains</span><span class="s3">: [</span>
+          <span class="s1">TITLE</span><span class="s3">,</span>
+          <span class="s1">PARAMS</span>
+        <span class="s3">]</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s5">/[\(,:=]\s*/</span><span class="s3">, </span><span class="s0">// anonymous function start</span>
+        <span class="s1">relevance</span><span class="s3">: </span><span class="s6">0</span><span class="s3">,</span>
+        <span class="s1">contains</span><span class="s3">: [</span>
+          <span class="s3">{</span>
+            <span class="s1">className</span><span class="s3">: </span><span class="s4">'function'</span><span class="s3">,</span>
+            <span class="s1">begin</span><span class="s3">: </span><span class="s1">POSSIBLE_PARAMS_RE</span><span class="s3">,</span>
+            <span class="s1">end</span><span class="s3">: </span><span class="s4">'[-=]&gt;'</span><span class="s3">,</span>
+            <span class="s1">returnBegin</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+            <span class="s1">contains</span><span class="s3">: [ </span><span class="s1">PARAMS </span><span class="s3">]</span>
+          <span class="s3">}</span>
+        <span class="s3">]</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s1">className</span><span class="s3">: </span><span class="s4">'class'</span><span class="s3">,</span>
+        <span class="s1">beginKeywords</span><span class="s3">: </span><span class="s4">'class'</span><span class="s3">,</span>
+        <span class="s1">end</span><span class="s3">: </span><span class="s4">'$'</span><span class="s3">,</span>
+        <span class="s1">illegal</span><span class="s3">: </span><span class="s5">/[:=&quot;\[\]]/</span><span class="s3">,</span>
+        <span class="s1">contains</span><span class="s3">: [</span>
+          <span class="s3">{</span>
+            <span class="s1">beginKeywords</span><span class="s3">: </span><span class="s4">'extends'</span><span class="s3">,</span>
+            <span class="s1">endsWithParent</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+            <span class="s1">illegal</span><span class="s3">: </span><span class="s5">/[:=&quot;\[\]]/</span><span class="s3">,</span>
+            <span class="s1">contains</span><span class="s3">: [ </span><span class="s1">TITLE </span><span class="s3">]</span>
+          <span class="s3">},</span>
+          <span class="s1">TITLE</span>
+        <span class="s3">]</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s1">className</span><span class="s3">: </span><span class="s4">'name'</span><span class="s3">, </span><span class="s0">// table</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s1">JS_IDENT_RE </span><span class="s3">+ </span><span class="s4">':'</span><span class="s3">,</span>
+        <span class="s1">end</span><span class="s3">: </span><span class="s4">':'</span><span class="s3">,</span>
+        <span class="s1">returnBegin</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+        <span class="s1">returnEnd</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+        <span class="s1">relevance</span><span class="s3">: </span><span class="s6">0</span>
+      <span class="s3">}</span>
+    <span class="s3">])</span>
+  <span class="s3">};</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">moonscript</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

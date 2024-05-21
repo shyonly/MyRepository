@@ -1,0 +1,112 @@
+<html>
+<head>
+<title>aria-dialog.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+aria-dialog.js</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">Utils from </span><span class="s2">'./aria-utils'</span><span class="s3">;</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@constructor</span>
+ <span class="s4">* </span><span class="s5">@desc </span><span class="s4">Dialog object providing modal focus management.</span>
+ <span class="s4">*</span>
+ <span class="s4">* Assumptions: The element serving as the dialog container is present in the</span>
+ <span class="s4">* DOM and hidden. The dialog container has role='dialog'.</span>
+ <span class="s4">*</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">dialogId</span>
+ <span class="s4">*          The ID of the element serving as the dialog container.</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">focusAfterClosed</span>
+ <span class="s4">*          Either the DOM node or the ID of the DOM node to focus when the</span>
+ <span class="s4">*          dialog closes.</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">focusFirst</span>
+ <span class="s4">*          Optional parameter containing either the DOM node or the ID of the</span>
+ <span class="s4">*          DOM node to focus when the dialog opens. If not specified, the</span>
+ <span class="s4">*          first focusable element in the dialog will receive focus.</span>
+ <span class="s4">*/</span>
+<span class="s0">var </span><span class="s1">aria </span><span class="s3">= </span><span class="s1">aria </span><span class="s3">|| {};</span>
+<span class="s0">var </span><span class="s1">tabEvent</span><span class="s3">;</span>
+
+<span class="s1">aria</span><span class="s3">.</span><span class="s1">Dialog </span><span class="s3">= </span><span class="s0">function</span><span class="s3">(</span><span class="s1">dialog</span><span class="s3">, </span><span class="s1">focusAfterClosed</span><span class="s3">, </span><span class="s1">focusFirst</span><span class="s3">) {</span>
+  <span class="s0">this</span><span class="s3">.</span><span class="s1">dialogNode </span><span class="s3">= </span><span class="s1">dialog</span><span class="s3">;</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">dialogNode </span><span class="s3">=== </span><span class="s0">null </span><span class="s3">|| </span><span class="s0">this</span><span class="s3">.</span><span class="s1">dialogNode</span><span class="s3">.</span><span class="s1">getAttribute</span><span class="s3">(</span><span class="s2">'role'</span><span class="s3">) !== </span><span class="s2">'dialog'</span><span class="s3">) {</span>
+    <span class="s0">throw new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">'Dialog() requires a DOM element with ARIA role of dialog.'</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s0">if </span><span class="s3">(</span><span class="s0">typeof </span><span class="s1">focusAfterClosed </span><span class="s3">=== </span><span class="s2">'string'</span><span class="s3">) {</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">focusAfterClosed </span><span class="s3">= </span><span class="s1">document</span><span class="s3">.</span><span class="s1">getElementById</span><span class="s3">(</span><span class="s1">focusAfterClosed</span><span class="s3">);</span>
+  <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s0">typeof </span><span class="s1">focusAfterClosed </span><span class="s3">=== </span><span class="s2">'object'</span><span class="s3">) {</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">focusAfterClosed </span><span class="s3">= </span><span class="s1">focusAfterClosed</span><span class="s3">;</span>
+  <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">focusAfterClosed </span><span class="s3">= </span><span class="s0">null</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s0">if </span><span class="s3">(</span><span class="s0">typeof </span><span class="s1">focusFirst </span><span class="s3">=== </span><span class="s2">'string'</span><span class="s3">) {</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">focusFirst </span><span class="s3">= </span><span class="s1">document</span><span class="s3">.</span><span class="s1">getElementById</span><span class="s3">(</span><span class="s1">focusFirst</span><span class="s3">);</span>
+  <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s0">typeof </span><span class="s1">focusFirst </span><span class="s3">=== </span><span class="s2">'object'</span><span class="s3">) {</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">focusFirst </span><span class="s3">= </span><span class="s1">focusFirst</span><span class="s3">;</span>
+  <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">focusFirst </span><span class="s3">= </span><span class="s0">null</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">focusFirst</span><span class="s3">) {</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">focusFirst</span><span class="s3">.</span><span class="s1">focus</span><span class="s3">();</span>
+  <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+    <span class="s1">Utils</span><span class="s3">.</span><span class="s1">focusFirstDescendant</span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">dialogNode</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s0">this</span><span class="s3">.</span><span class="s1">lastFocus </span><span class="s3">= </span><span class="s1">document</span><span class="s3">.</span><span class="s1">activeElement</span><span class="s3">;</span>
+  <span class="s1">tabEvent </span><span class="s3">= (</span><span class="s1">e</span><span class="s3">) =&gt; {</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">trapFocus</span><span class="s3">(</span><span class="s1">e</span><span class="s3">);</span>
+  <span class="s3">};</span>
+  <span class="s0">this</span><span class="s3">.</span><span class="s1">addListeners</span><span class="s3">();</span>
+<span class="s3">};</span>
+
+<span class="s1">aria</span><span class="s3">.</span><span class="s1">Dialog</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">addListeners </span><span class="s3">= </span><span class="s0">function</span><span class="s3">() {</span>
+  <span class="s1">document</span><span class="s3">.</span><span class="s1">addEventListener</span><span class="s3">(</span><span class="s2">'focus'</span><span class="s3">, </span><span class="s1">tabEvent</span><span class="s3">, </span><span class="s0">true</span><span class="s3">);</span>
+<span class="s3">};</span>
+
+<span class="s1">aria</span><span class="s3">.</span><span class="s1">Dialog</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">removeListeners </span><span class="s3">= </span><span class="s0">function</span><span class="s3">() {</span>
+  <span class="s1">document</span><span class="s3">.</span><span class="s1">removeEventListener</span><span class="s3">(</span><span class="s2">'focus'</span><span class="s3">, </span><span class="s1">tabEvent</span><span class="s3">, </span><span class="s0">true</span><span class="s3">);</span>
+<span class="s3">};</span>
+
+<span class="s1">aria</span><span class="s3">.</span><span class="s1">Dialog</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">closeDialog </span><span class="s3">= </span><span class="s0">function</span><span class="s3">() {</span>
+  <span class="s0">this</span><span class="s3">.</span><span class="s1">removeListeners</span><span class="s3">();</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">focusAfterClosed</span><span class="s3">) {</span>
+    <span class="s1">setTimeout</span><span class="s3">(() =&gt; {</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">focusAfterClosed</span><span class="s3">.</span><span class="s1">focus</span><span class="s3">();</span>
+    <span class="s3">});</span>
+  <span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s1">aria</span><span class="s3">.</span><span class="s1">Dialog</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">trapFocus </span><span class="s3">= </span><span class="s0">function</span><span class="s3">(</span><span class="s1">event</span><span class="s3">) {</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">Utils</span><span class="s3">.</span><span class="s1">IgnoreUtilFocusChanges</span><span class="s3">) {</span>
+    <span class="s0">return</span><span class="s3">;</span>
+  <span class="s3">}</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">dialogNode</span><span class="s3">.</span><span class="s1">contains</span><span class="s3">(</span><span class="s1">event</span><span class="s3">.</span><span class="s1">target</span><span class="s3">)) {</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">lastFocus </span><span class="s3">= </span><span class="s1">event</span><span class="s3">.</span><span class="s1">target</span><span class="s3">;</span>
+  <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+    <span class="s1">Utils</span><span class="s3">.</span><span class="s1">focusFirstDescendant</span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">dialogNode</span><span class="s3">);</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">lastFocus </span><span class="s3">=== </span><span class="s1">document</span><span class="s3">.</span><span class="s1">activeElement</span><span class="s3">) {</span>
+      <span class="s1">Utils</span><span class="s3">.</span><span class="s1">focusLastDescendant</span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">dialogNode</span><span class="s3">);</span>
+    <span class="s3">}</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">lastFocus </span><span class="s3">= </span><span class="s1">document</span><span class="s3">.</span><span class="s1">activeElement</span><span class="s3">;</span>
+  <span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s0">export default </span><span class="s1">aria</span><span class="s3">.</span><span class="s1">Dialog</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

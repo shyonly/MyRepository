@@ -1,0 +1,351 @@
+<html>
+<head>
+<title>streamChunksOfCombinedSourceMap.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+streamChunksOfCombinedSourceMap.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+    MIT License http://www.opensource.org/licenses/mit-license.php 
+    Author Tobias Koppers @sokra 
+*/</span>
+
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">const </span><span class="s1">streamChunksOfSourceMap </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./streamChunksOfSourceMap&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">splitIntoLines </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./splitIntoLines&quot;</span><span class="s3">);</span>
+
+<span class="s4">const </span><span class="s1">streamChunksOfCombinedSourceMap </span><span class="s3">= (</span>
+	<span class="s1">source</span><span class="s3">,</span>
+	<span class="s1">sourceMap</span><span class="s3">,</span>
+	<span class="s1">innerSourceName</span><span class="s3">,</span>
+	<span class="s1">innerSource</span><span class="s3">,</span>
+	<span class="s1">innerSourceMap</span><span class="s3">,</span>
+	<span class="s1">removeInnerSource</span><span class="s3">,</span>
+	<span class="s1">onChunk</span><span class="s3">,</span>
+	<span class="s1">onSource</span><span class="s3">,</span>
+	<span class="s1">onName</span><span class="s3">,</span>
+	<span class="s1">finalSource</span><span class="s3">,</span>
+	<span class="s1">columns</span>
+<span class="s3">) =&gt; {</span>
+	<span class="s4">let </span><span class="s1">sourceMapping </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Map</span><span class="s3">();</span>
+	<span class="s4">let </span><span class="s1">nameMapping </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Map</span><span class="s3">();</span>
+	<span class="s4">const </span><span class="s1">sourceIndexMapping </span><span class="s3">= [];</span>
+	<span class="s4">const </span><span class="s1">nameIndexMapping </span><span class="s3">= [];</span>
+	<span class="s4">const </span><span class="s1">nameIndexValueMapping </span><span class="s3">= [];</span>
+	<span class="s4">let </span><span class="s1">innerSourceIndex </span><span class="s3">= -</span><span class="s5">2</span><span class="s3">;</span>
+	<span class="s4">const </span><span class="s1">innerSourceIndexMapping </span><span class="s3">= [];</span>
+	<span class="s4">const </span><span class="s1">innerSourceIndexValueMapping </span><span class="s3">= [];</span>
+	<span class="s4">const </span><span class="s1">innerSourceContents </span><span class="s3">= [];</span>
+	<span class="s4">const </span><span class="s1">innerSourceContentLines </span><span class="s3">= [];</span>
+	<span class="s4">const </span><span class="s1">innerNameIndexMapping </span><span class="s3">= [];</span>
+	<span class="s4">const </span><span class="s1">innerNameIndexValueMapping </span><span class="s3">= [];</span>
+	<span class="s4">const </span><span class="s1">innerSourceMapLineData </span><span class="s3">= [];</span>
+	<span class="s4">const </span><span class="s1">findInnerMapping </span><span class="s3">= (</span><span class="s1">line</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) =&gt; {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">line </span><span class="s3">&gt; </span><span class="s1">innerSourceMapLineData</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">return </span><span class="s3">-</span><span class="s5">1</span><span class="s3">;</span>
+		<span class="s4">const </span><span class="s3">{ </span><span class="s1">mappingsData </span><span class="s3">} = </span><span class="s1">innerSourceMapLineData</span><span class="s3">[</span><span class="s1">line </span><span class="s3">- </span><span class="s5">1</span><span class="s3">];</span>
+		<span class="s4">let </span><span class="s1">l </span><span class="s3">= </span><span class="s5">0</span><span class="s3">;</span>
+		<span class="s4">let </span><span class="s1">r </span><span class="s3">= </span><span class="s1">mappingsData</span><span class="s3">.</span><span class="s1">length </span><span class="s3">/ </span><span class="s5">5</span><span class="s3">;</span>
+		<span class="s4">while </span><span class="s3">(</span><span class="s1">l </span><span class="s3">&lt; </span><span class="s1">r</span><span class="s3">) {</span>
+			<span class="s4">let </span><span class="s1">m </span><span class="s3">= (</span><span class="s1">l </span><span class="s3">+ </span><span class="s1">r</span><span class="s3">) &gt;&gt; </span><span class="s5">1</span><span class="s3">;</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">mappingsData</span><span class="s3">[</span><span class="s1">m </span><span class="s3">* </span><span class="s5">5</span><span class="s3">] &lt;= </span><span class="s1">column</span><span class="s3">) {</span>
+				<span class="s1">l </span><span class="s3">= </span><span class="s1">m </span><span class="s3">+ </span><span class="s5">1</span><span class="s3">;</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s1">r </span><span class="s3">= </span><span class="s1">m</span><span class="s3">;</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">l </span><span class="s3">=== </span><span class="s5">0</span><span class="s3">) </span><span class="s4">return </span><span class="s3">-</span><span class="s5">1</span><span class="s3">;</span>
+		<span class="s4">return </span><span class="s1">l </span><span class="s3">- </span><span class="s5">1</span><span class="s3">;</span>
+	<span class="s3">};</span>
+	<span class="s4">return </span><span class="s1">streamChunksOfSourceMap</span><span class="s3">(</span>
+		<span class="s1">source</span><span class="s3">,</span>
+		<span class="s1">sourceMap</span><span class="s3">,</span>
+		<span class="s3">(</span>
+			<span class="s1">chunk</span><span class="s3">,</span>
+			<span class="s1">generatedLine</span><span class="s3">,</span>
+			<span class="s1">generatedColumn</span><span class="s3">,</span>
+			<span class="s1">sourceIndex</span><span class="s3">,</span>
+			<span class="s1">originalLine</span><span class="s3">,</span>
+			<span class="s1">originalColumn</span><span class="s3">,</span>
+			<span class="s1">nameIndex</span>
+		<span class="s3">) =&gt; {</span>
+			<span class="s0">// Check if this is a mapping to the inner source</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">sourceIndex </span><span class="s3">=== </span><span class="s1">innerSourceIndex</span><span class="s3">) {</span>
+				<span class="s0">// Check if there is a mapping in the inner source</span>
+				<span class="s4">const </span><span class="s1">idx </span><span class="s3">= </span><span class="s1">findInnerMapping</span><span class="s3">(</span><span class="s1">originalLine</span><span class="s3">, </span><span class="s1">originalColumn</span><span class="s3">);</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">idx </span><span class="s3">!== -</span><span class="s5">1</span><span class="s3">) {</span>
+					<span class="s4">const </span><span class="s3">{ </span><span class="s1">chunks</span><span class="s3">, </span><span class="s1">mappingsData </span><span class="s3">} = </span><span class="s1">innerSourceMapLineData</span><span class="s3">[</span>
+						<span class="s1">originalLine </span><span class="s3">- </span><span class="s5">1</span>
+					<span class="s3">];</span>
+					<span class="s4">const </span><span class="s1">mi </span><span class="s3">= </span><span class="s1">idx </span><span class="s3">* </span><span class="s5">5</span><span class="s3">;</span>
+					<span class="s4">const </span><span class="s1">innerSourceIndex </span><span class="s3">= </span><span class="s1">mappingsData</span><span class="s3">[</span><span class="s1">mi </span><span class="s3">+ </span><span class="s5">1</span><span class="s3">];</span>
+					<span class="s4">const </span><span class="s1">innerOriginalLine </span><span class="s3">= </span><span class="s1">mappingsData</span><span class="s3">[</span><span class="s1">mi </span><span class="s3">+ </span><span class="s5">2</span><span class="s3">];</span>
+					<span class="s4">let </span><span class="s1">innerOriginalColumn </span><span class="s3">= </span><span class="s1">mappingsData</span><span class="s3">[</span><span class="s1">mi </span><span class="s3">+ </span><span class="s5">3</span><span class="s3">];</span>
+					<span class="s4">let </span><span class="s1">innerNameIndex </span><span class="s3">= </span><span class="s1">mappingsData</span><span class="s3">[</span><span class="s1">mi </span><span class="s3">+ </span><span class="s5">4</span><span class="s3">];</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">innerSourceIndex </span><span class="s3">&gt;= </span><span class="s5">0</span><span class="s3">) {</span>
+						<span class="s0">// Check for an identity mapping</span>
+						<span class="s0">// where we are allowed to adjust the original column</span>
+						<span class="s4">const </span><span class="s1">innerChunk </span><span class="s3">= </span><span class="s1">chunks</span><span class="s3">[</span><span class="s1">idx</span><span class="s3">];</span>
+						<span class="s4">const </span><span class="s1">innerGeneratedColumn </span><span class="s3">= </span><span class="s1">mappingsData</span><span class="s3">[</span><span class="s1">mi</span><span class="s3">];</span>
+						<span class="s4">const </span><span class="s1">locationInChunk </span><span class="s3">= </span><span class="s1">originalColumn </span><span class="s3">- </span><span class="s1">innerGeneratedColumn</span><span class="s3">;</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">locationInChunk </span><span class="s3">&gt; </span><span class="s5">0</span><span class="s3">) {</span>
+							<span class="s4">let </span><span class="s1">originalSourceLines </span><span class="s3">=</span>
+								<span class="s1">innerSourceIndex </span><span class="s3">&lt; </span><span class="s1">innerSourceContentLines</span><span class="s3">.</span><span class="s1">length</span>
+									<span class="s3">? </span><span class="s1">innerSourceContentLines</span><span class="s3">[</span><span class="s1">innerSourceIndex</span><span class="s3">]</span>
+									<span class="s3">: </span><span class="s4">null</span><span class="s3">;</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">originalSourceLines </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+								<span class="s4">const </span><span class="s1">originalSource </span><span class="s3">= </span><span class="s1">innerSourceContents</span><span class="s3">[</span><span class="s1">innerSourceIndex</span><span class="s3">];</span>
+								<span class="s1">originalSourceLines </span><span class="s3">= </span><span class="s1">originalSource</span>
+									<span class="s3">? </span><span class="s1">splitIntoLines</span><span class="s3">(</span><span class="s1">originalSource</span><span class="s3">)</span>
+									<span class="s3">: </span><span class="s4">null</span><span class="s3">;</span>
+								<span class="s1">innerSourceContentLines</span><span class="s3">[</span><span class="s1">innerSourceIndex</span><span class="s3">] = </span><span class="s1">originalSourceLines</span><span class="s3">;</span>
+							<span class="s3">}</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">originalSourceLines </span><span class="s3">!== </span><span class="s4">null</span><span class="s3">) {</span>
+								<span class="s4">const </span><span class="s1">originalChunk </span><span class="s3">=</span>
+									<span class="s1">innerOriginalLine </span><span class="s3">&lt;= </span><span class="s1">originalSourceLines</span><span class="s3">.</span><span class="s1">length</span>
+										<span class="s3">? </span><span class="s1">originalSourceLines</span><span class="s3">[</span><span class="s1">innerOriginalLine </span><span class="s3">- </span><span class="s5">1</span><span class="s3">].</span><span class="s1">slice</span><span class="s3">(</span>
+												<span class="s1">innerOriginalColumn</span><span class="s3">,</span>
+												<span class="s1">innerOriginalColumn </span><span class="s3">+ </span><span class="s1">locationInChunk</span>
+										  <span class="s3">)</span>
+										<span class="s3">: </span><span class="s2">&quot;&quot;</span><span class="s3">;</span>
+								<span class="s4">if </span><span class="s3">(</span><span class="s1">innerChunk</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s5">0</span><span class="s3">, </span><span class="s1">locationInChunk</span><span class="s3">) === </span><span class="s1">originalChunk</span><span class="s3">) {</span>
+									<span class="s1">innerOriginalColumn </span><span class="s3">+= </span><span class="s1">locationInChunk</span><span class="s3">;</span>
+									<span class="s1">innerNameIndex </span><span class="s3">= -</span><span class="s5">1</span><span class="s3">;</span>
+								<span class="s3">}</span>
+							<span class="s3">}</span>
+						<span class="s3">}</span>
+
+						<span class="s0">// We have a inner mapping to original source</span>
+
+						<span class="s0">// emit source when needed and compute global source index</span>
+						<span class="s4">let </span><span class="s1">sourceIndex </span><span class="s3">=</span>
+							<span class="s1">innerSourceIndex </span><span class="s3">&lt; </span><span class="s1">innerSourceIndexMapping</span><span class="s3">.</span><span class="s1">length</span>
+								<span class="s3">? </span><span class="s1">innerSourceIndexMapping</span><span class="s3">[</span><span class="s1">innerSourceIndex</span><span class="s3">]</span>
+								<span class="s3">: -</span><span class="s5">2</span><span class="s3">;</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">sourceIndex </span><span class="s3">=== -</span><span class="s5">2</span><span class="s3">) {</span>
+							<span class="s4">const </span><span class="s3">[</span><span class="s1">source</span><span class="s3">, </span><span class="s1">sourceContent</span><span class="s3">] =</span>
+								<span class="s1">innerSourceIndex </span><span class="s3">&lt; </span><span class="s1">innerSourceIndexValueMapping</span><span class="s3">.</span><span class="s1">length</span>
+									<span class="s3">? </span><span class="s1">innerSourceIndexValueMapping</span><span class="s3">[</span><span class="s1">innerSourceIndex</span><span class="s3">]</span>
+									<span class="s3">: [</span><span class="s4">null</span><span class="s3">, </span><span class="s1">undefined</span><span class="s3">];</span>
+							<span class="s4">let </span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">sourceMapping</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">source</span><span class="s3">);</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">globalIndex </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+								<span class="s1">sourceMapping</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">source</span><span class="s3">, (</span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">sourceMapping</span><span class="s3">.</span><span class="s1">size</span><span class="s3">));</span>
+								<span class="s1">onSource</span><span class="s3">(</span><span class="s1">globalIndex</span><span class="s3">, </span><span class="s1">source</span><span class="s3">, </span><span class="s1">sourceContent</span><span class="s3">);</span>
+							<span class="s3">}</span>
+							<span class="s1">sourceIndex </span><span class="s3">= </span><span class="s1">globalIndex</span><span class="s3">;</span>
+							<span class="s1">innerSourceIndexMapping</span><span class="s3">[</span><span class="s1">innerSourceIndex</span><span class="s3">] = </span><span class="s1">sourceIndex</span><span class="s3">;</span>
+						<span class="s3">}</span>
+
+						<span class="s0">// emit name when needed and compute global name index</span>
+						<span class="s4">let </span><span class="s1">finalNameIndex </span><span class="s3">= -</span><span class="s5">1</span><span class="s3">;</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">innerNameIndex </span><span class="s3">&gt;= </span><span class="s5">0</span><span class="s3">) {</span>
+							<span class="s0">// when we have a inner name</span>
+							<span class="s1">finalNameIndex </span><span class="s3">=</span>
+								<span class="s1">innerNameIndex </span><span class="s3">&lt; </span><span class="s1">innerNameIndexMapping</span><span class="s3">.</span><span class="s1">length</span>
+									<span class="s3">? </span><span class="s1">innerNameIndexMapping</span><span class="s3">[</span><span class="s1">innerNameIndex</span><span class="s3">]</span>
+									<span class="s3">: -</span><span class="s5">2</span><span class="s3">;</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">finalNameIndex </span><span class="s3">=== -</span><span class="s5">2</span><span class="s3">) {</span>
+								<span class="s4">const </span><span class="s1">name </span><span class="s3">=</span>
+									<span class="s1">innerNameIndex </span><span class="s3">&lt; </span><span class="s1">innerNameIndexValueMapping</span><span class="s3">.</span><span class="s1">length</span>
+										<span class="s3">? </span><span class="s1">innerNameIndexValueMapping</span><span class="s3">[</span><span class="s1">innerNameIndex</span><span class="s3">]</span>
+										<span class="s3">: </span><span class="s1">undefined</span><span class="s3">;</span>
+								<span class="s4">if </span><span class="s3">(</span><span class="s1">name</span><span class="s3">) {</span>
+									<span class="s4">let </span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">nameMapping</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">name</span><span class="s3">);</span>
+									<span class="s4">if </span><span class="s3">(</span><span class="s1">globalIndex </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+										<span class="s1">nameMapping</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">name</span><span class="s3">, (</span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">nameMapping</span><span class="s3">.</span><span class="s1">size</span><span class="s3">));</span>
+										<span class="s1">onName</span><span class="s3">(</span><span class="s1">globalIndex</span><span class="s3">, </span><span class="s1">name</span><span class="s3">);</span>
+									<span class="s3">}</span>
+									<span class="s1">finalNameIndex </span><span class="s3">= </span><span class="s1">globalIndex</span><span class="s3">;</span>
+								<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+									<span class="s1">finalNameIndex </span><span class="s3">= -</span><span class="s5">1</span><span class="s3">;</span>
+								<span class="s3">}</span>
+								<span class="s1">innerNameIndexMapping</span><span class="s3">[</span><span class="s1">innerNameIndex</span><span class="s3">] = </span><span class="s1">finalNameIndex</span><span class="s3">;</span>
+							<span class="s3">}</span>
+						<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">nameIndex </span><span class="s3">&gt;= </span><span class="s5">0</span><span class="s3">) {</span>
+							<span class="s0">// when we don't have an inner name,</span>
+							<span class="s0">// but we have an outer name</span>
+							<span class="s0">// it can be used when inner original code equals to the name</span>
+							<span class="s4">let </span><span class="s1">originalSourceLines </span><span class="s3">=</span>
+								<span class="s1">innerSourceContentLines</span><span class="s3">[</span><span class="s1">innerSourceIndex</span><span class="s3">];</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">originalSourceLines </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+								<span class="s4">const </span><span class="s1">originalSource </span><span class="s3">= </span><span class="s1">innerSourceContents</span><span class="s3">[</span><span class="s1">innerSourceIndex</span><span class="s3">];</span>
+								<span class="s1">originalSourceLines </span><span class="s3">= </span><span class="s1">originalSource</span>
+									<span class="s3">? </span><span class="s1">splitIntoLines</span><span class="s3">(</span><span class="s1">originalSource</span><span class="s3">)</span>
+									<span class="s3">: </span><span class="s4">null</span><span class="s3">;</span>
+								<span class="s1">innerSourceContentLines</span><span class="s3">[</span><span class="s1">innerSourceIndex</span><span class="s3">] = </span><span class="s1">originalSourceLines</span><span class="s3">;</span>
+							<span class="s3">}</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">originalSourceLines </span><span class="s3">!== </span><span class="s4">null</span><span class="s3">) {</span>
+								<span class="s4">const </span><span class="s1">name </span><span class="s3">= </span><span class="s1">nameIndexValueMapping</span><span class="s3">[</span><span class="s1">nameIndex</span><span class="s3">];</span>
+								<span class="s4">const </span><span class="s1">originalName </span><span class="s3">=</span>
+									<span class="s1">innerOriginalLine </span><span class="s3">&lt;= </span><span class="s1">originalSourceLines</span><span class="s3">.</span><span class="s1">length</span>
+										<span class="s3">? </span><span class="s1">originalSourceLines</span><span class="s3">[</span><span class="s1">innerOriginalLine </span><span class="s3">- </span><span class="s5">1</span><span class="s3">].</span><span class="s1">slice</span><span class="s3">(</span>
+												<span class="s1">innerOriginalColumn</span><span class="s3">,</span>
+												<span class="s1">innerOriginalColumn </span><span class="s3">+ </span><span class="s1">name</span><span class="s3">.</span><span class="s1">length</span>
+										  <span class="s3">)</span>
+										<span class="s3">: </span><span class="s2">&quot;&quot;</span><span class="s3">;</span>
+								<span class="s4">if </span><span class="s3">(</span><span class="s1">name </span><span class="s3">=== </span><span class="s1">originalName</span><span class="s3">) {</span>
+									<span class="s1">finalNameIndex </span><span class="s3">=</span>
+										<span class="s1">nameIndex </span><span class="s3">&lt; </span><span class="s1">nameIndexMapping</span><span class="s3">.</span><span class="s1">length</span>
+											<span class="s3">? </span><span class="s1">nameIndexMapping</span><span class="s3">[</span><span class="s1">nameIndex</span><span class="s3">]</span>
+											<span class="s3">: -</span><span class="s5">2</span><span class="s3">;</span>
+									<span class="s4">if </span><span class="s3">(</span><span class="s1">finalNameIndex </span><span class="s3">=== -</span><span class="s5">2</span><span class="s3">) {</span>
+										<span class="s4">const </span><span class="s1">name </span><span class="s3">= </span><span class="s1">nameIndexValueMapping</span><span class="s3">[</span><span class="s1">nameIndex</span><span class="s3">];</span>
+										<span class="s4">if </span><span class="s3">(</span><span class="s1">name</span><span class="s3">) {</span>
+											<span class="s4">let </span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">nameMapping</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">name</span><span class="s3">);</span>
+											<span class="s4">if </span><span class="s3">(</span><span class="s1">globalIndex </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+												<span class="s1">nameMapping</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">name</span><span class="s3">, (</span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">nameMapping</span><span class="s3">.</span><span class="s1">size</span><span class="s3">));</span>
+												<span class="s1">onName</span><span class="s3">(</span><span class="s1">globalIndex</span><span class="s3">, </span><span class="s1">name</span><span class="s3">);</span>
+											<span class="s3">}</span>
+											<span class="s1">finalNameIndex </span><span class="s3">= </span><span class="s1">globalIndex</span><span class="s3">;</span>
+										<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+											<span class="s1">finalNameIndex </span><span class="s3">= -</span><span class="s5">1</span><span class="s3">;</span>
+										<span class="s3">}</span>
+										<span class="s1">nameIndexMapping</span><span class="s3">[</span><span class="s1">nameIndex</span><span class="s3">] = </span><span class="s1">finalNameIndex</span><span class="s3">;</span>
+									<span class="s3">}</span>
+								<span class="s3">}</span>
+							<span class="s3">}</span>
+						<span class="s3">}</span>
+						<span class="s1">onChunk</span><span class="s3">(</span>
+							<span class="s1">chunk</span><span class="s3">,</span>
+							<span class="s1">generatedLine</span><span class="s3">,</span>
+							<span class="s1">generatedColumn</span><span class="s3">,</span>
+							<span class="s1">sourceIndex</span><span class="s3">,</span>
+							<span class="s1">innerOriginalLine</span><span class="s3">,</span>
+							<span class="s1">innerOriginalColumn</span><span class="s3">,</span>
+							<span class="s1">finalNameIndex</span>
+						<span class="s3">);</span>
+						<span class="s4">return</span><span class="s3">;</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+
+				<span class="s0">// We have a mapping to the inner source, but no inner mapping</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">removeInnerSource</span><span class="s3">) {</span>
+					<span class="s1">onChunk</span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">, </span><span class="s1">generatedLine</span><span class="s3">, </span><span class="s1">generatedColumn</span><span class="s3">, -</span><span class="s5">1</span><span class="s3">, -</span><span class="s5">1</span><span class="s3">, -</span><span class="s5">1</span><span class="s3">, -</span><span class="s5">1</span><span class="s3">);</span>
+					<span class="s4">return</span><span class="s3">;</span>
+				<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">sourceIndexMapping</span><span class="s3">[</span><span class="s1">sourceIndex</span><span class="s3">] === -</span><span class="s5">2</span><span class="s3">) {</span>
+						<span class="s4">let </span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">sourceMapping</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">innerSourceName</span><span class="s3">);</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">globalIndex </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+							<span class="s1">sourceMapping</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">source</span><span class="s3">, (</span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">sourceMapping</span><span class="s3">.</span><span class="s1">size</span><span class="s3">));</span>
+							<span class="s1">onSource</span><span class="s3">(</span><span class="s1">globalIndex</span><span class="s3">, </span><span class="s1">innerSourceName</span><span class="s3">, </span><span class="s1">innerSource</span><span class="s3">);</span>
+						<span class="s3">}</span>
+						<span class="s1">sourceIndexMapping</span><span class="s3">[</span><span class="s1">sourceIndex</span><span class="s3">] = </span><span class="s1">globalIndex</span><span class="s3">;</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+			<span class="s3">}</span>
+
+			<span class="s4">const </span><span class="s1">finalSourceIndex </span><span class="s3">=</span>
+				<span class="s1">sourceIndex </span><span class="s3">&lt; </span><span class="s5">0 </span><span class="s3">|| </span><span class="s1">sourceIndex </span><span class="s3">&gt;= </span><span class="s1">sourceIndexMapping</span><span class="s3">.</span><span class="s1">length</span>
+					<span class="s3">? -</span><span class="s5">1</span>
+					<span class="s3">: </span><span class="s1">sourceIndexMapping</span><span class="s3">[</span><span class="s1">sourceIndex</span><span class="s3">];</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">finalSourceIndex </span><span class="s3">&lt; </span><span class="s5">0</span><span class="s3">) {</span>
+				<span class="s0">// no source, so we make it a generated chunk</span>
+				<span class="s1">onChunk</span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">, </span><span class="s1">generatedLine</span><span class="s3">, </span><span class="s1">generatedColumn</span><span class="s3">, -</span><span class="s5">1</span><span class="s3">, -</span><span class="s5">1</span><span class="s3">, -</span><span class="s5">1</span><span class="s3">, -</span><span class="s5">1</span><span class="s3">);</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s0">// Pass through the chunk with mapping</span>
+				<span class="s4">let </span><span class="s1">finalNameIndex </span><span class="s3">= -</span><span class="s5">1</span><span class="s3">;</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">nameIndex </span><span class="s3">&gt;= </span><span class="s5">0 </span><span class="s3">&amp;&amp; </span><span class="s1">nameIndex </span><span class="s3">&lt; </span><span class="s1">nameIndexMapping</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) {</span>
+					<span class="s1">finalNameIndex </span><span class="s3">= </span><span class="s1">nameIndexMapping</span><span class="s3">[</span><span class="s1">nameIndex</span><span class="s3">];</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">finalNameIndex </span><span class="s3">=== -</span><span class="s5">2</span><span class="s3">) {</span>
+						<span class="s4">const </span><span class="s1">name </span><span class="s3">= </span><span class="s1">nameIndexValueMapping</span><span class="s3">[</span><span class="s1">nameIndex</span><span class="s3">];</span>
+						<span class="s4">let </span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">nameMapping</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">name</span><span class="s3">);</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">globalIndex </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+							<span class="s1">nameMapping</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">name</span><span class="s3">, (</span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">nameMapping</span><span class="s3">.</span><span class="s1">size</span><span class="s3">));</span>
+							<span class="s1">onName</span><span class="s3">(</span><span class="s1">globalIndex</span><span class="s3">, </span><span class="s1">name</span><span class="s3">);</span>
+						<span class="s3">}</span>
+						<span class="s1">finalNameIndex </span><span class="s3">= </span><span class="s1">globalIndex</span><span class="s3">;</span>
+						<span class="s1">nameIndexMapping</span><span class="s3">[</span><span class="s1">nameIndex</span><span class="s3">] = </span><span class="s1">finalNameIndex</span><span class="s3">;</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+				<span class="s1">onChunk</span><span class="s3">(</span>
+					<span class="s1">chunk</span><span class="s3">,</span>
+					<span class="s1">generatedLine</span><span class="s3">,</span>
+					<span class="s1">generatedColumn</span><span class="s3">,</span>
+					<span class="s1">finalSourceIndex</span><span class="s3">,</span>
+					<span class="s1">originalLine</span><span class="s3">,</span>
+					<span class="s1">originalColumn</span><span class="s3">,</span>
+					<span class="s1">finalNameIndex</span>
+				<span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">},</span>
+		<span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s1">source</span><span class="s3">, </span><span class="s1">sourceContent</span><span class="s3">) =&gt; {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">source </span><span class="s3">=== </span><span class="s1">innerSourceName</span><span class="s3">) {</span>
+				<span class="s1">innerSourceIndex </span><span class="s3">= </span><span class="s1">i</span><span class="s3">;</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">innerSource </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) </span><span class="s1">sourceContent </span><span class="s3">= </span><span class="s1">innerSource</span><span class="s3">;</span>
+				<span class="s4">else </span><span class="s1">innerSource </span><span class="s3">= </span><span class="s1">sourceContent</span><span class="s3">;</span>
+				<span class="s1">sourceIndexMapping</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] = -</span><span class="s5">2</span><span class="s3">;</span>
+				<span class="s1">streamChunksOfSourceMap</span><span class="s3">(</span>
+					<span class="s1">sourceContent</span><span class="s3">,</span>
+					<span class="s1">innerSourceMap</span><span class="s3">,</span>
+					<span class="s3">(</span>
+						<span class="s1">chunk</span><span class="s3">,</span>
+						<span class="s1">generatedLine</span><span class="s3">,</span>
+						<span class="s1">generatedColumn</span><span class="s3">,</span>
+						<span class="s1">sourceIndex</span><span class="s3">,</span>
+						<span class="s1">originalLine</span><span class="s3">,</span>
+						<span class="s1">originalColumn</span><span class="s3">,</span>
+						<span class="s1">nameIndex</span>
+					<span class="s3">) =&gt; {</span>
+						<span class="s4">while </span><span class="s3">(</span><span class="s1">innerSourceMapLineData</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&lt; </span><span class="s1">generatedLine</span><span class="s3">) {</span>
+							<span class="s1">innerSourceMapLineData</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({</span>
+								<span class="s1">mappingsData</span><span class="s3">: [],</span>
+								<span class="s1">chunks</span><span class="s3">: []</span>
+							<span class="s3">});</span>
+						<span class="s3">}</span>
+						<span class="s4">const </span><span class="s1">data </span><span class="s3">= </span><span class="s1">innerSourceMapLineData</span><span class="s3">[</span><span class="s1">generatedLine </span><span class="s3">- </span><span class="s5">1</span><span class="s3">];</span>
+						<span class="s1">data</span><span class="s3">.</span><span class="s1">mappingsData</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span>
+							<span class="s1">generatedColumn</span><span class="s3">,</span>
+							<span class="s1">sourceIndex</span><span class="s3">,</span>
+							<span class="s1">originalLine</span><span class="s3">,</span>
+							<span class="s1">originalColumn</span><span class="s3">,</span>
+							<span class="s1">nameIndex</span>
+						<span class="s3">);</span>
+						<span class="s1">data</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">);</span>
+					<span class="s3">},</span>
+					<span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s1">source</span><span class="s3">, </span><span class="s1">sourceContent</span><span class="s3">) =&gt; {</span>
+						<span class="s1">innerSourceContents</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] = </span><span class="s1">sourceContent</span><span class="s3">;</span>
+						<span class="s1">innerSourceContentLines</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] = </span><span class="s1">undefined</span><span class="s3">;</span>
+						<span class="s1">innerSourceIndexMapping</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] = -</span><span class="s5">2</span><span class="s3">;</span>
+						<span class="s1">innerSourceIndexValueMapping</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] = [</span><span class="s1">source</span><span class="s3">, </span><span class="s1">sourceContent</span><span class="s3">];</span>
+					<span class="s3">},</span>
+					<span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s1">name</span><span class="s3">) =&gt; {</span>
+						<span class="s1">innerNameIndexMapping</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] = -</span><span class="s5">2</span><span class="s3">;</span>
+						<span class="s1">innerNameIndexValueMapping</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] = </span><span class="s1">name</span><span class="s3">;</span>
+					<span class="s3">},</span>
+					<span class="s4">false</span><span class="s3">,</span>
+					<span class="s1">columns</span>
+				<span class="s3">);</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s4">let </span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">sourceMapping</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">source</span><span class="s3">);</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">globalIndex </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+					<span class="s1">sourceMapping</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">source</span><span class="s3">, (</span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">sourceMapping</span><span class="s3">.</span><span class="s1">size</span><span class="s3">));</span>
+					<span class="s1">onSource</span><span class="s3">(</span><span class="s1">globalIndex</span><span class="s3">, </span><span class="s1">source</span><span class="s3">, </span><span class="s1">sourceContent</span><span class="s3">);</span>
+				<span class="s3">}</span>
+				<span class="s1">sourceIndexMapping</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] = </span><span class="s1">globalIndex</span><span class="s3">;</span>
+			<span class="s3">}</span>
+		<span class="s3">},</span>
+		<span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s1">name</span><span class="s3">) =&gt; {</span>
+			<span class="s1">nameIndexMapping</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] = -</span><span class="s5">2</span><span class="s3">;</span>
+			<span class="s1">nameIndexValueMapping</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] = </span><span class="s1">name</span><span class="s3">;</span>
+		<span class="s3">},</span>
+		<span class="s1">finalSource</span><span class="s3">,</span>
+		<span class="s1">columns</span>
+	<span class="s3">);</span>
+<span class="s3">};</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">streamChunksOfCombinedSourceMap</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

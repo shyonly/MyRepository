@@ -1,0 +1,867 @@
+<html>
+<head>
+<title>connection.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+connection.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span>
+
+<span class="s2">var </span><span class="s1">util </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'util'</span><span class="s3">)</span>
+<span class="s2">var </span><span class="s1">transport </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'../spdy-transport'</span><span class="s3">)</span>
+
+<span class="s2">var </span><span class="s1">debug </span><span class="s3">= {</span>
+  <span class="s1">server</span><span class="s3">: </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'debug'</span><span class="s3">)(</span><span class="s0">'spdy:connection:server'</span><span class="s3">),</span>
+  <span class="s1">client</span><span class="s3">: </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'debug'</span><span class="s3">)(</span><span class="s0">'spdy:connection:client'</span><span class="s3">)</span>
+<span class="s3">}</span>
+<span class="s2">var </span><span class="s1">EventEmitter </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'events'</span><span class="s3">).</span><span class="s1">EventEmitter</span>
+
+<span class="s2">var </span><span class="s1">Stream </span><span class="s3">= </span><span class="s1">transport</span><span class="s3">.</span><span class="s1">Stream</span>
+
+<span class="s2">function </span><span class="s1">Connection </span><span class="s3">(</span><span class="s1">socket</span><span class="s3">, </span><span class="s1">options</span><span class="s3">) {</span>
+  <span class="s1">EventEmitter</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s2">this</span><span class="s3">)</span>
+
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= {}</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState </span><span class="s3">= </span><span class="s1">state</span>
+
+  <span class="s4">// NOTE: There's a big trick here. Connection is used as a `this` argument</span>
+  <span class="s4">// to the wrapped `connection` event listener.</span>
+  <span class="s4">// socket end doesn't necessarly mean connection drop</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">httpAllowHalfOpen </span><span class="s3">= </span><span class="s2">true</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">timeout </span><span class="s3">= </span><span class="s2">new </span><span class="s1">transport</span><span class="s3">.</span><span class="s1">utils</span><span class="s3">.</span><span class="s1">Timeout</span><span class="s3">(</span><span class="s2">this</span><span class="s3">)</span>
+
+  <span class="s4">// Protocol info</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">protocol </span><span class="s3">= </span><span class="s1">transport</span><span class="s3">.</span><span class="s1">protocol</span><span class="s3">[</span><span class="s1">options</span><span class="s3">.</span><span class="s1">protocol</span><span class="s3">]</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">version </span><span class="s3">= </span><span class="s2">null</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">constants </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">constants</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">pair </span><span class="s3">= </span><span class="s2">null</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">isServer </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">isServer</span>
+
+  <span class="s4">// Root of priority tree (i.e. stream id = 0)</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">priorityRoot </span><span class="s3">= </span><span class="s2">new </span><span class="s1">transport</span><span class="s3">.</span><span class="s1">Priority</span><span class="s3">({</span>
+    <span class="s1">defaultWeight</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">DEFAULT_WEIGHT</span><span class="s3">,</span>
+    <span class="s1">maxCount</span><span class="s3">: </span><span class="s1">transport</span><span class="s3">.</span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">base</span><span class="s3">.</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">MAX_PRIORITY_STREAMS</span>
+  <span class="s3">})</span>
+
+  <span class="s4">// Defaults</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">maxStreams </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">maxStreams </span><span class="s3">||</span>
+                     <span class="s1">state</span><span class="s3">.</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">MAX_CONCURRENT_STREAMS</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">autoSpdy31 </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">name </span><span class="s3">!== </span><span class="s0">'h2' </span><span class="s3">&amp;&amp; </span><span class="s1">options</span><span class="s3">.</span><span class="s1">autoSpdy31</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">acceptPush </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">acceptPush </span><span class="s3">=== </span><span class="s1">undefined</span>
+    <span class="s3">? !</span><span class="s1">state</span><span class="s3">.</span><span class="s1">isServer</span>
+    <span class="s3">: </span><span class="s1">options</span><span class="s3">.</span><span class="s1">acceptPush</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">options</span><span class="s3">.</span><span class="s1">maxChunk </span><span class="s3">=== </span><span class="s2">false</span><span class="s3">) { </span><span class="s1">state</span><span class="s3">.</span><span class="s1">maxChunk </span><span class="s3">= </span><span class="s1">Infinity </span><span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s1">options</span><span class="s3">.</span><span class="s1">maxChunk </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) { </span><span class="s1">state</span><span class="s3">.</span><span class="s1">maxChunk </span><span class="s3">= </span><span class="s1">transport</span><span class="s3">.</span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">base</span><span class="s3">.</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">DEFAULT_MAX_CHUNK </span><span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">maxChunk </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">maxChunk</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// Connection-level flow control</span>
+  <span class="s2">var </span><span class="s1">windowSize </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">windowSize </span><span class="s3">|| </span><span class="s5">1 </span><span class="s3">&lt;&lt; </span><span class="s5">20</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">window </span><span class="s3">= </span><span class="s2">new </span><span class="s1">transport</span><span class="s3">.</span><span class="s1">Window</span><span class="s3">({</span>
+    <span class="s1">id</span><span class="s3">: </span><span class="s5">0</span><span class="s3">,</span>
+    <span class="s1">isServer</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">isServer</span><span class="s3">,</span>
+    <span class="s1">recv</span><span class="s3">: {</span>
+      <span class="s1">size</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">DEFAULT_WINDOW</span><span class="s3">,</span>
+      <span class="s1">max</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">MAX_INITIAL_WINDOW_SIZE</span>
+    <span class="s3">},</span>
+    <span class="s1">send</span><span class="s3">: {</span>
+      <span class="s1">size</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">DEFAULT_WINDOW</span><span class="s3">,</span>
+      <span class="s1">max</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">MAX_INITIAL_WINDOW_SIZE</span>
+    <span class="s3">}</span>
+  <span class="s3">})</span>
+
+  <span class="s4">// It starts with DEFAULT_WINDOW, update must be sent to change it on client</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">recv</span><span class="s3">.</span><span class="s1">setMax</span><span class="s3">(</span><span class="s1">windowSize</span><span class="s3">)</span>
+
+  <span class="s4">// Boilerplate for Stream constructor</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">streamWindow </span><span class="s3">= </span><span class="s2">new </span><span class="s1">transport</span><span class="s3">.</span><span class="s1">Window</span><span class="s3">({</span>
+    <span class="s1">id</span><span class="s3">: -</span><span class="s5">1</span><span class="s3">,</span>
+    <span class="s1">isServer</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">isServer</span><span class="s3">,</span>
+    <span class="s1">recv</span><span class="s3">: {</span>
+      <span class="s1">size</span><span class="s3">: </span><span class="s1">windowSize</span><span class="s3">,</span>
+      <span class="s1">max</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">MAX_INITIAL_WINDOW_SIZE</span>
+    <span class="s3">},</span>
+    <span class="s1">send</span><span class="s3">: {</span>
+      <span class="s1">size</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">DEFAULT_WINDOW</span><span class="s3">,</span>
+      <span class="s1">max</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">MAX_INITIAL_WINDOW_SIZE</span>
+    <span class="s3">}</span>
+  <span class="s3">})</span>
+
+  <span class="s4">// Various state info</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">pool </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">compressionPool</span><span class="s3">.</span><span class="s1">create</span><span class="s3">(</span><span class="s1">options</span><span class="s3">.</span><span class="s1">headerCompression</span><span class="s3">)</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">counters </span><span class="s3">= {</span>
+    <span class="s1">push</span><span class="s3">: </span><span class="s5">0</span><span class="s3">,</span>
+    <span class="s1">stream</span><span class="s3">: </span><span class="s5">0</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// Init streams list</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">stream </span><span class="s3">= {</span>
+    <span class="s1">map</span><span class="s3">: {},</span>
+    <span class="s1">count</span><span class="s3">: </span><span class="s5">0</span><span class="s3">,</span>
+    <span class="s1">nextId</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">isServer </span><span class="s3">? </span><span class="s5">2 </span><span class="s3">: </span><span class="s5">1</span><span class="s3">,</span>
+    <span class="s1">lastId</span><span class="s3">: {</span>
+      <span class="s1">both</span><span class="s3">: </span><span class="s5">0</span><span class="s3">,</span>
+      <span class="s1">received</span><span class="s3">: </span><span class="s5">0</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">ping </span><span class="s3">= {</span>
+    <span class="s1">nextId</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">isServer </span><span class="s3">? </span><span class="s5">2 </span><span class="s3">: </span><span class="s5">1</span><span class="s3">,</span>
+    <span class="s1">map</span><span class="s3">: {}</span>
+  <span class="s3">}</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">goaway </span><span class="s3">= </span><span class="s2">false</span>
+
+  <span class="s4">// Debug</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">debug </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">isServer </span><span class="s3">? </span><span class="s1">debug</span><span class="s3">.</span><span class="s1">server </span><span class="s3">: </span><span class="s1">debug</span><span class="s3">.</span><span class="s1">client</span>
+
+  <span class="s4">// X-Forwarded feature</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">xForward </span><span class="s3">= </span><span class="s2">null</span>
+
+  <span class="s4">// Create parser and hole for framer</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">parser </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">parser</span><span class="s3">.</span><span class="s1">create</span><span class="s3">({</span>
+    <span class="s4">// NOTE: needed to distinguish ping from ping ACK in SPDY</span>
+    <span class="s1">isServer</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">isServer</span><span class="s3">,</span>
+    <span class="s1">window</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">window</span>
+  <span class="s3">})</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">framer </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">create</span><span class="s3">({</span>
+    <span class="s1">window</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">window</span><span class="s3">,</span>
+    <span class="s1">timeout</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">timeout</span>
+  <span class="s3">})</span>
+
+  <span class="s4">// SPDY has PUSH enabled on servers</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">name </span><span class="s3">=== </span><span class="s0">'spdy'</span><span class="s3">) {</span>
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">enablePush</span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">isServer</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">state</span><span class="s3">.</span><span class="s1">isServer</span><span class="s3">) { </span><span class="s1">state</span><span class="s3">.</span><span class="s1">parser</span><span class="s3">.</span><span class="s1">skipPreface</span><span class="s3">() }</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">socket </span><span class="s3">= </span><span class="s1">socket</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_init</span><span class="s3">()</span>
+<span class="s3">}</span>
+<span class="s1">util</span><span class="s3">.</span><span class="s1">inherits</span><span class="s3">(</span><span class="s1">Connection</span><span class="s3">, </span><span class="s1">EventEmitter</span><span class="s3">)</span>
+<span class="s1">exports</span><span class="s3">.</span><span class="s1">Connection </span><span class="s3">= </span><span class="s1">Connection</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">create </span><span class="s3">= </span><span class="s2">function </span><span class="s1">create </span><span class="s3">(</span><span class="s1">socket</span><span class="s3">, </span><span class="s1">options</span><span class="s3">) {</span>
+  <span class="s2">return new </span><span class="s1">Connection</span><span class="s3">(</span><span class="s1">socket</span><span class="s3">, </span><span class="s1">options</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_init </span><span class="s3">= </span><span class="s2">function </span><span class="s1">init </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">self </span><span class="s3">= </span><span class="s2">this</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+  <span class="s2">var </span><span class="s1">pool </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">pool</span>
+
+  <span class="s4">// Initialize session window</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">recv</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s0">'drain'</span><span class="s3">, </span><span class="s2">function </span><span class="s3">() {</span>
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">_onSessionWindowDrain</span><span class="s3">()</span>
+  <span class="s3">})</span>
+
+  <span class="s4">// Initialize parser</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">parser</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s0">'data'</span><span class="s3">, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">) {</span>
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">_handleFrame</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">)</span>
+  <span class="s3">})</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">parser</span><span class="s3">.</span><span class="s1">once</span><span class="s3">(</span><span class="s0">'version'</span><span class="s3">, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">version</span><span class="s3">) {</span>
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">_onVersion</span><span class="s3">(</span><span class="s1">version</span><span class="s3">)</span>
+  <span class="s3">})</span>
+
+  <span class="s4">// Propagate parser errors</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">parser</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">_onParserError</span><span class="s3">(</span><span class="s1">err</span><span class="s3">)</span>
+  <span class="s3">})</span>
+
+  <span class="s4">// Propagate framer errors</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s1">err</span><span class="s3">)</span>
+  <span class="s3">})</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">socket</span><span class="s3">.</span><span class="s1">pipe</span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">parser</span><span class="s3">)</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">pipe</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">socket</span><span class="s3">)</span>
+
+  <span class="s4">// Allow high-level api to catch socket errors</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">socket</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s2">function </span><span class="s1">onSocketError </span><span class="s3">(</span><span class="s1">e</span><span class="s3">) {</span>
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s1">e</span><span class="s3">)</span>
+  <span class="s3">})</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">socket</span><span class="s3">.</span><span class="s1">once</span><span class="s3">(</span><span class="s0">'close'</span><span class="s3">, </span><span class="s2">function </span><span class="s1">onclose </span><span class="s3">(</span><span class="s1">hadError</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">err</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">hadError</span><span class="s3">) {</span>
+      <span class="s1">err </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Error</span><span class="s3">(</span><span class="s0">'socket hang up'</span><span class="s3">)</span>
+      <span class="s1">err</span><span class="s3">.</span><span class="s1">code </span><span class="s3">= </span><span class="s0">'ECONNRESET'</span>
+    <span class="s3">}</span>
+
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">destroyStreams</span><span class="s3">(</span><span class="s1">err</span><span class="s3">)</span>
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'close'</span><span class="s3">)</span>
+
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">pair</span><span class="s3">) {</span>
+      <span class="s1">pool</span><span class="s3">.</span><span class="s1">put</span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">pair</span><span class="s3">)</span>
+    <span class="s3">}</span>
+
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">resume</span><span class="s3">()</span>
+  <span class="s3">})</span>
+
+  <span class="s4">// Reset timeout on close</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">once</span><span class="s3">(</span><span class="s0">'close'</span><span class="s3">, </span><span class="s2">function </span><span class="s3">() {</span>
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">setTimeout</span><span class="s3">(</span><span class="s5">0</span><span class="s3">)</span>
+  <span class="s3">})</span>
+
+  <span class="s2">function </span><span class="s1">_onWindowOverflow </span><span class="s3">() {</span>
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">_onWindowOverflow</span><span class="s3">()</span>
+  <span class="s3">}</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">recv</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s0">'overflow'</span><span class="s3">, </span><span class="s1">_onWindowOverflow</span><span class="s3">)</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">send</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s0">'overflow'</span><span class="s3">, </span><span class="s1">_onWindowOverflow</span><span class="s3">)</span>
+
+  <span class="s4">// Do not allow half-open connections</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">socket</span><span class="s3">.</span><span class="s1">allowHalfOpen </span><span class="s3">= </span><span class="s2">false</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_onVersion </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_onVersion </span><span class="s3">(</span><span class="s1">version</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+  <span class="s2">var </span><span class="s1">prev </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">version</span>
+  <span class="s2">var </span><span class="s1">parser </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">parser</span>
+  <span class="s2">var </span><span class="s1">framer </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span>
+  <span class="s2">var </span><span class="s1">pool </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">pool</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">version </span><span class="s3">= </span><span class="s1">version</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=0 version=%d'</span><span class="s3">, </span><span class="s1">version</span><span class="s3">)</span>
+
+  <span class="s4">// Ignore transition to 3.1</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">prev</span><span class="s3">) {</span>
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">pair </span><span class="s3">= </span><span class="s1">pool</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">version</span><span class="s3">)</span>
+    <span class="s1">parser</span><span class="s3">.</span><span class="s1">setCompression</span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">pair</span><span class="s3">)</span>
+    <span class="s1">framer</span><span class="s3">.</span><span class="s1">setCompression</span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">pair</span><span class="s3">)</span>
+  <span class="s3">}</span>
+  <span class="s1">framer</span><span class="s3">.</span><span class="s1">setVersion</span><span class="s3">(</span><span class="s1">version</span><span class="s3">)</span>
+
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">state</span><span class="s3">.</span><span class="s1">isServer</span><span class="s3">) {</span>
+    <span class="s1">framer</span><span class="s3">.</span><span class="s1">prefaceFrame</span><span class="s3">()</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">xForward </span><span class="s3">!== </span><span class="s2">null</span><span class="s3">) {</span>
+      <span class="s1">framer</span><span class="s3">.</span><span class="s1">xForwardedFor</span><span class="s3">({ </span><span class="s1">host</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">xForward </span><span class="s3">})</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// Send preface+settings frame (once)</span>
+  <span class="s1">framer</span><span class="s3">.</span><span class="s1">settingsFrame</span><span class="s3">({</span>
+    <span class="s1">max_header_list_size</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">DEFAULT_MAX_HEADER_LIST_SIZE</span><span class="s3">,</span>
+    <span class="s1">max_concurrent_streams</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">maxStreams</span><span class="s3">,</span>
+    <span class="s1">enable_push</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">acceptPush </span><span class="s3">? </span><span class="s5">1 </span><span class="s3">: </span><span class="s5">0</span><span class="s3">,</span>
+    <span class="s1">initial_window_size</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">recv</span><span class="s3">.</span><span class="s1">max</span>
+  <span class="s3">})</span>
+
+  <span class="s4">// Update session window</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">version </span><span class="s3">&gt;= </span><span class="s5">3.1 </span><span class="s3">|| (</span><span class="s1">state</span><span class="s3">.</span><span class="s1">isServer </span><span class="s3">&amp;&amp; </span><span class="s1">state</span><span class="s3">.</span><span class="s1">autoSpdy31</span><span class="s3">)) { </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_onSessionWindowDrain</span><span class="s3">() }</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'version'</span><span class="s3">, </span><span class="s1">version</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_onParserError </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_onParserError </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+
+  <span class="s4">// Prevent further errors</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">parser</span><span class="s3">.</span><span class="s1">kill</span><span class="s3">()</span>
+
+  <span class="s4">// Send GOAWAY</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">err </span><span class="s2">instanceof </span><span class="s1">transport</span><span class="s3">.</span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">base</span><span class="s3">.</span><span class="s1">utils</span><span class="s3">.</span><span class="s1">ProtocolError</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_goaway</span><span class="s3">({</span>
+      <span class="s1">lastId</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">lastId</span><span class="s3">.</span><span class="s1">both</span><span class="s3">,</span>
+      <span class="s1">code</span><span class="s3">: </span><span class="s1">err</span><span class="s3">.</span><span class="s1">code</span><span class="s3">,</span>
+      <span class="s1">extra</span><span class="s3">: </span><span class="s1">err</span><span class="s3">.</span><span class="s1">message</span><span class="s3">,</span>
+      <span class="s1">send</span><span class="s3">: </span><span class="s2">true</span>
+    <span class="s3">})</span>
+  <span class="s3">}</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s1">err</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_handleFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_handleFrame </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=0 frame'</span><span class="s3">, </span><span class="s1">frame</span><span class="s3">)</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">timeout</span><span class="s3">.</span><span class="s1">reset</span><span class="s3">()</span>
+
+  <span class="s4">// For testing purposes</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'frame'</span><span class="s3">, </span><span class="s1">frame</span><span class="s3">)</span>
+
+  <span class="s2">var </span><span class="s1">stream</span>
+
+  <span class="s4">// Session window update</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">type </span><span class="s3">=== </span><span class="s0">'WINDOW_UPDATE' </span><span class="s3">&amp;&amp; </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id </span><span class="s3">=== </span><span class="s5">0</span><span class="s3">) {</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">version </span><span class="s3">&lt; </span><span class="s5">3.1 </span><span class="s3">&amp;&amp; </span><span class="s1">state</span><span class="s3">.</span><span class="s1">autoSpdy31</span><span class="s3">) {</span>
+      <span class="s1">state</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=0 switch version to 3.1'</span><span class="s3">)</span>
+      <span class="s1">state</span><span class="s3">.</span><span class="s1">version </span><span class="s3">= </span><span class="s5">3.1</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'version'</span><span class="s3">, </span><span class="s5">3.1</span><span class="s3">)</span>
+    <span class="s3">}</span>
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">send</span><span class="s3">.</span><span class="s1">update</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">delta</span><span class="s3">)</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">isServer </span><span class="s3">&amp;&amp; </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">type </span><span class="s3">=== </span><span class="s0">'PUSH_PROMISE'</span><span class="s3">) {</span>
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=0 server PUSH_PROMISE'</span><span class="s3">)</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_goaway</span><span class="s3">({</span>
+      <span class="s1">lastId</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">lastId</span><span class="s3">.</span><span class="s1">both</span><span class="s3">,</span>
+      <span class="s1">code</span><span class="s3">: </span><span class="s0">'PROTOCOL_ERROR'</span><span class="s3">,</span>
+      <span class="s1">send</span><span class="s3">: </span><span class="s2">true</span>
+    <span class="s3">})</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">stream </span><span class="s3">&amp;&amp; </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+    <span class="s4">// Load created one</span>
+    <span class="s1">stream </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">map</span><span class="s3">[</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">]</span>
+
+    <span class="s4">// Fail if not found</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">stream </span><span class="s3">&amp;&amp;</span>
+        <span class="s1">frame</span><span class="s3">.</span><span class="s1">type </span><span class="s3">!== </span><span class="s0">'HEADERS' </span><span class="s3">&amp;&amp;</span>
+        <span class="s1">frame</span><span class="s3">.</span><span class="s1">type </span><span class="s3">!== </span><span class="s0">'PRIORITY' </span><span class="s3">&amp;&amp;</span>
+        <span class="s1">frame</span><span class="s3">.</span><span class="s1">type </span><span class="s3">!== </span><span class="s0">'RST'</span><span class="s3">) {</span>
+      <span class="s4">// Other side should destroy the stream upon receiving GOAWAY</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">_isGoaway</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">)) { </span><span class="s2">return </span><span class="s3">}</span>
+
+      <span class="s1">state</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=0 stream=%d not found'</span><span class="s3">, </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">)</span>
+      <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">rstFrame</span><span class="s3">({ </span><span class="s1">id</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">, </span><span class="s1">code</span><span class="s3">: </span><span class="s0">'INVALID_STREAM' </span><span class="s3">})</span>
+      <span class="s2">return</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// Create new stream</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">stream </span><span class="s3">&amp;&amp; </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">type </span><span class="s3">=== </span><span class="s0">'HEADERS'</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_handleHeaders</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">)</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">stream</span><span class="s3">) {</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">_handleFrame</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">)</span>
+  <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">type </span><span class="s3">=== </span><span class="s0">'SETTINGS'</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_handleSettings</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">settings</span><span class="s3">)</span>
+  <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">type </span><span class="s3">=== </span><span class="s0">'ACK_SETTINGS'</span><span class="s3">) {</span>
+    <span class="s4">// TODO(indutny): handle it one day</span>
+  <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">type </span><span class="s3">=== </span><span class="s0">'PING'</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_handlePing</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">)</span>
+  <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">type </span><span class="s3">=== </span><span class="s0">'GOAWAY'</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_handleGoaway</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">)</span>
+  <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">type </span><span class="s3">=== </span><span class="s0">'X_FORWARDED_FOR'</span><span class="s3">) {</span>
+    <span class="s4">// Set X-Forwarded-For only once</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">xForward </span><span class="s3">=== </span><span class="s2">null</span><span class="s3">) {</span>
+      <span class="s1">state</span><span class="s3">.</span><span class="s1">xForward </span><span class="s3">= </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">host</span>
+    <span class="s3">}</span>
+  <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">type </span><span class="s3">=== </span><span class="s0">'PRIORITY'</span><span class="s3">) {</span>
+    <span class="s4">// TODO(indutny): handle this</span>
+  <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=0 unknown frame type: %s'</span><span class="s3">, </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">type</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_onWindowOverflow </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_onWindowOverflow </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=0 window overflow'</span><span class="s3">)</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_goaway</span><span class="s3">({</span>
+    <span class="s1">lastId</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">lastId</span><span class="s3">.</span><span class="s1">both</span><span class="s3">,</span>
+    <span class="s1">code</span><span class="s3">: </span><span class="s0">'FLOW_CONTROL_ERROR'</span><span class="s3">,</span>
+    <span class="s1">send</span><span class="s3">: </span><span class="s2">true</span>
+  <span class="s3">})</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_isGoaway </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_isGoaway </span><span class="s3">(</span><span class="s1">id</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">goaway </span><span class="s3">!== </span><span class="s2">false </span><span class="s3">&amp;&amp; </span><span class="s1">state</span><span class="s3">.</span><span class="s1">goaway </span><span class="s3">&lt; </span><span class="s1">id</span><span class="s3">) { </span><span class="s2">return true </span><span class="s3">}</span>
+  <span class="s2">return false</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_getId </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_getId </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+
+  <span class="s2">var </span><span class="s1">id </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">nextId</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">nextId </span><span class="s3">+= </span><span class="s5">2</span>
+  <span class="s2">return </span><span class="s1">id</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_createStream </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_createStream </span><span class="s3">(</span><span class="s1">uri</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+  <span class="s2">var </span><span class="s1">id </span><span class="s3">= </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">id</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">id </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) { </span><span class="s1">id </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_getId</span><span class="s3">() }</span>
+
+  <span class="s2">var </span><span class="s1">isGoaway </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_isGoaway</span><span class="s3">(</span><span class="s1">id</span><span class="s3">)</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">uri</span><span class="s3">.</span><span class="s1">push </span><span class="s3">&amp;&amp; !</span><span class="s1">state</span><span class="s3">.</span><span class="s1">acceptPush</span><span class="s3">) {</span>
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=0 push disabled promisedId=%d'</span><span class="s3">, </span><span class="s1">id</span><span class="s3">)</span>
+
+    <span class="s4">// Fatal error</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_goaway</span><span class="s3">({</span>
+      <span class="s1">lastId</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">lastId</span><span class="s3">.</span><span class="s1">both</span><span class="s3">,</span>
+      <span class="s1">code</span><span class="s3">: </span><span class="s0">'PROTOCOL_ERROR'</span><span class="s3">,</span>
+      <span class="s1">send</span><span class="s3">: </span><span class="s2">true</span>
+    <span class="s3">})</span>
+    <span class="s1">isGoaway </span><span class="s3">= </span><span class="s2">true</span>
+  <span class="s3">}</span>
+
+  <span class="s2">var </span><span class="s1">stream </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Stream</span><span class="s3">(</span><span class="s2">this</span><span class="s3">, {</span>
+    <span class="s1">id</span><span class="s3">: </span><span class="s1">id</span><span class="s3">,</span>
+    <span class="s1">request</span><span class="s3">: </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">request </span><span class="s3">!== </span><span class="s2">false</span><span class="s3">,</span>
+    <span class="s1">method</span><span class="s3">: </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">method</span><span class="s3">,</span>
+    <span class="s1">path</span><span class="s3">: </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">path</span><span class="s3">,</span>
+    <span class="s1">host</span><span class="s3">: </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">host</span><span class="s3">,</span>
+    <span class="s1">priority</span><span class="s3">: </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">priority</span><span class="s3">,</span>
+    <span class="s1">headers</span><span class="s3">: </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">headers</span><span class="s3">,</span>
+    <span class="s1">parent</span><span class="s3">: </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">,</span>
+    <span class="s1">readable</span><span class="s3">: !</span><span class="s1">isGoaway </span><span class="s3">&amp;&amp; </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">readable</span><span class="s3">,</span>
+    <span class="s1">writable</span><span class="s3">: !</span><span class="s1">isGoaway </span><span class="s3">&amp;&amp; </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">writable</span>
+  <span class="s3">})</span>
+  <span class="s2">var </span><span class="s1">self </span><span class="s3">= </span><span class="s2">this</span>
+
+  <span class="s4">// Just an empty stream for API consistency</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">isGoaway</span><span class="s3">) {</span>
+    <span class="s2">return </span><span class="s1">stream</span>
+  <span class="s3">}</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">lastId</span><span class="s3">.</span><span class="s1">both </span><span class="s3">= </span><span class="s1">Math</span><span class="s3">.</span><span class="s1">max</span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">lastId</span><span class="s3">.</span><span class="s1">both</span><span class="s3">, </span><span class="s1">id</span><span class="s3">)</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=0 add stream=%d'</span><span class="s3">, </span><span class="s1">stream</span><span class="s3">.</span><span class="s1">id</span><span class="s3">)</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">map</span><span class="s3">[</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">id</span><span class="s3">] = </span><span class="s1">stream</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">count</span><span class="s3">++</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">counters</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">++</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">parent </span><span class="s3">!== </span><span class="s2">null</span><span class="s3">) {</span>
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">counters</span><span class="s3">.</span><span class="s1">push</span><span class="s3">++</span>
+  <span class="s3">}</span>
+
+  <span class="s1">stream</span><span class="s3">.</span><span class="s1">once</span><span class="s3">(</span><span class="s0">'close'</span><span class="s3">, </span><span class="s2">function </span><span class="s3">() {</span>
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">_removeStream</span><span class="s3">(</span><span class="s1">stream</span><span class="s3">)</span>
+  <span class="s3">})</span>
+
+  <span class="s2">return </span><span class="s1">stream</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_handleHeaders </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_handleHeaders </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+
+  <span class="s4">// Must be HEADERS frame after stream close</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id </span><span class="s3">&lt;= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">lastId</span><span class="s3">.</span><span class="s1">received</span><span class="s3">) { </span><span class="s2">return </span><span class="s3">}</span>
+
+  <span class="s4">// Someone is using our ids!</span>
+  <span class="s2">if </span><span class="s3">((</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id </span><span class="s3">+ </span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">nextId</span><span class="s3">) % </span><span class="s5">2 </span><span class="s3">=== </span><span class="s5">0</span><span class="s3">) {</span>
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">rstFrame</span><span class="s3">({ </span><span class="s1">id</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">, </span><span class="s1">code</span><span class="s3">: </span><span class="s0">'PROTOCOL_ERROR' </span><span class="s3">})</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+
+  <span class="s2">var </span><span class="s1">stream </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_createStream</span><span class="s3">({</span>
+    <span class="s1">id</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+    <span class="s1">request</span><span class="s3">: </span><span class="s2">false</span><span class="s3">,</span>
+    <span class="s1">method</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">headers</span><span class="s3">[</span><span class="s0">':method'</span><span class="s3">],</span>
+    <span class="s1">path</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">headers</span><span class="s3">[</span><span class="s0">':path'</span><span class="s3">],</span>
+    <span class="s1">host</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">headers</span><span class="s3">[</span><span class="s0">':authority'</span><span class="s3">],</span>
+    <span class="s1">priority</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">priority</span><span class="s3">,</span>
+    <span class="s1">headers</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">headers</span><span class="s3">,</span>
+    <span class="s1">writable</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">writable</span>
+  <span class="s3">})</span>
+
+  <span class="s4">// GOAWAY</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">_isGoaway</span><span class="s3">(</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">id</span><span class="s3">)) {</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">lastId</span><span class="s3">.</span><span class="s1">received </span><span class="s3">= </span><span class="s1">Math</span><span class="s3">.</span><span class="s1">max</span><span class="s3">(</span>
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">lastId</span><span class="s3">.</span><span class="s1">received</span><span class="s3">,</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">id</span>
+  <span class="s3">)</span>
+
+  <span class="s4">// TODO(indutny) handle stream limit</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s2">this</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'stream'</span><span class="s3">, </span><span class="s1">stream</span><span class="s3">)) {</span>
+    <span class="s4">// No listeners was set - abort the stream</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">abort</span><span class="s3">()</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// Create fake frame to simulate end of the data</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">fin</span><span class="s3">) {</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">_handleFrame</span><span class="s3">({ </span><span class="s1">type</span><span class="s3">: </span><span class="s0">'FIN'</span><span class="s3">, </span><span class="s1">fin</span><span class="s3">: </span><span class="s2">true </span><span class="s3">})</span>
+  <span class="s3">}</span>
+
+  <span class="s2">return </span><span class="s1">stream</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_onSessionWindowDrain </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_onSessionWindowDrain </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">version </span><span class="s3">&lt; </span><span class="s5">3.1 </span><span class="s3">&amp;&amp; !(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">isServer </span><span class="s3">&amp;&amp; </span><span class="s1">state</span><span class="s3">.</span><span class="s1">autoSpdy31</span><span class="s3">)) {</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+
+  <span class="s2">var </span><span class="s1">delta </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">recv</span><span class="s3">.</span><span class="s1">getDelta</span><span class="s3">()</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">delta </span><span class="s3">=== </span><span class="s5">0</span><span class="s3">) {</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=0 session window drain, update by %d'</span><span class="s3">, </span><span class="s1">delta</span><span class="s3">)</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">windowUpdateFrame</span><span class="s3">({</span>
+    <span class="s1">id</span><span class="s3">: </span><span class="s5">0</span><span class="s3">,</span>
+    <span class="s1">delta</span><span class="s3">: </span><span class="s1">delta</span>
+  <span class="s3">})</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">recv</span><span class="s3">.</span><span class="s1">update</span><span class="s3">(</span><span class="s1">delta</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">start </span><span class="s3">= </span><span class="s2">function </span><span class="s1">start </span><span class="s3">(</span><span class="s1">version</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span><span class="s3">.</span><span class="s1">parser</span><span class="s3">.</span><span class="s1">setVersion</span><span class="s3">(</span><span class="s1">version</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s4">// Mostly for testing</span>
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">getVersion </span><span class="s3">= </span><span class="s2">function </span><span class="s1">getVersion </span><span class="s3">() {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">_spdyState</span><span class="s3">.</span><span class="s1">version</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_handleSettings </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_handleSettings </span><span class="s3">(</span><span class="s1">settings</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">ackSettingsFrame</span><span class="s3">()</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_setDefaultWindow</span><span class="s3">(</span><span class="s1">settings</span><span class="s3">)</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">settings</span><span class="s3">.</span><span class="s1">max_frame_size</span><span class="s3">) { </span><span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">setMaxFrameSize</span><span class="s3">(</span><span class="s1">settings</span><span class="s3">.</span><span class="s1">max_frame_size</span><span class="s3">) }</span>
+
+  <span class="s4">// TODO(indutny): handle max_header_list_size</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">settings</span><span class="s3">.</span><span class="s1">header_table_size</span><span class="s3">) {</span>
+    <span class="s2">try </span><span class="s3">{</span>
+      <span class="s1">state</span><span class="s3">.</span><span class="s1">pair</span><span class="s3">.</span><span class="s1">compress</span><span class="s3">.</span><span class="s1">updateTableSize</span><span class="s3">(</span><span class="s1">settings</span><span class="s3">.</span><span class="s1">header_table_size</span><span class="s3">)</span>
+    <span class="s3">} </span><span class="s2">catch </span><span class="s3">(</span><span class="s1">e</span><span class="s3">) {</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">_goaway</span><span class="s3">({</span>
+        <span class="s1">lastId</span><span class="s3">: </span><span class="s5">0</span><span class="s3">,</span>
+        <span class="s1">code</span><span class="s3">: </span><span class="s0">'PROTOCOL_ERROR'</span><span class="s3">,</span>
+        <span class="s1">send</span><span class="s3">: </span><span class="s2">true</span>
+      <span class="s3">})</span>
+      <span class="s2">return</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// HTTP2 clients needs to enable PUSH streams explicitly</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">name </span><span class="s3">!== </span><span class="s0">'spdy'</span><span class="s3">) {</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">settings</span><span class="s3">.</span><span class="s1">enable_push </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+      <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">enablePush</span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">isServer</span><span class="s3">)</span>
+    <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+      <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">enablePush</span><span class="s3">(</span><span class="s1">settings</span><span class="s3">.</span><span class="s1">enable_push </span><span class="s3">=== </span><span class="s5">1</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// TODO(indutny): handle max_concurrent_streams</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_setDefaultWindow </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_setDefaultWindow </span><span class="s3">(</span><span class="s1">settings</span><span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">settings</span><span class="s3">.</span><span class="s1">initial_window_size </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+
+  <span class="s4">// Update defaults</span>
+  <span class="s2">var </span><span class="s1">window </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">streamWindow</span>
+  <span class="s1">window</span><span class="s3">.</span><span class="s1">send</span><span class="s3">.</span><span class="s1">setMax</span><span class="s3">(</span><span class="s1">settings</span><span class="s3">.</span><span class="s1">initial_window_size</span><span class="s3">)</span>
+
+  <span class="s4">// Update existing streams</span>
+  <span class="s1">Object</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">map</span><span class="s3">).</span><span class="s1">forEach</span><span class="s3">(</span><span class="s2">function </span><span class="s3">(</span><span class="s1">id</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">stream </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">map</span><span class="s3">[</span><span class="s1">id</span><span class="s3">]</span>
+    <span class="s2">var </span><span class="s1">window </span><span class="s3">= </span><span class="s1">stream</span><span class="s3">.</span><span class="s1">_spdyState</span><span class="s3">.</span><span class="s1">window</span>
+
+    <span class="s1">window</span><span class="s3">.</span><span class="s1">send</span><span class="s3">.</span><span class="s1">updateMax</span><span class="s3">(</span><span class="s1">settings</span><span class="s3">.</span><span class="s1">initial_window_size</span><span class="s3">)</span>
+  <span class="s3">})</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_handlePing </span><span class="s3">= </span><span class="s2">function </span><span class="s1">handlePing </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">self </span><span class="s3">= </span><span class="s2">this</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+
+  <span class="s4">// Handle incoming PING</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">ack</span><span class="s3">) {</span>
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">pingFrame</span><span class="s3">({</span>
+      <span class="s1">opaque</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">opaque</span><span class="s3">,</span>
+      <span class="s1">ack</span><span class="s3">: </span><span class="s2">true</span>
+    <span class="s3">})</span>
+
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'ping'</span><span class="s3">, </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">opaque</span><span class="s3">)</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// Handle reply PING</span>
+  <span class="s2">var </span><span class="s1">hex </span><span class="s3">= </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">opaque</span><span class="s3">.</span><span class="s1">toString</span><span class="s3">(</span><span class="s0">'hex'</span><span class="s3">)</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">state</span><span class="s3">.</span><span class="s1">ping</span><span class="s3">.</span><span class="s1">map</span><span class="s3">[</span><span class="s1">hex</span><span class="s3">]) {</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+  <span class="s2">var </span><span class="s1">ping </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">ping</span><span class="s3">.</span><span class="s1">map</span><span class="s3">[</span><span class="s1">hex</span><span class="s3">]</span>
+  <span class="s2">delete </span><span class="s1">state</span><span class="s3">.</span><span class="s1">ping</span><span class="s3">.</span><span class="s1">map</span><span class="s3">[</span><span class="s1">hex</span><span class="s3">]</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">ping</span><span class="s3">.</span><span class="s1">cb</span><span class="s3">) {</span>
+    <span class="s1">ping</span><span class="s3">.</span><span class="s1">cb</span><span class="s3">(</span><span class="s2">null</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_handleGoaway </span><span class="s3">= </span><span class="s2">function </span><span class="s1">handleGoaway </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_goaway</span><span class="s3">({</span>
+    <span class="s1">lastId</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">lastId</span><span class="s3">,</span>
+    <span class="s1">code</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">code</span><span class="s3">,</span>
+    <span class="s1">send</span><span class="s3">: </span><span class="s2">false</span>
+  <span class="s3">})</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">ping </span><span class="s3">= </span><span class="s2">function </span><span class="s1">ping </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+
+  <span class="s4">// HTTP2 is using 8-byte opaque</span>
+  <span class="s2">var </span><span class="s1">opaque </span><span class="s3">= </span><span class="s1">Buffer</span><span class="s3">.</span><span class="s1">alloc</span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">PING_OPAQUE_SIZE</span><span class="s3">)</span>
+  <span class="s1">opaque</span><span class="s3">.</span><span class="s1">fill</span><span class="s3">(</span><span class="s5">0</span><span class="s3">)</span>
+  <span class="s1">opaque</span><span class="s3">.</span><span class="s1">writeUInt32BE</span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">ping</span><span class="s3">.</span><span class="s1">nextId</span><span class="s3">, </span><span class="s1">opaque</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s5">4</span><span class="s3">)</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">ping</span><span class="s3">.</span><span class="s1">nextId </span><span class="s3">+= </span><span class="s5">2</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">ping</span><span class="s3">.</span><span class="s1">map</span><span class="s3">[</span><span class="s1">opaque</span><span class="s3">.</span><span class="s1">toString</span><span class="s3">(</span><span class="s0">'hex'</span><span class="s3">)] = { </span><span class="s1">cb</span><span class="s3">: </span><span class="s1">callback </span><span class="s3">}</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">pingFrame</span><span class="s3">({</span>
+    <span class="s1">opaque</span><span class="s3">: </span><span class="s1">opaque</span><span class="s3">,</span>
+    <span class="s1">ack</span><span class="s3">: </span><span class="s2">false</span>
+  <span class="s3">})</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">getCounter </span><span class="s3">= </span><span class="s2">function </span><span class="s1">getCounter </span><span class="s3">(</span><span class="s1">name</span><span class="s3">) {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">_spdyState</span><span class="s3">.</span><span class="s1">counters</span><span class="s3">[</span><span class="s1">name</span><span class="s3">]</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">reserveStream </span><span class="s3">= </span><span class="s2">function </span><span class="s1">reserveStream </span><span class="s3">(</span><span class="s1">uri</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">stream </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_createStream</span><span class="s3">(</span><span class="s1">uri</span><span class="s3">)</span>
+
+  <span class="s4">// GOAWAY</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">_isGoaway</span><span class="s3">(</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">id</span><span class="s3">)) {</span>
+    <span class="s2">var </span><span class="s1">err </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Error</span><span class="s3">(</span><span class="s0">'Can</span><span class="s2">\'</span><span class="s0">t send request after GOAWAY'</span><span class="s3">)</span>
+    <span class="s1">process</span><span class="s3">.</span><span class="s1">nextTick</span><span class="s3">(</span><span class="s2">function </span><span class="s3">() {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) { </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">) } </span><span class="s2">else </span><span class="s3">{</span>
+        <span class="s1">stream</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s1">err</span><span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">})</span>
+    <span class="s2">return </span><span class="s1">stream</span>
+  <span class="s3">}</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+    <span class="s1">process</span><span class="s3">.</span><span class="s1">nextTick</span><span class="s3">(</span><span class="s2">function </span><span class="s3">() {</span>
+      <span class="s1">callback</span><span class="s3">(</span><span class="s2">null</span><span class="s3">, </span><span class="s1">stream</span><span class="s3">)</span>
+    <span class="s3">})</span>
+  <span class="s3">}</span>
+
+  <span class="s2">return </span><span class="s1">stream</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">request </span><span class="s3">= </span><span class="s2">function </span><span class="s1">request </span><span class="s3">(</span><span class="s1">uri</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">stream </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">reserveStream</span><span class="s3">(</span><span class="s1">uri</span><span class="s3">, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+        <span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">)</span>
+      <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+        <span class="s1">stream</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s1">err</span><span class="s3">)</span>
+      <span class="s3">}</span>
+      <span class="s2">return</span>
+    <span class="s3">}</span>
+
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">_wasSent</span><span class="s3">()) {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+        <span class="s1">callback</span><span class="s3">(</span><span class="s2">null</span><span class="s3">, </span><span class="s1">stream</span><span class="s3">)</span>
+      <span class="s3">}</span>
+      <span class="s2">return</span>
+    <span class="s3">}</span>
+
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">send</span><span class="s3">(</span><span class="s2">function </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+        <span class="s2">if </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) { </span><span class="s2">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">) } </span><span class="s2">else </span><span class="s3">{ </span><span class="s2">return </span><span class="s1">stream</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s1">err</span><span class="s3">) }</span>
+      <span class="s3">}</span>
+
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+        <span class="s1">callback</span><span class="s3">(</span><span class="s2">null</span><span class="s3">, </span><span class="s1">stream</span><span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">})</span>
+  <span class="s3">})</span>
+
+  <span class="s2">return </span><span class="s1">stream</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_removeStream </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_removeStream </span><span class="s3">(</span><span class="s1">stream</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=0 remove stream=%d'</span><span class="s3">, </span><span class="s1">stream</span><span class="s3">.</span><span class="s1">id</span><span class="s3">)</span>
+  <span class="s2">delete </span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">map</span><span class="s3">[</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">id</span><span class="s3">]</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">count</span><span class="s3">--</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">count </span><span class="s3">=== </span><span class="s5">0</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'_streamDrain'</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_goaway </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_goaway </span><span class="s3">(</span><span class="s1">params</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+  <span class="s2">var </span><span class="s1">self </span><span class="s3">= </span><span class="s2">this</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">goaway </span><span class="s3">= </span><span class="s1">params</span><span class="s3">.</span><span class="s1">lastId</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=0 goaway from=%d'</span><span class="s3">, </span><span class="s1">state</span><span class="s3">.</span><span class="s1">goaway</span><span class="s3">)</span>
+
+  <span class="s1">Object</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">map</span><span class="s3">).</span><span class="s1">forEach</span><span class="s3">(</span><span class="s2">function </span><span class="s3">(</span><span class="s1">id</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">stream </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">map</span><span class="s3">[</span><span class="s1">id</span><span class="s3">]</span>
+
+    <span class="s4">// Abort every stream started after GOAWAY</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">id </span><span class="s3">&lt;= </span><span class="s1">params</span><span class="s3">.</span><span class="s1">lastId</span><span class="s3">) {</span>
+      <span class="s2">return</span>
+    <span class="s3">}</span>
+
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">abort</span><span class="s3">()</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s2">new </span><span class="s1">Error</span><span class="s3">(</span><span class="s0">'New stream after GOAWAY'</span><span class="s3">))</span>
+  <span class="s3">})</span>
+
+  <span class="s2">function </span><span class="s1">finish </span><span class="s3">() {</span>
+    <span class="s4">// Destroy socket if there are no streams</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">count </span><span class="s3">=== </span><span class="s5">0 </span><span class="s3">|| </span><span class="s1">params</span><span class="s3">.</span><span class="s1">code </span><span class="s3">!== </span><span class="s0">'OK'</span><span class="s3">) {</span>
+      <span class="s4">// No further frames should be processed</span>
+      <span class="s1">state</span><span class="s3">.</span><span class="s1">parser</span><span class="s3">.</span><span class="s1">kill</span><span class="s3">()</span>
+
+      <span class="s1">process</span><span class="s3">.</span><span class="s1">nextTick</span><span class="s3">(</span><span class="s2">function </span><span class="s3">() {</span>
+        <span class="s2">var </span><span class="s1">err </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Error</span><span class="s3">(</span><span class="s0">'Fatal error: ' </span><span class="s3">+ </span><span class="s1">params</span><span class="s3">.</span><span class="s1">code</span><span class="s3">)</span>
+        <span class="s1">self</span><span class="s3">.</span><span class="s1">_onStreamDrain</span><span class="s3">(</span><span class="s1">err</span><span class="s3">)</span>
+      <span class="s3">})</span>
+      <span class="s2">return</span>
+    <span class="s3">}</span>
+
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s0">'_streamDrain'</span><span class="s3">, </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_onStreamDrain</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">params</span><span class="s3">.</span><span class="s1">send</span><span class="s3">) {</span>
+    <span class="s4">// Make sure that GOAWAY frame is sent before dumping framer</span>
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">goawayFrame</span><span class="s3">({</span>
+      <span class="s1">lastId</span><span class="s3">: </span><span class="s1">params</span><span class="s3">.</span><span class="s1">lastId</span><span class="s3">,</span>
+      <span class="s1">code</span><span class="s3">: </span><span class="s1">params</span><span class="s3">.</span><span class="s1">code</span><span class="s3">,</span>
+      <span class="s1">extra</span><span class="s3">: </span><span class="s1">params</span><span class="s3">.</span><span class="s1">extra</span>
+    <span class="s3">}, </span><span class="s1">finish</span><span class="s3">)</span>
+  <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+    <span class="s1">finish</span><span class="s3">()</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_onStreamDrain </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_onStreamDrain </span><span class="s3">(</span><span class="s1">error</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=0 _onStreamDrain'</span><span class="s3">)</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">dump</span><span class="s3">()</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">unpipe</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">socket</span><span class="s3">)</span>
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">resume</span><span class="s3">()</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">socket</span><span class="s3">.</span><span class="s1">destroySoon</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">socket</span><span class="s3">.</span><span class="s1">destroySoon</span><span class="s3">()</span>
+  <span class="s3">}</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'close'</span><span class="s3">, </span><span class="s1">error</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">end </span><span class="s3">= </span><span class="s2">function </span><span class="s1">end </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">once</span><span class="s3">(</span><span class="s0">'close'</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">)</span>
+  <span class="s3">}</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_goaway</span><span class="s3">({</span>
+    <span class="s1">lastId</span><span class="s3">: </span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">lastId</span><span class="s3">.</span><span class="s1">both</span><span class="s3">,</span>
+    <span class="s1">code</span><span class="s3">: </span><span class="s0">'OK'</span><span class="s3">,</span>
+    <span class="s1">send</span><span class="s3">: </span><span class="s2">true</span>
+  <span class="s3">})</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">destroyStreams </span><span class="s3">= </span><span class="s2">function </span><span class="s1">destroyStreams </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+  <span class="s1">Object</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">map</span><span class="s3">).</span><span class="s1">forEach</span><span class="s3">(</span><span class="s2">function </span><span class="s3">(</span><span class="s1">id</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">stream </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">map</span><span class="s3">[</span><span class="s1">id</span><span class="s3">]</span>
+
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">destroy</span><span class="s3">()</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+      <span class="s1">stream</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s1">err</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">})</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">isServer </span><span class="s3">= </span><span class="s2">function </span><span class="s1">isServer </span><span class="s3">() {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">_spdyState</span><span class="s3">.</span><span class="s1">isServer</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">getXForwardedFor </span><span class="s3">= </span><span class="s2">function </span><span class="s1">getXForwardFor </span><span class="s3">() {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">_spdyState</span><span class="s3">.</span><span class="s1">xForward</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">sendXForwardedFor </span><span class="s3">= </span><span class="s2">function </span><span class="s1">sendXForwardedFor </span><span class="s3">(</span><span class="s1">host</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">version </span><span class="s3">!== </span><span class="s2">null</span><span class="s3">) {</span>
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">framer</span><span class="s3">.</span><span class="s1">xForwardedFor</span><span class="s3">({ </span><span class="s1">host</span><span class="s3">: </span><span class="s1">host </span><span class="s3">})</span>
+  <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">xForward </span><span class="s3">= </span><span class="s1">host</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">pushPromise </span><span class="s3">= </span><span class="s2">function </span><span class="s1">pushPromise </span><span class="s3">(</span><span class="s1">parent</span><span class="s3">, </span><span class="s1">uri</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+
+  <span class="s2">var </span><span class="s1">stream </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_createStream</span><span class="s3">({</span>
+    <span class="s1">request</span><span class="s3">: </span><span class="s2">false</span><span class="s3">,</span>
+    <span class="s1">parent</span><span class="s3">: </span><span class="s1">parent</span><span class="s3">,</span>
+    <span class="s1">method</span><span class="s3">: </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">method</span><span class="s3">,</span>
+    <span class="s1">path</span><span class="s3">: </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">path</span><span class="s3">,</span>
+    <span class="s1">host</span><span class="s3">: </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">host</span><span class="s3">,</span>
+    <span class="s1">priority</span><span class="s3">: </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">priority</span><span class="s3">,</span>
+    <span class="s1">headers</span><span class="s3">: </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">headers</span><span class="s3">,</span>
+    <span class="s1">readable</span><span class="s3">: </span><span class="s2">false</span>
+  <span class="s3">})</span>
+
+  <span class="s2">var </span><span class="s1">err</span>
+
+  <span class="s4">// TODO(indutny): deduplicate this logic somehow</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">_isGoaway</span><span class="s3">(</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">id</span><span class="s3">)) {</span>
+    <span class="s1">err </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Error</span><span class="s3">(</span><span class="s0">'Can</span><span class="s2">\'</span><span class="s0">t send PUSH_PROMISE after GOAWAY'</span><span class="s3">)</span>
+
+    <span class="s1">process</span><span class="s3">.</span><span class="s1">nextTick</span><span class="s3">(</span><span class="s2">function </span><span class="s3">() {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+        <span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">)</span>
+      <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+        <span class="s1">stream</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s1">err</span><span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">})</span>
+    <span class="s2">return </span><span class="s1">stream</span>
+  <span class="s3">}</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">uri</span><span class="s3">.</span><span class="s1">push </span><span class="s3">&amp;&amp; !</span><span class="s1">state</span><span class="s3">.</span><span class="s1">acceptPush</span><span class="s3">) {</span>
+    <span class="s1">err </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Error</span><span class="s3">(</span>
+      <span class="s0">'Can</span><span class="s2">\'</span><span class="s0">t send PUSH_PROMISE, other side won</span><span class="s2">\'</span><span class="s0">t accept it'</span><span class="s3">)</span>
+    <span class="s1">process</span><span class="s3">.</span><span class="s1">nextTick</span><span class="s3">(</span><span class="s2">function </span><span class="s3">() {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) { </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">) } </span><span class="s2">else </span><span class="s3">{</span>
+        <span class="s1">stream</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s1">err</span><span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">})</span>
+    <span class="s2">return </span><span class="s1">stream</span>
+  <span class="s3">}</span>
+
+  <span class="s1">stream</span><span class="s3">.</span><span class="s1">_sendPush</span><span class="s3">(</span><span class="s1">uri</span><span class="s3">.</span><span class="s1">status</span><span class="s3">, </span><span class="s1">uri</span><span class="s3">.</span><span class="s1">response</span><span class="s3">, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">callback</span><span class="s3">) {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+        <span class="s1">stream</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s1">err</span><span class="s3">)</span>
+      <span class="s3">}</span>
+      <span class="s2">return</span>
+    <span class="s3">}</span>
+
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) { </span><span class="s2">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">) }</span>
+    <span class="s1">callback</span><span class="s3">(</span><span class="s2">null</span><span class="s3">, </span><span class="s1">stream</span><span class="s3">)</span>
+  <span class="s3">})</span>
+
+  <span class="s2">return </span><span class="s1">stream</span>
+<span class="s3">}</span>
+
+<span class="s1">Connection</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">setTimeout </span><span class="s3">= </span><span class="s2">function </span><span class="s1">setTimeout </span><span class="s3">(</span><span class="s1">delay</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">state </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_spdyState</span>
+
+  <span class="s1">state</span><span class="s3">.</span><span class="s1">timeout</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">delay</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">)</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

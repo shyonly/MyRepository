@@ -1,0 +1,679 @@
+<html>
+<head>
+<title>fetch.umd.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #bcbec4;}
+.s1 { color: #cf8e6d;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+fetch.umd.js</font>
+</center></td></tr></table>
+<pre><span class="s0">(</span><span class="s1">function </span><span class="s0">(</span><span class="s2">global</span><span class="s0">, </span><span class="s2">factory</span><span class="s0">) {</span>
+  <span class="s1">typeof </span><span class="s2">exports </span><span class="s0">=== </span><span class="s3">'object' </span><span class="s0">&amp;&amp; </span><span class="s1">typeof </span><span class="s2">module </span><span class="s0">!== </span><span class="s3">'undefined' </span><span class="s0">? </span><span class="s2">factory</span><span class="s0">(</span><span class="s2">exports</span><span class="s0">) :</span>
+  <span class="s1">typeof </span><span class="s2">define </span><span class="s0">=== </span><span class="s3">'function' </span><span class="s0">&amp;&amp; </span><span class="s2">define</span><span class="s0">.</span><span class="s2">amd </span><span class="s0">? </span><span class="s2">define</span><span class="s0">([</span><span class="s3">'exports'</span><span class="s0">], </span><span class="s2">factory</span><span class="s0">) :</span>
+  <span class="s0">(</span><span class="s2">factory</span><span class="s0">((</span><span class="s2">global</span><span class="s0">.</span><span class="s2">WHATWGFetch </span><span class="s0">= {})));</span>
+<span class="s0">}(</span><span class="s1">this</span><span class="s0">, (</span><span class="s1">function </span><span class="s0">(</span><span class="s2">exports</span><span class="s0">) { </span><span class="s3">'use strict'</span><span class="s0">;</span>
+
+  <span class="s4">/* eslint-disable no-prototype-builtins */</span>
+  <span class="s1">var </span><span class="s2">g </span><span class="s0">=</span>
+    <span class="s0">(</span><span class="s1">typeof </span><span class="s2">globalThis </span><span class="s0">!== </span><span class="s3">'undefined' </span><span class="s0">&amp;&amp; </span><span class="s2">globalThis</span><span class="s0">) ||</span>
+    <span class="s0">(</span><span class="s1">typeof </span><span class="s2">self </span><span class="s0">!== </span><span class="s3">'undefined' </span><span class="s0">&amp;&amp; </span><span class="s2">self</span><span class="s0">) ||</span>
+    <span class="s4">// eslint-disable-next-line no-undef</span>
+    <span class="s0">(</span><span class="s1">typeof </span><span class="s2">global </span><span class="s0">!== </span><span class="s3">'undefined' </span><span class="s0">&amp;&amp; </span><span class="s2">global</span><span class="s0">) ||</span>
+    <span class="s0">{};</span>
+
+  <span class="s1">var </span><span class="s2">support </span><span class="s0">= {</span>
+    <span class="s2">searchParams</span><span class="s0">: </span><span class="s3">'URLSearchParams' </span><span class="s1">in </span><span class="s2">g</span><span class="s0">,</span>
+    <span class="s2">iterable</span><span class="s0">: </span><span class="s3">'Symbol' </span><span class="s1">in </span><span class="s2">g </span><span class="s0">&amp;&amp; </span><span class="s3">'iterator' </span><span class="s1">in </span><span class="s2">Symbol</span><span class="s0">,</span>
+    <span class="s2">blob</span><span class="s0">:</span>
+      <span class="s3">'FileReader' </span><span class="s1">in </span><span class="s2">g </span><span class="s0">&amp;&amp;</span>
+      <span class="s3">'Blob' </span><span class="s1">in </span><span class="s2">g </span><span class="s0">&amp;&amp;</span>
+      <span class="s0">(</span><span class="s1">function</span><span class="s0">() {</span>
+        <span class="s1">try </span><span class="s0">{</span>
+          <span class="s1">new </span><span class="s2">Blob</span><span class="s0">();</span>
+          <span class="s1">return true</span>
+        <span class="s0">} </span><span class="s1">catch </span><span class="s0">(</span><span class="s2">e</span><span class="s0">) {</span>
+          <span class="s1">return false</span>
+        <span class="s0">}</span>
+      <span class="s0">})(),</span>
+    <span class="s2">formData</span><span class="s0">: </span><span class="s3">'FormData' </span><span class="s1">in </span><span class="s2">g</span><span class="s0">,</span>
+    <span class="s2">arrayBuffer</span><span class="s0">: </span><span class="s3">'ArrayBuffer' </span><span class="s1">in </span><span class="s2">g</span>
+  <span class="s0">};</span>
+
+  <span class="s1">function </span><span class="s2">isDataView</span><span class="s0">(</span><span class="s2">obj</span><span class="s0">) {</span>
+    <span class="s1">return </span><span class="s2">obj </span><span class="s0">&amp;&amp; </span><span class="s2">DataView</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">isPrototypeOf</span><span class="s0">(</span><span class="s2">obj</span><span class="s0">)</span>
+  <span class="s0">}</span>
+
+  <span class="s1">if </span><span class="s0">(</span><span class="s2">support</span><span class="s0">.</span><span class="s2">arrayBuffer</span><span class="s0">) {</span>
+    <span class="s1">var </span><span class="s2">viewClasses </span><span class="s0">= [</span>
+      <span class="s3">'[object Int8Array]'</span><span class="s0">,</span>
+      <span class="s3">'[object Uint8Array]'</span><span class="s0">,</span>
+      <span class="s3">'[object Uint8ClampedArray]'</span><span class="s0">,</span>
+      <span class="s3">'[object Int16Array]'</span><span class="s0">,</span>
+      <span class="s3">'[object Uint16Array]'</span><span class="s0">,</span>
+      <span class="s3">'[object Int32Array]'</span><span class="s0">,</span>
+      <span class="s3">'[object Uint32Array]'</span><span class="s0">,</span>
+      <span class="s3">'[object Float32Array]'</span><span class="s0">,</span>
+      <span class="s3">'[object Float64Array]'</span>
+    <span class="s0">];</span>
+
+    <span class="s1">var </span><span class="s2">isArrayBufferView </span><span class="s0">=</span>
+      <span class="s2">ArrayBuffer</span><span class="s0">.</span><span class="s2">isView </span><span class="s0">||</span>
+      <span class="s1">function</span><span class="s0">(</span><span class="s2">obj</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s2">obj </span><span class="s0">&amp;&amp; </span><span class="s2">viewClasses</span><span class="s0">.</span><span class="s2">indexOf</span><span class="s0">(</span><span class="s2">Object</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">toString</span><span class="s0">.</span><span class="s2">call</span><span class="s0">(</span><span class="s2">obj</span><span class="s0">)) &gt; -</span><span class="s5">1</span>
+      <span class="s0">};</span>
+  <span class="s0">}</span>
+
+  <span class="s1">function </span><span class="s2">normalizeName</span><span class="s0">(</span><span class="s2">name</span><span class="s0">) {</span>
+    <span class="s1">if </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">name </span><span class="s0">!== </span><span class="s3">'string'</span><span class="s0">) {</span>
+      <span class="s2">name </span><span class="s0">= </span><span class="s2">String</span><span class="s0">(</span><span class="s2">name</span><span class="s0">);</span>
+    <span class="s0">}</span>
+    <span class="s1">if </span><span class="s0">(</span><span class="s6">/[^a-z0-9\-#$%&amp;'*+.^_`|~!]/i</span><span class="s0">.</span><span class="s2">test</span><span class="s0">(</span><span class="s2">name</span><span class="s0">) || </span><span class="s2">name </span><span class="s0">=== </span><span class="s3">''</span><span class="s0">) {</span>
+      <span class="s1">throw new </span><span class="s2">TypeError</span><span class="s0">(</span><span class="s3">'Invalid character in header field name: &quot;' </span><span class="s0">+ </span><span class="s2">name </span><span class="s0">+ </span><span class="s3">'&quot;'</span><span class="s0">)</span>
+    <span class="s0">}</span>
+    <span class="s1">return </span><span class="s2">name</span><span class="s0">.</span><span class="s2">toLowerCase</span><span class="s0">()</span>
+  <span class="s0">}</span>
+
+  <span class="s1">function </span><span class="s2">normalizeValue</span><span class="s0">(</span><span class="s2">value</span><span class="s0">) {</span>
+    <span class="s1">if </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">value </span><span class="s0">!== </span><span class="s3">'string'</span><span class="s0">) {</span>
+      <span class="s2">value </span><span class="s0">= </span><span class="s2">String</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+    <span class="s0">}</span>
+    <span class="s1">return </span><span class="s2">value</span>
+  <span class="s0">}</span>
+
+  <span class="s4">// Build a destructive iterator for the value list</span>
+  <span class="s1">function </span><span class="s2">iteratorFor</span><span class="s0">(</span><span class="s2">items</span><span class="s0">) {</span>
+    <span class="s1">var </span><span class="s2">iterator </span><span class="s0">= {</span>
+      <span class="s2">next</span><span class="s0">: </span><span class="s1">function</span><span class="s0">() {</span>
+        <span class="s1">var </span><span class="s2">value </span><span class="s0">= </span><span class="s2">items</span><span class="s0">.</span><span class="s2">shift</span><span class="s0">();</span>
+        <span class="s1">return </span><span class="s0">{</span><span class="s2">done</span><span class="s0">: </span><span class="s2">value </span><span class="s0">=== </span><span class="s2">undefined</span><span class="s0">, </span><span class="s2">value</span><span class="s0">: </span><span class="s2">value</span><span class="s0">}</span>
+      <span class="s0">}</span>
+    <span class="s0">};</span>
+
+    <span class="s1">if </span><span class="s0">(</span><span class="s2">support</span><span class="s0">.</span><span class="s2">iterable</span><span class="s0">) {</span>
+      <span class="s2">iterator</span><span class="s0">[</span><span class="s2">Symbol</span><span class="s0">.</span><span class="s2">iterator</span><span class="s0">] = </span><span class="s1">function</span><span class="s0">() {</span>
+        <span class="s1">return </span><span class="s2">iterator</span>
+      <span class="s0">};</span>
+    <span class="s0">}</span>
+
+    <span class="s1">return </span><span class="s2">iterator</span>
+  <span class="s0">}</span>
+
+  <span class="s1">function </span><span class="s2">Headers</span><span class="s0">(</span><span class="s2">headers</span><span class="s0">) {</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">map </span><span class="s0">= {};</span>
+
+    <span class="s1">if </span><span class="s0">(</span><span class="s2">headers </span><span class="s1">instanceof </span><span class="s2">Headers</span><span class="s0">) {</span>
+      <span class="s2">headers</span><span class="s0">.</span><span class="s2">forEach</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">value</span><span class="s0">, </span><span class="s2">name</span><span class="s0">) {</span>
+        <span class="s1">this</span><span class="s0">.</span><span class="s2">append</span><span class="s0">(</span><span class="s2">name</span><span class="s0">, </span><span class="s2">value</span><span class="s0">);</span>
+      <span class="s0">}, </span><span class="s1">this</span><span class="s0">);</span>
+    <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">Array</span><span class="s0">.</span><span class="s2">isArray</span><span class="s0">(</span><span class="s2">headers</span><span class="s0">)) {</span>
+      <span class="s2">headers</span><span class="s0">.</span><span class="s2">forEach</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">header</span><span class="s0">) {</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">header</span><span class="s0">.</span><span class="s2">length </span><span class="s0">!= </span><span class="s5">2</span><span class="s0">) {</span>
+          <span class="s1">throw new </span><span class="s2">TypeError</span><span class="s0">(</span><span class="s3">'Headers constructor: expected name/value pair to be length 2, found' </span><span class="s0">+ </span><span class="s2">header</span><span class="s0">.</span><span class="s2">length</span><span class="s0">)</span>
+        <span class="s0">}</span>
+        <span class="s1">this</span><span class="s0">.</span><span class="s2">append</span><span class="s0">(</span><span class="s2">header</span><span class="s0">[</span><span class="s5">0</span><span class="s0">], </span><span class="s2">header</span><span class="s0">[</span><span class="s5">1</span><span class="s0">]);</span>
+      <span class="s0">}, </span><span class="s1">this</span><span class="s0">);</span>
+    <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">headers</span><span class="s0">) {</span>
+      <span class="s2">Object</span><span class="s0">.</span><span class="s2">getOwnPropertyNames</span><span class="s0">(</span><span class="s2">headers</span><span class="s0">).</span><span class="s2">forEach</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">name</span><span class="s0">) {</span>
+        <span class="s1">this</span><span class="s0">.</span><span class="s2">append</span><span class="s0">(</span><span class="s2">name</span><span class="s0">, </span><span class="s2">headers</span><span class="s0">[</span><span class="s2">name</span><span class="s0">]);</span>
+      <span class="s0">}, </span><span class="s1">this</span><span class="s0">);</span>
+    <span class="s0">}</span>
+  <span class="s0">}</span>
+
+  <span class="s2">Headers</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">append </span><span class="s0">= </span><span class="s1">function</span><span class="s0">(</span><span class="s2">name</span><span class="s0">, </span><span class="s2">value</span><span class="s0">) {</span>
+    <span class="s2">name </span><span class="s0">= </span><span class="s2">normalizeName</span><span class="s0">(</span><span class="s2">name</span><span class="s0">);</span>
+    <span class="s2">value </span><span class="s0">= </span><span class="s2">normalizeValue</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+    <span class="s1">var </span><span class="s2">oldValue </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">map</span><span class="s0">[</span><span class="s2">name</span><span class="s0">];</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">map</span><span class="s0">[</span><span class="s2">name</span><span class="s0">] = </span><span class="s2">oldValue </span><span class="s0">? </span><span class="s2">oldValue </span><span class="s0">+ </span><span class="s3">', ' </span><span class="s0">+ </span><span class="s2">value </span><span class="s0">: </span><span class="s2">value</span><span class="s0">;</span>
+  <span class="s0">};</span>
+
+  <span class="s2">Headers</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">[</span><span class="s3">'delete'</span><span class="s0">] = </span><span class="s1">function</span><span class="s0">(</span><span class="s2">name</span><span class="s0">) {</span>
+    <span class="s1">delete this</span><span class="s0">.</span><span class="s2">map</span><span class="s0">[</span><span class="s2">normalizeName</span><span class="s0">(</span><span class="s2">name</span><span class="s0">)];</span>
+  <span class="s0">};</span>
+
+  <span class="s2">Headers</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">get </span><span class="s0">= </span><span class="s1">function</span><span class="s0">(</span><span class="s2">name</span><span class="s0">) {</span>
+    <span class="s2">name </span><span class="s0">= </span><span class="s2">normalizeName</span><span class="s0">(</span><span class="s2">name</span><span class="s0">);</span>
+    <span class="s1">return this</span><span class="s0">.</span><span class="s2">has</span><span class="s0">(</span><span class="s2">name</span><span class="s0">) ? </span><span class="s1">this</span><span class="s0">.</span><span class="s2">map</span><span class="s0">[</span><span class="s2">name</span><span class="s0">] : </span><span class="s1">null</span>
+  <span class="s0">};</span>
+
+  <span class="s2">Headers</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">has </span><span class="s0">= </span><span class="s1">function</span><span class="s0">(</span><span class="s2">name</span><span class="s0">) {</span>
+    <span class="s1">return this</span><span class="s0">.</span><span class="s2">map</span><span class="s0">.</span><span class="s2">hasOwnProperty</span><span class="s0">(</span><span class="s2">normalizeName</span><span class="s0">(</span><span class="s2">name</span><span class="s0">))</span>
+  <span class="s0">};</span>
+
+  <span class="s2">Headers</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">set </span><span class="s0">= </span><span class="s1">function</span><span class="s0">(</span><span class="s2">name</span><span class="s0">, </span><span class="s2">value</span><span class="s0">) {</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">map</span><span class="s0">[</span><span class="s2">normalizeName</span><span class="s0">(</span><span class="s2">name</span><span class="s0">)] = </span><span class="s2">normalizeValue</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+  <span class="s0">};</span>
+
+  <span class="s2">Headers</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">forEach </span><span class="s0">= </span><span class="s1">function</span><span class="s0">(</span><span class="s2">callback</span><span class="s0">, </span><span class="s2">thisArg</span><span class="s0">) {</span>
+    <span class="s1">for </span><span class="s0">(</span><span class="s1">var </span><span class="s2">name </span><span class="s1">in this</span><span class="s0">.</span><span class="s2">map</span><span class="s0">) {</span>
+      <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">map</span><span class="s0">.</span><span class="s2">hasOwnProperty</span><span class="s0">(</span><span class="s2">name</span><span class="s0">)) {</span>
+        <span class="s2">callback</span><span class="s0">.</span><span class="s2">call</span><span class="s0">(</span><span class="s2">thisArg</span><span class="s0">, </span><span class="s1">this</span><span class="s0">.</span><span class="s2">map</span><span class="s0">[</span><span class="s2">name</span><span class="s0">], </span><span class="s2">name</span><span class="s0">, </span><span class="s1">this</span><span class="s0">);</span>
+      <span class="s0">}</span>
+    <span class="s0">}</span>
+  <span class="s0">};</span>
+
+  <span class="s2">Headers</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">keys </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+    <span class="s1">var </span><span class="s2">items </span><span class="s0">= [];</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">forEach</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">value</span><span class="s0">, </span><span class="s2">name</span><span class="s0">) {</span>
+      <span class="s2">items</span><span class="s0">.</span><span class="s2">push</span><span class="s0">(</span><span class="s2">name</span><span class="s0">);</span>
+    <span class="s0">});</span>
+    <span class="s1">return </span><span class="s2">iteratorFor</span><span class="s0">(</span><span class="s2">items</span><span class="s0">)</span>
+  <span class="s0">};</span>
+
+  <span class="s2">Headers</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">values </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+    <span class="s1">var </span><span class="s2">items </span><span class="s0">= [];</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">forEach</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">value</span><span class="s0">) {</span>
+      <span class="s2">items</span><span class="s0">.</span><span class="s2">push</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+    <span class="s0">});</span>
+    <span class="s1">return </span><span class="s2">iteratorFor</span><span class="s0">(</span><span class="s2">items</span><span class="s0">)</span>
+  <span class="s0">};</span>
+
+  <span class="s2">Headers</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">entries </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+    <span class="s1">var </span><span class="s2">items </span><span class="s0">= [];</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">forEach</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">value</span><span class="s0">, </span><span class="s2">name</span><span class="s0">) {</span>
+      <span class="s2">items</span><span class="s0">.</span><span class="s2">push</span><span class="s0">([</span><span class="s2">name</span><span class="s0">, </span><span class="s2">value</span><span class="s0">]);</span>
+    <span class="s0">});</span>
+    <span class="s1">return </span><span class="s2">iteratorFor</span><span class="s0">(</span><span class="s2">items</span><span class="s0">)</span>
+  <span class="s0">};</span>
+
+  <span class="s1">if </span><span class="s0">(</span><span class="s2">support</span><span class="s0">.</span><span class="s2">iterable</span><span class="s0">) {</span>
+    <span class="s2">Headers</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">[</span><span class="s2">Symbol</span><span class="s0">.</span><span class="s2">iterator</span><span class="s0">] = </span><span class="s2">Headers</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">entries</span><span class="s0">;</span>
+  <span class="s0">}</span>
+
+  <span class="s1">function </span><span class="s2">consumed</span><span class="s0">(</span><span class="s2">body</span><span class="s0">) {</span>
+    <span class="s1">if </span><span class="s0">(</span><span class="s2">body</span><span class="s0">.</span><span class="s2">_noBody</span><span class="s0">) </span><span class="s1">return</span>
+    <span class="s1">if </span><span class="s0">(</span><span class="s2">body</span><span class="s0">.</span><span class="s2">bodyUsed</span><span class="s0">) {</span>
+      <span class="s1">return </span><span class="s2">Promise</span><span class="s0">.</span><span class="s2">reject</span><span class="s0">(</span><span class="s1">new </span><span class="s2">TypeError</span><span class="s0">(</span><span class="s3">'Already read'</span><span class="s0">))</span>
+    <span class="s0">}</span>
+    <span class="s2">body</span><span class="s0">.</span><span class="s2">bodyUsed </span><span class="s0">= </span><span class="s1">true</span><span class="s0">;</span>
+  <span class="s0">}</span>
+
+  <span class="s1">function </span><span class="s2">fileReaderReady</span><span class="s0">(</span><span class="s2">reader</span><span class="s0">) {</span>
+    <span class="s1">return new </span><span class="s2">Promise</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">resolve</span><span class="s0">, </span><span class="s2">reject</span><span class="s0">) {</span>
+      <span class="s2">reader</span><span class="s0">.</span><span class="s2">onload </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+        <span class="s2">resolve</span><span class="s0">(</span><span class="s2">reader</span><span class="s0">.</span><span class="s2">result</span><span class="s0">);</span>
+      <span class="s0">};</span>
+      <span class="s2">reader</span><span class="s0">.</span><span class="s2">onerror </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+        <span class="s2">reject</span><span class="s0">(</span><span class="s2">reader</span><span class="s0">.</span><span class="s2">error</span><span class="s0">);</span>
+      <span class="s0">};</span>
+    <span class="s0">})</span>
+  <span class="s0">}</span>
+
+  <span class="s1">function </span><span class="s2">readBlobAsArrayBuffer</span><span class="s0">(</span><span class="s2">blob</span><span class="s0">) {</span>
+    <span class="s1">var </span><span class="s2">reader </span><span class="s0">= </span><span class="s1">new </span><span class="s2">FileReader</span><span class="s0">();</span>
+    <span class="s1">var </span><span class="s2">promise </span><span class="s0">= </span><span class="s2">fileReaderReady</span><span class="s0">(</span><span class="s2">reader</span><span class="s0">);</span>
+    <span class="s2">reader</span><span class="s0">.</span><span class="s2">readAsArrayBuffer</span><span class="s0">(</span><span class="s2">blob</span><span class="s0">);</span>
+    <span class="s1">return </span><span class="s2">promise</span>
+  <span class="s0">}</span>
+
+  <span class="s1">function </span><span class="s2">readBlobAsText</span><span class="s0">(</span><span class="s2">blob</span><span class="s0">) {</span>
+    <span class="s1">var </span><span class="s2">reader </span><span class="s0">= </span><span class="s1">new </span><span class="s2">FileReader</span><span class="s0">();</span>
+    <span class="s1">var </span><span class="s2">promise </span><span class="s0">= </span><span class="s2">fileReaderReady</span><span class="s0">(</span><span class="s2">reader</span><span class="s0">);</span>
+    <span class="s1">var </span><span class="s2">match </span><span class="s0">= </span><span class="s6">/charset=([A-Za-z0-9_-]+)/</span><span class="s0">.</span><span class="s2">exec</span><span class="s0">(</span><span class="s2">blob</span><span class="s0">.</span><span class="s2">type</span><span class="s0">);</span>
+    <span class="s1">var </span><span class="s2">encoding </span><span class="s0">= </span><span class="s2">match </span><span class="s0">? </span><span class="s2">match</span><span class="s0">[</span><span class="s5">1</span><span class="s0">] : </span><span class="s3">'utf-8'</span><span class="s0">;</span>
+    <span class="s2">reader</span><span class="s0">.</span><span class="s2">readAsText</span><span class="s0">(</span><span class="s2">blob</span><span class="s0">, </span><span class="s2">encoding</span><span class="s0">);</span>
+    <span class="s1">return </span><span class="s2">promise</span>
+  <span class="s0">}</span>
+
+  <span class="s1">function </span><span class="s2">readArrayBufferAsText</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">) {</span>
+    <span class="s1">var </span><span class="s2">view </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Uint8Array</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">);</span>
+    <span class="s1">var </span><span class="s2">chars </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Array</span><span class="s0">(</span><span class="s2">view</span><span class="s0">.</span><span class="s2">length</span><span class="s0">);</span>
+
+    <span class="s1">for </span><span class="s0">(</span><span class="s1">var </span><span class="s2">i </span><span class="s0">= </span><span class="s5">0</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">view</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+      <span class="s2">chars</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] = </span><span class="s2">String</span><span class="s0">.</span><span class="s2">fromCharCode</span><span class="s0">(</span><span class="s2">view</span><span class="s0">[</span><span class="s2">i</span><span class="s0">]);</span>
+    <span class="s0">}</span>
+    <span class="s1">return </span><span class="s2">chars</span><span class="s0">.</span><span class="s2">join</span><span class="s0">(</span><span class="s3">''</span><span class="s0">)</span>
+  <span class="s0">}</span>
+
+  <span class="s1">function </span><span class="s2">bufferClone</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">) {</span>
+    <span class="s1">if </span><span class="s0">(</span><span class="s2">buf</span><span class="s0">.</span><span class="s2">slice</span><span class="s0">) {</span>
+      <span class="s1">return </span><span class="s2">buf</span><span class="s0">.</span><span class="s2">slice</span><span class="s0">(</span><span class="s5">0</span><span class="s0">)</span>
+    <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+      <span class="s1">var </span><span class="s2">view </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Uint8Array</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">.</span><span class="s2">byteLength</span><span class="s0">);</span>
+      <span class="s2">view</span><span class="s0">.</span><span class="s2">set</span><span class="s0">(</span><span class="s1">new </span><span class="s2">Uint8Array</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">));</span>
+      <span class="s1">return </span><span class="s2">view</span><span class="s0">.</span><span class="s2">buffer</span>
+    <span class="s0">}</span>
+  <span class="s0">}</span>
+
+  <span class="s1">function </span><span class="s2">Body</span><span class="s0">() {</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">bodyUsed </span><span class="s0">= </span><span class="s1">false</span><span class="s0">;</span>
+
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">_initBody </span><span class="s0">= </span><span class="s1">function</span><span class="s0">(</span><span class="s2">body</span><span class="s0">) {</span>
+      <span class="s4">/* 
+        fetch-mock wraps the Response object in an ES6 Proxy to 
+        provide useful test harness features such as flush. However, on 
+        ES5 browsers without fetch or Proxy support pollyfills must be used; 
+        the proxy-pollyfill is unable to proxy an attribute unless it exists 
+        on the object before the Proxy is created. This change ensures 
+        Response.bodyUsed exists on the instance, while maintaining the 
+        semantic of setting Request.bodyUsed in the constructor before 
+        _initBody is called. 
+      */</span>
+      <span class="s4">// eslint-disable-next-line no-self-assign</span>
+      <span class="s1">this</span><span class="s0">.</span><span class="s2">bodyUsed </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">bodyUsed</span><span class="s0">;</span>
+      <span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyInit </span><span class="s0">= </span><span class="s2">body</span><span class="s0">;</span>
+      <span class="s1">if </span><span class="s0">(!</span><span class="s2">body</span><span class="s0">) {</span>
+        <span class="s1">this</span><span class="s0">.</span><span class="s2">_noBody </span><span class="s0">= </span><span class="s1">true</span><span class="s0">;</span>
+        <span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyText </span><span class="s0">= </span><span class="s3">''</span><span class="s0">;</span>
+      <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">body </span><span class="s0">=== </span><span class="s3">'string'</span><span class="s0">) {</span>
+        <span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyText </span><span class="s0">= </span><span class="s2">body</span><span class="s0">;</span>
+      <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">support</span><span class="s0">.</span><span class="s2">blob </span><span class="s0">&amp;&amp; </span><span class="s2">Blob</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">isPrototypeOf</span><span class="s0">(</span><span class="s2">body</span><span class="s0">)) {</span>
+        <span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyBlob </span><span class="s0">= </span><span class="s2">body</span><span class="s0">;</span>
+      <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">support</span><span class="s0">.</span><span class="s2">formData </span><span class="s0">&amp;&amp; </span><span class="s2">FormData</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">isPrototypeOf</span><span class="s0">(</span><span class="s2">body</span><span class="s0">)) {</span>
+        <span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyFormData </span><span class="s0">= </span><span class="s2">body</span><span class="s0">;</span>
+      <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">support</span><span class="s0">.</span><span class="s2">searchParams </span><span class="s0">&amp;&amp; </span><span class="s2">URLSearchParams</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">isPrototypeOf</span><span class="s0">(</span><span class="s2">body</span><span class="s0">)) {</span>
+        <span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyText </span><span class="s0">= </span><span class="s2">body</span><span class="s0">.</span><span class="s2">toString</span><span class="s0">();</span>
+      <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">support</span><span class="s0">.</span><span class="s2">arrayBuffer </span><span class="s0">&amp;&amp; </span><span class="s2">support</span><span class="s0">.</span><span class="s2">blob </span><span class="s0">&amp;&amp; </span><span class="s2">isDataView</span><span class="s0">(</span><span class="s2">body</span><span class="s0">)) {</span>
+        <span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyArrayBuffer </span><span class="s0">= </span><span class="s2">bufferClone</span><span class="s0">(</span><span class="s2">body</span><span class="s0">.</span><span class="s2">buffer</span><span class="s0">);</span>
+        <span class="s4">// IE 10-11 can't handle a DataView body.</span>
+        <span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyInit </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Blob</span><span class="s0">([</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyArrayBuffer</span><span class="s0">]);</span>
+      <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">support</span><span class="s0">.</span><span class="s2">arrayBuffer </span><span class="s0">&amp;&amp; (</span><span class="s2">ArrayBuffer</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">isPrototypeOf</span><span class="s0">(</span><span class="s2">body</span><span class="s0">) || </span><span class="s2">isArrayBufferView</span><span class="s0">(</span><span class="s2">body</span><span class="s0">))) {</span>
+        <span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyArrayBuffer </span><span class="s0">= </span><span class="s2">bufferClone</span><span class="s0">(</span><span class="s2">body</span><span class="s0">);</span>
+      <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+        <span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyText </span><span class="s0">= </span><span class="s2">body </span><span class="s0">= </span><span class="s2">Object</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">toString</span><span class="s0">.</span><span class="s2">call</span><span class="s0">(</span><span class="s2">body</span><span class="s0">);</span>
+      <span class="s0">}</span>
+
+      <span class="s1">if </span><span class="s0">(!</span><span class="s1">this</span><span class="s0">.</span><span class="s2">headers</span><span class="s0">.</span><span class="s2">get</span><span class="s0">(</span><span class="s3">'content-type'</span><span class="s0">)) {</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">body </span><span class="s0">=== </span><span class="s3">'string'</span><span class="s0">) {</span>
+          <span class="s1">this</span><span class="s0">.</span><span class="s2">headers</span><span class="s0">.</span><span class="s2">set</span><span class="s0">(</span><span class="s3">'content-type'</span><span class="s0">, </span><span class="s3">'text/plain;charset=UTF-8'</span><span class="s0">);</span>
+        <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyBlob </span><span class="s0">&amp;&amp; </span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyBlob</span><span class="s0">.</span><span class="s2">type</span><span class="s0">) {</span>
+          <span class="s1">this</span><span class="s0">.</span><span class="s2">headers</span><span class="s0">.</span><span class="s2">set</span><span class="s0">(</span><span class="s3">'content-type'</span><span class="s0">, </span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyBlob</span><span class="s0">.</span><span class="s2">type</span><span class="s0">);</span>
+        <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">support</span><span class="s0">.</span><span class="s2">searchParams </span><span class="s0">&amp;&amp; </span><span class="s2">URLSearchParams</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">isPrototypeOf</span><span class="s0">(</span><span class="s2">body</span><span class="s0">)) {</span>
+          <span class="s1">this</span><span class="s0">.</span><span class="s2">headers</span><span class="s0">.</span><span class="s2">set</span><span class="s0">(</span><span class="s3">'content-type'</span><span class="s0">, </span><span class="s3">'application/x-www-form-urlencoded;charset=UTF-8'</span><span class="s0">);</span>
+        <span class="s0">}</span>
+      <span class="s0">}</span>
+    <span class="s0">};</span>
+
+    <span class="s1">if </span><span class="s0">(</span><span class="s2">support</span><span class="s0">.</span><span class="s2">blob</span><span class="s0">) {</span>
+      <span class="s1">this</span><span class="s0">.</span><span class="s2">blob </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+        <span class="s1">var </span><span class="s2">rejected </span><span class="s0">= </span><span class="s2">consumed</span><span class="s0">(</span><span class="s1">this</span><span class="s0">);</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">rejected</span><span class="s0">) {</span>
+          <span class="s1">return </span><span class="s2">rejected</span>
+        <span class="s0">}</span>
+
+        <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyBlob</span><span class="s0">) {</span>
+          <span class="s1">return </span><span class="s2">Promise</span><span class="s0">.</span><span class="s2">resolve</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyBlob</span><span class="s0">)</span>
+        <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyArrayBuffer</span><span class="s0">) {</span>
+          <span class="s1">return </span><span class="s2">Promise</span><span class="s0">.</span><span class="s2">resolve</span><span class="s0">(</span><span class="s1">new </span><span class="s2">Blob</span><span class="s0">([</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyArrayBuffer</span><span class="s0">]))</span>
+        <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyFormData</span><span class="s0">) {</span>
+          <span class="s1">throw new </span><span class="s2">Error</span><span class="s0">(</span><span class="s3">'could not read FormData body as blob'</span><span class="s0">)</span>
+        <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+          <span class="s1">return </span><span class="s2">Promise</span><span class="s0">.</span><span class="s2">resolve</span><span class="s0">(</span><span class="s1">new </span><span class="s2">Blob</span><span class="s0">([</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyText</span><span class="s0">]))</span>
+        <span class="s0">}</span>
+      <span class="s0">};</span>
+    <span class="s0">}</span>
+
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">arrayBuffer </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+      <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyArrayBuffer</span><span class="s0">) {</span>
+        <span class="s1">var </span><span class="s2">isConsumed </span><span class="s0">= </span><span class="s2">consumed</span><span class="s0">(</span><span class="s1">this</span><span class="s0">);</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">isConsumed</span><span class="s0">) {</span>
+          <span class="s1">return </span><span class="s2">isConsumed</span>
+        <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">ArrayBuffer</span><span class="s0">.</span><span class="s2">isView</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyArrayBuffer</span><span class="s0">)) {</span>
+          <span class="s1">return </span><span class="s2">Promise</span><span class="s0">.</span><span class="s2">resolve</span><span class="s0">(</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyArrayBuffer</span><span class="s0">.</span><span class="s2">buffer</span><span class="s0">.</span><span class="s2">slice</span><span class="s0">(</span>
+              <span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyArrayBuffer</span><span class="s0">.</span><span class="s2">byteOffset</span><span class="s0">,</span>
+              <span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyArrayBuffer</span><span class="s0">.</span><span class="s2">byteOffset </span><span class="s0">+ </span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyArrayBuffer</span><span class="s0">.</span><span class="s2">byteLength</span>
+            <span class="s0">)</span>
+          <span class="s0">)</span>
+        <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+          <span class="s1">return </span><span class="s2">Promise</span><span class="s0">.</span><span class="s2">resolve</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyArrayBuffer</span><span class="s0">)</span>
+        <span class="s0">}</span>
+      <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">support</span><span class="s0">.</span><span class="s2">blob</span><span class="s0">) {</span>
+        <span class="s1">return this</span><span class="s0">.</span><span class="s2">blob</span><span class="s0">().</span><span class="s2">then</span><span class="s0">(</span><span class="s2">readBlobAsArrayBuffer</span><span class="s0">)</span>
+      <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+        <span class="s1">throw new </span><span class="s2">Error</span><span class="s0">(</span><span class="s3">'could not read as ArrayBuffer'</span><span class="s0">)</span>
+      <span class="s0">}</span>
+    <span class="s0">};</span>
+
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">text </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+      <span class="s1">var </span><span class="s2">rejected </span><span class="s0">= </span><span class="s2">consumed</span><span class="s0">(</span><span class="s1">this</span><span class="s0">);</span>
+      <span class="s1">if </span><span class="s0">(</span><span class="s2">rejected</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s2">rejected</span>
+      <span class="s0">}</span>
+
+      <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyBlob</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s2">readBlobAsText</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyBlob</span><span class="s0">)</span>
+      <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyArrayBuffer</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s2">Promise</span><span class="s0">.</span><span class="s2">resolve</span><span class="s0">(</span><span class="s2">readArrayBufferAsText</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyArrayBuffer</span><span class="s0">))</span>
+      <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyFormData</span><span class="s0">) {</span>
+        <span class="s1">throw new </span><span class="s2">Error</span><span class="s0">(</span><span class="s3">'could not read FormData body as text'</span><span class="s0">)</span>
+      <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+        <span class="s1">return </span><span class="s2">Promise</span><span class="s0">.</span><span class="s2">resolve</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyText</span><span class="s0">)</span>
+      <span class="s0">}</span>
+    <span class="s0">};</span>
+
+    <span class="s1">if </span><span class="s0">(</span><span class="s2">support</span><span class="s0">.</span><span class="s2">formData</span><span class="s0">) {</span>
+      <span class="s1">this</span><span class="s0">.</span><span class="s2">formData </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+        <span class="s1">return this</span><span class="s0">.</span><span class="s2">text</span><span class="s0">().</span><span class="s2">then</span><span class="s0">(</span><span class="s2">decode</span><span class="s0">)</span>
+      <span class="s0">};</span>
+    <span class="s0">}</span>
+
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">json </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+      <span class="s1">return this</span><span class="s0">.</span><span class="s2">text</span><span class="s0">().</span><span class="s2">then</span><span class="s0">(</span><span class="s2">JSON</span><span class="s0">.</span><span class="s2">parse</span><span class="s0">)</span>
+    <span class="s0">};</span>
+
+    <span class="s1">return this</span>
+  <span class="s0">}</span>
+
+  <span class="s4">// HTTP methods whose capitalization should be normalized</span>
+  <span class="s1">var </span><span class="s2">methods </span><span class="s0">= [</span><span class="s3">'CONNECT'</span><span class="s0">, </span><span class="s3">'DELETE'</span><span class="s0">, </span><span class="s3">'GET'</span><span class="s0">, </span><span class="s3">'HEAD'</span><span class="s0">, </span><span class="s3">'OPTIONS'</span><span class="s0">, </span><span class="s3">'PATCH'</span><span class="s0">, </span><span class="s3">'POST'</span><span class="s0">, </span><span class="s3">'PUT'</span><span class="s0">, </span><span class="s3">'TRACE'</span><span class="s0">];</span>
+
+  <span class="s1">function </span><span class="s2">normalizeMethod</span><span class="s0">(</span><span class="s2">method</span><span class="s0">) {</span>
+    <span class="s1">var </span><span class="s2">upcased </span><span class="s0">= </span><span class="s2">method</span><span class="s0">.</span><span class="s2">toUpperCase</span><span class="s0">();</span>
+    <span class="s1">return </span><span class="s2">methods</span><span class="s0">.</span><span class="s2">indexOf</span><span class="s0">(</span><span class="s2">upcased</span><span class="s0">) &gt; -</span><span class="s5">1 </span><span class="s0">? </span><span class="s2">upcased </span><span class="s0">: </span><span class="s2">method</span>
+  <span class="s0">}</span>
+
+  <span class="s1">function </span><span class="s2">Request</span><span class="s0">(</span><span class="s2">input</span><span class="s0">, </span><span class="s2">options</span><span class="s0">) {</span>
+    <span class="s1">if </span><span class="s0">(!(</span><span class="s1">this instanceof </span><span class="s2">Request</span><span class="s0">)) {</span>
+      <span class="s1">throw new </span><span class="s2">TypeError</span><span class="s0">(</span><span class="s3">'Please use the &quot;new&quot; operator, this DOM object constructor cannot be called as a function.'</span><span class="s0">)</span>
+    <span class="s0">}</span>
+
+    <span class="s2">options </span><span class="s0">= </span><span class="s2">options </span><span class="s0">|| {};</span>
+    <span class="s1">var </span><span class="s2">body </span><span class="s0">= </span><span class="s2">options</span><span class="s0">.</span><span class="s2">body</span><span class="s0">;</span>
+
+    <span class="s1">if </span><span class="s0">(</span><span class="s2">input </span><span class="s1">instanceof </span><span class="s2">Request</span><span class="s0">) {</span>
+      <span class="s1">if </span><span class="s0">(</span><span class="s2">input</span><span class="s0">.</span><span class="s2">bodyUsed</span><span class="s0">) {</span>
+        <span class="s1">throw new </span><span class="s2">TypeError</span><span class="s0">(</span><span class="s3">'Already read'</span><span class="s0">)</span>
+      <span class="s0">}</span>
+      <span class="s1">this</span><span class="s0">.</span><span class="s2">url </span><span class="s0">= </span><span class="s2">input</span><span class="s0">.</span><span class="s2">url</span><span class="s0">;</span>
+      <span class="s1">this</span><span class="s0">.</span><span class="s2">credentials </span><span class="s0">= </span><span class="s2">input</span><span class="s0">.</span><span class="s2">credentials</span><span class="s0">;</span>
+      <span class="s1">if </span><span class="s0">(!</span><span class="s2">options</span><span class="s0">.</span><span class="s2">headers</span><span class="s0">) {</span>
+        <span class="s1">this</span><span class="s0">.</span><span class="s2">headers </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Headers</span><span class="s0">(</span><span class="s2">input</span><span class="s0">.</span><span class="s2">headers</span><span class="s0">);</span>
+      <span class="s0">}</span>
+      <span class="s1">this</span><span class="s0">.</span><span class="s2">method </span><span class="s0">= </span><span class="s2">input</span><span class="s0">.</span><span class="s2">method</span><span class="s0">;</span>
+      <span class="s1">this</span><span class="s0">.</span><span class="s2">mode </span><span class="s0">= </span><span class="s2">input</span><span class="s0">.</span><span class="s2">mode</span><span class="s0">;</span>
+      <span class="s1">this</span><span class="s0">.</span><span class="s2">signal </span><span class="s0">= </span><span class="s2">input</span><span class="s0">.</span><span class="s2">signal</span><span class="s0">;</span>
+      <span class="s1">if </span><span class="s0">(!</span><span class="s2">body </span><span class="s0">&amp;&amp; </span><span class="s2">input</span><span class="s0">.</span><span class="s2">_bodyInit </span><span class="s0">!= </span><span class="s1">null</span><span class="s0">) {</span>
+        <span class="s2">body </span><span class="s0">= </span><span class="s2">input</span><span class="s0">.</span><span class="s2">_bodyInit</span><span class="s0">;</span>
+        <span class="s2">input</span><span class="s0">.</span><span class="s2">bodyUsed </span><span class="s0">= </span><span class="s1">true</span><span class="s0">;</span>
+      <span class="s0">}</span>
+    <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+      <span class="s1">this</span><span class="s0">.</span><span class="s2">url </span><span class="s0">= </span><span class="s2">String</span><span class="s0">(</span><span class="s2">input</span><span class="s0">);</span>
+    <span class="s0">}</span>
+
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">credentials </span><span class="s0">= </span><span class="s2">options</span><span class="s0">.</span><span class="s2">credentials </span><span class="s0">|| </span><span class="s1">this</span><span class="s0">.</span><span class="s2">credentials </span><span class="s0">|| </span><span class="s3">'same-origin'</span><span class="s0">;</span>
+    <span class="s1">if </span><span class="s0">(</span><span class="s2">options</span><span class="s0">.</span><span class="s2">headers </span><span class="s0">|| !</span><span class="s1">this</span><span class="s0">.</span><span class="s2">headers</span><span class="s0">) {</span>
+      <span class="s1">this</span><span class="s0">.</span><span class="s2">headers </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Headers</span><span class="s0">(</span><span class="s2">options</span><span class="s0">.</span><span class="s2">headers</span><span class="s0">);</span>
+    <span class="s0">}</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">method </span><span class="s0">= </span><span class="s2">normalizeMethod</span><span class="s0">(</span><span class="s2">options</span><span class="s0">.</span><span class="s2">method </span><span class="s0">|| </span><span class="s1">this</span><span class="s0">.</span><span class="s2">method </span><span class="s0">|| </span><span class="s3">'GET'</span><span class="s0">);</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">mode </span><span class="s0">= </span><span class="s2">options</span><span class="s0">.</span><span class="s2">mode </span><span class="s0">|| </span><span class="s1">this</span><span class="s0">.</span><span class="s2">mode </span><span class="s0">|| </span><span class="s1">null</span><span class="s0">;</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">signal </span><span class="s0">= </span><span class="s2">options</span><span class="s0">.</span><span class="s2">signal </span><span class="s0">|| </span><span class="s1">this</span><span class="s0">.</span><span class="s2">signal </span><span class="s0">|| (</span><span class="s1">function </span><span class="s0">() {</span>
+      <span class="s1">if </span><span class="s0">(</span><span class="s3">'AbortController' </span><span class="s1">in </span><span class="s2">g</span><span class="s0">) {</span>
+        <span class="s1">var </span><span class="s2">ctrl </span><span class="s0">= </span><span class="s1">new </span><span class="s2">AbortController</span><span class="s0">();</span>
+        <span class="s1">return </span><span class="s2">ctrl</span><span class="s0">.</span><span class="s2">signal</span><span class="s0">;</span>
+      <span class="s0">}</span>
+    <span class="s0">}());</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">referrer </span><span class="s0">= </span><span class="s1">null</span><span class="s0">;</span>
+
+    <span class="s1">if </span><span class="s0">((</span><span class="s1">this</span><span class="s0">.</span><span class="s2">method </span><span class="s0">=== </span><span class="s3">'GET' </span><span class="s0">|| </span><span class="s1">this</span><span class="s0">.</span><span class="s2">method </span><span class="s0">=== </span><span class="s3">'HEAD'</span><span class="s0">) &amp;&amp; </span><span class="s2">body</span><span class="s0">) {</span>
+      <span class="s1">throw new </span><span class="s2">TypeError</span><span class="s0">(</span><span class="s3">'Body not allowed for GET or HEAD requests'</span><span class="s0">)</span>
+    <span class="s0">}</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">_initBody</span><span class="s0">(</span><span class="s2">body</span><span class="s0">);</span>
+
+    <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">method </span><span class="s0">=== </span><span class="s3">'GET' </span><span class="s0">|| </span><span class="s1">this</span><span class="s0">.</span><span class="s2">method </span><span class="s0">=== </span><span class="s3">'HEAD'</span><span class="s0">) {</span>
+      <span class="s1">if </span><span class="s0">(</span><span class="s2">options</span><span class="s0">.</span><span class="s2">cache </span><span class="s0">=== </span><span class="s3">'no-store' </span><span class="s0">|| </span><span class="s2">options</span><span class="s0">.</span><span class="s2">cache </span><span class="s0">=== </span><span class="s3">'no-cache'</span><span class="s0">) {</span>
+        <span class="s4">// Search for a '_' parameter in the query string</span>
+        <span class="s1">var </span><span class="s2">reParamSearch </span><span class="s0">= </span><span class="s6">/([?&amp;])_=[^&amp;]*/</span><span class="s0">;</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">reParamSearch</span><span class="s0">.</span><span class="s2">test</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">url</span><span class="s0">)) {</span>
+          <span class="s4">// If it already exists then set the value with the current time</span>
+          <span class="s1">this</span><span class="s0">.</span><span class="s2">url </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">url</span><span class="s0">.</span><span class="s2">replace</span><span class="s0">(</span><span class="s2">reParamSearch</span><span class="s0">, </span><span class="s3">'$1_=' </span><span class="s0">+ </span><span class="s1">new </span><span class="s2">Date</span><span class="s0">().</span><span class="s2">getTime</span><span class="s0">());</span>
+        <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+          <span class="s4">// Otherwise add a new '_' parameter to the end with the current time</span>
+          <span class="s1">var </span><span class="s2">reQueryString </span><span class="s0">= </span><span class="s6">/\?/</span><span class="s0">;</span>
+          <span class="s1">this</span><span class="s0">.</span><span class="s2">url </span><span class="s0">+= (</span><span class="s2">reQueryString</span><span class="s0">.</span><span class="s2">test</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">url</span><span class="s0">) ? </span><span class="s3">'&amp;' </span><span class="s0">: </span><span class="s3">'?'</span><span class="s0">) + </span><span class="s3">'_=' </span><span class="s0">+ </span><span class="s1">new </span><span class="s2">Date</span><span class="s0">().</span><span class="s2">getTime</span><span class="s0">();</span>
+        <span class="s0">}</span>
+      <span class="s0">}</span>
+    <span class="s0">}</span>
+  <span class="s0">}</span>
+
+  <span class="s2">Request</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">clone </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+    <span class="s1">return new </span><span class="s2">Request</span><span class="s0">(</span><span class="s1">this</span><span class="s0">, {</span><span class="s2">body</span><span class="s0">: </span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyInit</span><span class="s0">})</span>
+  <span class="s0">};</span>
+
+  <span class="s1">function </span><span class="s2">decode</span><span class="s0">(</span><span class="s2">body</span><span class="s0">) {</span>
+    <span class="s1">var </span><span class="s2">form </span><span class="s0">= </span><span class="s1">new </span><span class="s2">FormData</span><span class="s0">();</span>
+    <span class="s2">body</span>
+      <span class="s0">.</span><span class="s2">trim</span><span class="s0">()</span>
+      <span class="s0">.</span><span class="s2">split</span><span class="s0">(</span><span class="s3">'&amp;'</span><span class="s0">)</span>
+      <span class="s0">.</span><span class="s2">forEach</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">bytes</span><span class="s0">) {</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">bytes</span><span class="s0">) {</span>
+          <span class="s1">var </span><span class="s2">split </span><span class="s0">= </span><span class="s2">bytes</span><span class="s0">.</span><span class="s2">split</span><span class="s0">(</span><span class="s3">'='</span><span class="s0">);</span>
+          <span class="s1">var </span><span class="s2">name </span><span class="s0">= </span><span class="s2">split</span><span class="s0">.</span><span class="s2">shift</span><span class="s0">().</span><span class="s2">replace</span><span class="s0">(</span><span class="s6">/\+/g</span><span class="s0">, </span><span class="s3">' '</span><span class="s0">);</span>
+          <span class="s1">var </span><span class="s2">value </span><span class="s0">= </span><span class="s2">split</span><span class="s0">.</span><span class="s2">join</span><span class="s0">(</span><span class="s3">'='</span><span class="s0">).</span><span class="s2">replace</span><span class="s0">(</span><span class="s6">/\+/g</span><span class="s0">, </span><span class="s3">' '</span><span class="s0">);</span>
+          <span class="s2">form</span><span class="s0">.</span><span class="s2">append</span><span class="s0">(</span><span class="s2">decodeURIComponent</span><span class="s0">(</span><span class="s2">name</span><span class="s0">), </span><span class="s2">decodeURIComponent</span><span class="s0">(</span><span class="s2">value</span><span class="s0">));</span>
+        <span class="s0">}</span>
+      <span class="s0">});</span>
+    <span class="s1">return </span><span class="s2">form</span>
+  <span class="s0">}</span>
+
+  <span class="s1">function </span><span class="s2">parseHeaders</span><span class="s0">(</span><span class="s2">rawHeaders</span><span class="s0">) {</span>
+    <span class="s1">var </span><span class="s2">headers </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Headers</span><span class="s0">();</span>
+    <span class="s4">// Replace instances of \r\n and \n followed by at least one space or horizontal tab with a space</span>
+    <span class="s4">// https://tools.ietf.org/html/rfc7230#section-3.2</span>
+    <span class="s1">var </span><span class="s2">preProcessedHeaders </span><span class="s0">= </span><span class="s2">rawHeaders</span><span class="s0">.</span><span class="s2">replace</span><span class="s0">(</span><span class="s6">/\r?\n[\t ]+/g</span><span class="s0">, </span><span class="s3">' '</span><span class="s0">);</span>
+    <span class="s4">// Avoiding split via regex to work around a common IE11 bug with the core-js 3.6.0 regex polyfill</span>
+    <span class="s4">// https://github.com/github/fetch/issues/748</span>
+    <span class="s4">// https://github.com/zloirock/core-js/issues/751</span>
+    <span class="s2">preProcessedHeaders</span>
+      <span class="s0">.</span><span class="s2">split</span><span class="s0">(</span><span class="s3">'</span><span class="s1">\r</span><span class="s3">'</span><span class="s0">)</span>
+      <span class="s0">.</span><span class="s2">map</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">header</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s2">header</span><span class="s0">.</span><span class="s2">indexOf</span><span class="s0">(</span><span class="s3">'</span><span class="s1">\n</span><span class="s3">'</span><span class="s0">) === </span><span class="s5">0 </span><span class="s0">? </span><span class="s2">header</span><span class="s0">.</span><span class="s2">substr</span><span class="s0">(</span><span class="s5">1</span><span class="s0">, </span><span class="s2">header</span><span class="s0">.</span><span class="s2">length</span><span class="s0">) : </span><span class="s2">header</span>
+      <span class="s0">})</span>
+      <span class="s0">.</span><span class="s2">forEach</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">line</span><span class="s0">) {</span>
+        <span class="s1">var </span><span class="s2">parts </span><span class="s0">= </span><span class="s2">line</span><span class="s0">.</span><span class="s2">split</span><span class="s0">(</span><span class="s3">':'</span><span class="s0">);</span>
+        <span class="s1">var </span><span class="s2">key </span><span class="s0">= </span><span class="s2">parts</span><span class="s0">.</span><span class="s2">shift</span><span class="s0">().</span><span class="s2">trim</span><span class="s0">();</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">key</span><span class="s0">) {</span>
+          <span class="s1">var </span><span class="s2">value </span><span class="s0">= </span><span class="s2">parts</span><span class="s0">.</span><span class="s2">join</span><span class="s0">(</span><span class="s3">':'</span><span class="s0">).</span><span class="s2">trim</span><span class="s0">();</span>
+          <span class="s1">try </span><span class="s0">{</span>
+            <span class="s2">headers</span><span class="s0">.</span><span class="s2">append</span><span class="s0">(</span><span class="s2">key</span><span class="s0">, </span><span class="s2">value</span><span class="s0">);</span>
+          <span class="s0">} </span><span class="s1">catch </span><span class="s0">(</span><span class="s2">error</span><span class="s0">) {</span>
+            <span class="s2">console</span><span class="s0">.</span><span class="s2">warn</span><span class="s0">(</span><span class="s3">'Response ' </span><span class="s0">+ </span><span class="s2">error</span><span class="s0">.</span><span class="s2">message</span><span class="s0">);</span>
+          <span class="s0">}</span>
+        <span class="s0">}</span>
+      <span class="s0">});</span>
+    <span class="s1">return </span><span class="s2">headers</span>
+  <span class="s0">}</span>
+
+  <span class="s2">Body</span><span class="s0">.</span><span class="s2">call</span><span class="s0">(</span><span class="s2">Request</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">);</span>
+
+  <span class="s1">function </span><span class="s2">Response</span><span class="s0">(</span><span class="s2">bodyInit</span><span class="s0">, </span><span class="s2">options</span><span class="s0">) {</span>
+    <span class="s1">if </span><span class="s0">(!(</span><span class="s1">this instanceof </span><span class="s2">Response</span><span class="s0">)) {</span>
+      <span class="s1">throw new </span><span class="s2">TypeError</span><span class="s0">(</span><span class="s3">'Please use the &quot;new&quot; operator, this DOM object constructor cannot be called as a function.'</span><span class="s0">)</span>
+    <span class="s0">}</span>
+    <span class="s1">if </span><span class="s0">(!</span><span class="s2">options</span><span class="s0">) {</span>
+      <span class="s2">options </span><span class="s0">= {};</span>
+    <span class="s0">}</span>
+
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">type </span><span class="s0">= </span><span class="s3">'default'</span><span class="s0">;</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">status </span><span class="s0">= </span><span class="s2">options</span><span class="s0">.</span><span class="s2">status </span><span class="s0">=== </span><span class="s2">undefined </span><span class="s0">? </span><span class="s5">200 </span><span class="s0">: </span><span class="s2">options</span><span class="s0">.</span><span class="s2">status</span><span class="s0">;</span>
+    <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">status </span><span class="s0">&lt; </span><span class="s5">200 </span><span class="s0">|| </span><span class="s1">this</span><span class="s0">.</span><span class="s2">status </span><span class="s0">&gt; </span><span class="s5">599</span><span class="s0">) {</span>
+      <span class="s1">throw new </span><span class="s2">RangeError</span><span class="s0">(</span><span class="s3">&quot;Failed to construct 'Response': The status provided (0) is outside the range [200, 599].&quot;</span><span class="s0">)</span>
+    <span class="s0">}</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">ok </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">status </span><span class="s0">&gt;= </span><span class="s5">200 </span><span class="s0">&amp;&amp; </span><span class="s1">this</span><span class="s0">.</span><span class="s2">status </span><span class="s0">&lt; </span><span class="s5">300</span><span class="s0">;</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">statusText </span><span class="s0">= </span><span class="s2">options</span><span class="s0">.</span><span class="s2">statusText </span><span class="s0">=== </span><span class="s2">undefined </span><span class="s0">? </span><span class="s3">'' </span><span class="s0">: </span><span class="s3">'' </span><span class="s0">+ </span><span class="s2">options</span><span class="s0">.</span><span class="s2">statusText</span><span class="s0">;</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">headers </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Headers</span><span class="s0">(</span><span class="s2">options</span><span class="s0">.</span><span class="s2">headers</span><span class="s0">);</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">url </span><span class="s0">= </span><span class="s2">options</span><span class="s0">.</span><span class="s2">url </span><span class="s0">|| </span><span class="s3">''</span><span class="s0">;</span>
+    <span class="s1">this</span><span class="s0">.</span><span class="s2">_initBody</span><span class="s0">(</span><span class="s2">bodyInit</span><span class="s0">);</span>
+  <span class="s0">}</span>
+
+  <span class="s2">Body</span><span class="s0">.</span><span class="s2">call</span><span class="s0">(</span><span class="s2">Response</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">);</span>
+
+  <span class="s2">Response</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">clone </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+    <span class="s1">return new </span><span class="s2">Response</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_bodyInit</span><span class="s0">, {</span>
+      <span class="s2">status</span><span class="s0">: </span><span class="s1">this</span><span class="s0">.</span><span class="s2">status</span><span class="s0">,</span>
+      <span class="s2">statusText</span><span class="s0">: </span><span class="s1">this</span><span class="s0">.</span><span class="s2">statusText</span><span class="s0">,</span>
+      <span class="s2">headers</span><span class="s0">: </span><span class="s1">new </span><span class="s2">Headers</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">headers</span><span class="s0">),</span>
+      <span class="s2">url</span><span class="s0">: </span><span class="s1">this</span><span class="s0">.</span><span class="s2">url</span>
+    <span class="s0">})</span>
+  <span class="s0">};</span>
+
+  <span class="s2">Response</span><span class="s0">.</span><span class="s2">error </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+    <span class="s1">var </span><span class="s2">response </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Response</span><span class="s0">(</span><span class="s1">null</span><span class="s0">, {</span><span class="s2">status</span><span class="s0">: </span><span class="s5">200</span><span class="s0">, </span><span class="s2">statusText</span><span class="s0">: </span><span class="s3">''</span><span class="s0">});</span>
+    <span class="s2">response</span><span class="s0">.</span><span class="s2">status </span><span class="s0">= </span><span class="s5">0</span><span class="s0">;</span>
+    <span class="s2">response</span><span class="s0">.</span><span class="s2">type </span><span class="s0">= </span><span class="s3">'error'</span><span class="s0">;</span>
+    <span class="s1">return </span><span class="s2">response</span>
+  <span class="s0">};</span>
+
+  <span class="s1">var </span><span class="s2">redirectStatuses </span><span class="s0">= [</span><span class="s5">301</span><span class="s0">, </span><span class="s5">302</span><span class="s0">, </span><span class="s5">303</span><span class="s0">, </span><span class="s5">307</span><span class="s0">, </span><span class="s5">308</span><span class="s0">];</span>
+
+  <span class="s2">Response</span><span class="s0">.</span><span class="s2">redirect </span><span class="s0">= </span><span class="s1">function</span><span class="s0">(</span><span class="s2">url</span><span class="s0">, </span><span class="s2">status</span><span class="s0">) {</span>
+    <span class="s1">if </span><span class="s0">(</span><span class="s2">redirectStatuses</span><span class="s0">.</span><span class="s2">indexOf</span><span class="s0">(</span><span class="s2">status</span><span class="s0">) === -</span><span class="s5">1</span><span class="s0">) {</span>
+      <span class="s1">throw new </span><span class="s2">RangeError</span><span class="s0">(</span><span class="s3">'Invalid status code'</span><span class="s0">)</span>
+    <span class="s0">}</span>
+
+    <span class="s1">return new </span><span class="s2">Response</span><span class="s0">(</span><span class="s1">null</span><span class="s0">, {</span><span class="s2">status</span><span class="s0">: </span><span class="s2">status</span><span class="s0">, </span><span class="s2">headers</span><span class="s0">: {</span><span class="s2">location</span><span class="s0">: </span><span class="s2">url</span><span class="s0">}})</span>
+  <span class="s0">};</span>
+
+  <span class="s2">exports</span><span class="s0">.</span><span class="s2">DOMException </span><span class="s0">= </span><span class="s2">g</span><span class="s0">.</span><span class="s2">DOMException</span><span class="s0">;</span>
+  <span class="s1">try </span><span class="s0">{</span>
+    <span class="s1">new </span><span class="s2">exports</span><span class="s0">.</span><span class="s2">DOMException</span><span class="s0">();</span>
+  <span class="s0">} </span><span class="s1">catch </span><span class="s0">(</span><span class="s2">err</span><span class="s0">) {</span>
+    <span class="s2">exports</span><span class="s0">.</span><span class="s2">DOMException </span><span class="s0">= </span><span class="s1">function</span><span class="s0">(</span><span class="s2">message</span><span class="s0">, </span><span class="s2">name</span><span class="s0">) {</span>
+      <span class="s1">this</span><span class="s0">.</span><span class="s2">message </span><span class="s0">= </span><span class="s2">message</span><span class="s0">;</span>
+      <span class="s1">this</span><span class="s0">.</span><span class="s2">name </span><span class="s0">= </span><span class="s2">name</span><span class="s0">;</span>
+      <span class="s1">var </span><span class="s2">error </span><span class="s0">= </span><span class="s2">Error</span><span class="s0">(</span><span class="s2">message</span><span class="s0">);</span>
+      <span class="s1">this</span><span class="s0">.</span><span class="s2">stack </span><span class="s0">= </span><span class="s2">error</span><span class="s0">.</span><span class="s2">stack</span><span class="s0">;</span>
+    <span class="s0">};</span>
+    <span class="s2">exports</span><span class="s0">.</span><span class="s2">DOMException</span><span class="s0">.</span><span class="s2">prototype </span><span class="s0">= </span><span class="s2">Object</span><span class="s0">.</span><span class="s2">create</span><span class="s0">(</span><span class="s2">Error</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">);</span>
+    <span class="s2">exports</span><span class="s0">.</span><span class="s2">DOMException</span><span class="s0">.</span><span class="s2">prototype</span><span class="s0">.</span><span class="s2">constructor </span><span class="s0">= </span><span class="s2">exports</span><span class="s0">.</span><span class="s2">DOMException</span><span class="s0">;</span>
+  <span class="s0">}</span>
+
+  <span class="s1">function </span><span class="s2">fetch</span><span class="s0">(</span><span class="s2">input</span><span class="s0">, </span><span class="s2">init</span><span class="s0">) {</span>
+    <span class="s1">return new </span><span class="s2">Promise</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">resolve</span><span class="s0">, </span><span class="s2">reject</span><span class="s0">) {</span>
+      <span class="s1">var </span><span class="s2">request </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Request</span><span class="s0">(</span><span class="s2">input</span><span class="s0">, </span><span class="s2">init</span><span class="s0">);</span>
+
+      <span class="s1">if </span><span class="s0">(</span><span class="s2">request</span><span class="s0">.</span><span class="s2">signal </span><span class="s0">&amp;&amp; </span><span class="s2">request</span><span class="s0">.</span><span class="s2">signal</span><span class="s0">.</span><span class="s2">aborted</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s2">reject</span><span class="s0">(</span><span class="s1">new </span><span class="s2">exports</span><span class="s0">.</span><span class="s2">DOMException</span><span class="s0">(</span><span class="s3">'Aborted'</span><span class="s0">, </span><span class="s3">'AbortError'</span><span class="s0">))</span>
+      <span class="s0">}</span>
+
+      <span class="s1">var </span><span class="s2">xhr </span><span class="s0">= </span><span class="s1">new </span><span class="s2">XMLHttpRequest</span><span class="s0">();</span>
+
+      <span class="s1">function </span><span class="s2">abortXhr</span><span class="s0">() {</span>
+        <span class="s2">xhr</span><span class="s0">.</span><span class="s2">abort</span><span class="s0">();</span>
+      <span class="s0">}</span>
+
+      <span class="s2">xhr</span><span class="s0">.</span><span class="s2">onload </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+        <span class="s1">var </span><span class="s2">options </span><span class="s0">= {</span>
+          <span class="s2">statusText</span><span class="s0">: </span><span class="s2">xhr</span><span class="s0">.</span><span class="s2">statusText</span><span class="s0">,</span>
+          <span class="s2">headers</span><span class="s0">: </span><span class="s2">parseHeaders</span><span class="s0">(</span><span class="s2">xhr</span><span class="s0">.</span><span class="s2">getAllResponseHeaders</span><span class="s0">() || </span><span class="s3">''</span><span class="s0">)</span>
+        <span class="s0">};</span>
+        <span class="s4">// This check if specifically for when a user fetches a file locally from the file system</span>
+        <span class="s4">// Only if the status is out of a normal range</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">request</span><span class="s0">.</span><span class="s2">url</span><span class="s0">.</span><span class="s2">startsWith</span><span class="s0">(</span><span class="s3">'file://'</span><span class="s0">) &amp;&amp; (</span><span class="s2">xhr</span><span class="s0">.</span><span class="s2">status </span><span class="s0">&lt; </span><span class="s5">200 </span><span class="s0">|| </span><span class="s2">xhr</span><span class="s0">.</span><span class="s2">status </span><span class="s0">&gt; </span><span class="s5">599</span><span class="s0">)) {</span>
+          <span class="s2">options</span><span class="s0">.</span><span class="s2">status </span><span class="s0">= </span><span class="s5">200</span><span class="s0">;</span>
+        <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+          <span class="s2">options</span><span class="s0">.</span><span class="s2">status </span><span class="s0">= </span><span class="s2">xhr</span><span class="s0">.</span><span class="s2">status</span><span class="s0">;</span>
+        <span class="s0">}</span>
+        <span class="s2">options</span><span class="s0">.</span><span class="s2">url </span><span class="s0">= </span><span class="s3">'responseURL' </span><span class="s1">in </span><span class="s2">xhr </span><span class="s0">? </span><span class="s2">xhr</span><span class="s0">.</span><span class="s2">responseURL </span><span class="s0">: </span><span class="s2">options</span><span class="s0">.</span><span class="s2">headers</span><span class="s0">.</span><span class="s2">get</span><span class="s0">(</span><span class="s3">'X-Request-URL'</span><span class="s0">);</span>
+        <span class="s1">var </span><span class="s2">body </span><span class="s0">= </span><span class="s3">'response' </span><span class="s1">in </span><span class="s2">xhr </span><span class="s0">? </span><span class="s2">xhr</span><span class="s0">.</span><span class="s2">response </span><span class="s0">: </span><span class="s2">xhr</span><span class="s0">.</span><span class="s2">responseText</span><span class="s0">;</span>
+        <span class="s2">setTimeout</span><span class="s0">(</span><span class="s1">function</span><span class="s0">() {</span>
+          <span class="s2">resolve</span><span class="s0">(</span><span class="s1">new </span><span class="s2">Response</span><span class="s0">(</span><span class="s2">body</span><span class="s0">, </span><span class="s2">options</span><span class="s0">));</span>
+        <span class="s0">}, </span><span class="s5">0</span><span class="s0">);</span>
+      <span class="s0">};</span>
+
+      <span class="s2">xhr</span><span class="s0">.</span><span class="s2">onerror </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+        <span class="s2">setTimeout</span><span class="s0">(</span><span class="s1">function</span><span class="s0">() {</span>
+          <span class="s2">reject</span><span class="s0">(</span><span class="s1">new </span><span class="s2">TypeError</span><span class="s0">(</span><span class="s3">'Network request failed'</span><span class="s0">));</span>
+        <span class="s0">}, </span><span class="s5">0</span><span class="s0">);</span>
+      <span class="s0">};</span>
+
+      <span class="s2">xhr</span><span class="s0">.</span><span class="s2">ontimeout </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+        <span class="s2">setTimeout</span><span class="s0">(</span><span class="s1">function</span><span class="s0">() {</span>
+          <span class="s2">reject</span><span class="s0">(</span><span class="s1">new </span><span class="s2">TypeError</span><span class="s0">(</span><span class="s3">'Network request timed out'</span><span class="s0">));</span>
+        <span class="s0">}, </span><span class="s5">0</span><span class="s0">);</span>
+      <span class="s0">};</span>
+
+      <span class="s2">xhr</span><span class="s0">.</span><span class="s2">onabort </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+        <span class="s2">setTimeout</span><span class="s0">(</span><span class="s1">function</span><span class="s0">() {</span>
+          <span class="s2">reject</span><span class="s0">(</span><span class="s1">new </span><span class="s2">exports</span><span class="s0">.</span><span class="s2">DOMException</span><span class="s0">(</span><span class="s3">'Aborted'</span><span class="s0">, </span><span class="s3">'AbortError'</span><span class="s0">));</span>
+        <span class="s0">}, </span><span class="s5">0</span><span class="s0">);</span>
+      <span class="s0">};</span>
+
+      <span class="s1">function </span><span class="s2">fixUrl</span><span class="s0">(</span><span class="s2">url</span><span class="s0">) {</span>
+        <span class="s1">try </span><span class="s0">{</span>
+          <span class="s1">return </span><span class="s2">url </span><span class="s0">=== </span><span class="s3">'' </span><span class="s0">&amp;&amp; </span><span class="s2">g</span><span class="s0">.</span><span class="s2">location</span><span class="s0">.</span><span class="s2">href </span><span class="s0">? </span><span class="s2">g</span><span class="s0">.</span><span class="s2">location</span><span class="s0">.</span><span class="s2">href </span><span class="s0">: </span><span class="s2">url</span>
+        <span class="s0">} </span><span class="s1">catch </span><span class="s0">(</span><span class="s2">e</span><span class="s0">) {</span>
+          <span class="s1">return </span><span class="s2">url</span>
+        <span class="s0">}</span>
+      <span class="s0">}</span>
+
+      <span class="s2">xhr</span><span class="s0">.</span><span class="s2">open</span><span class="s0">(</span><span class="s2">request</span><span class="s0">.</span><span class="s2">method</span><span class="s0">, </span><span class="s2">fixUrl</span><span class="s0">(</span><span class="s2">request</span><span class="s0">.</span><span class="s2">url</span><span class="s0">), </span><span class="s1">true</span><span class="s0">);</span>
+
+      <span class="s1">if </span><span class="s0">(</span><span class="s2">request</span><span class="s0">.</span><span class="s2">credentials </span><span class="s0">=== </span><span class="s3">'include'</span><span class="s0">) {</span>
+        <span class="s2">xhr</span><span class="s0">.</span><span class="s2">withCredentials </span><span class="s0">= </span><span class="s1">true</span><span class="s0">;</span>
+      <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">request</span><span class="s0">.</span><span class="s2">credentials </span><span class="s0">=== </span><span class="s3">'omit'</span><span class="s0">) {</span>
+        <span class="s2">xhr</span><span class="s0">.</span><span class="s2">withCredentials </span><span class="s0">= </span><span class="s1">false</span><span class="s0">;</span>
+      <span class="s0">}</span>
+
+      <span class="s1">if </span><span class="s0">(</span><span class="s3">'responseType' </span><span class="s1">in </span><span class="s2">xhr</span><span class="s0">) {</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">support</span><span class="s0">.</span><span class="s2">blob</span><span class="s0">) {</span>
+          <span class="s2">xhr</span><span class="s0">.</span><span class="s2">responseType </span><span class="s0">= </span><span class="s3">'blob'</span><span class="s0">;</span>
+        <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span>
+          <span class="s2">support</span><span class="s0">.</span><span class="s2">arrayBuffer</span>
+        <span class="s0">) {</span>
+          <span class="s2">xhr</span><span class="s0">.</span><span class="s2">responseType </span><span class="s0">= </span><span class="s3">'arraybuffer'</span><span class="s0">;</span>
+        <span class="s0">}</span>
+      <span class="s0">}</span>
+
+      <span class="s1">if </span><span class="s0">(</span><span class="s2">init </span><span class="s0">&amp;&amp; </span><span class="s1">typeof </span><span class="s2">init</span><span class="s0">.</span><span class="s2">headers </span><span class="s0">=== </span><span class="s3">'object' </span><span class="s0">&amp;&amp; !(</span><span class="s2">init</span><span class="s0">.</span><span class="s2">headers </span><span class="s1">instanceof </span><span class="s2">Headers </span><span class="s0">|| (</span><span class="s2">g</span><span class="s0">.</span><span class="s2">Headers </span><span class="s0">&amp;&amp; </span><span class="s2">init</span><span class="s0">.</span><span class="s2">headers </span><span class="s1">instanceof </span><span class="s2">g</span><span class="s0">.</span><span class="s2">Headers</span><span class="s0">))) {</span>
+        <span class="s1">var </span><span class="s2">names </span><span class="s0">= [];</span>
+        <span class="s2">Object</span><span class="s0">.</span><span class="s2">getOwnPropertyNames</span><span class="s0">(</span><span class="s2">init</span><span class="s0">.</span><span class="s2">headers</span><span class="s0">).</span><span class="s2">forEach</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">name</span><span class="s0">) {</span>
+          <span class="s2">names</span><span class="s0">.</span><span class="s2">push</span><span class="s0">(</span><span class="s2">normalizeName</span><span class="s0">(</span><span class="s2">name</span><span class="s0">));</span>
+          <span class="s2">xhr</span><span class="s0">.</span><span class="s2">setRequestHeader</span><span class="s0">(</span><span class="s2">name</span><span class="s0">, </span><span class="s2">normalizeValue</span><span class="s0">(</span><span class="s2">init</span><span class="s0">.</span><span class="s2">headers</span><span class="s0">[</span><span class="s2">name</span><span class="s0">]));</span>
+        <span class="s0">});</span>
+        <span class="s2">request</span><span class="s0">.</span><span class="s2">headers</span><span class="s0">.</span><span class="s2">forEach</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">value</span><span class="s0">, </span><span class="s2">name</span><span class="s0">) {</span>
+          <span class="s1">if </span><span class="s0">(</span><span class="s2">names</span><span class="s0">.</span><span class="s2">indexOf</span><span class="s0">(</span><span class="s2">name</span><span class="s0">) === -</span><span class="s5">1</span><span class="s0">) {</span>
+            <span class="s2">xhr</span><span class="s0">.</span><span class="s2">setRequestHeader</span><span class="s0">(</span><span class="s2">name</span><span class="s0">, </span><span class="s2">value</span><span class="s0">);</span>
+          <span class="s0">}</span>
+        <span class="s0">});</span>
+      <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+        <span class="s2">request</span><span class="s0">.</span><span class="s2">headers</span><span class="s0">.</span><span class="s2">forEach</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">value</span><span class="s0">, </span><span class="s2">name</span><span class="s0">) {</span>
+          <span class="s2">xhr</span><span class="s0">.</span><span class="s2">setRequestHeader</span><span class="s0">(</span><span class="s2">name</span><span class="s0">, </span><span class="s2">value</span><span class="s0">);</span>
+        <span class="s0">});</span>
+      <span class="s0">}</span>
+
+      <span class="s1">if </span><span class="s0">(</span><span class="s2">request</span><span class="s0">.</span><span class="s2">signal</span><span class="s0">) {</span>
+        <span class="s2">request</span><span class="s0">.</span><span class="s2">signal</span><span class="s0">.</span><span class="s2">addEventListener</span><span class="s0">(</span><span class="s3">'abort'</span><span class="s0">, </span><span class="s2">abortXhr</span><span class="s0">);</span>
+
+        <span class="s2">xhr</span><span class="s0">.</span><span class="s2">onreadystatechange </span><span class="s0">= </span><span class="s1">function</span><span class="s0">() {</span>
+          <span class="s4">// DONE (success or failure)</span>
+          <span class="s1">if </span><span class="s0">(</span><span class="s2">xhr</span><span class="s0">.</span><span class="s2">readyState </span><span class="s0">=== </span><span class="s5">4</span><span class="s0">) {</span>
+            <span class="s2">request</span><span class="s0">.</span><span class="s2">signal</span><span class="s0">.</span><span class="s2">removeEventListener</span><span class="s0">(</span><span class="s3">'abort'</span><span class="s0">, </span><span class="s2">abortXhr</span><span class="s0">);</span>
+          <span class="s0">}</span>
+        <span class="s0">};</span>
+      <span class="s0">}</span>
+
+      <span class="s2">xhr</span><span class="s0">.</span><span class="s2">send</span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">request</span><span class="s0">.</span><span class="s2">_bodyInit </span><span class="s0">=== </span><span class="s3">'undefined' </span><span class="s0">? </span><span class="s1">null </span><span class="s0">: </span><span class="s2">request</span><span class="s0">.</span><span class="s2">_bodyInit</span><span class="s0">);</span>
+    <span class="s0">})</span>
+  <span class="s0">}</span>
+
+  <span class="s2">fetch</span><span class="s0">.</span><span class="s2">polyfill </span><span class="s0">= </span><span class="s1">true</span><span class="s0">;</span>
+
+  <span class="s1">if </span><span class="s0">(!</span><span class="s2">g</span><span class="s0">.</span><span class="s2">fetch</span><span class="s0">) {</span>
+    <span class="s2">g</span><span class="s0">.</span><span class="s2">fetch </span><span class="s0">= </span><span class="s2">fetch</span><span class="s0">;</span>
+    <span class="s2">g</span><span class="s0">.</span><span class="s2">Headers </span><span class="s0">= </span><span class="s2">Headers</span><span class="s0">;</span>
+    <span class="s2">g</span><span class="s0">.</span><span class="s2">Request </span><span class="s0">= </span><span class="s2">Request</span><span class="s0">;</span>
+    <span class="s2">g</span><span class="s0">.</span><span class="s2">Response </span><span class="s0">= </span><span class="s2">Response</span><span class="s0">;</span>
+  <span class="s0">}</span>
+
+  <span class="s2">exports</span><span class="s0">.</span><span class="s2">Headers </span><span class="s0">= </span><span class="s2">Headers</span><span class="s0">;</span>
+  <span class="s2">exports</span><span class="s0">.</span><span class="s2">Request </span><span class="s0">= </span><span class="s2">Request</span><span class="s0">;</span>
+  <span class="s2">exports</span><span class="s0">.</span><span class="s2">Response </span><span class="s0">= </span><span class="s2">Response</span><span class="s0">;</span>
+  <span class="s2">exports</span><span class="s0">.</span><span class="s2">fetch </span><span class="s0">= </span><span class="s2">fetch</span><span class="s0">;</span>
+
+  <span class="s2">Object</span><span class="s0">.</span><span class="s2">defineProperty</span><span class="s0">(</span><span class="s2">exports</span><span class="s0">, </span><span class="s3">'__esModule'</span><span class="s0">, { </span><span class="s2">value</span><span class="s0">: </span><span class="s1">true </span><span class="s0">});</span>
+
+<span class="s0">})));</span>
+</pre>
+</body>
+</html>

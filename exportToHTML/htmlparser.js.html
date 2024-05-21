@@ -1,0 +1,604 @@
+<html>
+<head>
+<title>htmlparser.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #42c3d4;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+htmlparser.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/*! 
+ * HTML Parser By John Resig (ejohn.org) 
+ * Modified by Juriy &quot;kangax&quot; Zaytsev 
+ * Original code by Erik Arvidsson, Mozilla Public License 
+ * http://erik.eae.net/simplehtmlparser/simplehtmlparser.js 
+ */</span>
+
+<span class="s0">/* 
+ * // Use like so: 
+ * HTMLParser(htmlString, { 
+ *     start: function(tag, attrs, unary) {}, 
+ *     end: function(tag) {}, 
+ *     chars: function(text) {}, 
+ *     comment: function(text) {} 
+ * }); 
+ * 
+ * // or to get an XML string: 
+ * HTMLtoXML(htmlString); 
+ * 
+ * // or to get an XML DOM Document 
+ * HTMLtoDOM(htmlString); 
+ * 
+ * // or to inject into an existing document/DOM node 
+ * HTMLtoDOM(htmlString, document); 
+ * HTMLtoDOM(htmlString, document.body); 
+ * 
+ */</span>
+
+<span class="s0">/* global ActiveXObject, DOMDocument */</span>
+
+<span class="s2">'use strict'</span><span class="s3">;</span>
+
+<span class="s4">var </span><span class="s1">createMapFromString </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">'./utils'</span><span class="s3">).</span><span class="s1">createMapFromString</span><span class="s3">;</span>
+<span class="s4">var </span><span class="s1">replaceAsync </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">'./utils'</span><span class="s3">).</span><span class="s1">replaceAsync</span><span class="s3">;</span>
+
+<span class="s4">function </span><span class="s1">makeMap</span><span class="s3">(</span><span class="s1">values</span><span class="s3">) {</span>
+  <span class="s4">return </span><span class="s1">createMapFromString</span><span class="s3">(</span><span class="s1">values</span><span class="s3">, </span><span class="s4">true</span><span class="s3">);</span>
+<span class="s3">}</span>
+
+<span class="s0">// Regular Expressions for parsing tags and attributes</span>
+<span class="s4">var </span><span class="s1">singleAttrIdentifier </span><span class="s3">= </span><span class="s5">/([^\s&quot;'&lt;&gt;/=]+)/</span><span class="s3">,</span>
+    <span class="s1">singleAttrAssigns </span><span class="s3">= [</span><span class="s5">/=/</span><span class="s3">],</span>
+    <span class="s1">singleAttrValues </span><span class="s3">= [</span>
+    <span class="s0">// attr value double quotes</span>
+      <span class="s5">/&quot;([^&quot;]*)&quot;+/</span><span class="s3">.</span><span class="s1">source</span><span class="s3">,</span>
+      <span class="s0">// attr value, single quotes</span>
+      <span class="s5">/'([^']*)'+/</span><span class="s3">.</span><span class="s1">source</span><span class="s3">,</span>
+      <span class="s0">// attr value, no quotes</span>
+      <span class="s5">/([^ \t\n\f\r&quot;'`=&lt;&gt;]+)/</span><span class="s3">.</span><span class="s1">source</span>
+    <span class="s3">],</span>
+    <span class="s0">// https://www.w3.org/TR/1999/REC-xml-names-19990114/#NT-QName</span>
+    <span class="s1">qnameCapture </span><span class="s3">= (</span><span class="s4">function</span><span class="s3">() {</span>
+    <span class="s0">// based on https://www.npmjs.com/package/ncname</span>
+      <span class="s4">var </span><span class="s1">combiningChar </span><span class="s3">= </span><span class="s2">'</span><span class="s4">\\</span><span class="s2">u0300-</span><span class="s4">\\</span><span class="s2">u0345</span><span class="s4">\\</span><span class="s2">u0360</span><span class="s4">\\</span><span class="s2">u0361</span><span class="s4">\\</span><span class="s2">u0483-</span><span class="s4">\\</span><span class="s2">u0486</span><span class="s4">\\</span><span class="s2">u0591-</span><span class="s4">\\</span><span class="s2">u05A1</span><span class="s4">\\</span><span class="s2">u05A3-</span><span class="s4">\\</span><span class="s2">u05B9</span><span class="s4">\\</span><span class="s2">u05BB-</span><span class="s4">\\</span><span class="s2">u05BD</span><span class="s4">\\</span><span class="s2">u05BF</span><span class="s4">\\</span><span class="s2">u05C1</span><span class="s4">\\</span><span class="s2">u05C2</span><span class="s4">\\</span><span class="s2">u05C4</span><span class="s4">\\</span><span class="s2">u064B-</span><span class="s4">\\</span><span class="s2">u0652</span><span class="s4">\\</span><span class="s2">u0670</span><span class="s4">\\</span><span class="s2">u06D6-</span><span class="s4">\\</span><span class="s2">u06E4</span><span class="s4">\\</span><span class="s2">u06E7</span><span class="s4">\\</span><span class="s2">u06E8</span><span class="s4">\\</span><span class="s2">u06EA-</span><span class="s4">\\</span><span class="s2">u06ED</span><span class="s4">\\</span><span class="s2">u0901-</span><span class="s4">\\</span><span class="s2">u0903</span><span class="s4">\\</span><span class="s2">u093C</span><span class="s4">\\</span><span class="s2">u093E-</span><span class="s4">\\</span><span class="s2">u094D</span><span class="s4">\\</span><span class="s2">u0951-</span><span class="s4">\\</span><span class="s2">u0954</span><span class="s4">\\</span><span class="s2">u0962</span><span class="s4">\\</span><span class="s2">u0963</span><span class="s4">\\</span><span class="s2">u0981-</span><span class="s4">\\</span><span class="s2">u0983</span><span class="s4">\\</span><span class="s2">u09BC</span><span class="s4">\\</span><span class="s2">u09BE-</span><span class="s4">\\</span><span class="s2">u09C4</span><span class="s4">\\</span><span class="s2">u09C7</span><span class="s4">\\</span><span class="s2">u09C8</span><span class="s4">\\</span><span class="s2">u09CB-</span><span class="s4">\\</span><span class="s2">u09CD</span><span class="s4">\\</span><span class="s2">u09D7</span><span class="s4">\\</span><span class="s2">u09E2</span><span class="s4">\\</span><span class="s2">u09E3</span><span class="s4">\\</span><span class="s2">u0A02</span><span class="s4">\\</span><span class="s2">u0A3C</span><span class="s4">\\</span><span class="s2">u0A3E-</span><span class="s4">\\</span><span class="s2">u0A42</span><span class="s4">\\</span><span class="s2">u0A47</span><span class="s4">\\</span><span class="s2">u0A48</span><span class="s4">\\</span><span class="s2">u0A4B-</span><span class="s4">\\</span><span class="s2">u0A4D</span><span class="s4">\\</span><span class="s2">u0A70</span><span class="s4">\\</span><span class="s2">u0A71</span><span class="s4">\\</span><span class="s2">u0A81-</span><span class="s4">\\</span><span class="s2">u0A83</span><span class="s4">\\</span><span class="s2">u0ABC</span><span class="s4">\\</span><span class="s2">u0ABE-</span><span class="s4">\\</span><span class="s2">u0AC5</span><span class="s4">\\</span><span class="s2">u0AC7-</span><span class="s4">\\</span><span class="s2">u0AC9</span><span class="s4">\\</span><span class="s2">u0ACB-</span><span class="s4">\\</span><span class="s2">u0ACD</span><span class="s4">\\</span><span class="s2">u0B01-</span><span class="s4">\\</span><span class="s2">u0B03</span><span class="s4">\\</span><span class="s2">u0B3C</span><span class="s4">\\</span><span class="s2">u0B3E-</span><span class="s4">\\</span><span class="s2">u0B43</span><span class="s4">\\</span><span class="s2">u0B47</span><span class="s4">\\</span><span class="s2">u0B48</span><span class="s4">\\</span><span class="s2">u0B4B-</span><span class="s4">\\</span><span class="s2">u0B4D</span><span class="s4">\\</span><span class="s2">u0B56</span><span class="s4">\\</span><span class="s2">u0B57</span><span class="s4">\\</span><span class="s2">u0B82</span><span class="s4">\\</span><span class="s2">u0B83</span><span class="s4">\\</span><span class="s2">u0BBE-</span><span class="s4">\\</span><span class="s2">u0BC2</span><span class="s4">\\</span><span class="s2">u0BC6-</span><span class="s4">\\</span><span class="s2">u0BC8</span><span class="s4">\\</span><span class="s2">u0BCA-</span><span class="s4">\\</span><span class="s2">u0BCD</span><span class="s4">\\</span><span class="s2">u0BD7</span><span class="s4">\\</span><span class="s2">u0C01-</span><span class="s4">\\</span><span class="s2">u0C03</span><span class="s4">\\</span><span class="s2">u0C3E-</span><span class="s4">\\</span><span class="s2">u0C44</span><span class="s4">\\</span><span class="s2">u0C46-</span><span class="s4">\\</span><span class="s2">u0C48</span><span class="s4">\\</span><span class="s2">u0C4A-</span><span class="s4">\\</span><span class="s2">u0C4D</span><span class="s4">\\</span><span class="s2">u0C55</span><span class="s4">\\</span><span class="s2">u0C56</span><span class="s4">\\</span><span class="s2">u0C82</span><span class="s4">\\</span><span class="s2">u0C83</span><span class="s4">\\</span><span class="s2">u0CBE-</span><span class="s4">\\</span><span class="s2">u0CC4</span><span class="s4">\\</span><span class="s2">u0CC6-</span><span class="s4">\\</span><span class="s2">u0CC8</span><span class="s4">\\</span><span class="s2">u0CCA-</span><span class="s4">\\</span><span class="s2">u0CCD</span><span class="s4">\\</span><span class="s2">u0CD5</span><span class="s4">\\</span><span class="s2">u0CD6</span><span class="s4">\\</span><span class="s2">u0D02</span><span class="s4">\\</span><span class="s2">u0D03</span><span class="s4">\\</span><span class="s2">u0D3E-</span><span class="s4">\\</span><span class="s2">u0D43</span><span class="s4">\\</span><span class="s2">u0D46-</span><span class="s4">\\</span><span class="s2">u0D48</span><span class="s4">\\</span><span class="s2">u0D4A-</span><span class="s4">\\</span><span class="s2">u0D4D</span><span class="s4">\\</span><span class="s2">u0D57</span><span class="s4">\\</span><span class="s2">u0E31</span><span class="s4">\\</span><span class="s2">u0E34-</span><span class="s4">\\</span><span class="s2">u0E3A</span><span class="s4">\\</span><span class="s2">u0E47-</span><span class="s4">\\</span><span class="s2">u0E4E</span><span class="s4">\\</span><span class="s2">u0EB1</span><span class="s4">\\</span><span class="s2">u0EB4-</span><span class="s4">\\</span><span class="s2">u0EB9</span><span class="s4">\\</span><span class="s2">u0EBB</span><span class="s4">\\</span><span class="s2">u0EBC</span><span class="s4">\\</span><span class="s2">u0EC8-</span><span class="s4">\\</span><span class="s2">u0ECD</span><span class="s4">\\</span><span class="s2">u0F18</span><span class="s4">\\</span><span class="s2">u0F19</span><span class="s4">\\</span><span class="s2">u0F35</span><span class="s4">\\</span><span class="s2">u0F37</span><span class="s4">\\</span><span class="s2">u0F39</span><span class="s4">\\</span><span class="s2">u0F3E</span><span class="s4">\\</span><span class="s2">u0F3F</span><span class="s4">\\</span><span class="s2">u0F71-</span><span class="s4">\\</span><span class="s2">u0F84</span><span class="s4">\\</span><span class="s2">u0F86-</span><span class="s4">\\</span><span class="s2">u0F8B</span><span class="s4">\\</span><span class="s2">u0F90-</span><span class="s4">\\</span><span class="s2">u0F95</span><span class="s4">\\</span><span class="s2">u0F97</span><span class="s4">\\</span><span class="s2">u0F99-</span><span class="s4">\\</span><span class="s2">u0FAD</span><span class="s4">\\</span><span class="s2">u0FB1-</span><span class="s4">\\</span><span class="s2">u0FB7</span><span class="s4">\\</span><span class="s2">u0FB9</span><span class="s4">\\</span><span class="s2">u20D0-</span><span class="s4">\\</span><span class="s2">u20DC</span><span class="s4">\\</span><span class="s2">u20E1</span><span class="s4">\\</span><span class="s2">u302A-</span><span class="s4">\\</span><span class="s2">u302F</span><span class="s4">\\</span><span class="s2">u3099</span><span class="s4">\\</span><span class="s2">u309A'</span><span class="s3">;</span>
+      <span class="s4">var </span><span class="s1">digit </span><span class="s3">= </span><span class="s2">'0-9</span><span class="s4">\\</span><span class="s2">u0660-</span><span class="s4">\\</span><span class="s2">u0669</span><span class="s4">\\</span><span class="s2">u06F0-</span><span class="s4">\\</span><span class="s2">u06F9</span><span class="s4">\\</span><span class="s2">u0966-</span><span class="s4">\\</span><span class="s2">u096F</span><span class="s4">\\</span><span class="s2">u09E6-</span><span class="s4">\\</span><span class="s2">u09EF</span><span class="s4">\\</span><span class="s2">u0A66-</span><span class="s4">\\</span><span class="s2">u0A6F</span><span class="s4">\\</span><span class="s2">u0AE6-</span><span class="s4">\\</span><span class="s2">u0AEF</span><span class="s4">\\</span><span class="s2">u0B66-</span><span class="s4">\\</span><span class="s2">u0B6F</span><span class="s4">\\</span><span class="s2">u0BE7-</span><span class="s4">\\</span><span class="s2">u0BEF</span><span class="s4">\\</span><span class="s2">u0C66-</span><span class="s4">\\</span><span class="s2">u0C6F</span><span class="s4">\\</span><span class="s2">u0CE6-</span><span class="s4">\\</span><span class="s2">u0CEF</span><span class="s4">\\</span><span class="s2">u0D66-</span><span class="s4">\\</span><span class="s2">u0D6F</span><span class="s4">\\</span><span class="s2">u0E50-</span><span class="s4">\\</span><span class="s2">u0E59</span><span class="s4">\\</span><span class="s2">u0ED0-</span><span class="s4">\\</span><span class="s2">u0ED9</span><span class="s4">\\</span><span class="s2">u0F20-</span><span class="s4">\\</span><span class="s2">u0F29'</span><span class="s3">;</span>
+      <span class="s4">var </span><span class="s1">extender </span><span class="s3">= </span><span class="s2">'</span><span class="s4">\\</span><span class="s2">xB7</span><span class="s4">\\</span><span class="s2">u02D0</span><span class="s4">\\</span><span class="s2">u02D1</span><span class="s4">\\</span><span class="s2">u0387</span><span class="s4">\\</span><span class="s2">u0640</span><span class="s4">\\</span><span class="s2">u0E46</span><span class="s4">\\</span><span class="s2">u0EC6</span><span class="s4">\\</span><span class="s2">u3005</span><span class="s4">\\</span><span class="s2">u3031-</span><span class="s4">\\</span><span class="s2">u3035</span><span class="s4">\\</span><span class="s2">u309D</span><span class="s4">\\</span><span class="s2">u309E</span><span class="s4">\\</span><span class="s2">u30FC-</span><span class="s4">\\</span><span class="s2">u30FE'</span><span class="s3">;</span>
+      <span class="s4">var </span><span class="s1">letter </span><span class="s3">= </span><span class="s2">'A-Za-z</span><span class="s4">\\</span><span class="s2">xC0-</span><span class="s4">\\</span><span class="s2">xD6</span><span class="s4">\\</span><span class="s2">xD8-</span><span class="s4">\\</span><span class="s2">xF6</span><span class="s4">\\</span><span class="s2">xF8-</span><span class="s4">\\</span><span class="s2">u0131</span><span class="s4">\\</span><span class="s2">u0134-</span><span class="s4">\\</span><span class="s2">u013E</span><span class="s4">\\</span><span class="s2">u0141-</span><span class="s4">\\</span><span class="s2">u0148</span><span class="s4">\\</span><span class="s2">u014A-</span><span class="s4">\\</span><span class="s2">u017E</span><span class="s4">\\</span><span class="s2">u0180-</span><span class="s4">\\</span><span class="s2">u01C3</span><span class="s4">\\</span><span class="s2">u01CD-</span><span class="s4">\\</span><span class="s2">u01F0</span><span class="s4">\\</span><span class="s2">u01F4</span><span class="s4">\\</span><span class="s2">u01F5</span><span class="s4">\\</span><span class="s2">u01FA-</span><span class="s4">\\</span><span class="s2">u0217</span><span class="s4">\\</span><span class="s2">u0250-</span><span class="s4">\\</span><span class="s2">u02A8</span><span class="s4">\\</span><span class="s2">u02BB-</span><span class="s4">\\</span><span class="s2">u02C1</span><span class="s4">\\</span><span class="s2">u0386</span><span class="s4">\\</span><span class="s2">u0388-</span><span class="s4">\\</span><span class="s2">u038A</span><span class="s4">\\</span><span class="s2">u038C</span><span class="s4">\\</span><span class="s2">u038E-</span><span class="s4">\\</span><span class="s2">u03A1</span><span class="s4">\\</span><span class="s2">u03A3-</span><span class="s4">\\</span><span class="s2">u03CE</span><span class="s4">\\</span><span class="s2">u03D0-</span><span class="s4">\\</span><span class="s2">u03D6</span><span class="s4">\\</span><span class="s2">u03DA</span><span class="s4">\\</span><span class="s2">u03DC</span><span class="s4">\\</span><span class="s2">u03DE</span><span class="s4">\\</span><span class="s2">u03E0</span><span class="s4">\\</span><span class="s2">u03E2-</span><span class="s4">\\</span><span class="s2">u03F3</span><span class="s4">\\</span><span class="s2">u0401-</span><span class="s4">\\</span><span class="s2">u040C</span><span class="s4">\\</span><span class="s2">u040E-</span><span class="s4">\\</span><span class="s2">u044F</span><span class="s4">\\</span><span class="s2">u0451-</span><span class="s4">\\</span><span class="s2">u045C</span><span class="s4">\\</span><span class="s2">u045E-</span><span class="s4">\\</span><span class="s2">u0481</span><span class="s4">\\</span><span class="s2">u0490-</span><span class="s4">\\</span><span class="s2">u04C4</span><span class="s4">\\</span><span class="s2">u04C7</span><span class="s4">\\</span><span class="s2">u04C8</span><span class="s4">\\</span><span class="s2">u04CB</span><span class="s4">\\</span><span class="s2">u04CC</span><span class="s4">\\</span><span class="s2">u04D0-</span><span class="s4">\\</span><span class="s2">u04EB</span><span class="s4">\\</span><span class="s2">u04EE-</span><span class="s4">\\</span><span class="s2">u04F5</span><span class="s4">\\</span><span class="s2">u04F8</span><span class="s4">\\</span><span class="s2">u04F9</span><span class="s4">\\</span><span class="s2">u0531-</span><span class="s4">\\</span><span class="s2">u0556</span><span class="s4">\\</span><span class="s2">u0559</span><span class="s4">\\</span><span class="s2">u0561-</span><span class="s4">\\</span><span class="s2">u0586</span><span class="s4">\\</span><span class="s2">u05D0-</span><span class="s4">\\</span><span class="s2">u05EA</span><span class="s4">\\</span><span class="s2">u05F0-</span><span class="s4">\\</span><span class="s2">u05F2</span><span class="s4">\\</span><span class="s2">u0621-</span><span class="s4">\\</span><span class="s2">u063A</span><span class="s4">\\</span><span class="s2">u0641-</span><span class="s4">\\</span><span class="s2">u064A</span><span class="s4">\\</span><span class="s2">u0671-</span><span class="s4">\\</span><span class="s2">u06B7</span><span class="s4">\\</span><span class="s2">u06BA-</span><span class="s4">\\</span><span class="s2">u06BE</span><span class="s4">\\</span><span class="s2">u06C0-</span><span class="s4">\\</span><span class="s2">u06CE</span><span class="s4">\\</span><span class="s2">u06D0-</span><span class="s4">\\</span><span class="s2">u06D3</span><span class="s4">\\</span><span class="s2">u06D5</span><span class="s4">\\</span><span class="s2">u06E5</span><span class="s4">\\</span><span class="s2">u06E6</span><span class="s4">\\</span><span class="s2">u0905-</span><span class="s4">\\</span><span class="s2">u0939</span><span class="s4">\\</span><span class="s2">u093D</span><span class="s4">\\</span><span class="s2">u0958-</span><span class="s4">\\</span><span class="s2">u0961</span><span class="s4">\\</span><span class="s2">u0985-</span><span class="s4">\\</span><span class="s2">u098C</span><span class="s4">\\</span><span class="s2">u098F</span><span class="s4">\\</span><span class="s2">u0990</span><span class="s4">\\</span><span class="s2">u0993-</span><span class="s4">\\</span><span class="s2">u09A8</span><span class="s4">\\</span><span class="s2">u09AA-</span><span class="s4">\\</span><span class="s2">u09B0</span><span class="s4">\\</span><span class="s2">u09B2</span><span class="s4">\\</span><span class="s2">u09B6-</span><span class="s4">\\</span><span class="s2">u09B9</span><span class="s4">\\</span><span class="s2">u09DC</span><span class="s4">\\</span><span class="s2">u09DD</span><span class="s4">\\</span><span class="s2">u09DF-</span><span class="s4">\\</span><span class="s2">u09E1</span><span class="s4">\\</span><span class="s2">u09F0</span><span class="s4">\\</span><span class="s2">u09F1</span><span class="s4">\\</span><span class="s2">u0A05-</span><span class="s4">\\</span><span class="s2">u0A0A</span><span class="s4">\\</span><span class="s2">u0A0F</span><span class="s4">\\</span><span class="s2">u0A10</span><span class="s4">\\</span><span class="s2">u0A13-</span><span class="s4">\\</span><span class="s2">u0A28</span><span class="s4">\\</span><span class="s2">u0A2A-</span><span class="s4">\\</span><span class="s2">u0A30</span><span class="s4">\\</span><span class="s2">u0A32</span><span class="s4">\\</span><span class="s2">u0A33</span><span class="s4">\\</span><span class="s2">u0A35</span><span class="s4">\\</span><span class="s2">u0A36</span><span class="s4">\\</span><span class="s2">u0A38</span><span class="s4">\\</span><span class="s2">u0A39</span><span class="s4">\\</span><span class="s2">u0A59-</span><span class="s4">\\</span><span class="s2">u0A5C</span><span class="s4">\\</span><span class="s2">u0A5E</span><span class="s4">\\</span><span class="s2">u0A72-</span><span class="s4">\\</span><span class="s2">u0A74</span><span class="s4">\\</span><span class="s2">u0A85-</span><span class="s4">\\</span><span class="s2">u0A8B</span><span class="s4">\\</span><span class="s2">u0A8D</span><span class="s4">\\</span><span class="s2">u0A8F-</span><span class="s4">\\</span><span class="s2">u0A91</span><span class="s4">\\</span><span class="s2">u0A93-</span><span class="s4">\\</span><span class="s2">u0AA8</span><span class="s4">\\</span><span class="s2">u0AAA-</span><span class="s4">\\</span><span class="s2">u0AB0</span><span class="s4">\\</span><span class="s2">u0AB2</span><span class="s4">\\</span><span class="s2">u0AB3</span><span class="s4">\\</span><span class="s2">u0AB5-</span><span class="s4">\\</span><span class="s2">u0AB9</span><span class="s4">\\</span><span class="s2">u0ABD</span><span class="s4">\\</span><span class="s2">u0AE0</span><span class="s4">\\</span><span class="s2">u0B05-</span><span class="s4">\\</span><span class="s2">u0B0C</span><span class="s4">\\</span><span class="s2">u0B0F</span><span class="s4">\\</span><span class="s2">u0B10</span><span class="s4">\\</span><span class="s2">u0B13-</span><span class="s4">\\</span><span class="s2">u0B28</span><span class="s4">\\</span><span class="s2">u0B2A-</span><span class="s4">\\</span><span class="s2">u0B30</span><span class="s4">\\</span><span class="s2">u0B32</span><span class="s4">\\</span><span class="s2">u0B33</span><span class="s4">\\</span><span class="s2">u0B36-</span><span class="s4">\\</span><span class="s2">u0B39</span><span class="s4">\\</span><span class="s2">u0B3D</span><span class="s4">\\</span><span class="s2">u0B5C</span><span class="s4">\\</span><span class="s2">u0B5D</span><span class="s4">\\</span><span class="s2">u0B5F-</span><span class="s4">\\</span><span class="s2">u0B61</span><span class="s4">\\</span><span class="s2">u0B85-</span><span class="s4">\\</span><span class="s2">u0B8A</span><span class="s4">\\</span><span class="s2">u0B8E-</span><span class="s4">\\</span><span class="s2">u0B90</span><span class="s4">\\</span><span class="s2">u0B92-</span><span class="s4">\\</span><span class="s2">u0B95</span><span class="s4">\\</span><span class="s2">u0B99</span><span class="s4">\\</span><span class="s2">u0B9A</span><span class="s4">\\</span><span class="s2">u0B9C</span><span class="s4">\\</span><span class="s2">u0B9E</span><span class="s4">\\</span><span class="s2">u0B9F</span><span class="s4">\\</span><span class="s2">u0BA3</span><span class="s4">\\</span><span class="s2">u0BA4</span><span class="s4">\\</span><span class="s2">u0BA8-</span><span class="s4">\\</span><span class="s2">u0BAA</span><span class="s4">\\</span><span class="s2">u0BAE-</span><span class="s4">\\</span><span class="s2">u0BB5</span><span class="s4">\\</span><span class="s2">u0BB7-</span><span class="s4">\\</span><span class="s2">u0BB9</span><span class="s4">\\</span><span class="s2">u0C05-</span><span class="s4">\\</span><span class="s2">u0C0C</span><span class="s4">\\</span><span class="s2">u0C0E-</span><span class="s4">\\</span><span class="s2">u0C10</span><span class="s4">\\</span><span class="s2">u0C12-</span><span class="s4">\\</span><span class="s2">u0C28</span><span class="s4">\\</span><span class="s2">u0C2A-</span><span class="s4">\\</span><span class="s2">u0C33</span><span class="s4">\\</span><span class="s2">u0C35-</span><span class="s4">\\</span><span class="s2">u0C39</span><span class="s4">\\</span><span class="s2">u0C60</span><span class="s4">\\</span><span class="s2">u0C61</span><span class="s4">\\</span><span class="s2">u0C85-</span><span class="s4">\\</span><span class="s2">u0C8C</span><span class="s4">\\</span><span class="s2">u0C8E-</span><span class="s4">\\</span><span class="s2">u0C90</span><span class="s4">\\</span><span class="s2">u0C92-</span><span class="s4">\\</span><span class="s2">u0CA8</span><span class="s4">\\</span><span class="s2">u0CAA-</span><span class="s4">\\</span><span class="s2">u0CB3</span><span class="s4">\\</span><span class="s2">u0CB5-</span><span class="s4">\\</span><span class="s2">u0CB9</span><span class="s4">\\</span><span class="s2">u0CDE</span><span class="s4">\\</span><span class="s2">u0CE0</span><span class="s4">\\</span><span class="s2">u0CE1</span><span class="s4">\\</span><span class="s2">u0D05-</span><span class="s4">\\</span><span class="s2">u0D0C</span><span class="s4">\\</span><span class="s2">u0D0E-</span><span class="s4">\\</span><span class="s2">u0D10</span><span class="s4">\\</span><span class="s2">u0D12-</span><span class="s4">\\</span><span class="s2">u0D28</span><span class="s4">\\</span><span class="s2">u0D2A-</span><span class="s4">\\</span><span class="s2">u0D39</span><span class="s4">\\</span><span class="s2">u0D60</span><span class="s4">\\</span><span class="s2">u0D61</span><span class="s4">\\</span><span class="s2">u0E01-</span><span class="s4">\\</span><span class="s2">u0E2E</span><span class="s4">\\</span><span class="s2">u0E30</span><span class="s4">\\</span><span class="s2">u0E32</span><span class="s4">\\</span><span class="s2">u0E33</span><span class="s4">\\</span><span class="s2">u0E40-</span><span class="s4">\\</span><span class="s2">u0E45</span><span class="s4">\\</span><span class="s2">u0E81</span><span class="s4">\\</span><span class="s2">u0E82</span><span class="s4">\\</span><span class="s2">u0E84</span><span class="s4">\\</span><span class="s2">u0E87</span><span class="s4">\\</span><span class="s2">u0E88</span><span class="s4">\\</span><span class="s2">u0E8A</span><span class="s4">\\</span><span class="s2">u0E8D</span><span class="s4">\\</span><span class="s2">u0E94-</span><span class="s4">\\</span><span class="s2">u0E97</span><span class="s4">\\</span><span class="s2">u0E99-</span><span class="s4">\\</span><span class="s2">u0E9F</span><span class="s4">\\</span><span class="s2">u0EA1-</span><span class="s4">\\</span><span class="s2">u0EA3</span><span class="s4">\\</span><span class="s2">u0EA5</span><span class="s4">\\</span><span class="s2">u0EA7</span><span class="s4">\\</span><span class="s2">u0EAA</span><span class="s4">\\</span><span class="s2">u0EAB</span><span class="s4">\\</span><span class="s2">u0EAD</span><span class="s4">\\</span><span class="s2">u0EAE</span><span class="s4">\\</span><span class="s2">u0EB0</span><span class="s4">\\</span><span class="s2">u0EB2</span><span class="s4">\\</span><span class="s2">u0EB3</span><span class="s4">\\</span><span class="s2">u0EBD</span><span class="s4">\\</span><span class="s2">u0EC0-</span><span class="s4">\\</span><span class="s2">u0EC4</span><span class="s4">\\</span><span class="s2">u0F40-</span><span class="s4">\\</span><span class="s2">u0F47</span><span class="s4">\\</span><span class="s2">u0F49-</span><span class="s4">\\</span><span class="s2">u0F69</span><span class="s4">\\</span><span class="s2">u10A0-</span><span class="s4">\\</span><span class="s2">u10C5</span><span class="s4">\\</span><span class="s2">u10D0-</span><span class="s4">\\</span><span class="s2">u10F6</span><span class="s4">\\</span><span class="s2">u1100</span><span class="s4">\\</span><span class="s2">u1102</span><span class="s4">\\</span><span class="s2">u1103</span><span class="s4">\\</span><span class="s2">u1105-</span><span class="s4">\\</span><span class="s2">u1107</span><span class="s4">\\</span><span class="s2">u1109</span><span class="s4">\\</span><span class="s2">u110B</span><span class="s4">\\</span><span class="s2">u110C</span><span class="s4">\\</span><span class="s2">u110E-</span><span class="s4">\\</span><span class="s2">u1112</span><span class="s4">\\</span><span class="s2">u113C</span><span class="s4">\\</span><span class="s2">u113E</span><span class="s4">\\</span><span class="s2">u1140</span><span class="s4">\\</span><span class="s2">u114C</span><span class="s4">\\</span><span class="s2">u114E</span><span class="s4">\\</span><span class="s2">u1150</span><span class="s4">\\</span><span class="s2">u1154</span><span class="s4">\\</span><span class="s2">u1155</span><span class="s4">\\</span><span class="s2">u1159</span><span class="s4">\\</span><span class="s2">u115F-</span><span class="s4">\\</span><span class="s2">u1161</span><span class="s4">\\</span><span class="s2">u1163</span><span class="s4">\\</span><span class="s2">u1165</span><span class="s4">\\</span><span class="s2">u1167</span><span class="s4">\\</span><span class="s2">u1169</span><span class="s4">\\</span><span class="s2">u116D</span><span class="s4">\\</span><span class="s2">u116E</span><span class="s4">\\</span><span class="s2">u1172</span><span class="s4">\\</span><span class="s2">u1173</span><span class="s4">\\</span><span class="s2">u1175</span><span class="s4">\\</span><span class="s2">u119E</span><span class="s4">\\</span><span class="s2">u11A8</span><span class="s4">\\</span><span class="s2">u11AB</span><span class="s4">\\</span><span class="s2">u11AE</span><span class="s4">\\</span><span class="s2">u11AF</span><span class="s4">\\</span><span class="s2">u11B7</span><span class="s4">\\</span><span class="s2">u11B8</span><span class="s4">\\</span><span class="s2">u11BA</span><span class="s4">\\</span><span class="s2">u11BC-</span><span class="s4">\\</span><span class="s2">u11C2</span><span class="s4">\\</span><span class="s2">u11EB</span><span class="s4">\\</span><span class="s2">u11F0</span><span class="s4">\\</span><span class="s2">u11F9</span><span class="s4">\\</span><span class="s2">u1E00-</span><span class="s4">\\</span><span class="s2">u1E9B</span><span class="s4">\\</span><span class="s2">u1EA0-</span><span class="s4">\\</span><span class="s2">u1EF9</span><span class="s4">\\</span><span class="s2">u1F00-</span><span class="s4">\\</span><span class="s2">u1F15</span><span class="s4">\\</span><span class="s2">u1F18-</span><span class="s4">\\</span><span class="s2">u1F1D</span><span class="s4">\\</span><span class="s2">u1F20-</span><span class="s4">\\</span><span class="s2">u1F45</span><span class="s4">\\</span><span class="s2">u1F48-</span><span class="s4">\\</span><span class="s2">u1F4D</span><span class="s4">\\</span><span class="s2">u1F50-</span><span class="s4">\\</span><span class="s2">u1F57</span><span class="s4">\\</span><span class="s2">u1F59</span><span class="s4">\\</span><span class="s2">u1F5B</span><span class="s4">\\</span><span class="s2">u1F5D</span><span class="s4">\\</span><span class="s2">u1F5F-</span><span class="s4">\\</span><span class="s2">u1F7D</span><span class="s4">\\</span><span class="s2">u1F80-</span><span class="s4">\\</span><span class="s2">u1FB4</span><span class="s4">\\</span><span class="s2">u1FB6-</span><span class="s4">\\</span><span class="s2">u1FBC</span><span class="s4">\\</span><span class="s2">u1FBE</span><span class="s4">\\</span><span class="s2">u1FC2-</span><span class="s4">\\</span><span class="s2">u1FC4</span><span class="s4">\\</span><span class="s2">u1FC6-</span><span class="s4">\\</span><span class="s2">u1FCC</span><span class="s4">\\</span><span class="s2">u1FD0-</span><span class="s4">\\</span><span class="s2">u1FD3</span><span class="s4">\\</span><span class="s2">u1FD6-</span><span class="s4">\\</span><span class="s2">u1FDB</span><span class="s4">\\</span><span class="s2">u1FE0-</span><span class="s4">\\</span><span class="s2">u1FEC</span><span class="s4">\\</span><span class="s2">u1FF2-</span><span class="s4">\\</span><span class="s2">u1FF4</span><span class="s4">\\</span><span class="s2">u1FF6-</span><span class="s4">\\</span><span class="s2">u1FFC</span><span class="s4">\\</span><span class="s2">u2126</span><span class="s4">\\</span><span class="s2">u212A</span><span class="s4">\\</span><span class="s2">u212B</span><span class="s4">\\</span><span class="s2">u212E</span><span class="s4">\\</span><span class="s2">u2180-</span><span class="s4">\\</span><span class="s2">u2182</span><span class="s4">\\</span><span class="s2">u3007</span><span class="s4">\\</span><span class="s2">u3021-</span><span class="s4">\\</span><span class="s2">u3029</span><span class="s4">\\</span><span class="s2">u3041-</span><span class="s4">\\</span><span class="s2">u3094</span><span class="s4">\\</span><span class="s2">u30A1-</span><span class="s4">\\</span><span class="s2">u30FA</span><span class="s4">\\</span><span class="s2">u3105-</span><span class="s4">\\</span><span class="s2">u312C</span><span class="s4">\\</span><span class="s2">u4E00-</span><span class="s4">\\</span><span class="s2">u9FA5</span><span class="s4">\\</span><span class="s2">uAC00-</span><span class="s4">\\</span><span class="s2">uD7A3'</span><span class="s3">;</span>
+      <span class="s4">var </span><span class="s1">ncname </span><span class="s3">= </span><span class="s2">'[' </span><span class="s3">+ </span><span class="s1">letter </span><span class="s3">+ </span><span class="s2">'_][' </span><span class="s3">+ </span><span class="s1">letter </span><span class="s3">+ </span><span class="s1">digit </span><span class="s3">+ </span><span class="s2">'</span><span class="s4">\\</span><span class="s2">.</span><span class="s4">\\</span><span class="s2">-_' </span><span class="s3">+ </span><span class="s1">combiningChar </span><span class="s3">+ </span><span class="s1">extender </span><span class="s3">+ </span><span class="s2">']*'</span><span class="s3">;</span>
+      <span class="s4">return </span><span class="s2">'((?:' </span><span class="s3">+ </span><span class="s1">ncname </span><span class="s3">+ </span><span class="s2">'</span><span class="s4">\\</span><span class="s2">:)?' </span><span class="s3">+ </span><span class="s1">ncname </span><span class="s3">+ </span><span class="s2">')'</span><span class="s3">;</span>
+    <span class="s3">})(),</span>
+    <span class="s1">startTagOpen </span><span class="s3">= </span><span class="s4">new </span><span class="s1">RegExp</span><span class="s3">(</span><span class="s2">'^&lt;' </span><span class="s3">+ </span><span class="s1">qnameCapture</span><span class="s3">),</span>
+    <span class="s1">startTagClose </span><span class="s3">= </span><span class="s5">/^\s*(\/?)&gt;/</span><span class="s3">,</span>
+    <span class="s1">endTag </span><span class="s3">= </span><span class="s4">new </span><span class="s1">RegExp</span><span class="s3">(</span><span class="s2">'^&lt;</span><span class="s4">\\</span><span class="s2">/' </span><span class="s3">+ </span><span class="s1">qnameCapture </span><span class="s3">+ </span><span class="s2">'[^&gt;]*&gt;'</span><span class="s3">),</span>
+    <span class="s1">doctype </span><span class="s3">= </span><span class="s5">/^&lt;!DOCTYPE\s?[^&gt;]+&gt;/i</span><span class="s3">;</span>
+
+<span class="s4">var </span><span class="s1">IS_REGEX_CAPTURING_BROKEN </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+<span class="s2">'x'</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s5">/x(.)?/g</span><span class="s3">, </span><span class="s4">function</span><span class="s3">(</span><span class="s1">m</span><span class="s3">, </span><span class="s1">g</span><span class="s3">) {</span>
+  <span class="s1">IS_REGEX_CAPTURING_BROKEN </span><span class="s3">= </span><span class="s1">g </span><span class="s3">=== </span><span class="s2">''</span><span class="s3">;</span>
+<span class="s3">});</span>
+
+<span class="s0">// Empty Elements</span>
+<span class="s4">var </span><span class="s1">empty </span><span class="s3">= </span><span class="s1">makeMap</span><span class="s3">(</span><span class="s2">'area,base,basefont,br,col,embed,frame,hr,img,input,isindex,keygen,link,meta,param,source,track,wbr'</span><span class="s3">);</span>
+
+<span class="s0">// Inline Elements</span>
+<span class="s4">var </span><span class="s1">inline </span><span class="s3">= </span><span class="s1">makeMap</span><span class="s3">(</span><span class="s2">'a,abbr,acronym,applet,b,basefont,bdo,big,br,button,cite,code,del,dfn,em,font,i,iframe,img,input,ins,kbd,label,map,noscript,object,q,s,samp,script,select,small,span,strike,strong,sub,sup,svg,textarea,tt,u,var'</span><span class="s3">);</span>
+
+<span class="s0">// Elements that you can, intentionally, leave open</span>
+<span class="s0">// (and which close themselves)</span>
+<span class="s4">var </span><span class="s1">closeSelf </span><span class="s3">= </span><span class="s1">makeMap</span><span class="s3">(</span><span class="s2">'colgroup,dd,dt,li,option,p,td,tfoot,th,thead,tr,source'</span><span class="s3">);</span>
+
+<span class="s0">// Attributes that have their values filled in disabled='disabled'</span>
+<span class="s4">var </span><span class="s1">fillAttrs </span><span class="s3">= </span><span class="s1">makeMap</span><span class="s3">(</span><span class="s2">'checked,compact,declare,defer,disabled,ismap,multiple,nohref,noresize,noshade,nowrap,readonly,selected'</span><span class="s3">);</span>
+
+<span class="s0">// Special Elements (can contain anything)</span>
+<span class="s4">var </span><span class="s1">special </span><span class="s3">= </span><span class="s1">makeMap</span><span class="s3">(</span><span class="s2">'script,style'</span><span class="s3">);</span>
+
+<span class="s0">// HTML5 tags https://html.spec.whatwg.org/multipage/indices.html#elements-3</span>
+<span class="s0">// Phrasing Content https://html.spec.whatwg.org/multipage/dom.html#phrasing-content</span>
+<span class="s4">var </span><span class="s1">nonPhrasing </span><span class="s3">= </span><span class="s1">makeMap</span><span class="s3">(</span><span class="s2">'address,article,aside,base,blockquote,body,caption,col,colgroup,dd,details,dialog,div,dl,dt,fieldset,figcaption,figure,footer,form,h1,h2,h3,h4,h5,h6,head,header,hgroup,hr,html,legend,li,menuitem,meta,ol,optgroup,option,param,rp,rt,source,style,summary,tbody,td,tfoot,th,thead,title,tr,track,ul'</span><span class="s3">);</span>
+
+<span class="s4">var </span><span class="s1">reCache </span><span class="s3">= {};</span>
+
+<span class="s4">function </span><span class="s1">attrForHandler</span><span class="s3">(</span><span class="s1">handler</span><span class="s3">) {</span>
+  <span class="s4">var </span><span class="s1">pattern </span><span class="s3">= </span><span class="s1">singleAttrIdentifier</span><span class="s3">.</span><span class="s1">source </span><span class="s3">+</span>
+    <span class="s2">'(?:</span><span class="s4">\\</span><span class="s2">s*(' </span><span class="s3">+ </span><span class="s1">joinSingleAttrAssigns</span><span class="s3">(</span><span class="s1">handler</span><span class="s3">) + </span><span class="s2">')' </span><span class="s3">+</span>
+    <span class="s2">'[ </span><span class="s4">\\</span><span class="s2">t</span><span class="s4">\\</span><span class="s2">n</span><span class="s4">\\</span><span class="s2">f</span><span class="s4">\\</span><span class="s2">r]*(?:' </span><span class="s3">+ </span><span class="s1">singleAttrValues</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s2">'|'</span><span class="s3">) + </span><span class="s2">'))?'</span><span class="s3">;</span>
+  <span class="s4">if </span><span class="s3">(</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">customAttrSurround</span><span class="s3">) {</span>
+    <span class="s4">var </span><span class="s1">attrClauses </span><span class="s3">= [];</span>
+    <span class="s4">for </span><span class="s3">(</span><span class="s4">var </span><span class="s1">i </span><span class="s3">= </span><span class="s1">handler</span><span class="s3">.</span><span class="s1">customAttrSurround</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s6">1</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&gt;= </span><span class="s6">0</span><span class="s3">; </span><span class="s1">i</span><span class="s3">--) {</span>
+      <span class="s1">attrClauses</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] = </span><span class="s2">'(?:' </span><span class="s3">+</span>
+        <span class="s2">'(' </span><span class="s3">+ </span><span class="s1">handler</span><span class="s3">.</span><span class="s1">customAttrSurround</span><span class="s3">[</span><span class="s1">i</span><span class="s3">][</span><span class="s6">0</span><span class="s3">].</span><span class="s1">source </span><span class="s3">+ </span><span class="s2">')</span><span class="s4">\\</span><span class="s2">s*' </span><span class="s3">+</span>
+        <span class="s1">pattern </span><span class="s3">+</span>
+        <span class="s2">'</span><span class="s4">\\</span><span class="s2">s*(' </span><span class="s3">+ </span><span class="s1">handler</span><span class="s3">.</span><span class="s1">customAttrSurround</span><span class="s3">[</span><span class="s1">i</span><span class="s3">][</span><span class="s6">1</span><span class="s3">].</span><span class="s1">source </span><span class="s3">+ </span><span class="s2">')' </span><span class="s3">+</span>
+        <span class="s2">')'</span><span class="s3">;</span>
+    <span class="s3">}</span>
+    <span class="s1">attrClauses</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s2">'(?:' </span><span class="s3">+ </span><span class="s1">pattern </span><span class="s3">+ </span><span class="s2">')'</span><span class="s3">);</span>
+    <span class="s1">pattern </span><span class="s3">= </span><span class="s2">'(?:' </span><span class="s3">+ </span><span class="s1">attrClauses</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s2">'|'</span><span class="s3">) + </span><span class="s2">')'</span><span class="s3">;</span>
+  <span class="s3">}</span>
+  <span class="s4">return new </span><span class="s1">RegExp</span><span class="s3">(</span><span class="s2">'^</span><span class="s4">\\</span><span class="s2">s*' </span><span class="s3">+ </span><span class="s1">pattern</span><span class="s3">);</span>
+<span class="s3">}</span>
+
+<span class="s4">function </span><span class="s1">joinSingleAttrAssigns</span><span class="s3">(</span><span class="s1">handler</span><span class="s3">) {</span>
+  <span class="s4">return </span><span class="s1">singleAttrAssigns</span><span class="s3">.</span><span class="s1">concat</span><span class="s3">(</span>
+    <span class="s1">handler</span><span class="s3">.</span><span class="s1">customAttrAssign </span><span class="s3">|| []</span>
+  <span class="s3">).</span><span class="s1">map</span><span class="s3">(</span><span class="s4">function</span><span class="s3">(</span><span class="s1">assign</span><span class="s3">) {</span>
+    <span class="s4">return </span><span class="s2">'(?:' </span><span class="s3">+ </span><span class="s1">assign</span><span class="s3">.</span><span class="s1">source </span><span class="s3">+ </span><span class="s2">')'</span><span class="s3">;</span>
+  <span class="s3">}).</span><span class="s1">join</span><span class="s3">(</span><span class="s2">'|'</span><span class="s3">);</span>
+<span class="s3">}</span>
+
+<span class="s4">class </span><span class="s1">HTMLParser </span><span class="s3">{</span>
+  <span class="s1">constructor</span><span class="s3">(</span><span class="s1">html</span><span class="s3">, </span><span class="s1">handler</span><span class="s3">) {</span>
+    <span class="s4">this</span><span class="s3">.</span><span class="s1">html </span><span class="s3">= </span><span class="s1">html</span><span class="s3">;</span>
+    <span class="s4">this</span><span class="s3">.</span><span class="s1">handler </span><span class="s3">= </span><span class="s1">handler</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s1">async parse</span><span class="s3">() {</span>
+    <span class="s4">let </span><span class="s1">html </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">html</span><span class="s3">;</span>
+    <span class="s4">const </span><span class="s1">handler </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">handler</span><span class="s3">;</span>
+
+    <span class="s4">var </span><span class="s1">stack </span><span class="s3">= [], </span><span class="s1">lastTag</span><span class="s3">;</span>
+    <span class="s4">var </span><span class="s1">attribute </span><span class="s3">= </span><span class="s1">attrForHandler</span><span class="s3">(</span><span class="s1">handler</span><span class="s3">);</span>
+    <span class="s4">var </span><span class="s1">last</span><span class="s3">, </span><span class="s1">prevTag</span><span class="s3">, </span><span class="s1">nextTag</span><span class="s3">;</span>
+    <span class="s4">while </span><span class="s3">(</span><span class="s1">html</span><span class="s3">) {</span>
+      <span class="s1">last </span><span class="s3">= </span><span class="s1">html</span><span class="s3">;</span>
+      <span class="s0">// Make sure we're not in a script or style element</span>
+      <span class="s4">if </span><span class="s3">(!</span><span class="s1">lastTag </span><span class="s3">|| !</span><span class="s1">special</span><span class="s3">(</span><span class="s1">lastTag</span><span class="s3">)) {</span>
+        <span class="s4">var </span><span class="s1">textEnd </span><span class="s3">= </span><span class="s1">html</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s2">'&lt;'</span><span class="s3">);</span>
+        <span class="s4">if </span><span class="s3">(</span><span class="s1">textEnd </span><span class="s3">=== </span><span class="s6">0</span><span class="s3">) {</span>
+          <span class="s0">// Comment:</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s5">/^&lt;!--/</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">html</span><span class="s3">)) {</span>
+            <span class="s4">var </span><span class="s1">commentEnd </span><span class="s3">= </span><span class="s1">html</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s2">'--&gt;'</span><span class="s3">);</span>
+
+            <span class="s4">if </span><span class="s3">(</span><span class="s1">commentEnd </span><span class="s3">&gt;= </span><span class="s6">0</span><span class="s3">) {</span>
+              <span class="s4">if </span><span class="s3">(</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">comment</span><span class="s3">) {</span>
+                <span class="s4">await </span><span class="s1">handler</span><span class="s3">.</span><span class="s1">comment</span><span class="s3">(</span><span class="s1">html</span><span class="s3">.</span><span class="s1">substring</span><span class="s3">(</span><span class="s6">4</span><span class="s3">, </span><span class="s1">commentEnd</span><span class="s3">));</span>
+              <span class="s3">}</span>
+              <span class="s1">html </span><span class="s3">= </span><span class="s1">html</span><span class="s3">.</span><span class="s1">substring</span><span class="s3">(</span><span class="s1">commentEnd </span><span class="s3">+ </span><span class="s6">3</span><span class="s3">);</span>
+              <span class="s1">prevTag </span><span class="s3">= </span><span class="s2">''</span><span class="s3">;</span>
+              <span class="s4">continue</span><span class="s3">;</span>
+            <span class="s3">}</span>
+          <span class="s3">}</span>
+
+          <span class="s0">// https://en.wikipedia.org/wiki/Conditional_comment#Downlevel-revealed_conditional_comment</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s5">/^&lt;!\[/</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">html</span><span class="s3">)) {</span>
+            <span class="s4">var </span><span class="s1">conditionalEnd </span><span class="s3">= </span><span class="s1">html</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s2">']&gt;'</span><span class="s3">);</span>
+
+            <span class="s4">if </span><span class="s3">(</span><span class="s1">conditionalEnd </span><span class="s3">&gt;= </span><span class="s6">0</span><span class="s3">) {</span>
+              <span class="s4">if </span><span class="s3">(</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">comment</span><span class="s3">) {</span>
+                <span class="s4">await </span><span class="s1">handler</span><span class="s3">.</span><span class="s1">comment</span><span class="s3">(</span><span class="s1">html</span><span class="s3">.</span><span class="s1">substring</span><span class="s3">(</span><span class="s6">2</span><span class="s3">, </span><span class="s1">conditionalEnd </span><span class="s3">+ </span><span class="s6">1</span><span class="s3">), </span><span class="s4">true </span><span class="s0">/* non-standard */</span><span class="s3">);</span>
+              <span class="s3">}</span>
+              <span class="s1">html </span><span class="s3">= </span><span class="s1">html</span><span class="s3">.</span><span class="s1">substring</span><span class="s3">(</span><span class="s1">conditionalEnd </span><span class="s3">+ </span><span class="s6">2</span><span class="s3">);</span>
+              <span class="s1">prevTag </span><span class="s3">= </span><span class="s2">''</span><span class="s3">;</span>
+              <span class="s4">continue</span><span class="s3">;</span>
+            <span class="s3">}</span>
+          <span class="s3">}</span>
+
+          <span class="s0">// Doctype:</span>
+          <span class="s4">var </span><span class="s1">doctypeMatch </span><span class="s3">= </span><span class="s1">html</span><span class="s3">.</span><span class="s1">match</span><span class="s3">(</span><span class="s1">doctype</span><span class="s3">);</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s1">doctypeMatch</span><span class="s3">) {</span>
+            <span class="s4">if </span><span class="s3">(</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">doctype</span><span class="s3">) {</span>
+              <span class="s1">handler</span><span class="s3">.</span><span class="s1">doctype</span><span class="s3">(</span><span class="s1">doctypeMatch</span><span class="s3">[</span><span class="s6">0</span><span class="s3">]);</span>
+            <span class="s3">}</span>
+            <span class="s1">html </span><span class="s3">= </span><span class="s1">html</span><span class="s3">.</span><span class="s1">substring</span><span class="s3">(</span><span class="s1">doctypeMatch</span><span class="s3">[</span><span class="s6">0</span><span class="s3">].</span><span class="s1">length</span><span class="s3">);</span>
+            <span class="s1">prevTag </span><span class="s3">= </span><span class="s2">''</span><span class="s3">;</span>
+            <span class="s4">continue</span><span class="s3">;</span>
+          <span class="s3">}</span>
+
+          <span class="s0">// End tag:</span>
+          <span class="s4">var </span><span class="s1">endTagMatch </span><span class="s3">= </span><span class="s1">html</span><span class="s3">.</span><span class="s1">match</span><span class="s3">(</span><span class="s1">endTag</span><span class="s3">);</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s1">endTagMatch</span><span class="s3">) {</span>
+            <span class="s1">html </span><span class="s3">= </span><span class="s1">html</span><span class="s3">.</span><span class="s1">substring</span><span class="s3">(</span><span class="s1">endTagMatch</span><span class="s3">[</span><span class="s6">0</span><span class="s3">].</span><span class="s1">length</span><span class="s3">);</span>
+            <span class="s4">await </span><span class="s1">replaceAsync</span><span class="s3">(</span><span class="s1">endTagMatch</span><span class="s3">[</span><span class="s6">0</span><span class="s3">], </span><span class="s1">endTag</span><span class="s3">, </span><span class="s1">parseEndTag</span><span class="s3">);</span>
+            <span class="s1">prevTag </span><span class="s3">= </span><span class="s2">'/' </span><span class="s3">+ </span><span class="s1">endTagMatch</span><span class="s3">[</span><span class="s6">1</span><span class="s3">].</span><span class="s1">toLowerCase</span><span class="s3">();</span>
+            <span class="s4">continue</span><span class="s3">;</span>
+          <span class="s3">}</span>
+
+          <span class="s0">// Start tag:</span>
+          <span class="s4">var </span><span class="s1">startTagMatch </span><span class="s3">= </span><span class="s1">parseStartTag</span><span class="s3">(</span><span class="s1">html</span><span class="s3">);</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s1">startTagMatch</span><span class="s3">) {</span>
+            <span class="s1">html </span><span class="s3">= </span><span class="s1">startTagMatch</span><span class="s3">.</span><span class="s1">rest</span><span class="s3">;</span>
+            <span class="s4">await </span><span class="s1">handleStartTag</span><span class="s3">(</span><span class="s1">startTagMatch</span><span class="s3">);</span>
+            <span class="s1">prevTag </span><span class="s3">= </span><span class="s1">startTagMatch</span><span class="s3">.</span><span class="s1">tagName</span><span class="s3">.</span><span class="s1">toLowerCase</span><span class="s3">();</span>
+            <span class="s4">continue</span><span class="s3">;</span>
+          <span class="s3">}</span>
+
+          <span class="s0">// Treat `&lt;` as text</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">continueOnParseError</span><span class="s3">) {</span>
+            <span class="s1">textEnd </span><span class="s3">= </span><span class="s1">html</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s2">'&lt;'</span><span class="s3">, </span><span class="s6">1</span><span class="s3">);</span>
+          <span class="s3">}</span>
+        <span class="s3">}</span>
+
+        <span class="s4">var </span><span class="s1">text</span><span class="s3">;</span>
+        <span class="s4">if </span><span class="s3">(</span><span class="s1">textEnd </span><span class="s3">&gt;= </span><span class="s6">0</span><span class="s3">) {</span>
+          <span class="s1">text </span><span class="s3">= </span><span class="s1">html</span><span class="s3">.</span><span class="s1">substring</span><span class="s3">(</span><span class="s6">0</span><span class="s3">, </span><span class="s1">textEnd</span><span class="s3">);</span>
+          <span class="s1">html </span><span class="s3">= </span><span class="s1">html</span><span class="s3">.</span><span class="s1">substring</span><span class="s3">(</span><span class="s1">textEnd</span><span class="s3">);</span>
+        <span class="s3">}</span>
+        <span class="s4">else </span><span class="s3">{</span>
+          <span class="s1">text </span><span class="s3">= </span><span class="s1">html</span><span class="s3">;</span>
+          <span class="s1">html </span><span class="s3">= </span><span class="s2">''</span><span class="s3">;</span>
+        <span class="s3">}</span>
+
+        <span class="s0">// next tag</span>
+        <span class="s4">var </span><span class="s1">nextTagMatch </span><span class="s3">= </span><span class="s1">parseStartTag</span><span class="s3">(</span><span class="s1">html</span><span class="s3">);</span>
+        <span class="s4">if </span><span class="s3">(</span><span class="s1">nextTagMatch</span><span class="s3">) {</span>
+          <span class="s1">nextTag </span><span class="s3">= </span><span class="s1">nextTagMatch</span><span class="s3">.</span><span class="s1">tagName</span><span class="s3">;</span>
+        <span class="s3">}</span>
+        <span class="s4">else </span><span class="s3">{</span>
+          <span class="s1">nextTagMatch </span><span class="s3">= </span><span class="s1">html</span><span class="s3">.</span><span class="s1">match</span><span class="s3">(</span><span class="s1">endTag</span><span class="s3">);</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s1">nextTagMatch</span><span class="s3">) {</span>
+            <span class="s1">nextTag </span><span class="s3">= </span><span class="s2">'/' </span><span class="s3">+ </span><span class="s1">nextTagMatch</span><span class="s3">[</span><span class="s6">1</span><span class="s3">];</span>
+          <span class="s3">}</span>
+          <span class="s4">else </span><span class="s3">{</span>
+            <span class="s1">nextTag </span><span class="s3">= </span><span class="s2">''</span><span class="s3">;</span>
+          <span class="s3">}</span>
+        <span class="s3">}</span>
+
+        <span class="s4">if </span><span class="s3">(</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">chars</span><span class="s3">) {</span>
+          <span class="s4">await </span><span class="s1">handler</span><span class="s3">.</span><span class="s1">chars</span><span class="s3">(</span><span class="s1">text</span><span class="s3">, </span><span class="s1">prevTag</span><span class="s3">, </span><span class="s1">nextTag</span><span class="s3">);</span>
+        <span class="s3">}</span>
+        <span class="s1">prevTag </span><span class="s3">= </span><span class="s2">''</span><span class="s3">;</span>
+      <span class="s3">}</span>
+      <span class="s4">else </span><span class="s3">{</span>
+        <span class="s4">var </span><span class="s1">stackedTag </span><span class="s3">= </span><span class="s1">lastTag</span><span class="s3">.</span><span class="s1">toLowerCase</span><span class="s3">();</span>
+        <span class="s4">var </span><span class="s1">reStackedTag </span><span class="s3">= </span><span class="s1">reCache</span><span class="s3">[</span><span class="s1">stackedTag</span><span class="s3">] || (</span><span class="s1">reCache</span><span class="s3">[</span><span class="s1">stackedTag</span><span class="s3">] = </span><span class="s4">new </span><span class="s1">RegExp</span><span class="s3">(</span><span class="s2">'([</span><span class="s4">\\</span><span class="s2">s</span><span class="s4">\\</span><span class="s2">S]*?)&lt;/' </span><span class="s3">+ </span><span class="s1">stackedTag </span><span class="s3">+ </span><span class="s2">'[^&gt;]*&gt;'</span><span class="s3">, </span><span class="s2">'i'</span><span class="s3">));</span>
+
+        <span class="s1">html </span><span class="s3">= </span><span class="s4">await </span><span class="s1">replaceAsync</span><span class="s3">(</span><span class="s1">html</span><span class="s3">, </span><span class="s1">reStackedTag</span><span class="s3">, </span><span class="s1">async</span><span class="s3">(</span><span class="s1">_</span><span class="s3">, </span><span class="s1">text</span><span class="s3">) =&gt; {</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s1">stackedTag </span><span class="s3">!== </span><span class="s2">'script' </span><span class="s3">&amp;&amp; </span><span class="s1">stackedTag </span><span class="s3">!== </span><span class="s2">'style' </span><span class="s3">&amp;&amp; </span><span class="s1">stackedTag </span><span class="s3">!== </span><span class="s2">'noscript'</span><span class="s3">) {</span>
+            <span class="s1">text </span><span class="s3">= </span><span class="s1">text</span>
+              <span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s5">/&lt;!--([\s\S]*?)--&gt;/g</span><span class="s3">, </span><span class="s2">'$1'</span><span class="s3">)</span>
+              <span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s5">/&lt;!\[CDATA\[([\s\S]*?)]]&gt;/g</span><span class="s3">, </span><span class="s2">'$1'</span><span class="s3">);</span>
+          <span class="s3">}</span>
+
+
+          <span class="s4">if </span><span class="s3">(</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">chars</span><span class="s3">) {</span>
+            <span class="s4">await </span><span class="s1">handler</span><span class="s3">.</span><span class="s1">chars</span><span class="s3">(</span><span class="s1">text</span><span class="s3">);</span>
+          <span class="s3">}</span>
+
+          <span class="s4">return </span><span class="s2">''</span><span class="s3">;</span>
+        <span class="s3">});</span>
+
+        <span class="s4">await </span><span class="s1">parseEndTag</span><span class="s3">(</span><span class="s2">'&lt;/' </span><span class="s3">+ </span><span class="s1">stackedTag </span><span class="s3">+ </span><span class="s2">'&gt;'</span><span class="s3">, </span><span class="s1">stackedTag</span><span class="s3">);</span>
+      <span class="s3">}</span>
+
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">html </span><span class="s3">=== </span><span class="s1">last</span><span class="s3">) {</span>
+        <span class="s4">throw new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">'Parse Error: ' </span><span class="s3">+ </span><span class="s1">html</span><span class="s3">);</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s4">if </span><span class="s3">(!</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">partialMarkup</span><span class="s3">) {</span>
+      <span class="s0">// Clean up any remaining tags</span>
+      <span class="s4">await </span><span class="s1">parseEndTag</span><span class="s3">();</span>
+    <span class="s3">}</span>
+
+    <span class="s4">function </span><span class="s1">parseStartTag</span><span class="s3">(</span><span class="s1">input</span><span class="s3">) {</span>
+      <span class="s4">var </span><span class="s1">start </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">match</span><span class="s3">(</span><span class="s1">startTagOpen</span><span class="s3">);</span>
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">start</span><span class="s3">) {</span>
+        <span class="s4">var </span><span class="s1">match </span><span class="s3">= {</span>
+          <span class="s1">tagName</span><span class="s3">: </span><span class="s1">start</span><span class="s3">[</span><span class="s6">1</span><span class="s3">],</span>
+          <span class="s1">attrs</span><span class="s3">: []</span>
+        <span class="s3">};</span>
+        <span class="s1">input </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">start</span><span class="s3">[</span><span class="s6">0</span><span class="s3">].</span><span class="s1">length</span><span class="s3">);</span>
+        <span class="s4">var </span><span class="s1">end</span><span class="s3">, </span><span class="s1">attr</span><span class="s3">;</span>
+        <span class="s4">while </span><span class="s3">(!(</span><span class="s1">end </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">match</span><span class="s3">(</span><span class="s1">startTagClose</span><span class="s3">)) &amp;&amp; (</span><span class="s1">attr </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">match</span><span class="s3">(</span><span class="s1">attribute</span><span class="s3">))) {</span>
+          <span class="s1">input </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">attr</span><span class="s3">[</span><span class="s6">0</span><span class="s3">].</span><span class="s1">length</span><span class="s3">);</span>
+          <span class="s1">match</span><span class="s3">.</span><span class="s1">attrs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">attr</span><span class="s3">);</span>
+        <span class="s3">}</span>
+        <span class="s4">if </span><span class="s3">(</span><span class="s1">end</span><span class="s3">) {</span>
+          <span class="s1">match</span><span class="s3">.</span><span class="s1">unarySlash </span><span class="s3">= </span><span class="s1">end</span><span class="s3">[</span><span class="s6">1</span><span class="s3">];</span>
+          <span class="s1">match</span><span class="s3">.</span><span class="s1">rest </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">end</span><span class="s3">[</span><span class="s6">0</span><span class="s3">].</span><span class="s1">length</span><span class="s3">);</span>
+          <span class="s4">return </span><span class="s1">match</span><span class="s3">;</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s1">async </span><span class="s4">function </span><span class="s1">closeIfFound</span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">) {</span>
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">findTag</span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">) &gt;= </span><span class="s6">0</span><span class="s3">) {</span>
+        <span class="s4">await </span><span class="s1">parseEndTag</span><span class="s3">(</span><span class="s2">''</span><span class="s3">, </span><span class="s1">tagName</span><span class="s3">);</span>
+        <span class="s4">return true</span><span class="s3">;</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s1">async </span><span class="s4">function </span><span class="s1">handleStartTag</span><span class="s3">(</span><span class="s1">match</span><span class="s3">) {</span>
+      <span class="s4">var </span><span class="s1">tagName </span><span class="s3">= </span><span class="s1">match</span><span class="s3">.</span><span class="s1">tagName</span><span class="s3">;</span>
+      <span class="s4">var </span><span class="s1">unarySlash </span><span class="s3">= </span><span class="s1">match</span><span class="s3">.</span><span class="s1">unarySlash</span><span class="s3">;</span>
+
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">html5</span><span class="s3">) {</span>
+        <span class="s4">if </span><span class="s3">(</span><span class="s1">lastTag </span><span class="s3">=== </span><span class="s2">'p' </span><span class="s3">&amp;&amp; </span><span class="s1">nonPhrasing</span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">)) {</span>
+          <span class="s4">await </span><span class="s1">parseEndTag</span><span class="s3">(</span><span class="s2">''</span><span class="s3">, </span><span class="s1">lastTag</span><span class="s3">);</span>
+        <span class="s3">}</span>
+        <span class="s4">else if </span><span class="s3">(</span><span class="s1">tagName </span><span class="s3">=== </span><span class="s2">'tbody'</span><span class="s3">) {</span>
+          <span class="s4">await </span><span class="s1">closeIfFound</span><span class="s3">(</span><span class="s2">'thead'</span><span class="s3">);</span>
+        <span class="s3">}</span>
+        <span class="s4">else if </span><span class="s3">(</span><span class="s1">tagName </span><span class="s3">=== </span><span class="s2">'tfoot'</span><span class="s3">) {</span>
+          <span class="s4">if </span><span class="s3">(!</span><span class="s4">await </span><span class="s1">closeIfFound</span><span class="s3">(</span><span class="s2">'tbody'</span><span class="s3">)) {</span>
+            <span class="s4">await </span><span class="s1">closeIfFound</span><span class="s3">(</span><span class="s2">'thead'</span><span class="s3">);</span>
+          <span class="s3">}</span>
+        <span class="s3">}</span>
+        <span class="s4">if </span><span class="s3">(</span><span class="s1">tagName </span><span class="s3">=== </span><span class="s2">'col' </span><span class="s3">&amp;&amp; </span><span class="s1">findTag</span><span class="s3">(</span><span class="s2">'colgroup'</span><span class="s3">) &lt; </span><span class="s6">0</span><span class="s3">) {</span>
+          <span class="s1">lastTag </span><span class="s3">= </span><span class="s2">'colgroup'</span><span class="s3">;</span>
+          <span class="s1">stack</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({ </span><span class="s1">tag</span><span class="s3">: </span><span class="s1">lastTag</span><span class="s3">, </span><span class="s1">attrs</span><span class="s3">: [] });</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">start</span><span class="s3">) {</span>
+            <span class="s4">await </span><span class="s1">handler</span><span class="s3">.</span><span class="s1">start</span><span class="s3">(</span><span class="s1">lastTag</span><span class="s3">, [], </span><span class="s4">false</span><span class="s3">, </span><span class="s2">''</span><span class="s3">);</span>
+          <span class="s3">}</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+
+      <span class="s4">if </span><span class="s3">(!</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">html5 </span><span class="s3">&amp;&amp; !</span><span class="s1">inline</span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">)) {</span>
+        <span class="s4">while </span><span class="s3">(</span><span class="s1">lastTag </span><span class="s3">&amp;&amp; </span><span class="s1">inline</span><span class="s3">(</span><span class="s1">lastTag</span><span class="s3">)) {</span>
+          <span class="s4">await </span><span class="s1">parseEndTag</span><span class="s3">(</span><span class="s2">''</span><span class="s3">, </span><span class="s1">lastTag</span><span class="s3">);</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">closeSelf</span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">) &amp;&amp; </span><span class="s1">lastTag </span><span class="s3">=== </span><span class="s1">tagName</span><span class="s3">) {</span>
+        <span class="s4">await </span><span class="s1">parseEndTag</span><span class="s3">(</span><span class="s2">''</span><span class="s3">, </span><span class="s1">tagName</span><span class="s3">);</span>
+      <span class="s3">}</span>
+
+      <span class="s4">var </span><span class="s1">unary </span><span class="s3">= </span><span class="s1">empty</span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">) || </span><span class="s1">tagName </span><span class="s3">=== </span><span class="s2">'html' </span><span class="s3">&amp;&amp; </span><span class="s1">lastTag </span><span class="s3">=== </span><span class="s2">'head' </span><span class="s3">|| !!</span><span class="s1">unarySlash</span><span class="s3">;</span>
+
+      <span class="s4">var </span><span class="s1">attrs </span><span class="s3">= </span><span class="s1">match</span><span class="s3">.</span><span class="s1">attrs</span><span class="s3">.</span><span class="s1">map</span><span class="s3">(</span><span class="s4">function</span><span class="s3">(</span><span class="s1">args</span><span class="s3">) {</span>
+        <span class="s4">var </span><span class="s1">name</span><span class="s3">, </span><span class="s1">value</span><span class="s3">, </span><span class="s1">customOpen</span><span class="s3">, </span><span class="s1">customClose</span><span class="s3">, </span><span class="s1">customAssign</span><span class="s3">, </span><span class="s1">quote</span><span class="s3">;</span>
+        <span class="s4">var </span><span class="s1">ncp </span><span class="s3">= </span><span class="s6">7</span><span class="s3">; </span><span class="s0">// number of captured parts, scalar</span>
+
+        <span class="s0">// hackish work around FF bug https://bugzilla.mozilla.org/show_bug.cgi?id=369778</span>
+        <span class="s4">if </span><span class="s3">(</span><span class="s1">IS_REGEX_CAPTURING_BROKEN </span><span class="s3">&amp;&amp; </span><span class="s1">args</span><span class="s3">[</span><span class="s6">0</span><span class="s3">].</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s2">'&quot;&quot;'</span><span class="s3">) === -</span><span class="s6">1</span><span class="s3">) {</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s1">args</span><span class="s3">[</span><span class="s6">3</span><span class="s3">] === </span><span class="s2">''</span><span class="s3">) { </span><span class="s4">delete </span><span class="s1">args</span><span class="s3">[</span><span class="s6">3</span><span class="s3">]; }</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s1">args</span><span class="s3">[</span><span class="s6">4</span><span class="s3">] === </span><span class="s2">''</span><span class="s3">) { </span><span class="s4">delete </span><span class="s1">args</span><span class="s3">[</span><span class="s6">4</span><span class="s3">]; }</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s1">args</span><span class="s3">[</span><span class="s6">5</span><span class="s3">] === </span><span class="s2">''</span><span class="s3">) { </span><span class="s4">delete </span><span class="s1">args</span><span class="s3">[</span><span class="s6">5</span><span class="s3">]; }</span>
+        <span class="s3">}</span>
+
+        <span class="s4">function </span><span class="s1">populate</span><span class="s3">(</span><span class="s1">index</span><span class="s3">) {</span>
+          <span class="s1">customAssign </span><span class="s3">= </span><span class="s1">args</span><span class="s3">[</span><span class="s1">index</span><span class="s3">];</span>
+          <span class="s1">value </span><span class="s3">= </span><span class="s1">args</span><span class="s3">[</span><span class="s1">index </span><span class="s3">+ </span><span class="s6">1</span><span class="s3">];</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">value </span><span class="s3">!== </span><span class="s2">'undefined'</span><span class="s3">) {</span>
+            <span class="s4">return </span><span class="s2">'&quot;'</span><span class="s3">;</span>
+          <span class="s3">}</span>
+          <span class="s1">value </span><span class="s3">= </span><span class="s1">args</span><span class="s3">[</span><span class="s1">index </span><span class="s3">+ </span><span class="s6">2</span><span class="s3">];</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">value </span><span class="s3">!== </span><span class="s2">'undefined'</span><span class="s3">) {</span>
+            <span class="s4">return </span><span class="s2">'</span><span class="s4">\'</span><span class="s2">'</span><span class="s3">;</span>
+          <span class="s3">}</span>
+          <span class="s1">value </span><span class="s3">= </span><span class="s1">args</span><span class="s3">[</span><span class="s1">index </span><span class="s3">+ </span><span class="s6">3</span><span class="s3">];</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">value </span><span class="s3">=== </span><span class="s2">'undefined' </span><span class="s3">&amp;&amp; </span><span class="s1">fillAttrs</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)) {</span>
+            <span class="s1">value </span><span class="s3">= </span><span class="s1">name</span><span class="s3">;</span>
+          <span class="s3">}</span>
+          <span class="s4">return </span><span class="s2">''</span><span class="s3">;</span>
+        <span class="s3">}</span>
+
+        <span class="s4">var </span><span class="s1">j </span><span class="s3">= </span><span class="s6">1</span><span class="s3">;</span>
+        <span class="s4">if </span><span class="s3">(</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">customAttrSurround</span><span class="s3">) {</span>
+          <span class="s4">for </span><span class="s3">(</span><span class="s4">var </span><span class="s1">i </span><span class="s3">= </span><span class="s6">0</span><span class="s3">, </span><span class="s1">l </span><span class="s3">= </span><span class="s1">handler</span><span class="s3">.</span><span class="s1">customAttrSurround</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">l</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++, </span><span class="s1">j </span><span class="s3">+= </span><span class="s1">ncp</span><span class="s3">) {</span>
+            <span class="s1">name </span><span class="s3">= </span><span class="s1">args</span><span class="s3">[</span><span class="s1">j </span><span class="s3">+ </span><span class="s6">1</span><span class="s3">];</span>
+            <span class="s4">if </span><span class="s3">(</span><span class="s1">name</span><span class="s3">) {</span>
+              <span class="s1">quote </span><span class="s3">= </span><span class="s1">populate</span><span class="s3">(</span><span class="s1">j </span><span class="s3">+ </span><span class="s6">2</span><span class="s3">);</span>
+              <span class="s1">customOpen </span><span class="s3">= </span><span class="s1">args</span><span class="s3">[</span><span class="s1">j</span><span class="s3">];</span>
+              <span class="s1">customClose </span><span class="s3">= </span><span class="s1">args</span><span class="s3">[</span><span class="s1">j </span><span class="s3">+ </span><span class="s6">6</span><span class="s3">];</span>
+              <span class="s4">break</span><span class="s3">;</span>
+            <span class="s3">}</span>
+          <span class="s3">}</span>
+        <span class="s3">}</span>
+
+        <span class="s4">if </span><span class="s3">(!</span><span class="s1">name </span><span class="s3">&amp;&amp; (</span><span class="s1">name </span><span class="s3">= </span><span class="s1">args</span><span class="s3">[</span><span class="s1">j</span><span class="s3">])) {</span>
+          <span class="s1">quote </span><span class="s3">= </span><span class="s1">populate</span><span class="s3">(</span><span class="s1">j </span><span class="s3">+ </span><span class="s6">1</span><span class="s3">);</span>
+        <span class="s3">}</span>
+
+        <span class="s4">return </span><span class="s3">{</span>
+          <span class="s1">name</span><span class="s3">: </span><span class="s1">name</span><span class="s3">,</span>
+          <span class="s1">value</span><span class="s3">: </span><span class="s1">value</span><span class="s3">,</span>
+          <span class="s1">customAssign</span><span class="s3">: </span><span class="s1">customAssign </span><span class="s3">|| </span><span class="s2">'='</span><span class="s3">,</span>
+          <span class="s1">customOpen</span><span class="s3">: </span><span class="s1">customOpen </span><span class="s3">|| </span><span class="s2">''</span><span class="s3">,</span>
+          <span class="s1">customClose</span><span class="s3">: </span><span class="s1">customClose </span><span class="s3">|| </span><span class="s2">''</span><span class="s3">,</span>
+          <span class="s1">quote</span><span class="s3">: </span><span class="s1">quote </span><span class="s3">|| </span><span class="s2">''</span>
+        <span class="s3">};</span>
+      <span class="s3">});</span>
+
+      <span class="s4">if </span><span class="s3">(!</span><span class="s1">unary</span><span class="s3">) {</span>
+        <span class="s1">stack</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({ </span><span class="s1">tag</span><span class="s3">: </span><span class="s1">tagName</span><span class="s3">, </span><span class="s1">attrs</span><span class="s3">: </span><span class="s1">attrs </span><span class="s3">});</span>
+        <span class="s1">lastTag </span><span class="s3">= </span><span class="s1">tagName</span><span class="s3">;</span>
+        <span class="s1">unarySlash </span><span class="s3">= </span><span class="s2">''</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">start</span><span class="s3">) {</span>
+        <span class="s4">await </span><span class="s1">handler</span><span class="s3">.</span><span class="s1">start</span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">, </span><span class="s1">attrs</span><span class="s3">, </span><span class="s1">unary</span><span class="s3">, </span><span class="s1">unarySlash</span><span class="s3">);</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s4">function </span><span class="s1">findTag</span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">) {</span>
+      <span class="s4">var </span><span class="s1">pos</span><span class="s3">;</span>
+      <span class="s4">var </span><span class="s1">needle </span><span class="s3">= </span><span class="s1">tagName</span><span class="s3">.</span><span class="s1">toLowerCase</span><span class="s3">();</span>
+      <span class="s4">for </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">= </span><span class="s1">stack</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s6">1</span><span class="s3">; </span><span class="s1">pos </span><span class="s3">&gt;= </span><span class="s6">0</span><span class="s3">; </span><span class="s1">pos</span><span class="s3">--) {</span>
+        <span class="s4">if </span><span class="s3">(</span><span class="s1">stack</span><span class="s3">[</span><span class="s1">pos</span><span class="s3">].</span><span class="s1">tag</span><span class="s3">.</span><span class="s1">toLowerCase</span><span class="s3">() === </span><span class="s1">needle</span><span class="s3">) {</span>
+          <span class="s4">break</span><span class="s3">;</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+      <span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+    <span class="s3">}</span>
+
+    <span class="s1">async </span><span class="s4">function </span><span class="s1">parseEndTag</span><span class="s3">(</span><span class="s1">tag</span><span class="s3">, </span><span class="s1">tagName</span><span class="s3">) {</span>
+      <span class="s4">var </span><span class="s1">pos</span><span class="s3">;</span>
+
+      <span class="s0">// Find the closest opened tag of the same type</span>
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">) {</span>
+        <span class="s1">pos </span><span class="s3">= </span><span class="s1">findTag</span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">);</span>
+      <span class="s3">}</span>
+      <span class="s0">// If no tag name is provided, clean shop</span>
+      <span class="s4">else </span><span class="s3">{</span>
+        <span class="s1">pos </span><span class="s3">= </span><span class="s6">0</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">&gt;= </span><span class="s6">0</span><span class="s3">) {</span>
+        <span class="s0">// Close all the open elements, up the stack</span>
+        <span class="s4">for </span><span class="s3">(</span><span class="s4">var </span><span class="s1">i </span><span class="s3">= </span><span class="s1">stack</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s6">1</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&gt;= </span><span class="s1">pos</span><span class="s3">; </span><span class="s1">i</span><span class="s3">--) {</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">end</span><span class="s3">) {</span>
+            <span class="s1">handler</span><span class="s3">.</span><span class="s1">end</span><span class="s3">(</span><span class="s1">stack</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">tag</span><span class="s3">, </span><span class="s1">stack</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">attrs</span><span class="s3">, </span><span class="s1">i </span><span class="s3">&gt; </span><span class="s1">pos </span><span class="s3">|| !</span><span class="s1">tag</span><span class="s3">);</span>
+          <span class="s3">}</span>
+        <span class="s3">}</span>
+
+        <span class="s0">// Remove the open elements from the stack</span>
+        <span class="s1">stack</span><span class="s3">.</span><span class="s1">length </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+        <span class="s1">lastTag </span><span class="s3">= </span><span class="s1">pos </span><span class="s3">&amp;&amp; </span><span class="s1">stack</span><span class="s3">[</span><span class="s1">pos </span><span class="s3">- </span><span class="s6">1</span><span class="s3">].</span><span class="s1">tag</span><span class="s3">;</span>
+      <span class="s3">}</span>
+      <span class="s4">else if </span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">.</span><span class="s1">toLowerCase</span><span class="s3">() === </span><span class="s2">'br'</span><span class="s3">) {</span>
+        <span class="s4">if </span><span class="s3">(</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">start</span><span class="s3">) {</span>
+          <span class="s4">await </span><span class="s1">handler</span><span class="s3">.</span><span class="s1">start</span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">, [], </span><span class="s4">true</span><span class="s3">, </span><span class="s2">''</span><span class="s3">);</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+      <span class="s4">else if </span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">.</span><span class="s1">toLowerCase</span><span class="s3">() === </span><span class="s2">'p'</span><span class="s3">) {</span>
+        <span class="s4">if </span><span class="s3">(</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">start</span><span class="s3">) {</span>
+          <span class="s4">await </span><span class="s1">handler</span><span class="s3">.</span><span class="s1">start</span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">, [], </span><span class="s4">false</span><span class="s3">, </span><span class="s2">''</span><span class="s3">, </span><span class="s4">true</span><span class="s3">);</span>
+        <span class="s3">}</span>
+        <span class="s4">if </span><span class="s3">(</span><span class="s1">handler</span><span class="s3">.</span><span class="s1">end</span><span class="s3">) {</span>
+          <span class="s1">handler</span><span class="s3">.</span><span class="s1">end</span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">, []);</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">exports</span><span class="s3">.</span><span class="s1">HTMLParser </span><span class="s3">= </span><span class="s1">HTMLParser</span><span class="s3">;</span>
+<span class="s1">exports</span><span class="s3">.</span><span class="s1">HTMLtoXML </span><span class="s3">= </span><span class="s4">function</span><span class="s3">(</span><span class="s1">html</span><span class="s3">) {</span>
+  <span class="s4">var </span><span class="s1">results </span><span class="s3">= </span><span class="s2">''</span><span class="s3">;</span>
+
+  <span class="s4">new </span><span class="s1">HTMLParser</span><span class="s3">(</span><span class="s1">html</span><span class="s3">, {</span>
+    <span class="s1">start</span><span class="s3">: </span><span class="s4">function</span><span class="s3">(</span><span class="s1">tag</span><span class="s3">, </span><span class="s1">attrs</span><span class="s3">, </span><span class="s1">unary</span><span class="s3">) {</span>
+      <span class="s1">results </span><span class="s3">+= </span><span class="s2">'&lt;' </span><span class="s3">+ </span><span class="s1">tag</span><span class="s3">;</span>
+
+      <span class="s4">for </span><span class="s3">(</span><span class="s4">var </span><span class="s1">i </span><span class="s3">= </span><span class="s6">0</span><span class="s3">, </span><span class="s1">len </span><span class="s3">= </span><span class="s1">attrs</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">len</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+        <span class="s1">results </span><span class="s3">+= </span><span class="s2">' ' </span><span class="s3">+ </span><span class="s1">attrs</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">name </span><span class="s3">+ </span><span class="s2">'=&quot;' </span><span class="s3">+ (</span><span class="s1">attrs</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">value </span><span class="s3">|| </span><span class="s2">''</span><span class="s3">).</span><span class="s1">replace</span><span class="s3">(</span><span class="s5">/&quot;/g</span><span class="s3">, </span><span class="s2">'&amp;#34;'</span><span class="s3">) + </span><span class="s2">'&quot;'</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s1">results </span><span class="s3">+= (</span><span class="s1">unary </span><span class="s3">? </span><span class="s2">'/' </span><span class="s3">: </span><span class="s2">''</span><span class="s3">) + </span><span class="s2">'&gt;'</span><span class="s3">;</span>
+    <span class="s3">},</span>
+    <span class="s1">end</span><span class="s3">: </span><span class="s4">function</span><span class="s3">(</span><span class="s1">tag</span><span class="s3">) {</span>
+      <span class="s1">results </span><span class="s3">+= </span><span class="s2">'&lt;/' </span><span class="s3">+ </span><span class="s1">tag </span><span class="s3">+ </span><span class="s2">'&gt;'</span><span class="s3">;</span>
+    <span class="s3">},</span>
+    <span class="s1">chars</span><span class="s3">: </span><span class="s4">function</span><span class="s3">(</span><span class="s1">text</span><span class="s3">) {</span>
+      <span class="s1">results </span><span class="s3">+= </span><span class="s1">text</span><span class="s3">;</span>
+    <span class="s3">},</span>
+    <span class="s1">comment</span><span class="s3">: </span><span class="s4">function</span><span class="s3">(</span><span class="s1">text</span><span class="s3">) {</span>
+      <span class="s1">results </span><span class="s3">+= </span><span class="s2">'&lt;!--' </span><span class="s3">+ </span><span class="s1">text </span><span class="s3">+ </span><span class="s2">'--&gt;'</span><span class="s3">;</span>
+    <span class="s3">},</span>
+    <span class="s1">ignore</span><span class="s3">: </span><span class="s4">function</span><span class="s3">(</span><span class="s1">text</span><span class="s3">) {</span>
+      <span class="s1">results </span><span class="s3">+= </span><span class="s1">text</span><span class="s3">;</span>
+    <span class="s3">}</span>
+  <span class="s3">});</span>
+
+  <span class="s4">return </span><span class="s1">results</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s1">exports</span><span class="s3">.</span><span class="s1">HTMLtoDOM </span><span class="s3">= </span><span class="s4">function</span><span class="s3">(</span><span class="s1">html</span><span class="s3">, </span><span class="s1">doc</span><span class="s3">) {</span>
+  <span class="s0">// There can be only one of these elements</span>
+  <span class="s4">var </span><span class="s1">one </span><span class="s3">= {</span>
+    <span class="s1">html</span><span class="s3">: </span><span class="s4">true</span><span class="s3">,</span>
+    <span class="s1">head</span><span class="s3">: </span><span class="s4">true</span><span class="s3">,</span>
+    <span class="s1">body</span><span class="s3">: </span><span class="s4">true</span><span class="s3">,</span>
+    <span class="s1">title</span><span class="s3">: </span><span class="s4">true</span>
+  <span class="s3">};</span>
+
+  <span class="s0">// Enforce a structure for the document</span>
+  <span class="s4">var </span><span class="s1">structure </span><span class="s3">= {</span>
+    <span class="s1">link</span><span class="s3">: </span><span class="s2">'head'</span><span class="s3">,</span>
+    <span class="s1">base</span><span class="s3">: </span><span class="s2">'head'</span>
+  <span class="s3">};</span>
+
+  <span class="s4">if </span><span class="s3">(</span><span class="s1">doc</span><span class="s3">) {</span>
+    <span class="s1">doc </span><span class="s3">= </span><span class="s1">doc</span><span class="s3">.</span><span class="s1">ownerDocument </span><span class="s3">|| </span><span class="s1">doc</span><span class="s3">.</span><span class="s1">getOwnerDocument </span><span class="s3">&amp;&amp; </span><span class="s1">doc</span><span class="s3">.</span><span class="s1">getOwnerDocument</span><span class="s3">() || </span><span class="s1">doc</span><span class="s3">;</span>
+  <span class="s3">}</span>
+  <span class="s4">else if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">DOMDocument </span><span class="s3">!== </span><span class="s2">'undefined'</span><span class="s3">) {</span>
+    <span class="s1">doc </span><span class="s3">= </span><span class="s4">new </span><span class="s1">DOMDocument</span><span class="s3">();</span>
+  <span class="s3">}</span>
+  <span class="s4">else if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">document </span><span class="s3">!== </span><span class="s2">'undefined' </span><span class="s3">&amp;&amp; </span><span class="s1">document</span><span class="s3">.</span><span class="s1">implementation </span><span class="s3">&amp;&amp; </span><span class="s1">document</span><span class="s3">.</span><span class="s1">implementation</span><span class="s3">.</span><span class="s1">createDocument</span><span class="s3">) {</span>
+    <span class="s1">doc </span><span class="s3">= </span><span class="s1">document</span><span class="s3">.</span><span class="s1">implementation</span><span class="s3">.</span><span class="s1">createDocument</span><span class="s3">(</span><span class="s2">''</span><span class="s3">, </span><span class="s2">''</span><span class="s3">, </span><span class="s4">null</span><span class="s3">);</span>
+  <span class="s3">}</span>
+  <span class="s4">else if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">ActiveX </span><span class="s3">!== </span><span class="s2">'undefined'</span><span class="s3">) {</span>
+    <span class="s1">doc </span><span class="s3">= </span><span class="s4">new </span><span class="s1">ActiveXObject</span><span class="s3">(</span><span class="s2">'Msxml.DOMDocument'</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s4">var </span><span class="s1">elems </span><span class="s3">= [],</span>
+      <span class="s1">documentElement </span><span class="s3">= </span><span class="s1">doc</span><span class="s3">.</span><span class="s1">documentElement </span><span class="s3">||</span>
+      <span class="s1">doc</span><span class="s3">.</span><span class="s1">getDocumentElement </span><span class="s3">&amp;&amp; </span><span class="s1">doc</span><span class="s3">.</span><span class="s1">getDocumentElement</span><span class="s3">();</span>
+
+  <span class="s0">// If we're dealing with an empty document then we</span>
+  <span class="s0">// need to pre-populate it with the HTML document structure</span>
+  <span class="s4">if </span><span class="s3">(!</span><span class="s1">documentElement </span><span class="s3">&amp;&amp; </span><span class="s1">doc</span><span class="s3">.</span><span class="s1">createElement</span><span class="s3">) {</span>
+    <span class="s3">(</span><span class="s4">function</span><span class="s3">() {</span>
+      <span class="s4">var </span><span class="s1">html </span><span class="s3">= </span><span class="s1">doc</span><span class="s3">.</span><span class="s1">createElement</span><span class="s3">(</span><span class="s2">'html'</span><span class="s3">);</span>
+      <span class="s4">var </span><span class="s1">head </span><span class="s3">= </span><span class="s1">doc</span><span class="s3">.</span><span class="s1">createElement</span><span class="s3">(</span><span class="s2">'head'</span><span class="s3">);</span>
+      <span class="s1">head</span><span class="s3">.</span><span class="s1">appendChild</span><span class="s3">(</span><span class="s1">doc</span><span class="s3">.</span><span class="s1">createElement</span><span class="s3">(</span><span class="s2">'title'</span><span class="s3">));</span>
+      <span class="s1">html</span><span class="s3">.</span><span class="s1">appendChild</span><span class="s3">(</span><span class="s1">head</span><span class="s3">);</span>
+      <span class="s1">html</span><span class="s3">.</span><span class="s1">appendChild</span><span class="s3">(</span><span class="s1">doc</span><span class="s3">.</span><span class="s1">createElement</span><span class="s3">(</span><span class="s2">'body'</span><span class="s3">));</span>
+      <span class="s1">doc</span><span class="s3">.</span><span class="s1">appendChild</span><span class="s3">(</span><span class="s1">html</span><span class="s3">);</span>
+    <span class="s3">})();</span>
+  <span class="s3">}</span>
+
+  <span class="s0">// Find all the unique elements</span>
+  <span class="s4">if </span><span class="s3">(</span><span class="s1">doc</span><span class="s3">.</span><span class="s1">getElementsByTagName</span><span class="s3">) {</span>
+    <span class="s4">for </span><span class="s3">(</span><span class="s4">var </span><span class="s1">i </span><span class="s4">in </span><span class="s1">one</span><span class="s3">) {</span>
+      <span class="s1">one</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] = </span><span class="s1">doc</span><span class="s3">.</span><span class="s1">getElementsByTagName</span><span class="s3">(</span><span class="s1">i</span><span class="s3">)[</span><span class="s6">0</span><span class="s3">];</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s0">// If we're working with a document, inject contents into</span>
+  <span class="s0">// the body element</span>
+  <span class="s4">var </span><span class="s1">curParentNode </span><span class="s3">= </span><span class="s1">one</span><span class="s3">.</span><span class="s1">body</span><span class="s3">;</span>
+
+  <span class="s4">new </span><span class="s1">HTMLParser</span><span class="s3">(</span><span class="s1">html</span><span class="s3">, {</span>
+    <span class="s1">start</span><span class="s3">: </span><span class="s4">function</span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">, </span><span class="s1">attrs</span><span class="s3">, </span><span class="s1">unary</span><span class="s3">) {</span>
+      <span class="s0">// If it's a pre-built element, then we can ignore</span>
+      <span class="s0">// its construction</span>
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">one</span><span class="s3">[</span><span class="s1">tagName</span><span class="s3">]) {</span>
+        <span class="s1">curParentNode </span><span class="s3">= </span><span class="s1">one</span><span class="s3">[</span><span class="s1">tagName</span><span class="s3">];</span>
+        <span class="s4">return</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s4">var </span><span class="s1">elem </span><span class="s3">= </span><span class="s1">doc</span><span class="s3">.</span><span class="s1">createElement</span><span class="s3">(</span><span class="s1">tagName</span><span class="s3">);</span>
+
+      <span class="s4">for </span><span class="s3">(</span><span class="s4">var </span><span class="s1">attr </span><span class="s4">in </span><span class="s1">attrs</span><span class="s3">) {</span>
+        <span class="s1">elem</span><span class="s3">.</span><span class="s1">setAttribute</span><span class="s3">(</span><span class="s1">attrs</span><span class="s3">[</span><span class="s1">attr</span><span class="s3">].</span><span class="s1">name</span><span class="s3">, </span><span class="s1">attrs</span><span class="s3">[</span><span class="s1">attr</span><span class="s3">].</span><span class="s1">value</span><span class="s3">);</span>
+      <span class="s3">}</span>
+
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">structure</span><span class="s3">[</span><span class="s1">tagName</span><span class="s3">] &amp;&amp; </span><span class="s4">typeof </span><span class="s1">one</span><span class="s3">[</span><span class="s1">structure</span><span class="s3">[</span><span class="s1">tagName</span><span class="s3">]] !== </span><span class="s2">'boolean'</span><span class="s3">) {</span>
+        <span class="s1">one</span><span class="s3">[</span><span class="s1">structure</span><span class="s3">[</span><span class="s1">tagName</span><span class="s3">]].</span><span class="s1">appendChild</span><span class="s3">(</span><span class="s1">elem</span><span class="s3">);</span>
+      <span class="s3">}</span>
+      <span class="s4">else if </span><span class="s3">(</span><span class="s1">curParentNode </span><span class="s3">&amp;&amp; </span><span class="s1">curParentNode</span><span class="s3">.</span><span class="s1">appendChild</span><span class="s3">) {</span>
+        <span class="s1">curParentNode</span><span class="s3">.</span><span class="s1">appendChild</span><span class="s3">(</span><span class="s1">elem</span><span class="s3">);</span>
+      <span class="s3">}</span>
+
+      <span class="s4">if </span><span class="s3">(!</span><span class="s1">unary</span><span class="s3">) {</span>
+        <span class="s1">elems</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">elem</span><span class="s3">);</span>
+        <span class="s1">curParentNode </span><span class="s3">= </span><span class="s1">elem</span><span class="s3">;</span>
+      <span class="s3">}</span>
+    <span class="s3">},</span>
+    <span class="s1">end</span><span class="s3">: </span><span class="s4">function</span><span class="s3">(</span><span class="s0">/* tag */</span><span class="s3">) {</span>
+      <span class="s1">elems</span><span class="s3">.</span><span class="s1">length </span><span class="s3">-= </span><span class="s6">1</span><span class="s3">;</span>
+
+      <span class="s0">// Init the new parentNode</span>
+      <span class="s1">curParentNode </span><span class="s3">= </span><span class="s1">elems</span><span class="s3">[</span><span class="s1">elems</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s6">1</span><span class="s3">];</span>
+    <span class="s3">},</span>
+    <span class="s1">chars</span><span class="s3">: </span><span class="s4">function</span><span class="s3">(</span><span class="s1">text</span><span class="s3">) {</span>
+      <span class="s1">curParentNode</span><span class="s3">.</span><span class="s1">appendChild</span><span class="s3">(</span><span class="s1">doc</span><span class="s3">.</span><span class="s1">createTextNode</span><span class="s3">(</span><span class="s1">text</span><span class="s3">));</span>
+    <span class="s3">},</span>
+    <span class="s1">comment</span><span class="s3">: </span><span class="s4">function</span><span class="s3">(</span><span class="s0">/* text */</span><span class="s3">) {</span>
+      <span class="s0">// create comment node</span>
+    <span class="s3">},</span>
+    <span class="s1">ignore</span><span class="s3">: </span><span class="s4">function</span><span class="s3">(</span><span class="s0">/* text */</span><span class="s3">) {</span>
+      <span class="s0">// What to do here?</span>
+    <span class="s3">}</span>
+  <span class="s3">});</span>
+
+  <span class="s4">return </span><span class="s1">doc</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s1">exports</span><span class="s3">.</span><span class="s1">endTag </span><span class="s3">= </span><span class="s1">endTag</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

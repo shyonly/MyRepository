@@ -1,0 +1,422 @@
+<html>
+<head>
+<title>socketServer.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+socketServer.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s2">net </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'net'</span><span class="s1">),</span>
+    <span class="s2">tls </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'tls'</span><span class="s1">),</span>
+    <span class="s2">fs </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'fs'</span><span class="s1">),</span>
+    <span class="s2">dgram </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'dgram'</span><span class="s1">),</span>
+    <span class="s2">EventParser </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'../entities/EventParser.js'</span><span class="s1">),</span>
+    <span class="s2">Message </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'js-message'</span><span class="s1">),</span>
+    <span class="s2">Events </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'event-pubsub'</span><span class="s1">);</span>
+
+<span class="s3">let </span><span class="s2">eventParser </span><span class="s1">= </span><span class="s3">new </span><span class="s2">EventParser</span><span class="s1">();</span>
+
+<span class="s3">class </span><span class="s2">Server </span><span class="s3">extends </span><span class="s2">Events</span><span class="s1">{</span>
+    <span class="s2">constructor</span><span class="s1">(</span><span class="s2">path</span><span class="s1">,</span><span class="s2">config</span><span class="s1">,</span><span class="s2">log</span><span class="s1">,</span><span class="s2">port</span><span class="s1">){</span>
+        <span class="s3">super</span><span class="s1">();</span>
+        <span class="s2">Object</span><span class="s1">.</span><span class="s2">assign</span><span class="s1">(</span>
+            <span class="s3">this</span><span class="s1">,</span>
+            <span class="s1">{</span>
+                <span class="s2">config          </span><span class="s1">: </span><span class="s2">config</span><span class="s1">,</span>
+                <span class="s2">path            </span><span class="s1">: </span><span class="s2">path</span><span class="s1">,</span>
+                <span class="s2">port            </span><span class="s1">: </span><span class="s2">port</span><span class="s1">,</span>
+                <span class="s2">udp4            </span><span class="s1">: </span><span class="s3">false</span><span class="s1">,</span>
+                <span class="s2">udp6            </span><span class="s1">: </span><span class="s3">false</span><span class="s1">,</span>
+                <span class="s2">log             </span><span class="s1">: </span><span class="s2">log</span><span class="s1">,</span>
+                <span class="s2">server          </span><span class="s1">: </span><span class="s3">false</span><span class="s1">,</span>
+                <span class="s2">sockets         </span><span class="s1">: [],</span>
+                <span class="s2">emit            </span><span class="s1">: </span><span class="s2">emit</span><span class="s1">,</span>
+                <span class="s2">broadcast       </span><span class="s1">: </span><span class="s2">broadcast</span>
+            <span class="s1">}</span>
+        <span class="s1">);</span>
+
+        <span class="s2">eventParser</span><span class="s1">=</span><span class="s3">new </span><span class="s2">EventParser</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">);</span>
+
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span>
+            <span class="s0">'close'</span><span class="s1">,</span>
+            <span class="s2">serverClosed</span><span class="s1">.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">)</span>
+        <span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s2">onStart</span><span class="s1">(</span><span class="s2">socket</span><span class="s1">){</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">trigger</span><span class="s1">(</span>
+            <span class="s0">'start'</span><span class="s1">,</span>
+            <span class="s2">socket</span>
+        <span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s2">stop</span><span class="s1">(){</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">close</span><span class="s1">();</span>
+    <span class="s1">}</span>
+
+    <span class="s2">start</span><span class="s1">(){</span>
+        <span class="s3">if</span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">path</span><span class="s1">){</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'Socket Server Path not specified, refusing to start'</span><span class="s1">);</span>
+            <span class="s3">return</span><span class="s1">;</span>
+        <span class="s1">}</span>
+
+        <span class="s3">if</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">unlink</span><span class="s1">){</span>
+            <span class="s2">fs</span><span class="s1">.</span><span class="s2">unlink</span><span class="s1">(</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">path</span><span class="s1">,</span>
+                <span class="s2">startServer</span><span class="s1">.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">)</span>
+            <span class="s1">);</span>
+        <span class="s1">}</span><span class="s3">else</span><span class="s1">{</span>
+            <span class="s2">startServer</span><span class="s1">.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">)();</span>
+        <span class="s1">}</span>
+    <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">emit</span><span class="s1">(</span><span class="s2">socket</span><span class="s1">, </span><span class="s2">type</span><span class="s1">, </span><span class="s2">data</span><span class="s1">){</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'dispatching event to socket'</span><span class="s1">, </span><span class="s0">' : '</span><span class="s1">, </span><span class="s2">type</span><span class="s1">, </span><span class="s2">data</span><span class="s1">);</span>
+
+    <span class="s3">let </span><span class="s2">message</span><span class="s1">=</span><span class="s3">new </span><span class="s2">Message</span><span class="s1">;</span>
+    <span class="s2">message</span><span class="s1">.</span><span class="s2">type</span><span class="s1">=</span><span class="s2">type</span><span class="s1">;</span>
+    <span class="s2">message</span><span class="s1">.</span><span class="s2">data</span><span class="s1">=</span><span class="s2">data</span><span class="s1">;</span>
+
+    <span class="s3">if</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">rawBuffer</span><span class="s1">){</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">encoding</span><span class="s1">)</span>
+        <span class="s2">message</span><span class="s1">=</span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">from</span><span class="s1">(</span><span class="s2">type</span><span class="s1">,</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">encoding</span><span class="s1">);</span>
+    <span class="s1">}</span><span class="s3">else</span><span class="s1">{</span>
+        <span class="s2">message</span><span class="s1">=</span><span class="s2">eventParser</span><span class="s1">.</span><span class="s2">format</span><span class="s1">(</span><span class="s2">message</span><span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s3">if</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">udp4 </span><span class="s1">|| </span><span class="s3">this</span><span class="s1">.</span><span class="s2">udp6</span><span class="s1">){</span>
+
+        <span class="s3">if</span><span class="s1">(!</span><span class="s2">socket</span><span class="s1">.</span><span class="s2">address </span><span class="s1">|| !</span><span class="s2">socket</span><span class="s1">.</span><span class="s2">port</span><span class="s1">){</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'Attempting to emit to a single UDP socket without supplying socket address or port. Redispatching event as broadcast to all connected sockets'</span><span class="s1">);</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">broadcast</span><span class="s1">(</span><span class="s2">type</span><span class="s1">,</span><span class="s2">data</span><span class="s1">);</span>
+            <span class="s3">return</span><span class="s1">;</span>
+        <span class="s1">}</span>
+
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">write</span><span class="s1">(</span>
+            <span class="s2">message</span><span class="s1">,</span>
+            <span class="s2">socket</span>
+        <span class="s1">);</span>
+        <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s2">socket</span><span class="s1">.</span><span class="s2">write</span><span class="s1">(</span><span class="s2">message</span><span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">broadcast</span><span class="s1">(</span><span class="s2">type</span><span class="s1">,</span><span class="s2">data</span><span class="s1">){</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'broadcasting event to all known sockets listening to '</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">path</span><span class="s1">,</span><span class="s0">' : '</span><span class="s1">, ((</span><span class="s3">this</span><span class="s1">.</span><span class="s2">port</span><span class="s1">)?</span><span class="s3">this</span><span class="s1">.</span><span class="s2">port</span><span class="s1">:</span><span class="s0">''</span><span class="s1">), </span><span class="s2">type</span><span class="s1">, </span><span class="s2">data</span><span class="s1">);</span>
+    <span class="s3">let </span><span class="s2">message</span><span class="s1">=</span><span class="s3">new </span><span class="s2">Message</span><span class="s1">;</span>
+    <span class="s2">message</span><span class="s1">.</span><span class="s2">type</span><span class="s1">=</span><span class="s2">type</span><span class="s1">;</span>
+    <span class="s2">message</span><span class="s1">.</span><span class="s2">data</span><span class="s1">=</span><span class="s2">data</span><span class="s1">;</span>
+
+    <span class="s3">if</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">rawBuffer</span><span class="s1">){</span>
+        <span class="s2">message</span><span class="s1">=</span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">from</span><span class="s1">(</span><span class="s2">type</span><span class="s1">,</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">encoding</span><span class="s1">);</span>
+    <span class="s1">}</span><span class="s3">else</span><span class="s1">{</span>
+        <span class="s2">message</span><span class="s1">=</span><span class="s2">eventParser</span><span class="s1">.</span><span class="s2">format</span><span class="s1">(</span><span class="s2">message</span><span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s3">if</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">udp4 </span><span class="s1">|| </span><span class="s3">this</span><span class="s1">.</span><span class="s2">udp6</span><span class="s1">){</span>
+        <span class="s3">for</span><span class="s1">(</span><span class="s3">let </span><span class="s2">i</span><span class="s1">=</span><span class="s4">1</span><span class="s1">, </span><span class="s2">count</span><span class="s1">=</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sockets</span><span class="s1">.</span><span class="s2">length</span><span class="s1">; </span><span class="s2">i</span><span class="s1">&lt;</span><span class="s2">count</span><span class="s1">; </span><span class="s2">i</span><span class="s1">++){</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">write</span><span class="s1">(</span><span class="s2">message</span><span class="s1">,</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sockets</span><span class="s1">[</span><span class="s2">i</span><span class="s1">]);</span>
+        <span class="s1">}</span>
+    <span class="s1">}</span><span class="s3">else</span><span class="s1">{</span>
+        <span class="s3">for</span><span class="s1">(</span><span class="s3">let </span><span class="s2">i</span><span class="s1">=</span><span class="s4">0</span><span class="s1">, </span><span class="s2">count</span><span class="s1">=</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sockets</span><span class="s1">.</span><span class="s2">length</span><span class="s1">; </span><span class="s2">i</span><span class="s1">&lt;</span><span class="s2">count</span><span class="s1">; </span><span class="s2">i</span><span class="s1">++){</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sockets</span><span class="s1">[</span><span class="s2">i</span><span class="s1">].</span><span class="s2">write</span><span class="s1">(</span><span class="s2">message</span><span class="s1">);</span>
+        <span class="s1">}</span>
+    <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">serverClosed</span><span class="s1">(){</span>
+    <span class="s3">for</span><span class="s1">(</span><span class="s3">let </span><span class="s2">i</span><span class="s1">=</span><span class="s4">0</span><span class="s1">, </span><span class="s2">count</span><span class="s1">=</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sockets</span><span class="s1">.</span><span class="s2">length</span><span class="s1">; </span><span class="s2">i</span><span class="s1">&lt;</span><span class="s2">count</span><span class="s1">; </span><span class="s2">i</span><span class="s1">++){</span>
+        <span class="s3">let </span><span class="s2">socket</span><span class="s1">=</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sockets</span><span class="s1">[</span><span class="s2">i</span><span class="s1">];</span>
+        <span class="s3">let </span><span class="s2">destroyedSocketId</span><span class="s1">=</span><span class="s3">false</span><span class="s1">;</span>
+
+        <span class="s3">if</span><span class="s1">(</span><span class="s2">socket</span><span class="s1">){</span>
+            <span class="s3">if</span><span class="s1">(</span><span class="s2">socket</span><span class="s1">.</span><span class="s2">readable</span><span class="s1">){</span>
+                <span class="s3">continue</span><span class="s1">;</span>
+            <span class="s1">}</span>
+        <span class="s1">}</span>
+
+        <span class="s3">if</span><span class="s1">(</span><span class="s2">socket</span><span class="s1">.</span><span class="s2">id</span><span class="s1">){</span>
+            <span class="s2">destroyedSocketId</span><span class="s1">=</span><span class="s2">socket</span><span class="s1">.</span><span class="s2">id</span><span class="s1">;</span>
+        <span class="s1">}</span>
+
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'socket disconnected'</span><span class="s1">,</span><span class="s2">destroyedSocketId</span><span class="s1">.</span><span class="s2">toString</span><span class="s1">());</span>
+
+        <span class="s3">if</span><span class="s1">(</span><span class="s2">socket </span><span class="s1">&amp;&amp; </span><span class="s2">socket</span><span class="s1">.</span><span class="s2">destroy</span><span class="s1">){</span>
+            <span class="s2">socket</span><span class="s1">.</span><span class="s2">destroy</span><span class="s1">();</span>
+        <span class="s1">}</span>
+
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">sockets</span><span class="s1">.</span><span class="s2">splice</span><span class="s1">(</span><span class="s2">i</span><span class="s1">,</span><span class="s4">1</span><span class="s1">);</span>
+
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">publish</span><span class="s1">(</span><span class="s0">'socket.disconnected'</span><span class="s1">, </span><span class="s2">socket</span><span class="s1">, </span><span class="s2">destroyedSocketId</span><span class="s1">);</span>
+
+        <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">gotData</span><span class="s1">(</span><span class="s2">socket</span><span class="s1">,</span><span class="s2">data</span><span class="s1">,</span><span class="s2">UDPSocket</span><span class="s1">){</span>
+    <span class="s3">let </span><span class="s2">sock</span><span class="s1">=((</span><span class="s3">this</span><span class="s1">.</span><span class="s2">udp4 </span><span class="s1">|| </span><span class="s3">this</span><span class="s1">.</span><span class="s2">udp6</span><span class="s1">)? </span><span class="s2">UDPSocket </span><span class="s1">: </span><span class="s2">socket</span><span class="s1">);</span>
+    <span class="s3">if</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">rawBuffer</span><span class="s1">){</span>
+        <span class="s2">data</span><span class="s1">=</span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">from</span><span class="s1">(</span><span class="s2">data</span><span class="s1">,</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">encoding</span><span class="s1">);</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">publish</span><span class="s1">(</span>
+            <span class="s0">'data'</span><span class="s1">,</span>
+            <span class="s2">data</span><span class="s1">,</span>
+            <span class="s2">sock</span>
+        <span class="s1">);</span>
+        <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s3">if</span><span class="s1">(!</span><span class="s2">sock</span><span class="s1">.</span><span class="s2">ipcBuffer</span><span class="s1">){</span>
+        <span class="s2">sock</span><span class="s1">.</span><span class="s2">ipcBuffer</span><span class="s1">=</span><span class="s0">''</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s2">data</span><span class="s1">=(</span><span class="s2">sock</span><span class="s1">.</span><span class="s2">ipcBuffer</span><span class="s1">+=</span><span class="s2">data</span><span class="s1">);</span>
+
+    <span class="s3">if</span><span class="s1">(</span><span class="s2">data</span><span class="s1">.</span><span class="s2">slice</span><span class="s1">(-</span><span class="s4">1</span><span class="s1">)!=</span><span class="s2">eventParser</span><span class="s1">.</span><span class="s2">delimiter </span><span class="s1">|| </span><span class="s2">data</span><span class="s1">.</span><span class="s2">indexOf</span><span class="s1">(</span><span class="s2">eventParser</span><span class="s1">.</span><span class="s2">delimiter</span><span class="s1">) == -</span><span class="s4">1</span><span class="s1">){</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'Messages are large, You may want to consider smaller messages.'</span><span class="s1">);</span>
+        <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s2">sock</span><span class="s1">.</span><span class="s2">ipcBuffer</span><span class="s1">=</span><span class="s0">''</span><span class="s1">;</span>
+
+    <span class="s2">data</span><span class="s1">=</span><span class="s2">eventParser</span><span class="s1">.</span><span class="s2">parse</span><span class="s1">(</span><span class="s2">data</span><span class="s1">);</span>
+
+    <span class="s3">while</span><span class="s1">(</span><span class="s2">data</span><span class="s1">.</span><span class="s2">length</span><span class="s1">&gt;</span><span class="s4">0</span><span class="s1">){</span>
+        <span class="s3">let </span><span class="s2">message</span><span class="s1">=</span><span class="s3">new </span><span class="s2">Message</span><span class="s1">;</span>
+        <span class="s2">message</span><span class="s1">.</span><span class="s2">load</span><span class="s1">(</span><span class="s2">data</span><span class="s1">.</span><span class="s2">shift</span><span class="s1">());</span>
+
+        <span class="s5">// Only set the sock id if it is specified.</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">message</span><span class="s1">.</span><span class="s2">data </span><span class="s1">&amp;&amp; </span><span class="s2">message</span><span class="s1">.</span><span class="s2">data</span><span class="s1">.</span><span class="s2">id</span><span class="s1">){</span>
+            <span class="s2">sock</span><span class="s1">.</span><span class="s2">id</span><span class="s1">=</span><span class="s2">message</span><span class="s1">.</span><span class="s2">data</span><span class="s1">.</span><span class="s2">id</span><span class="s1">;</span>
+        <span class="s1">}</span>
+
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'received event of : '</span><span class="s1">,</span><span class="s2">message</span><span class="s1">.</span><span class="s2">type</span><span class="s1">,</span><span class="s2">message</span><span class="s1">.</span><span class="s2">data</span><span class="s1">);</span>
+
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">publish</span><span class="s1">(</span>
+            <span class="s2">message</span><span class="s1">.</span><span class="s2">type</span><span class="s1">,</span>
+            <span class="s2">message</span><span class="s1">.</span><span class="s2">data</span><span class="s1">,</span>
+            <span class="s2">sock</span>
+        <span class="s1">);</span>
+    <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">socketClosed</span><span class="s1">(</span><span class="s2">socket</span><span class="s1">){</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">publish</span><span class="s1">(</span>
+        <span class="s0">'close'</span><span class="s1">,</span>
+        <span class="s2">socket</span>
+    <span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">serverCreated</span><span class="s1">(</span><span class="s2">socket</span><span class="s1">) {</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">sockets</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(</span><span class="s2">socket</span><span class="s1">);</span>
+
+    <span class="s3">if</span><span class="s1">(</span><span class="s2">socket</span><span class="s1">.</span><span class="s2">setEncoding</span><span class="s1">){</span>
+        <span class="s2">socket</span><span class="s1">.</span><span class="s2">setEncoding</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">encoding</span><span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'## socket connection to server detected ##'</span><span class="s1">);</span>
+    <span class="s2">socket</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span>
+        <span class="s0">'close'</span><span class="s1">,</span>
+        <span class="s2">socketClosed</span><span class="s1">.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">)</span>
+    <span class="s1">);</span>
+
+    <span class="s2">socket</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span>
+        <span class="s0">'error'</span><span class="s1">,</span>
+        <span class="s3">function</span><span class="s1">(</span><span class="s2">err</span><span class="s1">){</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'server socket error'</span><span class="s1">,</span><span class="s2">err</span><span class="s1">);</span>
+
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">publish</span><span class="s1">(</span><span class="s0">'error'</span><span class="s1">,</span><span class="s2">err</span><span class="s1">);</span>
+        <span class="s1">}.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">)</span>
+    <span class="s1">);</span>
+
+    <span class="s2">socket</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span>
+        <span class="s0">'data'</span><span class="s1">,</span>
+        <span class="s2">gotData</span><span class="s1">.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">,</span><span class="s2">socket</span><span class="s1">)</span>
+    <span class="s1">);</span>
+
+    <span class="s2">socket</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span>
+        <span class="s0">'message'</span><span class="s1">,</span>
+        <span class="s3">function</span><span class="s1">(</span><span class="s2">msg</span><span class="s1">,</span><span class="s2">rinfo</span><span class="s1">) {</span>
+            <span class="s3">if </span><span class="s1">(!</span><span class="s2">rinfo</span><span class="s1">){</span>
+                <span class="s3">return</span><span class="s1">;</span>
+            <span class="s1">}</span>
+
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'Received UDP message from '</span><span class="s1">, </span><span class="s2">rinfo</span><span class="s1">.</span><span class="s2">address</span><span class="s1">, </span><span class="s2">rinfo</span><span class="s1">.</span><span class="s2">port</span><span class="s1">);</span>
+            <span class="s3">let </span><span class="s2">data</span><span class="s1">;</span>
+
+            <span class="s3">if</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">rawSocket</span><span class="s1">){</span>
+                <span class="s2">data</span><span class="s1">=</span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">from</span><span class="s1">(</span><span class="s2">msg</span><span class="s1">,</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">encoding</span><span class="s1">);</span>
+            <span class="s1">}</span><span class="s3">else</span><span class="s1">{</span>
+                <span class="s2">data</span><span class="s1">=</span><span class="s2">msg</span><span class="s1">.</span><span class="s2">toString</span><span class="s1">();</span>
+            <span class="s1">}</span>
+            <span class="s2">socket</span><span class="s1">.</span><span class="s2">emit</span><span class="s1">(</span><span class="s0">'data'</span><span class="s1">,</span><span class="s2">data</span><span class="s1">,</span><span class="s2">rinfo</span><span class="s1">);</span>
+        <span class="s1">}.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">)</span>
+    <span class="s1">);</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">publish</span><span class="s1">(</span>
+        <span class="s0">'connect'</span><span class="s1">,</span>
+        <span class="s2">socket</span>
+    <span class="s1">);</span>
+
+    <span class="s3">if</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">rawBuffer</span><span class="s1">){</span>
+        <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">startServer</span><span class="s1">() {</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span>
+        <span class="s0">'starting server on '</span><span class="s1">,</span><span class="s3">this</span><span class="s1">.</span><span class="s2">path</span><span class="s1">,</span>
+        <span class="s1">((</span><span class="s3">this</span><span class="s1">.</span><span class="s2">port</span><span class="s1">)?</span><span class="s0">`:</span><span class="s2">$</span><span class="s1">{</span><span class="s3">this</span><span class="s1">.</span><span class="s2">port</span><span class="s1">}</span><span class="s0">`</span><span class="s1">:</span><span class="s0">''</span><span class="s1">)</span>
+    <span class="s1">);</span>
+
+    <span class="s3">if</span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">udp4 </span><span class="s1">&amp;&amp; !</span><span class="s3">this</span><span class="s1">.</span><span class="s2">udp6</span><span class="s1">){</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'starting TLS server'</span><span class="s1">,</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">);</span>
+        <span class="s3">if</span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">){</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">=</span><span class="s2">net</span><span class="s1">.</span><span class="s2">createServer</span><span class="s1">(</span>
+                <span class="s2">serverCreated</span><span class="s1">.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">)</span>
+            <span class="s1">);</span>
+        <span class="s1">}</span><span class="s3">else</span><span class="s1">{</span>
+            <span class="s2">startTLSServer</span><span class="s1">.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">)();</span>
+        <span class="s1">}</span>
+    <span class="s1">}</span><span class="s3">else</span><span class="s1">{</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">=</span><span class="s2">dgram</span><span class="s1">.</span><span class="s2">createSocket</span><span class="s1">(</span>
+            <span class="s1">((</span><span class="s3">this</span><span class="s1">.</span><span class="s2">udp4</span><span class="s1">)? </span><span class="s0">'udp4'</span><span class="s1">:</span><span class="s0">'udp6'</span><span class="s1">)</span>
+        <span class="s1">);</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">write</span><span class="s1">=</span><span class="s2">UDPWrite</span><span class="s1">.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">);</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span>
+            <span class="s0">'listening'</span><span class="s1">,</span>
+            <span class="s3">function </span><span class="s2">UDPServerStarted</span><span class="s1">() {</span>
+                <span class="s2">serverCreated</span><span class="s1">.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">)(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">);</span>
+            <span class="s1">}.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">)</span>
+        <span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span>
+        <span class="s0">'error'</span><span class="s1">,</span>
+        <span class="s3">function</span><span class="s1">(</span><span class="s2">err</span><span class="s1">){</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'server error'</span><span class="s1">,</span><span class="s2">err</span><span class="s1">);</span>
+
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">publish</span><span class="s1">(</span>
+                <span class="s0">'error'</span><span class="s1">,</span>
+                <span class="s2">err</span>
+            <span class="s1">);</span>
+        <span class="s1">}.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">)</span>
+    <span class="s1">);</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">maxConnections</span><span class="s1">=</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">maxConnections</span><span class="s1">;</span>
+
+    <span class="s3">if</span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">port</span><span class="s1">){</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'starting server as'</span><span class="s1">, </span><span class="s0">'Unix || Windows Socket'</span><span class="s1">);</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">process</span><span class="s1">.</span><span class="s2">platform </span><span class="s1">===</span><span class="s0">'win32'</span><span class="s1">){</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">path </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">path</span><span class="s1">.</span><span class="s2">replace</span><span class="s1">(</span><span class="s6">/^\//</span><span class="s1">, </span><span class="s0">''</span><span class="s1">);</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">path </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">path</span><span class="s1">.</span><span class="s2">replace</span><span class="s1">(</span><span class="s6">/\//g</span><span class="s1">, </span><span class="s0">'-'</span><span class="s1">);</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">path</span><span class="s1">= </span><span class="s0">`</span><span class="s3">\\\\</span><span class="s0">.</span><span class="s3">\\</span><span class="s0">pipe</span><span class="s3">\\</span><span class="s2">$</span><span class="s1">{</span><span class="s3">this</span><span class="s1">.</span><span class="s2">path</span><span class="s1">}</span><span class="s0">`</span><span class="s1">;</span>
+        <span class="s1">}</span>
+
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">listen</span><span class="s1">({</span>
+            <span class="s2">path</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">path</span><span class="s1">,</span>
+            <span class="s2">readableAll</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">readableAll</span><span class="s1">,</span>
+            <span class="s2">writableAll</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">writableAll</span>
+        <span class="s1">}, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">onStart</span><span class="s1">.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">));</span>
+
+        <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s3">if</span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">udp4 </span><span class="s1">&amp;&amp; !</span><span class="s3">this</span><span class="s1">.</span><span class="s2">udp6</span><span class="s1">){</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'starting server as'</span><span class="s1">, (</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">?</span><span class="s0">'TLS'</span><span class="s1">:</span><span class="s0">'TCP'</span><span class="s1">));</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">listen</span><span class="s1">(</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">port</span><span class="s1">,</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">path</span><span class="s1">,</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">onStart</span><span class="s1">.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">)</span>
+        <span class="s1">);</span>
+        <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'starting server as'</span><span class="s1">,((</span><span class="s3">this</span><span class="s1">.</span><span class="s2">udp4</span><span class="s1">)? </span><span class="s0">'udp4'</span><span class="s1">:</span><span class="s0">'udp6'</span><span class="s1">));</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">bind</span><span class="s1">(</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">port</span><span class="s1">,</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">path</span>
+    <span class="s1">);</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">onStart</span><span class="s1">(</span>
+        <span class="s1">{</span>
+            <span class="s2">address </span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">path</span><span class="s1">,</span>
+            <span class="s2">port    </span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">port</span>
+        <span class="s1">}</span>
+    <span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">startTLSServer</span><span class="s1">(){</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'starting TLS server'</span><span class="s1">,</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">);</span>
+    <span class="s3">if</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">private</span><span class="s1">){</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">key</span><span class="s1">=</span><span class="s2">fs</span><span class="s1">.</span><span class="s2">readFileSync</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">private</span><span class="s1">);</span>
+    <span class="s1">}</span><span class="s3">else</span><span class="s1">{</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">key</span><span class="s1">=</span><span class="s2">fs</span><span class="s1">.</span><span class="s2">readFileSync</span><span class="s1">(</span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">__dirname</span><span class="s1">}</span><span class="s0">/../local-node-ipc-certs/private/server.key`</span><span class="s1">);</span>
+    <span class="s1">}</span>
+    <span class="s3">if</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">public</span><span class="s1">){</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">cert</span><span class="s1">=</span><span class="s2">fs</span><span class="s1">.</span><span class="s2">readFileSync</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">public</span><span class="s1">);</span>
+    <span class="s1">}</span><span class="s3">else</span><span class="s1">{</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">cert</span><span class="s1">=</span><span class="s2">fs</span><span class="s1">.</span><span class="s2">readFileSync</span><span class="s1">(</span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">__dirname</span><span class="s1">}</span><span class="s0">/../local-node-ipc-certs/server.pub`</span><span class="s1">);</span>
+    <span class="s1">}</span>
+    <span class="s3">if</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">dhparam</span><span class="s1">){</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">dhparam</span><span class="s1">=</span><span class="s2">fs</span><span class="s1">.</span><span class="s2">readFileSync</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">dhparam</span><span class="s1">);</span>
+    <span class="s1">}</span>
+    <span class="s3">if</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">trustedConnections</span><span class="s1">){</span>
+        <span class="s3">if</span><span class="s1">(</span><span class="s3">typeof this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">trustedConnections </span><span class="s1">=== </span><span class="s0">'string'</span><span class="s1">){</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">trustedConnections</span><span class="s1">=[</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">trustedConnections</span><span class="s1">];</span>
+        <span class="s1">}</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">ca</span><span class="s1">=[];</span>
+        <span class="s3">for</span><span class="s1">(</span><span class="s3">let </span><span class="s2">i</span><span class="s1">=</span><span class="s4">0</span><span class="s1">; </span><span class="s2">i</span><span class="s1">&lt;</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">trustedConnections</span><span class="s1">.</span><span class="s2">length</span><span class="s1">; </span><span class="s2">i</span><span class="s1">++){</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">ca</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(</span>
+                <span class="s2">fs</span><span class="s1">.</span><span class="s2">readFileSync</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">trustedConnections</span><span class="s1">[</span><span class="s2">i</span><span class="s1">])</span>
+            <span class="s1">);</span>
+        <span class="s1">}</span>
+    <span class="s1">}</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">=</span><span class="s2">tls</span><span class="s1">.</span><span class="s2">createServer</span><span class="s1">(</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">tls</span><span class="s1">,</span>
+        <span class="s2">serverCreated</span><span class="s1">.</span><span class="s2">bind</span><span class="s1">(</span><span class="s3">this</span><span class="s1">)</span>
+    <span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">UDPWrite</span><span class="s1">(</span><span class="s2">message</span><span class="s1">,</span><span class="s2">socket</span><span class="s1">){</span>
+    <span class="s3">let </span><span class="s2">data</span><span class="s1">=</span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">from</span><span class="s1">(</span><span class="s2">message</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">encoding</span><span class="s1">);</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">send</span><span class="s1">(</span>
+        <span class="s2">data</span><span class="s1">,</span>
+        <span class="s4">0</span><span class="s1">,</span>
+        <span class="s2">data</span><span class="s1">.</span><span class="s2">length</span><span class="s1">,</span>
+        <span class="s2">socket</span><span class="s1">.</span><span class="s2">port</span><span class="s1">,</span>
+        <span class="s2">socket</span><span class="s1">.</span><span class="s2">address</span><span class="s1">,</span>
+        <span class="s3">function</span><span class="s1">(</span><span class="s2">err</span><span class="s1">, </span><span class="s2">bytes</span><span class="s1">) {</span>
+            <span class="s3">if</span><span class="s1">(</span><span class="s2">err</span><span class="s1">){</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">'error writing data to socket'</span><span class="s1">,</span><span class="s2">err</span><span class="s1">);</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">publish</span><span class="s1">(</span>
+                    <span class="s0">'error'</span><span class="s1">,</span>
+                    <span class="s3">function</span><span class="s1">(</span><span class="s2">err</span><span class="s1">){</span>
+                        <span class="s3">this</span><span class="s1">.</span><span class="s2">publish</span><span class="s1">(</span><span class="s0">'error'</span><span class="s1">,</span><span class="s2">err</span><span class="s1">);</span>
+                    <span class="s1">}</span>
+                <span class="s1">);</span>
+            <span class="s1">}</span>
+        <span class="s1">}</span>
+    <span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports</span><span class="s1">=</span><span class="s2">Server</span><span class="s1">;</span>
+</pre>
+</body>
+</html>

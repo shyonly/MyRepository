@@ -1,0 +1,227 @@
+<html>
+<head>
+<title>transition-group.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #2aacb8;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+transition-group.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">// Provides transition support for list items.</span>
+<span class="s0">// supports move transitions using the FLIP technique.</span>
+
+<span class="s0">// Because the vdom's children update algorithm is &quot;unstable&quot; - i.e.</span>
+<span class="s0">// it doesn't guarantee the relative positioning of removed elements,</span>
+<span class="s0">// we force transition-group to update its children into two passes:</span>
+<span class="s0">// in the first pass, we remove all nodes that need to be removed,</span>
+<span class="s0">// triggering their leaving transition; in the second pass, we insert/move</span>
+<span class="s0">// into the final desired state. This way in the second pass removed</span>
+<span class="s0">// nodes will remain where they should be.</span>
+
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">warn</span><span class="s3">, </span><span class="s1">extend </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'core/util/index'</span>
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">addClass</span><span class="s3">, </span><span class="s1">removeClass </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'web/runtime/class-util'</span>
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">transitionProps</span><span class="s3">, </span><span class="s1">extractTransitionData </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'./transition'</span>
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">setActiveInstance </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'core/instance/lifecycle'</span>
+
+<span class="s2">import </span><span class="s3">{</span>
+  <span class="s1">hasTransition</span><span class="s3">,</span>
+  <span class="s1">getTransitionInfo</span><span class="s3">,</span>
+  <span class="s1">transitionEndEvent</span><span class="s3">,</span>
+  <span class="s1">addTransitionClass</span><span class="s3">,</span>
+  <span class="s1">removeTransitionClass</span>
+<span class="s3">} </span><span class="s1">from </span><span class="s4">'web/runtime/transition-util'</span>
+<span class="s2">import </span><span class="s1">VNode from </span><span class="s4">'core/vdom/vnode'</span>
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">VNodeWithData </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'types/vnode'</span>
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">getComponentName </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'core/vdom/create-component'</span>
+
+<span class="s2">const </span><span class="s1">props </span><span class="s3">= </span><span class="s1">extend</span><span class="s3">(</span>
+  <span class="s3">{</span>
+    <span class="s1">tag</span><span class="s3">: </span><span class="s1">String</span><span class="s3">,</span>
+    <span class="s1">moveClass</span><span class="s3">: </span><span class="s1">String</span>
+  <span class="s3">},</span>
+  <span class="s1">transitionProps</span>
+<span class="s3">)</span>
+
+<span class="s2">delete </span><span class="s1">props</span><span class="s3">.</span><span class="s1">mode</span>
+
+<span class="s2">export default </span><span class="s3">{</span>
+  <span class="s1">props</span><span class="s3">,</span>
+
+  <span class="s1">beforeMount</span><span class="s3">() {</span>
+    <span class="s2">const </span><span class="s1">update </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_update</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_update </span><span class="s3">= (</span><span class="s1">vnode</span><span class="s3">, </span><span class="s1">hydrating</span><span class="s3">) =&gt; {</span>
+      <span class="s2">const </span><span class="s1">restoreActiveInstance </span><span class="s3">= </span><span class="s1">setActiveInstance</span><span class="s3">(</span><span class="s2">this</span><span class="s3">)</span>
+      <span class="s0">// force removing pass</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">__patch__</span><span class="s3">(</span>
+        <span class="s2">this</span><span class="s3">.</span><span class="s1">_vnode</span><span class="s3">,</span>
+        <span class="s2">this</span><span class="s3">.</span><span class="s1">kept</span><span class="s3">,</span>
+        <span class="s2">false</span><span class="s3">, </span><span class="s0">// hydrating</span>
+        <span class="s2">true </span><span class="s0">// removeOnly (!important, avoids unnecessary moves)</span>
+      <span class="s3">)</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">_vnode </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">kept</span>
+      <span class="s1">restoreActiveInstance</span><span class="s3">()</span>
+      <span class="s1">update</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s2">this</span><span class="s3">, </span><span class="s1">vnode</span><span class="s3">, </span><span class="s1">hydrating</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">},</span>
+
+  <span class="s1">render</span><span class="s3">(</span><span class="s1">h</span><span class="s3">: </span><span class="s1">Function</span><span class="s3">) {</span>
+    <span class="s2">const </span><span class="s1">tag</span><span class="s3">: </span><span class="s1">string </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">tag </span><span class="s3">|| </span><span class="s2">this</span><span class="s3">.</span><span class="s1">$vnode</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">tag </span><span class="s3">|| </span><span class="s4">'span'</span>
+    <span class="s2">const </span><span class="s1">map</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt; = </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">create</span><span class="s3">(</span><span class="s2">null</span><span class="s3">)</span>
+    <span class="s2">const </span><span class="s1">prevChildren</span><span class="s3">: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt; = (</span><span class="s2">this</span><span class="s3">.</span><span class="s1">prevChildren </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">)</span>
+    <span class="s2">const </span><span class="s1">rawChildren</span><span class="s3">: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt; = </span><span class="s2">this</span><span class="s3">.</span><span class="s1">$slots</span><span class="s3">.</span><span class="s1">default </span><span class="s3">|| []</span>
+    <span class="s2">const </span><span class="s1">children</span><span class="s3">: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt; = (</span><span class="s2">this</span><span class="s3">.</span><span class="s1">children </span><span class="s3">= [])</span>
+    <span class="s2">const </span><span class="s1">transitionData </span><span class="s3">= </span><span class="s1">extractTransitionData</span><span class="s3">(</span><span class="s2">this</span><span class="s3">)</span>
+
+    <span class="s2">for </span><span class="s3">(</span><span class="s2">let </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">rawChildren</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+      <span class="s2">const </span><span class="s1">c</span><span class="s3">: </span><span class="s1">VNode </span><span class="s3">= </span><span class="s1">rawChildren</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">c</span><span class="s3">.</span><span class="s1">tag</span><span class="s3">) {</span>
+        <span class="s2">if </span><span class="s3">(</span><span class="s1">c</span><span class="s3">.</span><span class="s1">key </span><span class="s3">!= </span><span class="s2">null </span><span class="s3">&amp;&amp; </span><span class="s1">String</span><span class="s3">(</span><span class="s1">c</span><span class="s3">.</span><span class="s1">key</span><span class="s3">).</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s4">'__vlist'</span><span class="s3">) !== </span><span class="s5">0</span><span class="s3">) {</span>
+          <span class="s1">children</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">c</span><span class="s3">)</span>
+          <span class="s1">map</span><span class="s3">[</span><span class="s1">c</span><span class="s3">.</span><span class="s1">key</span><span class="s3">] = </span><span class="s1">c</span>
+          <span class="s3">;(</span><span class="s1">c</span><span class="s3">.</span><span class="s1">data </span><span class="s3">|| (</span><span class="s1">c</span><span class="s3">.</span><span class="s1">data </span><span class="s3">= {})).</span><span class="s1">transition </span><span class="s3">= </span><span class="s1">transitionData</span>
+        <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s1">__DEV__</span><span class="s3">) {</span>
+          <span class="s2">const </span><span class="s1">opts </span><span class="s3">= </span><span class="s1">c</span><span class="s3">.</span><span class="s1">componentOptions</span>
+          <span class="s2">const </span><span class="s1">name</span><span class="s3">: </span><span class="s1">string </span><span class="s3">= </span><span class="s1">opts</span>
+            <span class="s3">? </span><span class="s1">getComponentName</span><span class="s3">(</span><span class="s1">opts</span><span class="s3">.</span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">options </span><span class="s3">as </span><span class="s1">any</span><span class="s3">) || </span><span class="s1">opts</span><span class="s3">.</span><span class="s1">tag </span><span class="s3">|| </span><span class="s4">''</span>
+            <span class="s3">: </span><span class="s1">c</span><span class="s3">.</span><span class="s1">tag</span>
+          <span class="s1">warn</span><span class="s3">(</span><span class="s4">`&lt;transition-group&gt; children must be keyed: &lt;</span><span class="s1">$</span><span class="s3">{</span><span class="s1">name</span><span class="s3">}</span><span class="s4">&gt;`</span><span class="s3">)</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">prevChildren</span><span class="s3">) {</span>
+      <span class="s2">const </span><span class="s1">kept</span><span class="s3">: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt; = []</span>
+      <span class="s2">const </span><span class="s1">removed</span><span class="s3">: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt; = []</span>
+      <span class="s2">for </span><span class="s3">(</span><span class="s2">let </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">prevChildren</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+        <span class="s2">const </span><span class="s1">c</span><span class="s3">: </span><span class="s1">VNode </span><span class="s3">= </span><span class="s1">prevChildren</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+        <span class="s1">c</span><span class="s3">.</span><span class="s1">data</span><span class="s3">!.</span><span class="s1">transition </span><span class="s3">= </span><span class="s1">transitionData</span>
+        <span class="s0">// @ts-expect-error .getBoundingClientRect is not typed in Node</span>
+        <span class="s1">c</span><span class="s3">.</span><span class="s1">data</span><span class="s3">!.</span><span class="s1">pos </span><span class="s3">= </span><span class="s1">c</span><span class="s3">.</span><span class="s1">elm</span><span class="s3">.</span><span class="s1">getBoundingClientRect</span><span class="s3">()</span>
+        <span class="s2">if </span><span class="s3">(</span><span class="s1">map</span><span class="s3">[</span><span class="s1">c</span><span class="s3">.</span><span class="s1">key</span><span class="s3">!]) {</span>
+          <span class="s1">kept</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">c</span><span class="s3">)</span>
+        <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+          <span class="s1">removed</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">c</span><span class="s3">)</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">kept </span><span class="s3">= </span><span class="s1">h</span><span class="s3">(</span><span class="s1">tag</span><span class="s3">, </span><span class="s2">null</span><span class="s3">, </span><span class="s1">kept</span><span class="s3">)</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">removed </span><span class="s3">= </span><span class="s1">removed</span>
+    <span class="s3">}</span>
+
+    <span class="s2">return </span><span class="s1">h</span><span class="s3">(</span><span class="s1">tag</span><span class="s3">, </span><span class="s2">null</span><span class="s3">, </span><span class="s1">children</span><span class="s3">)</span>
+  <span class="s3">},</span>
+
+  <span class="s1">updated</span><span class="s3">() {</span>
+    <span class="s2">const </span><span class="s1">children</span><span class="s3">: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNodeWithData</span><span class="s3">&gt; = </span><span class="s2">this</span><span class="s3">.</span><span class="s1">prevChildren</span>
+    <span class="s2">const </span><span class="s1">moveClass</span><span class="s3">: </span><span class="s1">string </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">moveClass </span><span class="s3">|| (</span><span class="s2">this</span><span class="s3">.</span><span class="s1">name </span><span class="s3">|| </span><span class="s4">'v'</span><span class="s3">) + </span><span class="s4">'-move'</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">children</span><span class="s3">.</span><span class="s1">length </span><span class="s3">|| !</span><span class="s2">this</span><span class="s3">.</span><span class="s1">hasMove</span><span class="s3">(</span><span class="s1">children</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">elm</span><span class="s3">, </span><span class="s1">moveClass</span><span class="s3">)) {</span>
+      <span class="s2">return</span>
+    <span class="s3">}</span>
+
+    <span class="s0">// we divide the work into three loops to avoid mixing DOM reads and writes</span>
+    <span class="s0">// in each iteration - which helps prevent layout thrashing.</span>
+    <span class="s1">children</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">(</span><span class="s1">callPendingCbs</span><span class="s3">)</span>
+    <span class="s1">children</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">(</span><span class="s1">recordPosition</span><span class="s3">)</span>
+    <span class="s1">children</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">(</span><span class="s1">applyTranslation</span><span class="s3">)</span>
+
+    <span class="s0">// force reflow to put everything in position</span>
+    <span class="s0">// assign to this to avoid being removed in tree-shaking</span>
+    <span class="s0">// $flow-disable-line</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_reflow </span><span class="s3">= </span><span class="s1">document</span><span class="s3">.</span><span class="s1">body</span><span class="s3">.</span><span class="s1">offsetHeight</span>
+
+    <span class="s1">children</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">((</span><span class="s1">c</span><span class="s3">: </span><span class="s1">VNode</span><span class="s3">) =&gt; {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">c</span><span class="s3">.</span><span class="s1">data</span><span class="s3">!.</span><span class="s1">moved</span><span class="s3">) {</span>
+        <span class="s2">const </span><span class="s1">el</span><span class="s3">: </span><span class="s1">any </span><span class="s3">= </span><span class="s1">c</span><span class="s3">.</span><span class="s1">elm</span>
+        <span class="s2">const </span><span class="s1">s</span><span class="s3">: </span><span class="s1">any </span><span class="s3">= </span><span class="s1">el</span><span class="s3">.</span><span class="s1">style</span>
+        <span class="s1">addTransitionClass</span><span class="s3">(</span><span class="s1">el</span><span class="s3">, </span><span class="s1">moveClass</span><span class="s3">)</span>
+        <span class="s1">s</span><span class="s3">.</span><span class="s1">transform </span><span class="s3">= </span><span class="s1">s</span><span class="s3">.</span><span class="s1">WebkitTransform </span><span class="s3">= </span><span class="s1">s</span><span class="s3">.</span><span class="s1">transitionDuration </span><span class="s3">= </span><span class="s4">''</span>
+        <span class="s1">el</span><span class="s3">.</span><span class="s1">addEventListener</span><span class="s3">(</span>
+          <span class="s1">transitionEndEvent</span><span class="s3">,</span>
+          <span class="s3">(</span><span class="s1">el</span><span class="s3">.</span><span class="s1">_moveCb </span><span class="s3">= </span><span class="s2">function </span><span class="s1">cb</span><span class="s3">(</span><span class="s1">e</span><span class="s3">) {</span>
+            <span class="s2">if </span><span class="s3">(</span><span class="s1">e </span><span class="s3">&amp;&amp; </span><span class="s1">e</span><span class="s3">.</span><span class="s1">target </span><span class="s3">!== </span><span class="s1">el</span><span class="s3">) {</span>
+              <span class="s2">return</span>
+            <span class="s3">}</span>
+            <span class="s2">if </span><span class="s3">(!</span><span class="s1">e </span><span class="s3">|| </span><span class="s6">/transform$/</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">e</span><span class="s3">.</span><span class="s1">propertyName</span><span class="s3">)) {</span>
+              <span class="s1">el</span><span class="s3">.</span><span class="s1">removeEventListener</span><span class="s3">(</span><span class="s1">transitionEndEvent</span><span class="s3">, </span><span class="s1">cb</span><span class="s3">)</span>
+              <span class="s1">el</span><span class="s3">.</span><span class="s1">_moveCb </span><span class="s3">= </span><span class="s2">null</span>
+              <span class="s1">removeTransitionClass</span><span class="s3">(</span><span class="s1">el</span><span class="s3">, </span><span class="s1">moveClass</span><span class="s3">)</span>
+            <span class="s3">}</span>
+          <span class="s3">})</span>
+        <span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">})</span>
+  <span class="s3">},</span>
+
+  <span class="s1">methods</span><span class="s3">: {</span>
+    <span class="s1">hasMove</span><span class="s3">(</span><span class="s1">el</span><span class="s3">: </span><span class="s1">any</span><span class="s3">, </span><span class="s1">moveClass</span><span class="s3">: </span><span class="s1">string</span><span class="s3">): </span><span class="s1">boolean </span><span class="s3">{</span>
+      <span class="s0">/* istanbul ignore if */</span>
+      <span class="s2">if </span><span class="s3">(!</span><span class="s1">hasTransition</span><span class="s3">) {</span>
+        <span class="s2">return false</span>
+      <span class="s3">}</span>
+      <span class="s0">/* istanbul ignore if */</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">_hasMove</span><span class="s3">) {</span>
+        <span class="s2">return this</span><span class="s3">.</span><span class="s1">_hasMove</span>
+      <span class="s3">}</span>
+      <span class="s0">// Detect whether an element with the move class applied has</span>
+      <span class="s0">// CSS transitions. Since the element may be inside an entering</span>
+      <span class="s0">// transition at this very moment, we make a clone of it and remove</span>
+      <span class="s0">// all other transition classes applied to ensure only the move class</span>
+      <span class="s0">// is applied.</span>
+      <span class="s2">const </span><span class="s1">clone</span><span class="s3">: </span><span class="s1">HTMLElement </span><span class="s3">= </span><span class="s1">el</span><span class="s3">.</span><span class="s1">cloneNode</span><span class="s3">()</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">el</span><span class="s3">.</span><span class="s1">_transitionClasses</span><span class="s3">) {</span>
+        <span class="s1">el</span><span class="s3">.</span><span class="s1">_transitionClasses</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">((</span><span class="s1">cls</span><span class="s3">: </span><span class="s1">string</span><span class="s3">) =&gt; {</span>
+          <span class="s1">removeClass</span><span class="s3">(</span><span class="s1">clone</span><span class="s3">, </span><span class="s1">cls</span><span class="s3">)</span>
+        <span class="s3">})</span>
+      <span class="s3">}</span>
+      <span class="s1">addClass</span><span class="s3">(</span><span class="s1">clone</span><span class="s3">, </span><span class="s1">moveClass</span><span class="s3">)</span>
+      <span class="s1">clone</span><span class="s3">.</span><span class="s1">style</span><span class="s3">.</span><span class="s1">display </span><span class="s3">= </span><span class="s4">'none'</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">$el</span><span class="s3">.</span><span class="s1">appendChild</span><span class="s3">(</span><span class="s1">clone</span><span class="s3">)</span>
+      <span class="s2">const </span><span class="s1">info</span><span class="s3">: </span><span class="s1">any </span><span class="s3">= </span><span class="s1">getTransitionInfo</span><span class="s3">(</span><span class="s1">clone</span><span class="s3">)</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">$el</span><span class="s3">.</span><span class="s1">removeChild</span><span class="s3">(</span><span class="s1">clone</span><span class="s3">)</span>
+      <span class="s2">return </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">_hasMove </span><span class="s3">= </span><span class="s1">info</span><span class="s3">.</span><span class="s1">hasTransform</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">callPendingCbs</span><span class="s3">(</span>
+  <span class="s1">c</span><span class="s3">: </span><span class="s1">VNodeWithData </span><span class="s3">&amp; { </span><span class="s1">elm</span><span class="s3">?: { </span><span class="s1">_moveCb</span><span class="s3">?: </span><span class="s1">Function</span><span class="s3">; </span><span class="s1">_enterCb</span><span class="s3">?: </span><span class="s1">Function </span><span class="s3">} }</span>
+<span class="s3">) {</span>
+  <span class="s0">/* istanbul ignore if */</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">c</span><span class="s3">.</span><span class="s1">elm</span><span class="s3">!.</span><span class="s1">_moveCb</span><span class="s3">) {</span>
+    <span class="s1">c</span><span class="s3">.</span><span class="s1">elm</span><span class="s3">!.</span><span class="s1">_moveCb</span><span class="s3">()</span>
+  <span class="s3">}</span>
+  <span class="s0">/* istanbul ignore if */</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">c</span><span class="s3">.</span><span class="s1">elm</span><span class="s3">!.</span><span class="s1">_enterCb</span><span class="s3">) {</span>
+    <span class="s1">c</span><span class="s3">.</span><span class="s1">elm</span><span class="s3">!.</span><span class="s1">_enterCb</span><span class="s3">()</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">recordPosition</span><span class="s3">(</span><span class="s1">c</span><span class="s3">: </span><span class="s1">VNodeWithData</span><span class="s3">) {</span>
+  <span class="s1">c</span><span class="s3">.</span><span class="s1">data</span><span class="s3">!.</span><span class="s1">newPos </span><span class="s3">= </span><span class="s1">c</span><span class="s3">.</span><span class="s1">elm</span><span class="s3">.</span><span class="s1">getBoundingClientRect</span><span class="s3">()</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">applyTranslation</span><span class="s3">(</span><span class="s1">c</span><span class="s3">: </span><span class="s1">VNodeWithData</span><span class="s3">) {</span>
+  <span class="s2">const </span><span class="s1">oldPos </span><span class="s3">= </span><span class="s1">c</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">pos</span>
+  <span class="s2">const </span><span class="s1">newPos </span><span class="s3">= </span><span class="s1">c</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">newPos</span>
+  <span class="s2">const </span><span class="s1">dx </span><span class="s3">= </span><span class="s1">oldPos</span><span class="s3">.</span><span class="s1">left </span><span class="s3">- </span><span class="s1">newPos</span><span class="s3">.</span><span class="s1">left</span>
+  <span class="s2">const </span><span class="s1">dy </span><span class="s3">= </span><span class="s1">oldPos</span><span class="s3">.</span><span class="s1">top </span><span class="s3">- </span><span class="s1">newPos</span><span class="s3">.</span><span class="s1">top</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">dx </span><span class="s3">|| </span><span class="s1">dy</span><span class="s3">) {</span>
+    <span class="s1">c</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">moved </span><span class="s3">= </span><span class="s2">true</span>
+    <span class="s2">const </span><span class="s1">s </span><span class="s3">= </span><span class="s1">c</span><span class="s3">.</span><span class="s1">elm</span><span class="s3">.</span><span class="s1">style</span>
+    <span class="s1">s</span><span class="s3">.</span><span class="s1">transform </span><span class="s3">= </span><span class="s1">s</span><span class="s3">.</span><span class="s1">WebkitTransform </span><span class="s3">= </span><span class="s4">`translate(</span><span class="s1">$</span><span class="s3">{</span><span class="s1">dx</span><span class="s3">}</span><span class="s4">px,</span><span class="s1">$</span><span class="s3">{</span><span class="s1">dy</span><span class="s3">}</span><span class="s4">px)`</span>
+    <span class="s1">s</span><span class="s3">.</span><span class="s1">transitionDuration </span><span class="s3">= </span><span class="s4">'0s'</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

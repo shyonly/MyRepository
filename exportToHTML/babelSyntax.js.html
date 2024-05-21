@@ -1,0 +1,65 @@
+<html>
+<head>
+<title>babelSyntax.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #5f826b; font-style: italic;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #42c3d4;}
+.s6 { color: #7a7e85;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+babelSyntax.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span><span class="s1">;</span>
+
+<span class="s3">/**</span>
+ <span class="s3">* This will be removed in next versions as it is not handled in the babel-loader</span>
+ <span class="s3">* See: https://github.com/geowarin/friendly-errors-webpack-plugin/issues/2</span>
+ <span class="s3">*/</span>
+<span class="s4">function </span><span class="s2">cleanStackTrace</span><span class="s1">(</span><span class="s2">message</span><span class="s1">) {</span>
+  <span class="s4">return </span><span class="s2">message</span>
+    <span class="s1">.</span><span class="s2">replace</span><span class="s1">(</span><span class="s5">/^\s*at\s.*:\d+:\d+[\s)]*\n/gm</span><span class="s1">, </span><span class="s0">''</span><span class="s1">); </span><span class="s6">// at ... ...:x:y</span>
+<span class="s1">}</span>
+
+<span class="s4">function </span><span class="s2">cleanMessage</span><span class="s1">(</span><span class="s2">message</span><span class="s1">) {</span>
+  <span class="s4">return </span><span class="s2">message</span>
+    <span class="s6">// match until the last semicolon followed by a space</span>
+    <span class="s6">// this should match</span>
+    <span class="s6">// linux =&gt; &quot;(SyntaxError: )Unexpected token (5:11)&quot;</span>
+    <span class="s6">// windows =&gt; &quot;(SyntaxError: C:/projects/index.js: )Unexpected token (5:11)&quot;</span>
+    <span class="s1">.</span><span class="s2">replace</span><span class="s1">(</span><span class="s5">/^Module build failed.*:\s/</span><span class="s1">, </span><span class="s0">'Syntax Error: '</span><span class="s1">)</span>
+    <span class="s6">// remove mini-css-extract-plugin loader tracing errors</span>
+    <span class="s1">.</span><span class="s2">replace</span><span class="s1">(</span><span class="s5">/^Syntax Error: ModuleBuildError:.*:\s/</span><span class="s1">, </span><span class="s0">''</span><span class="s1">)</span>
+    <span class="s6">// remove babel extra wording and path</span>
+    <span class="s1">.</span><span class="s2">replace</span><span class="s1">(</span><span class="s5">/^Syntax Error: SyntaxError: (([A-Z]:)?\/.*:\s)?/</span><span class="s1">, </span><span class="s0">'Syntax Error: '</span><span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s4">function </span><span class="s2">isBabelSyntaxError</span><span class="s1">(</span><span class="s2">e</span><span class="s1">) {</span>
+  <span class="s4">return </span><span class="s2">e</span><span class="s1">.</span><span class="s2">name </span><span class="s1">=== </span><span class="s0">'ModuleBuildError' </span><span class="s1">|| </span><span class="s2">e</span><span class="s1">.</span><span class="s2">name </span><span class="s1">=== </span><span class="s0">'ModuleBuildError' </span><span class="s1">&amp;&amp;</span>
+    <span class="s2">e</span><span class="s1">.</span><span class="s2">message</span><span class="s1">.</span><span class="s2">indexOf</span><span class="s1">(</span><span class="s0">'SyntaxError'</span><span class="s1">) &gt;= </span><span class="s7">0</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s4">function </span><span class="s2">transform</span><span class="s1">(</span><span class="s2">error</span><span class="s1">) {</span>
+  <span class="s4">if </span><span class="s1">(</span><span class="s2">isBabelSyntaxError</span><span class="s1">(</span><span class="s2">error</span><span class="s1">)) {</span>
+    <span class="s4">return </span><span class="s2">Object</span><span class="s1">.</span><span class="s2">assign</span><span class="s1">({}, </span><span class="s2">error</span><span class="s1">, {</span>
+      <span class="s2">message</span><span class="s1">: </span><span class="s2">cleanStackTrace</span><span class="s1">(</span><span class="s2">cleanMessage</span><span class="s1">(</span><span class="s2">error</span><span class="s1">.</span><span class="s2">message</span><span class="s1">) + </span><span class="s0">'</span><span class="s4">\n</span><span class="s0">'</span><span class="s1">),</span>
+      <span class="s2">severity</span><span class="s1">: </span><span class="s7">1000</span><span class="s1">,</span>
+      <span class="s2">name</span><span class="s1">: </span><span class="s0">'Syntax Error'</span><span class="s1">,</span>
+    <span class="s1">});</span>
+  <span class="s1">}</span>
+
+  <span class="s4">return </span><span class="s2">error</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= </span><span class="s2">transform</span><span class="s1">;</span></pre>
+</body>
+</html>

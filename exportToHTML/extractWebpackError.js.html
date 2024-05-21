@@ -1,0 +1,87 @@
+<html>
+<head>
+<title>extractWebpackError.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+extractWebpackError.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s2">ErrorStackParser </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'error-stack-parser'</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">RequestShortener </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;webpack/lib/RequestShortener&quot;</span><span class="s1">);</span>
+
+<span class="s4">// TODO: allow the location to be customized in options</span>
+<span class="s3">const </span><span class="s2">requestShortener </span><span class="s1">= </span><span class="s3">new </span><span class="s2">RequestShortener</span><span class="s1">(</span><span class="s2">process</span><span class="s1">.</span><span class="s2">cwd</span><span class="s1">());</span>
+
+<span class="s4">/* 
+ This logic is mostly duplicated from webpack/lib/Stats.js#toJson() 
+ See: https://github.com/webpack/webpack/blob/2f618e733aab4755deb42e9d8e859609005607c0/lib/Stats.js#L89 
+*/</span>
+
+<span class="s3">function </span><span class="s2">extractError </span><span class="s1">(</span><span class="s2">e</span><span class="s1">) {</span>
+  <span class="s3">return </span><span class="s1">{</span>
+    <span class="s2">message</span><span class="s1">: </span><span class="s2">e</span><span class="s1">.</span><span class="s2">message</span><span class="s1">,</span>
+    <span class="s2">file</span><span class="s1">: </span><span class="s2">getFile</span><span class="s1">(</span><span class="s2">e</span><span class="s1">),</span>
+    <span class="s2">origin</span><span class="s1">: </span><span class="s2">getOrigin</span><span class="s1">(</span><span class="s2">e</span><span class="s1">),</span>
+    <span class="s2">name</span><span class="s1">: </span><span class="s2">e</span><span class="s1">.</span><span class="s2">name</span><span class="s1">,</span>
+    <span class="s2">severity</span><span class="s1">: </span><span class="s5">0</span><span class="s1">,</span>
+    <span class="s2">webpackError</span><span class="s1">: </span><span class="s2">e</span><span class="s1">,</span>
+    <span class="s2">originalStack</span><span class="s1">: </span><span class="s2">getOriginalErrorStack</span><span class="s1">(</span><span class="s2">e</span><span class="s1">)</span>
+  <span class="s1">};</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">getOriginalErrorStack</span><span class="s1">(</span><span class="s2">e</span><span class="s1">) {</span>
+  <span class="s3">while </span><span class="s1">(</span><span class="s2">e</span><span class="s1">.</span><span class="s2">error </span><span class="s1">!= </span><span class="s3">null</span><span class="s1">) {</span>
+    <span class="s2">e </span><span class="s1">= </span><span class="s2">e</span><span class="s1">.</span><span class="s2">error</span><span class="s1">;</span>
+  <span class="s1">}</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s2">e</span><span class="s1">.</span><span class="s2">stack</span><span class="s1">) {</span>
+    <span class="s3">return </span><span class="s2">ErrorStackParser</span><span class="s1">.</span><span class="s2">parse</span><span class="s1">(</span><span class="s2">e</span><span class="s1">);</span>
+  <span class="s1">}</span>
+  <span class="s3">return </span><span class="s1">[];</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">getFile </span><span class="s1">(</span><span class="s2">e</span><span class="s1">) {</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s2">e</span><span class="s1">.</span><span class="s2">file</span><span class="s1">) {</span>
+    <span class="s3">return </span><span class="s2">e</span><span class="s1">.</span><span class="s2">file</span><span class="s1">;</span>
+  <span class="s1">} </span><span class="s3">else if </span><span class="s1">(</span><span class="s2">e</span><span class="s1">.</span><span class="s2">module </span><span class="s1">&amp;&amp; </span><span class="s2">e</span><span class="s1">.</span><span class="s2">module</span><span class="s1">.</span><span class="s2">readableIdentifier </span><span class="s1">&amp;&amp; </span><span class="s3">typeof </span><span class="s2">e</span><span class="s1">.</span><span class="s2">module</span><span class="s1">.</span><span class="s2">readableIdentifier </span><span class="s1">=== </span><span class="s0">&quot;function&quot;</span><span class="s1">) {</span>
+    <span class="s3">return </span><span class="s2">e</span><span class="s1">.</span><span class="s2">module</span><span class="s1">.</span><span class="s2">readableIdentifier</span><span class="s1">(</span><span class="s2">requestShortener</span><span class="s1">);</span>
+  <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">getOrigin </span><span class="s1">(</span><span class="s2">e</span><span class="s1">) {</span>
+  <span class="s3">let </span><span class="s2">origin </span><span class="s1">= </span><span class="s0">''</span><span class="s1">;</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s2">e</span><span class="s1">.</span><span class="s2">dependencies </span><span class="s1">&amp;&amp; </span><span class="s2">e</span><span class="s1">.</span><span class="s2">origin</span><span class="s1">) {</span>
+    <span class="s2">origin </span><span class="s1">+= </span><span class="s0">'</span><span class="s3">\n </span><span class="s0">@ ' </span><span class="s1">+ </span><span class="s2">e</span><span class="s1">.</span><span class="s2">origin</span><span class="s1">.</span><span class="s2">readableIdentifier</span><span class="s1">(</span><span class="s2">requestShortener</span><span class="s1">);</span>
+    <span class="s2">e</span><span class="s1">.</span><span class="s2">dependencies</span><span class="s1">.</span><span class="s2">forEach</span><span class="s1">(</span><span class="s3">function </span><span class="s1">(</span><span class="s2">dep</span><span class="s1">) {</span>
+      <span class="s3">if </span><span class="s1">(!</span><span class="s2">dep</span><span class="s1">.</span><span class="s2">loc</span><span class="s1">) </span><span class="s3">return</span><span class="s1">;</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">dep</span><span class="s1">.</span><span class="s2">loc </span><span class="s1">=== </span><span class="s0">&quot;string&quot;</span><span class="s1">) </span><span class="s3">return</span><span class="s1">;</span>
+      <span class="s3">if </span><span class="s1">(!</span><span class="s2">dep</span><span class="s1">.</span><span class="s2">loc</span><span class="s1">.</span><span class="s2">start</span><span class="s1">) </span><span class="s3">return</span><span class="s1">;</span>
+      <span class="s3">if </span><span class="s1">(!</span><span class="s2">dep</span><span class="s1">.</span><span class="s2">loc</span><span class="s1">.</span><span class="s2">end</span><span class="s1">) </span><span class="s3">return</span><span class="s1">;</span>
+      <span class="s2">origin </span><span class="s1">+= </span><span class="s0">' ' </span><span class="s1">+ </span><span class="s2">dep</span><span class="s1">.</span><span class="s2">loc</span><span class="s1">.</span><span class="s2">start</span><span class="s1">.</span><span class="s2">line </span><span class="s1">+ </span><span class="s0">':' </span><span class="s1">+ </span><span class="s2">dep</span><span class="s1">.</span><span class="s2">loc</span><span class="s1">.</span><span class="s2">start</span><span class="s1">.</span><span class="s2">column </span><span class="s1">+ </span><span class="s0">'-' </span><span class="s1">+</span>
+        <span class="s1">(</span><span class="s2">dep</span><span class="s1">.</span><span class="s2">loc</span><span class="s1">.</span><span class="s2">start</span><span class="s1">.</span><span class="s2">line </span><span class="s1">!== </span><span class="s2">dep</span><span class="s1">.</span><span class="s2">loc</span><span class="s1">.</span><span class="s2">end</span><span class="s1">.</span><span class="s2">line </span><span class="s1">? </span><span class="s2">dep</span><span class="s1">.</span><span class="s2">loc</span><span class="s1">.</span><span class="s2">end</span><span class="s1">.</span><span class="s2">line </span><span class="s1">+ </span><span class="s0">':' </span><span class="s1">: </span><span class="s0">''</span><span class="s1">) + </span><span class="s2">dep</span><span class="s1">.</span><span class="s2">loc</span><span class="s1">.</span><span class="s2">end</span><span class="s1">.</span><span class="s2">column</span><span class="s1">;</span>
+    <span class="s1">});</span>
+    <span class="s3">var </span><span class="s2">current </span><span class="s1">= </span><span class="s2">e</span><span class="s1">.</span><span class="s2">origin</span><span class="s1">;</span>
+    <span class="s3">while </span><span class="s1">(</span><span class="s2">current</span><span class="s1">.</span><span class="s2">issuer </span><span class="s1">&amp;&amp; </span><span class="s3">typeof </span><span class="s2">current</span><span class="s1">.</span><span class="s2">issuer</span><span class="s1">.</span><span class="s2">readableIdentifier </span><span class="s1">=== </span><span class="s0">'function'</span><span class="s1">) {</span>
+      <span class="s2">current </span><span class="s1">= </span><span class="s2">current</span><span class="s1">.</span><span class="s2">issuer</span><span class="s1">;</span>
+      <span class="s2">origin </span><span class="s1">+= </span><span class="s0">'</span><span class="s3">\n </span><span class="s0">@ ' </span><span class="s1">+ </span><span class="s2">current</span><span class="s1">.</span><span class="s2">readableIdentifier</span><span class="s1">(</span><span class="s2">requestShortener</span><span class="s1">);</span>
+    <span class="s1">}</span>
+  <span class="s1">}</span>
+  <span class="s3">return </span><span class="s2">origin</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= </span><span class="s2">extractError</span><span class="s1">;</span>
+</pre>
+</body>
+</html>

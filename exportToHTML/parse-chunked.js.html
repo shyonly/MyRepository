@@ -1,0 +1,407 @@
+<html>
+<head>
+<title>parse-chunked.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #42c3d4;}
+.s6 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+parse-chunked.js</font>
+</center></td></tr></table>
+<pre><span class="s0">const </span><span class="s2">{ </span><span class="s1">isReadableStream </span><span class="s2">} = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./utils'</span><span class="s2">);</span>
+<span class="s0">const </span><span class="s1">TextDecoder </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./text-decoder'</span><span class="s2">);</span>
+
+<span class="s0">const </span><span class="s1">STACK_OBJECT </span><span class="s2">= </span><span class="s4">1</span><span class="s2">;</span>
+<span class="s0">const </span><span class="s1">STACK_ARRAY </span><span class="s2">= </span><span class="s4">2</span><span class="s2">;</span>
+<span class="s0">const </span><span class="s1">decoder </span><span class="s2">= </span><span class="s0">new </span><span class="s1">TextDecoder</span><span class="s2">();</span>
+
+<span class="s0">function </span><span class="s1">isObject</span><span class="s2">(</span><span class="s1">value</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">value </span><span class="s2">!== </span><span class="s0">null </span><span class="s2">&amp;&amp; </span><span class="s0">typeof </span><span class="s1">value </span><span class="s2">=== </span><span class="s3">'object'</span><span class="s2">;</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">adjustPosition</span><span class="s2">(</span><span class="s1">error</span><span class="s2">, </span><span class="s1">parser</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">error</span><span class="s2">.</span><span class="s1">name </span><span class="s2">=== </span><span class="s3">'SyntaxError' </span><span class="s2">&amp;&amp; </span><span class="s1">parser</span><span class="s2">.</span><span class="s1">jsonParseOffset</span><span class="s2">) {</span>
+        <span class="s1">error</span><span class="s2">.</span><span class="s1">message </span><span class="s2">= </span><span class="s1">error</span><span class="s2">.</span><span class="s1">message</span><span class="s2">.</span><span class="s1">replace</span><span class="s2">(</span><span class="s5">/at position (\d+)/</span><span class="s2">, (</span><span class="s1">_</span><span class="s2">, </span><span class="s1">pos</span><span class="s2">) =&gt;</span>
+            <span class="s3">'at position ' </span><span class="s2">+ (</span><span class="s1">Number</span><span class="s2">(</span><span class="s1">pos</span><span class="s2">) + </span><span class="s1">parser</span><span class="s2">.</span><span class="s1">jsonParseOffset</span><span class="s2">)</span>
+        <span class="s2">);</span>
+    <span class="s2">}</span>
+
+    <span class="s0">return </span><span class="s1">error</span><span class="s2">;</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">append</span><span class="s2">(</span><span class="s1">array</span><span class="s2">, </span><span class="s1">elements</span><span class="s2">) {</span>
+    <span class="s6">// Note: Avoid to use array.push(...elements) since it may lead to</span>
+    <span class="s6">// &quot;RangeError: Maximum call stack size exceeded&quot; for a long arrays</span>
+    <span class="s0">const </span><span class="s1">initialLength </span><span class="s2">= </span><span class="s1">array</span><span class="s2">.</span><span class="s1">length</span><span class="s2">;</span>
+    <span class="s1">array</span><span class="s2">.</span><span class="s1">length </span><span class="s2">+= </span><span class="s1">elements</span><span class="s2">.</span><span class="s1">length</span><span class="s2">;</span>
+
+    <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s4">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">elements</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+        <span class="s1">array</span><span class="s2">[</span><span class="s1">initialLength </span><span class="s2">+ </span><span class="s1">i</span><span class="s2">] = </span><span class="s1">elements</span><span class="s2">[</span><span class="s1">i</span><span class="s2">];</span>
+    <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= </span><span class="s0">function</span><span class="s2">(</span><span class="s1">chunkEmitter</span><span class="s2">) {</span>
+    <span class="s0">let </span><span class="s1">parser </span><span class="s2">= </span><span class="s0">new </span><span class="s1">ChunkParser</span><span class="s2">();</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isObject</span><span class="s2">(</span><span class="s1">chunkEmitter</span><span class="s2">) &amp;&amp; </span><span class="s1">isReadableStream</span><span class="s2">(</span><span class="s1">chunkEmitter</span><span class="s2">)) {</span>
+        <span class="s0">return new </span><span class="s1">Promise</span><span class="s2">((</span><span class="s1">resolve</span><span class="s2">, </span><span class="s1">reject</span><span class="s2">) =&gt; {</span>
+            <span class="s1">chunkEmitter</span>
+                <span class="s2">.</span><span class="s1">on</span><span class="s2">(</span><span class="s3">'data'</span><span class="s2">, </span><span class="s1">chunk </span><span class="s2">=&gt; {</span>
+                    <span class="s0">try </span><span class="s2">{</span>
+                        <span class="s1">parser</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">chunk</span><span class="s2">);</span>
+                    <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">e</span><span class="s2">) {</span>
+                        <span class="s1">reject</span><span class="s2">(</span><span class="s1">adjustPosition</span><span class="s2">(</span><span class="s1">e</span><span class="s2">, </span><span class="s1">parser</span><span class="s2">));</span>
+                        <span class="s1">parser </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+                    <span class="s2">}</span>
+                <span class="s2">})</span>
+                <span class="s2">.</span><span class="s1">on</span><span class="s2">(</span><span class="s3">'error'</span><span class="s2">, (</span><span class="s1">e</span><span class="s2">) =&gt; {</span>
+                    <span class="s1">parser </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+                    <span class="s1">reject</span><span class="s2">(</span><span class="s1">e</span><span class="s2">);</span>
+                <span class="s2">})</span>
+                <span class="s2">.</span><span class="s1">on</span><span class="s2">(</span><span class="s3">'end'</span><span class="s2">, () =&gt; {</span>
+                    <span class="s0">try </span><span class="s2">{</span>
+                        <span class="s1">resolve</span><span class="s2">(</span><span class="s1">parser</span><span class="s2">.</span><span class="s1">finish</span><span class="s2">());</span>
+                    <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">e</span><span class="s2">) {</span>
+                        <span class="s1">reject</span><span class="s2">(</span><span class="s1">adjustPosition</span><span class="s2">(</span><span class="s1">e</span><span class="s2">, </span><span class="s1">parser</span><span class="s2">));</span>
+                    <span class="s2">} </span><span class="s0">finally </span><span class="s2">{</span>
+                        <span class="s1">parser </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+                    <span class="s2">}</span>
+                <span class="s2">});</span>
+        <span class="s2">});</span>
+    <span class="s2">}</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">chunkEmitter </span><span class="s2">=== </span><span class="s3">'function'</span><span class="s2">) {</span>
+        <span class="s0">const </span><span class="s1">iterator </span><span class="s2">= </span><span class="s1">chunkEmitter</span><span class="s2">();</span>
+
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">isObject</span><span class="s2">(</span><span class="s1">iterator</span><span class="s2">) &amp;&amp; (</span><span class="s1">Symbol</span><span class="s2">.</span><span class="s1">iterator </span><span class="s0">in </span><span class="s1">iterator </span><span class="s2">|| </span><span class="s1">Symbol</span><span class="s2">.</span><span class="s1">asyncIterator </span><span class="s0">in </span><span class="s1">iterator</span><span class="s2">)) {</span>
+            <span class="s0">return new </span><span class="s1">Promise</span><span class="s2">(</span><span class="s1">async </span><span class="s2">(</span><span class="s1">resolve</span><span class="s2">, </span><span class="s1">reject</span><span class="s2">) =&gt; {</span>
+                <span class="s0">try </span><span class="s2">{</span>
+                    <span class="s0">for await </span><span class="s2">(</span><span class="s0">const </span><span class="s1">chunk of iterator</span><span class="s2">) {</span>
+                        <span class="s1">parser</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">chunk</span><span class="s2">);</span>
+                    <span class="s2">}</span>
+
+                    <span class="s1">resolve</span><span class="s2">(</span><span class="s1">parser</span><span class="s2">.</span><span class="s1">finish</span><span class="s2">());</span>
+                <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">e</span><span class="s2">) {</span>
+                    <span class="s1">reject</span><span class="s2">(</span><span class="s1">adjustPosition</span><span class="s2">(</span><span class="s1">e</span><span class="s2">, </span><span class="s1">parser</span><span class="s2">));</span>
+                <span class="s2">} </span><span class="s0">finally </span><span class="s2">{</span>
+                    <span class="s1">parser </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+                <span class="s2">}</span>
+            <span class="s2">});</span>
+        <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s0">throw new </span><span class="s1">Error</span><span class="s2">(</span>
+        <span class="s3">'Chunk emitter should be readable stream, generator, ' </span><span class="s2">+</span>
+        <span class="s3">'async generator or function returning an iterable object'</span>
+    <span class="s2">);</span>
+<span class="s2">};</span>
+
+<span class="s0">class </span><span class="s1">ChunkParser </span><span class="s2">{</span>
+    <span class="s1">constructor</span><span class="s2">() {</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">value </span><span class="s2">= </span><span class="s1">undefined</span><span class="s2">;</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">valueStack </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">stack </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Array</span><span class="s2">(</span><span class="s4">100</span><span class="s2">);</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">lastFlushDepth </span><span class="s2">= </span><span class="s4">0</span><span class="s2">;</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">flushDepth </span><span class="s2">= </span><span class="s4">0</span><span class="s2">;</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">stateString </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">stateStringEscape </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">pendingByteSeq </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">pendingChunk </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">chunkOffset </span><span class="s2">= </span><span class="s4">0</span><span class="s2">;</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">jsonParseOffset </span><span class="s2">= </span><span class="s4">0</span><span class="s2">;</span>
+    <span class="s2">}</span>
+
+    <span class="s1">parseAndAppend</span><span class="s2">(</span><span class="s1">fragment</span><span class="s2">, </span><span class="s1">wrap</span><span class="s2">) {</span>
+        <span class="s6">// Append new entries or elements</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">stack</span><span class="s2">[</span><span class="s0">this</span><span class="s2">.</span><span class="s1">lastFlushDepth </span><span class="s2">- </span><span class="s4">1</span><span class="s2">] === </span><span class="s1">STACK_OBJECT</span><span class="s2">) {</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s1">wrap</span><span class="s2">) {</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">jsonParseOffset</span><span class="s2">--;</span>
+                <span class="s1">fragment </span><span class="s2">= </span><span class="s3">'{' </span><span class="s2">+ </span><span class="s1">fragment </span><span class="s2">+ </span><span class="s3">'}'</span><span class="s2">;</span>
+            <span class="s2">}</span>
+
+            <span class="s1">Object</span><span class="s2">.</span><span class="s1">assign</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">valueStack</span><span class="s2">.</span><span class="s1">value</span><span class="s2">, </span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">parse</span><span class="s2">(</span><span class="s1">fragment</span><span class="s2">));</span>
+        <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s1">wrap</span><span class="s2">) {</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">jsonParseOffset</span><span class="s2">--;</span>
+                <span class="s1">fragment </span><span class="s2">= </span><span class="s3">'[' </span><span class="s2">+ </span><span class="s1">fragment </span><span class="s2">+ </span><span class="s3">']'</span><span class="s2">;</span>
+            <span class="s2">}</span>
+
+            <span class="s1">append</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">valueStack</span><span class="s2">.</span><span class="s1">value</span><span class="s2">, </span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">parse</span><span class="s2">(</span><span class="s1">fragment</span><span class="s2">));</span>
+        <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s1">prepareAddition</span><span class="s2">(</span><span class="s1">fragment</span><span class="s2">) {</span>
+        <span class="s0">const </span><span class="s2">{ </span><span class="s1">value </span><span class="s2">} = </span><span class="s0">this</span><span class="s2">.</span><span class="s1">valueStack</span><span class="s2">;</span>
+        <span class="s0">const </span><span class="s1">expectComma </span><span class="s2">= </span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">value</span><span class="s2">)</span>
+            <span class="s2">? </span><span class="s1">value</span><span class="s2">.</span><span class="s1">length </span><span class="s2">!== </span><span class="s4">0</span>
+            <span class="s2">: </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">value</span><span class="s2">).</span><span class="s1">length </span><span class="s2">!== </span><span class="s4">0</span><span class="s2">;</span>
+
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">expectComma</span><span class="s2">) {</span>
+            <span class="s6">// Skip a comma at the beginning of fragment, otherwise it would</span>
+            <span class="s6">// fail to parse</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s1">fragment</span><span class="s2">[</span><span class="s4">0</span><span class="s2">] === </span><span class="s3">','</span><span class="s2">) {</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">jsonParseOffset</span><span class="s2">++;</span>
+                <span class="s0">return </span><span class="s1">fragment</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s4">1</span><span class="s2">);</span>
+            <span class="s2">}</span>
+
+            <span class="s6">// When value (an object or array) is not empty and a fragment</span>
+            <span class="s6">// doesn't start with a comma, a single valid fragment starting</span>
+            <span class="s6">// is a closing bracket. If it's not, a prefix is adding to fail</span>
+            <span class="s6">// parsing. Otherwise, the sequence of chunks can be successfully</span>
+            <span class="s6">// parsed, although it should not, e.g. [&quot;[{}&quot;, &quot;{}]&quot;]</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s1">fragment</span><span class="s2">[</span><span class="s4">0</span><span class="s2">] !== </span><span class="s3">'}' </span><span class="s2">&amp;&amp; </span><span class="s1">fragment</span><span class="s2">[</span><span class="s4">0</span><span class="s2">] !== </span><span class="s3">']'</span><span class="s2">) {</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">jsonParseOffset </span><span class="s2">-= </span><span class="s4">3</span><span class="s2">;</span>
+                <span class="s0">return </span><span class="s3">'[[]' </span><span class="s2">+ </span><span class="s1">fragment</span><span class="s2">;</span>
+            <span class="s2">}</span>
+        <span class="s2">}</span>
+
+        <span class="s0">return </span><span class="s1">fragment</span><span class="s2">;</span>
+    <span class="s2">}</span>
+
+    <span class="s1">flush</span><span class="s2">(</span><span class="s1">chunk</span><span class="s2">, </span><span class="s1">start</span><span class="s2">, </span><span class="s1">end</span><span class="s2">) {</span>
+        <span class="s0">let </span><span class="s1">fragment </span><span class="s2">= </span><span class="s1">chunk</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s1">start</span><span class="s2">, </span><span class="s1">end</span><span class="s2">);</span>
+
+        <span class="s6">// Save position correction an error in JSON.parse() if any</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">jsonParseOffset </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">chunkOffset </span><span class="s2">+ </span><span class="s1">start</span><span class="s2">;</span>
+
+        <span class="s6">// Prepend pending chunk if any</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">pendingChunk </span><span class="s2">!== </span><span class="s0">null</span><span class="s2">) {</span>
+            <span class="s1">fragment </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">pendingChunk </span><span class="s2">+ </span><span class="s1">fragment</span><span class="s2">;</span>
+            <span class="s0">this</span><span class="s2">.</span><span class="s1">jsonParseOffset </span><span class="s2">-= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">pendingChunk</span><span class="s2">.</span><span class="s1">length</span><span class="s2">;</span>
+            <span class="s0">this</span><span class="s2">.</span><span class="s1">pendingChunk </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+        <span class="s2">}</span>
+
+        <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">flushDepth </span><span class="s2">=== </span><span class="s0">this</span><span class="s2">.</span><span class="s1">lastFlushDepth</span><span class="s2">) {</span>
+            <span class="s6">// Depth didn't changed, so it's a root value or entry/element set</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">flushDepth </span><span class="s2">&gt; </span><span class="s4">0</span><span class="s2">) {</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">parseAndAppend</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">prepareAddition</span><span class="s2">(</span><span class="s1">fragment</span><span class="s2">), </span><span class="s0">true</span><span class="s2">);</span>
+            <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+                <span class="s6">// That's an entire value on a top level</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">value </span><span class="s2">= </span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">parse</span><span class="s2">(</span><span class="s1">fragment</span><span class="s2">);</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">valueStack </span><span class="s2">= {</span>
+                    <span class="s1">value</span><span class="s2">: </span><span class="s0">this</span><span class="s2">.</span><span class="s1">value</span><span class="s2">,</span>
+                    <span class="s1">prev</span><span class="s2">: </span><span class="s0">null</span>
+                <span class="s2">};</span>
+            <span class="s2">}</span>
+        <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">flushDepth </span><span class="s2">&gt; </span><span class="s0">this</span><span class="s2">.</span><span class="s1">lastFlushDepth</span><span class="s2">) {</span>
+            <span class="s6">// Add missed closing brackets/parentheses</span>
+            <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">flushDepth </span><span class="s2">- </span><span class="s4">1</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&gt;= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">lastFlushDepth</span><span class="s2">; </span><span class="s1">i</span><span class="s2">--) {</span>
+                <span class="s1">fragment </span><span class="s2">+= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">stack</span><span class="s2">[</span><span class="s1">i</span><span class="s2">] === </span><span class="s1">STACK_OBJECT </span><span class="s2">? </span><span class="s3">'}' </span><span class="s2">: </span><span class="s3">']'</span><span class="s2">;</span>
+            <span class="s2">}</span>
+
+            <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">lastFlushDepth </span><span class="s2">=== </span><span class="s4">0</span><span class="s2">) {</span>
+                <span class="s6">// That's a root value</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">value </span><span class="s2">= </span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">parse</span><span class="s2">(</span><span class="s1">fragment</span><span class="s2">);</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">valueStack </span><span class="s2">= {</span>
+                    <span class="s1">value</span><span class="s2">: </span><span class="s0">this</span><span class="s2">.</span><span class="s1">value</span><span class="s2">,</span>
+                    <span class="s1">prev</span><span class="s2">: </span><span class="s0">null</span>
+                <span class="s2">};</span>
+            <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">parseAndAppend</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">prepareAddition</span><span class="s2">(</span><span class="s1">fragment</span><span class="s2">), </span><span class="s0">true</span><span class="s2">);</span>
+            <span class="s2">}</span>
+
+            <span class="s6">// Move down to the depths to the last object/array, which is current now</span>
+            <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">lastFlushDepth </span><span class="s2">|| </span><span class="s4">1</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s0">this</span><span class="s2">.</span><span class="s1">flushDepth</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+                <span class="s0">let </span><span class="s1">value </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">valueStack</span><span class="s2">.</span><span class="s1">value</span><span class="s2">;</span>
+
+                <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">stack</span><span class="s2">[</span><span class="s1">i </span><span class="s2">- </span><span class="s4">1</span><span class="s2">] === </span><span class="s1">STACK_OBJECT</span><span class="s2">) {</span>
+                    <span class="s6">// find last entry</span>
+                    <span class="s0">let </span><span class="s1">key</span><span class="s2">;</span>
+                    <span class="s6">// eslint-disable-next-line curly</span>
+                    <span class="s0">for </span><span class="s2">(</span><span class="s1">key </span><span class="s0">in </span><span class="s1">value</span><span class="s2">);</span>
+                    <span class="s1">value </span><span class="s2">= </span><span class="s1">value</span><span class="s2">[</span><span class="s1">key</span><span class="s2">];</span>
+                <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+                    <span class="s6">// last element</span>
+                    <span class="s1">value </span><span class="s2">= </span><span class="s1">value</span><span class="s2">[</span><span class="s1">value</span><span class="s2">.</span><span class="s1">length </span><span class="s2">- </span><span class="s4">1</span><span class="s2">];</span>
+                <span class="s2">}</span>
+
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">valueStack </span><span class="s2">= {</span>
+                    <span class="s1">value</span><span class="s2">,</span>
+                    <span class="s1">prev</span><span class="s2">: </span><span class="s0">this</span><span class="s2">.</span><span class="s1">valueStack</span>
+                <span class="s2">};</span>
+            <span class="s2">}</span>
+        <span class="s2">} </span><span class="s0">else </span><span class="s6">/* this.flushDepth &lt; this.lastFlushDepth */ </span><span class="s2">{</span>
+            <span class="s1">fragment </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">prepareAddition</span><span class="s2">(</span><span class="s1">fragment</span><span class="s2">);</span>
+
+            <span class="s6">// Add missed opening brackets/parentheses</span>
+            <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">lastFlushDepth </span><span class="s2">- </span><span class="s4">1</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&gt;= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">flushDepth</span><span class="s2">; </span><span class="s1">i</span><span class="s2">--) {</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">jsonParseOffset</span><span class="s2">--;</span>
+                <span class="s1">fragment </span><span class="s2">= (</span><span class="s0">this</span><span class="s2">.</span><span class="s1">stack</span><span class="s2">[</span><span class="s1">i</span><span class="s2">] === </span><span class="s1">STACK_OBJECT </span><span class="s2">? </span><span class="s3">'{' </span><span class="s2">: </span><span class="s3">'['</span><span class="s2">) + </span><span class="s1">fragment</span><span class="s2">;</span>
+            <span class="s2">}</span>
+
+            <span class="s0">this</span><span class="s2">.</span><span class="s1">parseAndAppend</span><span class="s2">(</span><span class="s1">fragment</span><span class="s2">, </span><span class="s0">false</span><span class="s2">);</span>
+
+            <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">lastFlushDepth </span><span class="s2">- </span><span class="s4">1</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&gt;= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">flushDepth</span><span class="s2">; </span><span class="s1">i</span><span class="s2">--) {</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">valueStack </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">valueStack</span><span class="s2">.</span><span class="s1">prev</span><span class="s2">;</span>
+            <span class="s2">}</span>
+        <span class="s2">}</span>
+
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">lastFlushDepth </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">flushDepth</span><span class="s2">;</span>
+    <span class="s2">}</span>
+
+    <span class="s1">push</span><span class="s2">(</span><span class="s1">chunk</span><span class="s2">) {</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">chunk </span><span class="s2">!== </span><span class="s3">'string'</span><span class="s2">) {</span>
+            <span class="s6">// Suppose chunk is Buffer or Uint8Array</span>
+
+            <span class="s6">// Prepend uncompleted byte sequence if any</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">pendingByteSeq </span><span class="s2">!== </span><span class="s0">null</span><span class="s2">) {</span>
+                <span class="s0">const </span><span class="s1">origRawChunk </span><span class="s2">= </span><span class="s1">chunk</span><span class="s2">;</span>
+                <span class="s1">chunk </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Uint8Array</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">pendingByteSeq</span><span class="s2">.</span><span class="s1">length </span><span class="s2">+ </span><span class="s1">origRawChunk</span><span class="s2">.</span><span class="s1">length</span><span class="s2">);</span>
+                <span class="s1">chunk</span><span class="s2">.</span><span class="s1">set</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">pendingByteSeq</span><span class="s2">);</span>
+                <span class="s1">chunk</span><span class="s2">.</span><span class="s1">set</span><span class="s2">(</span><span class="s1">origRawChunk</span><span class="s2">, </span><span class="s0">this</span><span class="s2">.</span><span class="s1">pendingByteSeq</span><span class="s2">.</span><span class="s1">length</span><span class="s2">);</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">pendingByteSeq </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+            <span class="s2">}</span>
+
+            <span class="s6">// In case Buffer/Uint8Array, an input is encoded in UTF8</span>
+            <span class="s6">// Seek for parts of uncompleted UTF8 symbol on the ending</span>
+            <span class="s6">// This makes sense only if we expect more chunks and last char is not multi-bytes</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s1">chunk</span><span class="s2">[</span><span class="s1">chunk</span><span class="s2">.</span><span class="s1">length </span><span class="s2">- </span><span class="s4">1</span><span class="s2">] &gt; </span><span class="s4">127</span><span class="s2">) {</span>
+                <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">seqLength </span><span class="s2">= </span><span class="s4">0</span><span class="s2">; </span><span class="s1">seqLength </span><span class="s2">&lt; </span><span class="s1">chunk</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">seqLength</span><span class="s2">++) {</span>
+                    <span class="s0">const </span><span class="s1">byte </span><span class="s2">= </span><span class="s1">chunk</span><span class="s2">[</span><span class="s1">chunk</span><span class="s2">.</span><span class="s1">length </span><span class="s2">- </span><span class="s4">1 </span><span class="s2">- </span><span class="s1">seqLength</span><span class="s2">];</span>
+
+                    <span class="s6">// 10xxxxxx - 2nd, 3rd or 4th byte</span>
+                    <span class="s6">// 110xxxxx – first byte of 2-byte sequence</span>
+                    <span class="s6">// 1110xxxx - first byte of 3-byte sequence</span>
+                    <span class="s6">// 11110xxx - first byte of 4-byte sequence</span>
+                    <span class="s0">if </span><span class="s2">(</span><span class="s1">byte </span><span class="s2">&gt;&gt; </span><span class="s4">6 </span><span class="s2">=== </span><span class="s4">3</span><span class="s2">) {</span>
+                        <span class="s1">seqLength</span><span class="s2">++;</span>
+
+                        <span class="s6">// If the sequence is really incomplete, then preserve it</span>
+                        <span class="s6">// for the future chunk and cut off it from the current chunk</span>
+                        <span class="s0">if </span><span class="s2">((</span><span class="s1">seqLength </span><span class="s2">!== </span><span class="s4">4 </span><span class="s2">&amp;&amp; </span><span class="s1">byte </span><span class="s2">&gt;&gt; </span><span class="s4">3 </span><span class="s2">=== </span><span class="s4">0b11110</span><span class="s2">) ||</span>
+                            <span class="s2">(</span><span class="s1">seqLength </span><span class="s2">!== </span><span class="s4">3 </span><span class="s2">&amp;&amp; </span><span class="s1">byte </span><span class="s2">&gt;&gt; </span><span class="s4">4 </span><span class="s2">=== </span><span class="s4">0b1110</span><span class="s2">) ||</span>
+                            <span class="s2">(</span><span class="s1">seqLength </span><span class="s2">!== </span><span class="s4">2 </span><span class="s2">&amp;&amp; </span><span class="s1">byte </span><span class="s2">&gt;&gt; </span><span class="s4">5 </span><span class="s2">=== </span><span class="s4">0b110</span><span class="s2">)) {</span>
+                            <span class="s0">this</span><span class="s2">.</span><span class="s1">pendingByteSeq </span><span class="s2">= </span><span class="s1">chunk</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s1">chunk</span><span class="s2">.</span><span class="s1">length </span><span class="s2">- </span><span class="s1">seqLength</span><span class="s2">);</span>
+                            <span class="s1">chunk </span><span class="s2">= </span><span class="s1">chunk</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s4">0</span><span class="s2">, -</span><span class="s1">seqLength</span><span class="s2">);</span>
+                        <span class="s2">}</span>
+
+                        <span class="s0">break</span><span class="s2">;</span>
+                    <span class="s2">}</span>
+                <span class="s2">}</span>
+            <span class="s2">}</span>
+
+            <span class="s6">// Convert chunk to a string, since single decode per chunk</span>
+            <span class="s6">// is much effective than decode multiple small substrings</span>
+            <span class="s1">chunk </span><span class="s2">= </span><span class="s1">decoder</span><span class="s2">.</span><span class="s1">decode</span><span class="s2">(</span><span class="s1">chunk</span><span class="s2">);</span>
+        <span class="s2">}</span>
+
+        <span class="s0">const </span><span class="s1">chunkLength </span><span class="s2">= </span><span class="s1">chunk</span><span class="s2">.</span><span class="s1">length</span><span class="s2">;</span>
+        <span class="s0">let </span><span class="s1">lastFlushPoint </span><span class="s2">= </span><span class="s4">0</span><span class="s2">;</span>
+        <span class="s0">let </span><span class="s1">flushPoint </span><span class="s2">= </span><span class="s4">0</span><span class="s2">;</span>
+
+        <span class="s6">// Main scan loop</span>
+        <span class="s1">scan</span><span class="s2">: </span><span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s4">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">chunkLength</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">stateString</span><span class="s2">) {</span>
+                <span class="s0">for </span><span class="s2">(; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">chunkLength</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+                    <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">stateStringEscape</span><span class="s2">) {</span>
+                        <span class="s0">this</span><span class="s2">.</span><span class="s1">stateStringEscape </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+                    <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+                        <span class="s0">switch </span><span class="s2">(</span><span class="s1">chunk</span><span class="s2">.</span><span class="s1">charCodeAt</span><span class="s2">(</span><span class="s1">i</span><span class="s2">)) {</span>
+                            <span class="s0">case </span><span class="s4">0x22</span><span class="s2">: </span><span class="s6">/* &quot; */</span>
+                                <span class="s0">this</span><span class="s2">.</span><span class="s1">stateString </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+                                <span class="s0">continue </span><span class="s1">scan</span><span class="s2">;</span>
+
+                            <span class="s0">case </span><span class="s4">0x5C</span><span class="s2">: </span><span class="s6">/* \ */</span>
+                                <span class="s0">this</span><span class="s2">.</span><span class="s1">stateStringEscape </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+                        <span class="s2">}</span>
+                    <span class="s2">}</span>
+                <span class="s2">}</span>
+
+                <span class="s0">break</span><span class="s2">;</span>
+            <span class="s2">}</span>
+
+            <span class="s0">switch </span><span class="s2">(</span><span class="s1">chunk</span><span class="s2">.</span><span class="s1">charCodeAt</span><span class="s2">(</span><span class="s1">i</span><span class="s2">)) {</span>
+                <span class="s0">case </span><span class="s4">0x22</span><span class="s2">: </span><span class="s6">/* &quot; */</span>
+                    <span class="s0">this</span><span class="s2">.</span><span class="s1">stateString </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+                    <span class="s0">this</span><span class="s2">.</span><span class="s1">stateStringEscape </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+                    <span class="s0">break</span><span class="s2">;</span>
+
+                <span class="s0">case </span><span class="s4">0x2C</span><span class="s2">: </span><span class="s6">/* , */</span>
+                    <span class="s1">flushPoint </span><span class="s2">= </span><span class="s1">i</span><span class="s2">;</span>
+                    <span class="s0">break</span><span class="s2">;</span>
+
+                <span class="s0">case </span><span class="s4">0x7B</span><span class="s2">: </span><span class="s6">/* { */</span>
+                    <span class="s6">// Open an object</span>
+                    <span class="s1">flushPoint </span><span class="s2">= </span><span class="s1">i </span><span class="s2">+ </span><span class="s4">1</span><span class="s2">;</span>
+                    <span class="s0">this</span><span class="s2">.</span><span class="s1">stack</span><span class="s2">[</span><span class="s0">this</span><span class="s2">.</span><span class="s1">flushDepth</span><span class="s2">++] = </span><span class="s1">STACK_OBJECT</span><span class="s2">;</span>
+                    <span class="s0">break</span><span class="s2">;</span>
+
+                <span class="s0">case </span><span class="s4">0x5B</span><span class="s2">: </span><span class="s6">/* [ */</span>
+                    <span class="s6">// Open an array</span>
+                    <span class="s1">flushPoint </span><span class="s2">= </span><span class="s1">i </span><span class="s2">+ </span><span class="s4">1</span><span class="s2">;</span>
+                    <span class="s0">this</span><span class="s2">.</span><span class="s1">stack</span><span class="s2">[</span><span class="s0">this</span><span class="s2">.</span><span class="s1">flushDepth</span><span class="s2">++] = </span><span class="s1">STACK_ARRAY</span><span class="s2">;</span>
+                    <span class="s0">break</span><span class="s2">;</span>
+
+                <span class="s0">case </span><span class="s4">0x5D</span><span class="s2">: </span><span class="s6">/* ] */</span>
+                <span class="s0">case </span><span class="s4">0x7D</span><span class="s2">: </span><span class="s6">/* } */</span>
+                    <span class="s6">// Close an object or array</span>
+                    <span class="s1">flushPoint </span><span class="s2">= </span><span class="s1">i </span><span class="s2">+ </span><span class="s4">1</span><span class="s2">;</span>
+                    <span class="s0">this</span><span class="s2">.</span><span class="s1">flushDepth</span><span class="s2">--;</span>
+
+                    <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">flushDepth </span><span class="s2">&lt; </span><span class="s0">this</span><span class="s2">.</span><span class="s1">lastFlushDepth</span><span class="s2">) {</span>
+                        <span class="s0">this</span><span class="s2">.</span><span class="s1">flush</span><span class="s2">(</span><span class="s1">chunk</span><span class="s2">, </span><span class="s1">lastFlushPoint</span><span class="s2">, </span><span class="s1">flushPoint</span><span class="s2">);</span>
+                        <span class="s1">lastFlushPoint </span><span class="s2">= </span><span class="s1">flushPoint</span><span class="s2">;</span>
+                    <span class="s2">}</span>
+
+                    <span class="s0">break</span><span class="s2">;</span>
+
+                <span class="s0">case </span><span class="s4">0x09</span><span class="s2">: </span><span class="s6">/* \t */</span>
+                <span class="s0">case </span><span class="s4">0x0A</span><span class="s2">: </span><span class="s6">/* \n */</span>
+                <span class="s0">case </span><span class="s4">0x0D</span><span class="s2">: </span><span class="s6">/* \r */</span>
+                <span class="s0">case </span><span class="s4">0x20</span><span class="s2">: </span><span class="s6">/* space */</span>
+                    <span class="s6">// Move points forward when they points on current position and it's a whitespace</span>
+                    <span class="s0">if </span><span class="s2">(</span><span class="s1">lastFlushPoint </span><span class="s2">=== </span><span class="s1">i</span><span class="s2">) {</span>
+                        <span class="s1">lastFlushPoint</span><span class="s2">++;</span>
+                    <span class="s2">}</span>
+
+                    <span class="s0">if </span><span class="s2">(</span><span class="s1">flushPoint </span><span class="s2">=== </span><span class="s1">i</span><span class="s2">) {</span>
+                        <span class="s1">flushPoint</span><span class="s2">++;</span>
+                    <span class="s2">}</span>
+
+                    <span class="s0">break</span><span class="s2">;</span>
+            <span class="s2">}</span>
+        <span class="s2">}</span>
+
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">flushPoint </span><span class="s2">&gt; </span><span class="s1">lastFlushPoint</span><span class="s2">) {</span>
+            <span class="s0">this</span><span class="s2">.</span><span class="s1">flush</span><span class="s2">(</span><span class="s1">chunk</span><span class="s2">, </span><span class="s1">lastFlushPoint</span><span class="s2">, </span><span class="s1">flushPoint</span><span class="s2">);</span>
+        <span class="s2">}</span>
+
+        <span class="s6">// Produce pendingChunk if something left</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">flushPoint </span><span class="s2">&lt; </span><span class="s1">chunkLength</span><span class="s2">) {</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">pendingChunk </span><span class="s2">!== </span><span class="s0">null</span><span class="s2">) {</span>
+                <span class="s6">// When there is already a pending chunk then no flush happened,</span>
+                <span class="s6">// appending entire chunk to pending one</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">pendingChunk </span><span class="s2">+= </span><span class="s1">chunk</span><span class="s2">;</span>
+            <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+                <span class="s6">// Create a pending chunk, it will start with non-whitespace since</span>
+                <span class="s6">// flushPoint was moved forward away from whitespaces on scan</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">pendingChunk </span><span class="s2">= </span><span class="s1">chunk</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s1">flushPoint</span><span class="s2">, </span><span class="s1">chunkLength</span><span class="s2">);</span>
+            <span class="s2">}</span>
+        <span class="s2">}</span>
+
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">chunkOffset </span><span class="s2">+= </span><span class="s1">chunkLength</span><span class="s2">;</span>
+    <span class="s2">}</span>
+
+    <span class="s1">finish</span><span class="s2">() {</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">pendingChunk </span><span class="s2">!== </span><span class="s0">null</span><span class="s2">) {</span>
+            <span class="s0">this</span><span class="s2">.</span><span class="s1">flush</span><span class="s2">(</span><span class="s3">''</span><span class="s2">, </span><span class="s4">0</span><span class="s2">, </span><span class="s4">0</span><span class="s2">);</span>
+            <span class="s0">this</span><span class="s2">.</span><span class="s1">pendingChunk </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+        <span class="s2">}</span>
+
+        <span class="s0">return this</span><span class="s2">.</span><span class="s1">value</span><span class="s2">;</span>
+    <span class="s2">}</span>
+<span class="s2">};</span>
+</pre>
+</body>
+</html>

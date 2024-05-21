@@ -1,0 +1,534 @@
+<html>
+<head>
+<title>table-header.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+.s6 { color: #d5b778;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+table-header.js</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">Vue from </span><span class="s2">'vue'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">hasClass</span><span class="s3">, </span><span class="s1">addClass</span><span class="s3">, </span><span class="s1">removeClass </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'element-ui/src/utils/dom'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s1">ElCheckbox from </span><span class="s2">'element-ui/packages/checkbox'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s1">FilterPanel from </span><span class="s2">'./filter-panel.vue'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s1">LayoutObserver from </span><span class="s2">'./layout-observer'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">mapStates </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./store/helper'</span><span class="s3">;</span>
+
+<span class="s0">const </span><span class="s1">getAllColumns </span><span class="s3">= (</span><span class="s1">columns</span><span class="s3">) =&gt; {</span>
+  <span class="s0">const </span><span class="s1">result </span><span class="s3">= [];</span>
+  <span class="s1">columns</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">((</span><span class="s1">column</span><span class="s3">) =&gt; {</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">column</span><span class="s3">.</span><span class="s1">children</span><span class="s3">) {</span>
+      <span class="s1">result</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">column</span><span class="s3">);</span>
+      <span class="s1">result</span><span class="s3">.</span><span class="s1">push</span><span class="s3">.</span><span class="s1">apply</span><span class="s3">(</span><span class="s1">result</span><span class="s3">, </span><span class="s1">getAllColumns</span><span class="s3">(</span><span class="s1">column</span><span class="s3">.</span><span class="s1">children</span><span class="s3">));</span>
+    <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+      <span class="s1">result</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">column</span><span class="s3">);</span>
+    <span class="s3">}</span>
+  <span class="s3">});</span>
+  <span class="s0">return </span><span class="s1">result</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s0">const </span><span class="s1">convertToRows </span><span class="s3">= (</span><span class="s1">originColumns</span><span class="s3">) =&gt; {</span>
+  <span class="s0">let </span><span class="s1">maxLevel </span><span class="s3">= </span><span class="s4">1</span><span class="s3">;</span>
+  <span class="s0">const </span><span class="s1">traverse </span><span class="s3">= (</span><span class="s1">column</span><span class="s3">, </span><span class="s1">parent</span><span class="s3">) =&gt; {</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">parent</span><span class="s3">) {</span>
+      <span class="s1">column</span><span class="s3">.</span><span class="s1">level </span><span class="s3">= </span><span class="s1">parent</span><span class="s3">.</span><span class="s1">level </span><span class="s3">+ </span><span class="s4">1</span><span class="s3">;</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">maxLevel </span><span class="s3">&lt; </span><span class="s1">column</span><span class="s3">.</span><span class="s1">level</span><span class="s3">) {</span>
+        <span class="s1">maxLevel </span><span class="s3">= </span><span class="s1">column</span><span class="s3">.</span><span class="s1">level</span><span class="s3">;</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">column</span><span class="s3">.</span><span class="s1">children</span><span class="s3">) {</span>
+      <span class="s0">let </span><span class="s1">colSpan </span><span class="s3">= </span><span class="s4">0</span><span class="s3">;</span>
+      <span class="s1">column</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">((</span><span class="s1">subColumn</span><span class="s3">) =&gt; {</span>
+        <span class="s1">traverse</span><span class="s3">(</span><span class="s1">subColumn</span><span class="s3">, </span><span class="s1">column</span><span class="s3">);</span>
+        <span class="s1">colSpan </span><span class="s3">+= </span><span class="s1">subColumn</span><span class="s3">.</span><span class="s1">colSpan</span><span class="s3">;</span>
+      <span class="s3">});</span>
+      <span class="s1">column</span><span class="s3">.</span><span class="s1">colSpan </span><span class="s3">= </span><span class="s1">colSpan</span><span class="s3">;</span>
+    <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+      <span class="s1">column</span><span class="s3">.</span><span class="s1">colSpan </span><span class="s3">= </span><span class="s4">1</span><span class="s3">;</span>
+    <span class="s3">}</span>
+  <span class="s3">};</span>
+
+  <span class="s1">originColumns</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">((</span><span class="s1">column</span><span class="s3">) =&gt; {</span>
+    <span class="s1">column</span><span class="s3">.</span><span class="s1">level </span><span class="s3">= </span><span class="s4">1</span><span class="s3">;</span>
+    <span class="s1">traverse</span><span class="s3">(</span><span class="s1">column</span><span class="s3">);</span>
+  <span class="s3">});</span>
+
+  <span class="s0">const </span><span class="s1">rows </span><span class="s3">= [];</span>
+  <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s4">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">maxLevel</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+    <span class="s1">rows</span><span class="s3">.</span><span class="s1">push</span><span class="s3">([]);</span>
+  <span class="s3">}</span>
+
+  <span class="s0">const </span><span class="s1">allColumns </span><span class="s3">= </span><span class="s1">getAllColumns</span><span class="s3">(</span><span class="s1">originColumns</span><span class="s3">);</span>
+
+  <span class="s1">allColumns</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">((</span><span class="s1">column</span><span class="s3">) =&gt; {</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">column</span><span class="s3">.</span><span class="s1">children</span><span class="s3">) {</span>
+      <span class="s1">column</span><span class="s3">.</span><span class="s1">rowSpan </span><span class="s3">= </span><span class="s1">maxLevel </span><span class="s3">- </span><span class="s1">column</span><span class="s3">.</span><span class="s1">level </span><span class="s3">+ </span><span class="s4">1</span><span class="s3">;</span>
+    <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+      <span class="s1">column</span><span class="s3">.</span><span class="s1">rowSpan </span><span class="s3">= </span><span class="s4">1</span><span class="s3">;</span>
+    <span class="s3">}</span>
+    <span class="s1">rows</span><span class="s3">[</span><span class="s1">column</span><span class="s3">.</span><span class="s1">level </span><span class="s3">- </span><span class="s4">1</span><span class="s3">].</span><span class="s1">push</span><span class="s3">(</span><span class="s1">column</span><span class="s3">);</span>
+  <span class="s3">});</span>
+
+  <span class="s0">return </span><span class="s1">rows</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s0">export default </span><span class="s3">{</span>
+  <span class="s1">name</span><span class="s3">: </span><span class="s2">'ElTableHeader'</span><span class="s3">,</span>
+
+  <span class="s1">mixins</span><span class="s3">: [</span><span class="s1">LayoutObserver</span><span class="s3">],</span>
+
+  <span class="s1">render</span><span class="s3">(</span><span class="s1">h</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">originColumns </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">store</span><span class="s3">.</span><span class="s1">states</span><span class="s3">.</span><span class="s1">originColumns</span><span class="s3">;</span>
+    <span class="s0">const </span><span class="s1">columnRows </span><span class="s3">= </span><span class="s1">convertToRows</span><span class="s3">(</span><span class="s1">originColumns</span><span class="s3">, </span><span class="s0">this</span><span class="s3">.</span><span class="s1">columns</span><span class="s3">);</span>
+    <span class="s5">// 是否拥有多级表头</span>
+    <span class="s0">const </span><span class="s1">isGroup </span><span class="s3">= </span><span class="s1">columnRows</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s4">1</span><span class="s3">;</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">isGroup</span><span class="s3">) </span><span class="s0">this</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">.</span><span class="s1">isGroup </span><span class="s3">= </span><span class="s0">true</span><span class="s3">;</span>
+    <span class="s0">return </span><span class="s3">(</span>
+      <span class="s6">&lt;table</span>
+        <span class="s3">class</span><span class="s2">=&quot;el-table__header&quot;</span>
+        <span class="s3">cellspacing</span><span class="s2">=&quot;0&quot;</span>
+        <span class="s3">cellpadding</span><span class="s2">=&quot;0&quot;</span>
+        <span class="s3">border</span><span class="s2">=&quot;0&quot;</span><span class="s6">&gt;</span>
+        <span class="s6">&lt;colgroup&gt;</span>
+          <span class="s3">{</span>
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">columns</span><span class="s3">.</span><span class="s1">map</span><span class="s3">(</span><span class="s1">column </span><span class="s3">=&gt; </span><span class="s6">&lt;col </span><span class="s3">name</span><span class="s2">=</span><span class="s3">{ </span><span class="s1">column</span><span class="s3">.</span><span class="s1">id </span><span class="s3">} key</span><span class="s2">=</span><span class="s3">{</span><span class="s1">column</span><span class="s3">.</span><span class="s1">id</span><span class="s3">} </span><span class="s6">/&gt;</span><span class="s3">)</span>
+          <span class="s3">}</span>
+          <span class="s3">{</span>
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">hasGutter </span><span class="s3">? </span><span class="s6">&lt;col </span><span class="s3">name</span><span class="s2">=&quot;gutter&quot; </span><span class="s6">/&gt; </span><span class="s3">: </span><span class="s2">''</span>
+          <span class="s3">}</span>
+        <span class="s6">&lt;/colgroup&gt;</span>
+        <span class="s6">&lt;thead </span><span class="s3">class</span><span class="s2">=</span><span class="s3">{ [{ </span><span class="s2">'is-group'</span><span class="s3">: </span><span class="s1">isGroup</span><span class="s3">, </span><span class="s2">'has-gutter'</span><span class="s3">: </span><span class="s0">this</span><span class="s3">.</span><span class="s1">hasGutter </span><span class="s3">}] }</span><span class="s6">&gt;</span>
+          <span class="s3">{</span>
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">_l</span><span class="s3">(</span><span class="s1">columnRows</span><span class="s3">, (</span><span class="s1">columns</span><span class="s3">, </span><span class="s1">rowIndex</span><span class="s3">) =&gt;</span>
+              <span class="s6">&lt;tr</span>
+                <span class="s3">style</span><span class="s2">=</span><span class="s3">{ </span><span class="s0">this</span><span class="s3">.</span><span class="s1">getHeaderRowStyle</span><span class="s3">(</span><span class="s1">rowIndex</span><span class="s3">) }</span>
+                <span class="s3">class</span><span class="s2">=</span><span class="s3">{ </span><span class="s0">this</span><span class="s3">.</span><span class="s1">getHeaderRowClass</span><span class="s3">(</span><span class="s1">rowIndex</span><span class="s3">) }</span>
+              <span class="s6">&gt;</span>
+                <span class="s3">{</span>
+                  <span class="s1">columns</span><span class="s3">.</span><span class="s1">map</span><span class="s3">((</span><span class="s1">column</span><span class="s3">, </span><span class="s1">cellIndex</span><span class="s3">) =&gt; (</span><span class="s6">&lt;th</span>
+                    <span class="s3">colspan</span><span class="s2">=</span><span class="s3">{ </span><span class="s1">column</span><span class="s3">.</span><span class="s1">colSpan </span><span class="s3">}</span>
+                    <span class="s3">rowspan</span><span class="s2">=</span><span class="s3">{ </span><span class="s1">column</span><span class="s3">.</span><span class="s1">rowSpan </span><span class="s3">}</span>
+                    <span class="s3">on-mousemove</span><span class="s2">=</span><span class="s3">{ (</span><span class="s1">$event</span><span class="s3">) =&gt; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">handleMouseMove</span><span class="s3">(</span><span class="s1">$event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) }</span>
+                    <span class="s3">on-mouseout</span><span class="s2">=</span><span class="s3">{ </span><span class="s0">this</span><span class="s3">.</span><span class="s1">handleMouseOut </span><span class="s3">}</span>
+                    <span class="s3">on-mousedown</span><span class="s2">=</span><span class="s3">{ (</span><span class="s1">$event</span><span class="s3">) =&gt; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">handleMouseDown</span><span class="s3">(</span><span class="s1">$event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) }</span>
+                    <span class="s3">on-click</span><span class="s2">=</span><span class="s3">{ (</span><span class="s1">$event</span><span class="s3">) =&gt; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">handleHeaderClick</span><span class="s3">(</span><span class="s1">$event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) }</span>
+                    <span class="s3">on-contextmenu</span><span class="s2">=</span><span class="s3">{ (</span><span class="s1">$event</span><span class="s3">) =&gt; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">handleHeaderContextMenu</span><span class="s3">(</span><span class="s1">$event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) }</span>
+                    <span class="s3">style</span><span class="s2">=</span><span class="s3">{ </span><span class="s0">this</span><span class="s3">.</span><span class="s1">getHeaderCellStyle</span><span class="s3">(</span><span class="s1">rowIndex</span><span class="s3">, </span><span class="s1">cellIndex</span><span class="s3">, </span><span class="s1">columns</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) }</span>
+                    <span class="s3">class</span><span class="s2">=</span><span class="s3">{ </span><span class="s0">this</span><span class="s3">.</span><span class="s1">getHeaderCellClass</span><span class="s3">(</span><span class="s1">rowIndex</span><span class="s3">, </span><span class="s1">cellIndex</span><span class="s3">, </span><span class="s1">columns</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) }</span>
+                    <span class="s3">key</span><span class="s2">=</span><span class="s3">{ </span><span class="s1">column</span><span class="s3">.</span><span class="s1">id </span><span class="s3">}</span><span class="s6">&gt;</span>
+                    <span class="s6">&lt;div </span><span class="s3">class</span><span class="s2">=</span><span class="s3">{ [</span><span class="s2">'cell'</span><span class="s3">, </span><span class="s1">column</span><span class="s3">.</span><span class="s1">filteredValue </span><span class="s3">&amp;&amp; </span><span class="s1">column</span><span class="s3">.</span><span class="s1">filteredValue</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s4">0 </span><span class="s3">? </span><span class="s2">'highlight' </span><span class="s3">: </span><span class="s2">''</span><span class="s3">, </span><span class="s1">column</span><span class="s3">.</span><span class="s1">labelClassName</span><span class="s3">] }</span><span class="s6">&gt;</span>
+                      <span class="s3">{</span>
+                        <span class="s1">column</span><span class="s3">.</span><span class="s1">renderHeader</span>
+                          <span class="s3">? </span><span class="s1">column</span><span class="s3">.</span><span class="s1">renderHeader</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">_renderProxy</span><span class="s3">, </span><span class="s1">h</span><span class="s3">, { </span><span class="s1">column</span><span class="s3">, </span><span class="s1">$index</span><span class="s3">: </span><span class="s1">cellIndex</span><span class="s3">, </span><span class="s1">store</span><span class="s3">: </span><span class="s0">this</span><span class="s3">.</span><span class="s1">store</span><span class="s3">, </span><span class="s1">_self</span><span class="s3">: </span><span class="s0">this</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">.</span><span class="s1">$vnode</span><span class="s3">.</span><span class="s1">context </span><span class="s3">})</span>
+                          <span class="s3">: </span><span class="s1">column</span><span class="s3">.</span><span class="s1">label</span>
+                      <span class="s3">}</span>
+                      <span class="s3">{</span>
+                        <span class="s1">column</span><span class="s3">.</span><span class="s1">sortable </span><span class="s3">? (</span><span class="s6">&lt;span</span>
+                          <span class="s3">class</span><span class="s2">=&quot;caret-wrapper&quot;</span>
+                          <span class="s3">on-click</span><span class="s2">=</span><span class="s3">{ (</span><span class="s1">$event</span><span class="s3">) =&gt; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">handleSortClick</span><span class="s3">(</span><span class="s1">$event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) }</span><span class="s6">&gt;</span>
+                          <span class="s6">&lt;i </span><span class="s3">class</span><span class="s2">=&quot;sort-caret ascending&quot;</span>
+                            <span class="s3">on-click</span><span class="s2">=</span><span class="s3">{ (</span><span class="s1">$event</span><span class="s3">) =&gt; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">handleSortClick</span><span class="s3">(</span><span class="s1">$event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">, </span><span class="s2">'ascending'</span><span class="s3">) }</span><span class="s6">&gt;</span>
+                          <span class="s6">&lt;/i&gt;</span>
+                          <span class="s6">&lt;i </span><span class="s3">class</span><span class="s2">=&quot;sort-caret descending&quot;</span>
+                            <span class="s3">on-click</span><span class="s2">=</span><span class="s3">{ (</span><span class="s1">$event</span><span class="s3">) =&gt; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">handleSortClick</span><span class="s3">(</span><span class="s1">$event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">, </span><span class="s2">'descending'</span><span class="s3">) }</span><span class="s6">&gt;</span>
+                          <span class="s6">&lt;/i&gt;</span>
+                        <span class="s6">&lt;/span&gt;</span><span class="s3">) : </span><span class="s2">''</span>
+                      <span class="s3">}</span>
+                      <span class="s3">{</span>
+                        <span class="s1">column</span><span class="s3">.</span><span class="s1">filterable </span><span class="s3">? (</span><span class="s6">&lt;span</span>
+                          <span class="s3">class</span><span class="s2">=&quot;el-table__column-filter-trigger&quot;</span>
+                          <span class="s3">on-click</span><span class="s2">=</span><span class="s3">{ (</span><span class="s1">$event</span><span class="s3">) =&gt; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">handleFilterClick</span><span class="s3">(</span><span class="s1">$event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) }</span><span class="s6">&gt;</span>
+                          <span class="s6">&lt;i </span><span class="s3">class</span><span class="s2">=</span><span class="s3">{ [</span><span class="s2">'el-icon-arrow-down'</span><span class="s3">, </span><span class="s1">column</span><span class="s3">.</span><span class="s1">filterOpened </span><span class="s3">? </span><span class="s2">'el-icon-arrow-up' </span><span class="s3">: </span><span class="s2">''</span><span class="s3">] }</span><span class="s6">&gt;&lt;/i&gt;</span>
+                        <span class="s6">&lt;/span&gt;</span><span class="s3">) : </span><span class="s2">''</span>
+                      <span class="s3">}</span>
+                    <span class="s6">&lt;/div&gt;</span>
+                  <span class="s6">&lt;/th&gt;</span><span class="s3">))</span>
+                <span class="s3">}</span>
+                <span class="s3">{</span>
+                  <span class="s0">this</span><span class="s3">.</span><span class="s1">hasGutter </span><span class="s3">? </span><span class="s6">&lt;th </span><span class="s3">class</span><span class="s2">=&quot;el-table__cell gutter&quot;</span><span class="s6">&gt;&lt;/th&gt; </span><span class="s3">: </span><span class="s2">''</span>
+                <span class="s3">}</span>
+              <span class="s6">&lt;/tr&gt;</span>
+            <span class="s3">)</span>
+          <span class="s3">}</span>
+        <span class="s6">&lt;/thead&gt;</span>
+      <span class="s6">&lt;/table&gt;</span>
+    <span class="s3">);</span>
+  <span class="s3">},</span>
+
+  <span class="s1">props</span><span class="s3">: {</span>
+    <span class="s1">fixed</span><span class="s3">: </span><span class="s1">String</span><span class="s3">,</span>
+    <span class="s1">store</span><span class="s3">: {</span>
+      <span class="s1">required</span><span class="s3">: </span><span class="s0">true</span>
+    <span class="s3">},</span>
+    <span class="s1">border</span><span class="s3">: </span><span class="s1">Boolean</span><span class="s3">,</span>
+    <span class="s1">defaultSort</span><span class="s3">: {</span>
+      <span class="s1">type</span><span class="s3">: </span><span class="s1">Object</span><span class="s3">,</span>
+      <span class="s0">default</span><span class="s3">() {</span>
+        <span class="s0">return </span><span class="s3">{</span>
+          <span class="s1">prop</span><span class="s3">: </span><span class="s2">''</span><span class="s3">,</span>
+          <span class="s1">order</span><span class="s3">: </span><span class="s2">''</span>
+        <span class="s3">};</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">},</span>
+
+  <span class="s1">components</span><span class="s3">: {</span>
+    <span class="s1">ElCheckbox</span>
+  <span class="s3">},</span>
+
+  <span class="s1">computed</span><span class="s3">: {</span>
+    <span class="s1">table</span><span class="s3">() {</span>
+      <span class="s0">return this</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">;</span>
+    <span class="s3">},</span>
+
+    <span class="s1">hasGutter</span><span class="s3">() {</span>
+      <span class="s0">return </span><span class="s3">!</span><span class="s0">this</span><span class="s3">.</span><span class="s1">fixed </span><span class="s3">&amp;&amp; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">tableLayout</span><span class="s3">.</span><span class="s1">gutterWidth</span><span class="s3">;</span>
+    <span class="s3">},</span>
+
+    <span class="s1">...mapStates</span><span class="s3">({</span>
+      <span class="s1">columns</span><span class="s3">: </span><span class="s2">'columns'</span><span class="s3">,</span>
+      <span class="s1">isAllSelected</span><span class="s3">: </span><span class="s2">'isAllSelected'</span><span class="s3">,</span>
+      <span class="s1">leftFixedLeafCount</span><span class="s3">: </span><span class="s2">'fixedLeafColumnsLength'</span><span class="s3">,</span>
+      <span class="s1">rightFixedLeafCount</span><span class="s3">: </span><span class="s2">'rightFixedLeafColumnsLength'</span><span class="s3">,</span>
+      <span class="s1">columnsCount</span><span class="s3">: </span><span class="s1">states </span><span class="s3">=&gt; </span><span class="s1">states</span><span class="s3">.</span><span class="s1">columns</span><span class="s3">.</span><span class="s1">length</span><span class="s3">,</span>
+      <span class="s1">leftFixedCount</span><span class="s3">: </span><span class="s1">states </span><span class="s3">=&gt; </span><span class="s1">states</span><span class="s3">.</span><span class="s1">fixedColumns</span><span class="s3">.</span><span class="s1">length</span><span class="s3">,</span>
+      <span class="s1">rightFixedCount</span><span class="s3">: </span><span class="s1">states </span><span class="s3">=&gt; </span><span class="s1">states</span><span class="s3">.</span><span class="s1">rightFixedColumns</span><span class="s3">.</span><span class="s1">length</span>
+    <span class="s3">})</span>
+  <span class="s3">},</span>
+
+  <span class="s1">created</span><span class="s3">() {</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">filterPanels </span><span class="s3">= {};</span>
+  <span class="s3">},</span>
+
+  <span class="s1">mounted</span><span class="s3">() {</span>
+    <span class="s5">// nextTick 是有必要的 https://github.com/ElemeFE/element/pull/11311</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">$nextTick</span><span class="s3">(() =&gt; {</span>
+      <span class="s0">const </span><span class="s3">{ </span><span class="s1">prop</span><span class="s3">, </span><span class="s1">order </span><span class="s3">} = </span><span class="s0">this</span><span class="s3">.</span><span class="s1">defaultSort</span><span class="s3">;</span>
+      <span class="s0">const </span><span class="s1">init </span><span class="s3">= </span><span class="s0">true</span><span class="s3">;</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">store</span><span class="s3">.</span><span class="s1">commit</span><span class="s3">(</span><span class="s2">'sort'</span><span class="s3">, { </span><span class="s1">prop</span><span class="s3">, </span><span class="s1">order</span><span class="s3">, </span><span class="s1">init </span><span class="s3">});</span>
+    <span class="s3">});</span>
+  <span class="s3">},</span>
+
+  <span class="s1">beforeDestroy</span><span class="s3">() {</span>
+    <span class="s0">const </span><span class="s1">panels </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">filterPanels</span><span class="s3">;</span>
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">prop </span><span class="s0">in </span><span class="s1">panels</span><span class="s3">) {</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">panels</span><span class="s3">.</span><span class="s1">hasOwnProperty</span><span class="s3">(</span><span class="s1">prop</span><span class="s3">) &amp;&amp; </span><span class="s1">panels</span><span class="s3">[</span><span class="s1">prop</span><span class="s3">]) {</span>
+        <span class="s1">panels</span><span class="s3">[</span><span class="s1">prop</span><span class="s3">].</span><span class="s1">$destroy</span><span class="s3">(</span><span class="s0">true</span><span class="s3">);</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">},</span>
+
+  <span class="s1">methods</span><span class="s3">: {</span>
+    <span class="s1">isCellHidden</span><span class="s3">(</span><span class="s1">index</span><span class="s3">, </span><span class="s1">columns</span><span class="s3">) {</span>
+      <span class="s0">let </span><span class="s1">start </span><span class="s3">= </span><span class="s4">0</span><span class="s3">;</span>
+      <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s4">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">index</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+        <span class="s1">start </span><span class="s3">+= </span><span class="s1">columns</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">colSpan</span><span class="s3">;</span>
+      <span class="s3">}</span>
+      <span class="s0">const </span><span class="s1">after </span><span class="s3">= </span><span class="s1">start </span><span class="s3">+ </span><span class="s1">columns</span><span class="s3">[</span><span class="s1">index</span><span class="s3">].</span><span class="s1">colSpan </span><span class="s3">- </span><span class="s4">1</span><span class="s3">;</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">fixed </span><span class="s3">=== </span><span class="s0">true </span><span class="s3">|| </span><span class="s0">this</span><span class="s3">.</span><span class="s1">fixed </span><span class="s3">=== </span><span class="s2">'left'</span><span class="s3">) {</span>
+        <span class="s0">return </span><span class="s1">after </span><span class="s3">&gt;= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">leftFixedLeafCount</span><span class="s3">;</span>
+      <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">fixed </span><span class="s3">=== </span><span class="s2">'right'</span><span class="s3">) {</span>
+        <span class="s0">return </span><span class="s1">start </span><span class="s3">&lt; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">columnsCount </span><span class="s3">- </span><span class="s0">this</span><span class="s3">.</span><span class="s1">rightFixedLeafCount</span><span class="s3">;</span>
+      <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+        <span class="s0">return </span><span class="s3">(</span><span class="s1">after </span><span class="s3">&lt; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">leftFixedLeafCount</span><span class="s3">) || (</span><span class="s1">start </span><span class="s3">&gt;= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">columnsCount </span><span class="s3">- </span><span class="s0">this</span><span class="s3">.</span><span class="s1">rightFixedLeafCount</span><span class="s3">);</span>
+      <span class="s3">}</span>
+    <span class="s3">},</span>
+
+    <span class="s1">getHeaderRowStyle</span><span class="s3">(</span><span class="s1">rowIndex</span><span class="s3">) {</span>
+      <span class="s0">const </span><span class="s1">headerRowStyle </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">table</span><span class="s3">.</span><span class="s1">headerRowStyle</span><span class="s3">;</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s0">typeof </span><span class="s1">headerRowStyle </span><span class="s3">=== </span><span class="s2">'function'</span><span class="s3">) {</span>
+        <span class="s0">return </span><span class="s1">headerRowStyle</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s0">null</span><span class="s3">, { </span><span class="s1">rowIndex </span><span class="s3">});</span>
+      <span class="s3">}</span>
+      <span class="s0">return </span><span class="s1">headerRowStyle</span><span class="s3">;</span>
+    <span class="s3">},</span>
+
+    <span class="s1">getHeaderRowClass</span><span class="s3">(</span><span class="s1">rowIndex</span><span class="s3">) {</span>
+      <span class="s0">const </span><span class="s1">classes </span><span class="s3">= [];</span>
+
+      <span class="s0">const </span><span class="s1">headerRowClassName </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">table</span><span class="s3">.</span><span class="s1">headerRowClassName</span><span class="s3">;</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s0">typeof </span><span class="s1">headerRowClassName </span><span class="s3">=== </span><span class="s2">'string'</span><span class="s3">) {</span>
+        <span class="s1">classes</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">headerRowClassName</span><span class="s3">);</span>
+      <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s0">typeof </span><span class="s1">headerRowClassName </span><span class="s3">=== </span><span class="s2">'function'</span><span class="s3">) {</span>
+        <span class="s1">classes</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">headerRowClassName</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s0">null</span><span class="s3">, { </span><span class="s1">rowIndex </span><span class="s3">}));</span>
+      <span class="s3">}</span>
+
+      <span class="s0">return </span><span class="s1">classes</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s2">' '</span><span class="s3">);</span>
+    <span class="s3">},</span>
+
+    <span class="s1">getHeaderCellStyle</span><span class="s3">(</span><span class="s1">rowIndex</span><span class="s3">, </span><span class="s1">columnIndex</span><span class="s3">, </span><span class="s1">row</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) {</span>
+      <span class="s0">const </span><span class="s1">headerCellStyle </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">table</span><span class="s3">.</span><span class="s1">headerCellStyle</span><span class="s3">;</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s0">typeof </span><span class="s1">headerCellStyle </span><span class="s3">=== </span><span class="s2">'function'</span><span class="s3">) {</span>
+        <span class="s0">return </span><span class="s1">headerCellStyle</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s0">null</span><span class="s3">, {</span>
+          <span class="s1">rowIndex</span><span class="s3">,</span>
+          <span class="s1">columnIndex</span><span class="s3">,</span>
+          <span class="s1">row</span><span class="s3">,</span>
+          <span class="s1">column</span>
+        <span class="s3">});</span>
+      <span class="s3">}</span>
+      <span class="s0">return </span><span class="s1">headerCellStyle</span><span class="s3">;</span>
+    <span class="s3">},</span>
+
+    <span class="s1">getHeaderCellClass</span><span class="s3">(</span><span class="s1">rowIndex</span><span class="s3">, </span><span class="s1">columnIndex</span><span class="s3">, </span><span class="s1">row</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) {</span>
+      <span class="s0">const </span><span class="s1">classes </span><span class="s3">= [</span><span class="s1">column</span><span class="s3">.</span><span class="s1">id</span><span class="s3">, </span><span class="s1">column</span><span class="s3">.</span><span class="s1">order</span><span class="s3">, </span><span class="s1">column</span><span class="s3">.</span><span class="s1">headerAlign</span><span class="s3">, </span><span class="s1">column</span><span class="s3">.</span><span class="s1">className</span><span class="s3">, </span><span class="s1">column</span><span class="s3">.</span><span class="s1">labelClassName</span><span class="s3">];</span>
+
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">rowIndex </span><span class="s3">=== </span><span class="s4">0 </span><span class="s3">&amp;&amp; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">isCellHidden</span><span class="s3">(</span><span class="s1">columnIndex</span><span class="s3">, </span><span class="s1">row</span><span class="s3">)) {</span>
+        <span class="s1">classes</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s2">'is-hidden'</span><span class="s3">);</span>
+      <span class="s3">}</span>
+
+      <span class="s0">if </span><span class="s3">(!</span><span class="s1">column</span><span class="s3">.</span><span class="s1">children</span><span class="s3">) {</span>
+        <span class="s1">classes</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s2">'is-leaf'</span><span class="s3">);</span>
+      <span class="s3">}</span>
+
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">column</span><span class="s3">.</span><span class="s1">sortable</span><span class="s3">) {</span>
+        <span class="s1">classes</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s2">'is-sortable'</span><span class="s3">);</span>
+      <span class="s3">}</span>
+
+      <span class="s0">const </span><span class="s1">headerCellClassName </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">table</span><span class="s3">.</span><span class="s1">headerCellClassName</span><span class="s3">;</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s0">typeof </span><span class="s1">headerCellClassName </span><span class="s3">=== </span><span class="s2">'string'</span><span class="s3">) {</span>
+        <span class="s1">classes</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">headerCellClassName</span><span class="s3">);</span>
+      <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s0">typeof </span><span class="s1">headerCellClassName </span><span class="s3">=== </span><span class="s2">'function'</span><span class="s3">) {</span>
+        <span class="s1">classes</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">headerCellClassName</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s0">null</span><span class="s3">, {</span>
+          <span class="s1">rowIndex</span><span class="s3">,</span>
+          <span class="s1">columnIndex</span><span class="s3">,</span>
+          <span class="s1">row</span><span class="s3">,</span>
+          <span class="s1">column</span>
+        <span class="s3">}));</span>
+      <span class="s3">}</span>
+
+      <span class="s1">classes</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s2">'el-table__cell'</span><span class="s3">);</span>
+
+      <span class="s0">return </span><span class="s1">classes</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s2">' '</span><span class="s3">);</span>
+    <span class="s3">},</span>
+
+    <span class="s1">toggleAllSelection</span><span class="s3">() {</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">store</span><span class="s3">.</span><span class="s1">commit</span><span class="s3">(</span><span class="s2">'toggleAllSelection'</span><span class="s3">);</span>
+    <span class="s3">},</span>
+
+    <span class="s1">handleFilterClick</span><span class="s3">(</span><span class="s1">event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) {</span>
+      <span class="s1">event</span><span class="s3">.</span><span class="s1">stopPropagation</span><span class="s3">();</span>
+      <span class="s0">const </span><span class="s1">target </span><span class="s3">= </span><span class="s1">event</span><span class="s3">.</span><span class="s1">target</span><span class="s3">;</span>
+      <span class="s0">let </span><span class="s1">cell </span><span class="s3">= </span><span class="s1">target</span><span class="s3">.</span><span class="s1">tagName </span><span class="s3">=== </span><span class="s2">'TH' </span><span class="s3">? </span><span class="s1">target </span><span class="s3">: </span><span class="s1">target</span><span class="s3">.</span><span class="s1">parentNode</span><span class="s3">;</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">hasClass</span><span class="s3">(</span><span class="s1">cell</span><span class="s3">, </span><span class="s2">'noclick'</span><span class="s3">)) </span><span class="s0">return</span><span class="s3">;</span>
+      <span class="s1">cell </span><span class="s3">= </span><span class="s1">cell</span><span class="s3">.</span><span class="s1">querySelector</span><span class="s3">(</span><span class="s2">'.el-table__column-filter-trigger'</span><span class="s3">) || </span><span class="s1">cell</span><span class="s3">;</span>
+      <span class="s0">const </span><span class="s1">table </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">;</span>
+
+      <span class="s0">let </span><span class="s1">filterPanel </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">filterPanels</span><span class="s3">[</span><span class="s1">column</span><span class="s3">.</span><span class="s1">id</span><span class="s3">];</span>
+
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">filterPanel </span><span class="s3">&amp;&amp; </span><span class="s1">column</span><span class="s3">.</span><span class="s1">filterOpened</span><span class="s3">) {</span>
+        <span class="s1">filterPanel</span><span class="s3">.</span><span class="s1">showPopper </span><span class="s3">= </span><span class="s0">false</span><span class="s3">;</span>
+        <span class="s0">return</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s0">if </span><span class="s3">(!</span><span class="s1">filterPanel</span><span class="s3">) {</span>
+        <span class="s1">filterPanel </span><span class="s3">= </span><span class="s0">new </span><span class="s1">Vue</span><span class="s3">(</span><span class="s1">FilterPanel</span><span class="s3">);</span>
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">filterPanels</span><span class="s3">[</span><span class="s1">column</span><span class="s3">.</span><span class="s1">id</span><span class="s3">] = </span><span class="s1">filterPanel</span><span class="s3">;</span>
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">column</span><span class="s3">.</span><span class="s1">filterPlacement</span><span class="s3">) {</span>
+          <span class="s1">filterPanel</span><span class="s3">.</span><span class="s1">placement </span><span class="s3">= </span><span class="s1">column</span><span class="s3">.</span><span class="s1">filterPlacement</span><span class="s3">;</span>
+        <span class="s3">}</span>
+        <span class="s1">filterPanel</span><span class="s3">.</span><span class="s1">table </span><span class="s3">= </span><span class="s1">table</span><span class="s3">;</span>
+        <span class="s1">filterPanel</span><span class="s3">.</span><span class="s1">cell </span><span class="s3">= </span><span class="s1">cell</span><span class="s3">;</span>
+        <span class="s1">filterPanel</span><span class="s3">.</span><span class="s1">column </span><span class="s3">= </span><span class="s1">column</span><span class="s3">;</span>
+        <span class="s3">!</span><span class="s0">this</span><span class="s3">.</span><span class="s1">$isServer </span><span class="s3">&amp;&amp; </span><span class="s1">filterPanel</span><span class="s3">.</span><span class="s1">$mount</span><span class="s3">(</span><span class="s1">document</span><span class="s3">.</span><span class="s1">createElement</span><span class="s3">(</span><span class="s2">'div'</span><span class="s3">));</span>
+      <span class="s3">}</span>
+
+      <span class="s1">setTimeout</span><span class="s3">(() =&gt; {</span>
+        <span class="s1">filterPanel</span><span class="s3">.</span><span class="s1">showPopper </span><span class="s3">= </span><span class="s0">true</span><span class="s3">;</span>
+      <span class="s3">}, </span><span class="s4">16</span><span class="s3">);</span>
+    <span class="s3">},</span>
+
+    <span class="s1">handleHeaderClick</span><span class="s3">(</span><span class="s1">event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) {</span>
+      <span class="s0">if </span><span class="s3">(!</span><span class="s1">column</span><span class="s3">.</span><span class="s1">filters </span><span class="s3">&amp;&amp; </span><span class="s1">column</span><span class="s3">.</span><span class="s1">sortable</span><span class="s3">) {</span>
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">handleSortClick</span><span class="s3">(</span><span class="s1">event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">);</span>
+      <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s1">column</span><span class="s3">.</span><span class="s1">filterable </span><span class="s3">&amp;&amp; !</span><span class="s1">column</span><span class="s3">.</span><span class="s1">sortable</span><span class="s3">) {</span>
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">handleFilterClick</span><span class="s3">(</span><span class="s1">event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">);</span>
+      <span class="s3">}</span>
+
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">.</span><span class="s1">$emit</span><span class="s3">(</span><span class="s2">'header-click'</span><span class="s3">, </span><span class="s1">column</span><span class="s3">, </span><span class="s1">event</span><span class="s3">);</span>
+    <span class="s3">},</span>
+
+    <span class="s1">handleHeaderContextMenu</span><span class="s3">(</span><span class="s1">event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) {</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">.</span><span class="s1">$emit</span><span class="s3">(</span><span class="s2">'header-contextmenu'</span><span class="s3">, </span><span class="s1">column</span><span class="s3">, </span><span class="s1">event</span><span class="s3">);</span>
+    <span class="s3">},</span>
+
+    <span class="s1">handleMouseDown</span><span class="s3">(</span><span class="s1">event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) {</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">$isServer</span><span class="s3">) </span><span class="s0">return</span><span class="s3">;</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">column</span><span class="s3">.</span><span class="s1">children </span><span class="s3">&amp;&amp; </span><span class="s1">column</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s4">0</span><span class="s3">) </span><span class="s0">return</span><span class="s3">;</span>
+      <span class="s5">/* istanbul ignore if */</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">draggingColumn </span><span class="s3">&amp;&amp; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">border</span><span class="s3">) {</span>
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">dragging </span><span class="s3">= </span><span class="s0">true</span><span class="s3">;</span>
+
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">.</span><span class="s1">resizeProxyVisible </span><span class="s3">= </span><span class="s0">true</span><span class="s3">;</span>
+
+        <span class="s0">const </span><span class="s1">table </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">;</span>
+        <span class="s0">const </span><span class="s1">tableEl </span><span class="s3">= </span><span class="s1">table</span><span class="s3">.</span><span class="s1">$el</span><span class="s3">;</span>
+        <span class="s0">const </span><span class="s1">tableLeft </span><span class="s3">= </span><span class="s1">tableEl</span><span class="s3">.</span><span class="s1">getBoundingClientRect</span><span class="s3">().</span><span class="s1">left</span><span class="s3">;</span>
+        <span class="s0">const </span><span class="s1">columnEl </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">$el</span><span class="s3">.</span><span class="s1">querySelector</span><span class="s3">(</span><span class="s2">`th.</span><span class="s1">$</span><span class="s3">{</span><span class="s1">column</span><span class="s3">.</span><span class="s1">id</span><span class="s3">}</span><span class="s2">`</span><span class="s3">);</span>
+        <span class="s0">const </span><span class="s1">columnRect </span><span class="s3">= </span><span class="s1">columnEl</span><span class="s3">.</span><span class="s1">getBoundingClientRect</span><span class="s3">();</span>
+        <span class="s0">const </span><span class="s1">minLeft </span><span class="s3">= </span><span class="s1">columnRect</span><span class="s3">.</span><span class="s1">left </span><span class="s3">- </span><span class="s1">tableLeft </span><span class="s3">+ </span><span class="s4">30</span><span class="s3">;</span>
+
+        <span class="s1">addClass</span><span class="s3">(</span><span class="s1">columnEl</span><span class="s3">, </span><span class="s2">'noclick'</span><span class="s3">);</span>
+
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">dragState </span><span class="s3">= {</span>
+          <span class="s1">startMouseLeft</span><span class="s3">: </span><span class="s1">event</span><span class="s3">.</span><span class="s1">clientX</span><span class="s3">,</span>
+          <span class="s1">startLeft</span><span class="s3">: </span><span class="s1">columnRect</span><span class="s3">.</span><span class="s1">right </span><span class="s3">- </span><span class="s1">tableLeft</span><span class="s3">,</span>
+          <span class="s1">startColumnLeft</span><span class="s3">: </span><span class="s1">columnRect</span><span class="s3">.</span><span class="s1">left </span><span class="s3">- </span><span class="s1">tableLeft</span><span class="s3">,</span>
+          <span class="s1">tableLeft</span>
+        <span class="s3">};</span>
+
+        <span class="s0">const </span><span class="s1">resizeProxy </span><span class="s3">= </span><span class="s1">table</span><span class="s3">.</span><span class="s1">$refs</span><span class="s3">.</span><span class="s1">resizeProxy</span><span class="s3">;</span>
+        <span class="s1">resizeProxy</span><span class="s3">.</span><span class="s1">style</span><span class="s3">.</span><span class="s1">left </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">dragState</span><span class="s3">.</span><span class="s1">startLeft </span><span class="s3">+ </span><span class="s2">'px'</span><span class="s3">;</span>
+
+        <span class="s1">document</span><span class="s3">.</span><span class="s1">onselectstart </span><span class="s3">= </span><span class="s0">function</span><span class="s3">() { </span><span class="s0">return false</span><span class="s3">; };</span>
+        <span class="s1">document</span><span class="s3">.</span><span class="s1">ondragstart </span><span class="s3">= </span><span class="s0">function</span><span class="s3">() { </span><span class="s0">return false</span><span class="s3">; };</span>
+
+        <span class="s0">const </span><span class="s1">handleMouseMove </span><span class="s3">= (</span><span class="s1">event</span><span class="s3">) =&gt; {</span>
+          <span class="s0">const </span><span class="s1">deltaLeft </span><span class="s3">= </span><span class="s1">event</span><span class="s3">.</span><span class="s1">clientX </span><span class="s3">- </span><span class="s0">this</span><span class="s3">.</span><span class="s1">dragState</span><span class="s3">.</span><span class="s1">startMouseLeft</span><span class="s3">;</span>
+          <span class="s0">const </span><span class="s1">proxyLeft </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">dragState</span><span class="s3">.</span><span class="s1">startLeft </span><span class="s3">+ </span><span class="s1">deltaLeft</span><span class="s3">;</span>
+
+          <span class="s1">resizeProxy</span><span class="s3">.</span><span class="s1">style</span><span class="s3">.</span><span class="s1">left </span><span class="s3">= </span><span class="s1">Math</span><span class="s3">.</span><span class="s1">max</span><span class="s3">(</span><span class="s1">minLeft</span><span class="s3">, </span><span class="s1">proxyLeft</span><span class="s3">) + </span><span class="s2">'px'</span><span class="s3">;</span>
+        <span class="s3">};</span>
+
+        <span class="s0">const </span><span class="s1">handleMouseUp </span><span class="s3">= () =&gt; {</span>
+          <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">dragging</span><span class="s3">) {</span>
+            <span class="s0">const </span><span class="s3">{</span>
+              <span class="s1">startColumnLeft</span><span class="s3">,</span>
+              <span class="s1">startLeft</span>
+            <span class="s3">} = </span><span class="s0">this</span><span class="s3">.</span><span class="s1">dragState</span><span class="s3">;</span>
+            <span class="s0">const </span><span class="s1">finalLeft </span><span class="s3">= </span><span class="s1">parseInt</span><span class="s3">(</span><span class="s1">resizeProxy</span><span class="s3">.</span><span class="s1">style</span><span class="s3">.</span><span class="s1">left</span><span class="s3">, </span><span class="s4">10</span><span class="s3">);</span>
+            <span class="s0">const </span><span class="s1">columnWidth </span><span class="s3">= </span><span class="s1">finalLeft </span><span class="s3">- </span><span class="s1">startColumnLeft</span><span class="s3">;</span>
+            <span class="s1">column</span><span class="s3">.</span><span class="s1">width </span><span class="s3">= </span><span class="s1">column</span><span class="s3">.</span><span class="s1">realWidth </span><span class="s3">= </span><span class="s1">columnWidth</span><span class="s3">;</span>
+            <span class="s1">table</span><span class="s3">.</span><span class="s1">$emit</span><span class="s3">(</span><span class="s2">'header-dragend'</span><span class="s3">, </span><span class="s1">column</span><span class="s3">.</span><span class="s1">width</span><span class="s3">, </span><span class="s1">startLeft </span><span class="s3">- </span><span class="s1">startColumnLeft</span><span class="s3">, </span><span class="s1">column</span><span class="s3">, </span><span class="s1">event</span><span class="s3">);</span>
+
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">store</span><span class="s3">.</span><span class="s1">scheduleLayout</span><span class="s3">();</span>
+
+            <span class="s1">document</span><span class="s3">.</span><span class="s1">body</span><span class="s3">.</span><span class="s1">style</span><span class="s3">.</span><span class="s1">cursor </span><span class="s3">= </span><span class="s2">''</span><span class="s3">;</span>
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">dragging </span><span class="s3">= </span><span class="s0">false</span><span class="s3">;</span>
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">draggingColumn </span><span class="s3">= </span><span class="s0">null</span><span class="s3">;</span>
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">dragState </span><span class="s3">= {};</span>
+
+            <span class="s1">table</span><span class="s3">.</span><span class="s1">resizeProxyVisible </span><span class="s3">= </span><span class="s0">false</span><span class="s3">;</span>
+          <span class="s3">}</span>
+
+          <span class="s1">document</span><span class="s3">.</span><span class="s1">removeEventListener</span><span class="s3">(</span><span class="s2">'mousemove'</span><span class="s3">, </span><span class="s1">handleMouseMove</span><span class="s3">);</span>
+          <span class="s1">document</span><span class="s3">.</span><span class="s1">removeEventListener</span><span class="s3">(</span><span class="s2">'mouseup'</span><span class="s3">, </span><span class="s1">handleMouseUp</span><span class="s3">);</span>
+          <span class="s1">document</span><span class="s3">.</span><span class="s1">onselectstart </span><span class="s3">= </span><span class="s0">null</span><span class="s3">;</span>
+          <span class="s1">document</span><span class="s3">.</span><span class="s1">ondragstart </span><span class="s3">= </span><span class="s0">null</span><span class="s3">;</span>
+
+          <span class="s1">setTimeout</span><span class="s3">(</span><span class="s0">function</span><span class="s3">() {</span>
+            <span class="s1">removeClass</span><span class="s3">(</span><span class="s1">columnEl</span><span class="s3">, </span><span class="s2">'noclick'</span><span class="s3">);</span>
+          <span class="s3">}, </span><span class="s4">0</span><span class="s3">);</span>
+        <span class="s3">};</span>
+
+        <span class="s1">document</span><span class="s3">.</span><span class="s1">addEventListener</span><span class="s3">(</span><span class="s2">'mousemove'</span><span class="s3">, </span><span class="s1">handleMouseMove</span><span class="s3">);</span>
+        <span class="s1">document</span><span class="s3">.</span><span class="s1">addEventListener</span><span class="s3">(</span><span class="s2">'mouseup'</span><span class="s3">, </span><span class="s1">handleMouseUp</span><span class="s3">);</span>
+      <span class="s3">}</span>
+    <span class="s3">},</span>
+
+    <span class="s1">handleMouseMove</span><span class="s3">(</span><span class="s1">event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">) {</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">column</span><span class="s3">.</span><span class="s1">children </span><span class="s3">&amp;&amp; </span><span class="s1">column</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s4">0</span><span class="s3">) </span><span class="s0">return</span><span class="s3">;</span>
+      <span class="s0">let </span><span class="s1">target </span><span class="s3">= </span><span class="s1">event</span><span class="s3">.</span><span class="s1">target</span><span class="s3">;</span>
+      <span class="s0">while </span><span class="s3">(</span><span class="s1">target </span><span class="s3">&amp;&amp; </span><span class="s1">target</span><span class="s3">.</span><span class="s1">tagName </span><span class="s3">!== </span><span class="s2">'TH'</span><span class="s3">) {</span>
+        <span class="s1">target </span><span class="s3">= </span><span class="s1">target</span><span class="s3">.</span><span class="s1">parentNode</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s0">if </span><span class="s3">(!</span><span class="s1">column </span><span class="s3">|| !</span><span class="s1">column</span><span class="s3">.</span><span class="s1">resizable</span><span class="s3">) </span><span class="s0">return</span><span class="s3">;</span>
+
+      <span class="s0">if </span><span class="s3">(!</span><span class="s0">this</span><span class="s3">.</span><span class="s1">dragging </span><span class="s3">&amp;&amp; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">border</span><span class="s3">) {</span>
+        <span class="s0">let </span><span class="s1">rect </span><span class="s3">= </span><span class="s1">target</span><span class="s3">.</span><span class="s1">getBoundingClientRect</span><span class="s3">();</span>
+
+        <span class="s0">const </span><span class="s1">bodyStyle </span><span class="s3">= </span><span class="s1">document</span><span class="s3">.</span><span class="s1">body</span><span class="s3">.</span><span class="s1">style</span><span class="s3">;</span>
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">rect</span><span class="s3">.</span><span class="s1">width </span><span class="s3">&gt; </span><span class="s4">12 </span><span class="s3">&amp;&amp; </span><span class="s1">rect</span><span class="s3">.</span><span class="s1">right </span><span class="s3">- </span><span class="s1">event</span><span class="s3">.</span><span class="s1">pageX </span><span class="s3">&lt; </span><span class="s4">8</span><span class="s3">) {</span>
+          <span class="s1">bodyStyle</span><span class="s3">.</span><span class="s1">cursor </span><span class="s3">= </span><span class="s2">'col-resize'</span><span class="s3">;</span>
+          <span class="s0">if </span><span class="s3">(</span><span class="s1">hasClass</span><span class="s3">(</span><span class="s1">target</span><span class="s3">, </span><span class="s2">'is-sortable'</span><span class="s3">)) {</span>
+            <span class="s1">target</span><span class="s3">.</span><span class="s1">style</span><span class="s3">.</span><span class="s1">cursor </span><span class="s3">= </span><span class="s2">'col-resize'</span><span class="s3">;</span>
+          <span class="s3">}</span>
+          <span class="s0">this</span><span class="s3">.</span><span class="s1">draggingColumn </span><span class="s3">= </span><span class="s1">column</span><span class="s3">;</span>
+        <span class="s3">} </span><span class="s0">else if </span><span class="s3">(!</span><span class="s0">this</span><span class="s3">.</span><span class="s1">dragging</span><span class="s3">) {</span>
+          <span class="s1">bodyStyle</span><span class="s3">.</span><span class="s1">cursor </span><span class="s3">= </span><span class="s2">''</span><span class="s3">;</span>
+          <span class="s0">if </span><span class="s3">(</span><span class="s1">hasClass</span><span class="s3">(</span><span class="s1">target</span><span class="s3">, </span><span class="s2">'is-sortable'</span><span class="s3">)) {</span>
+            <span class="s1">target</span><span class="s3">.</span><span class="s1">style</span><span class="s3">.</span><span class="s1">cursor </span><span class="s3">= </span><span class="s2">'pointer'</span><span class="s3">;</span>
+          <span class="s3">}</span>
+          <span class="s0">this</span><span class="s3">.</span><span class="s1">draggingColumn </span><span class="s3">= </span><span class="s0">null</span><span class="s3">;</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+    <span class="s3">},</span>
+
+    <span class="s1">handleMouseOut</span><span class="s3">() {</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">$isServer</span><span class="s3">) </span><span class="s0">return</span><span class="s3">;</span>
+      <span class="s1">document</span><span class="s3">.</span><span class="s1">body</span><span class="s3">.</span><span class="s1">style</span><span class="s3">.</span><span class="s1">cursor </span><span class="s3">= </span><span class="s2">''</span><span class="s3">;</span>
+    <span class="s3">},</span>
+
+    <span class="s1">toggleOrder</span><span class="s3">({ </span><span class="s1">order</span><span class="s3">, </span><span class="s1">sortOrders </span><span class="s3">}) {</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">order </span><span class="s3">=== </span><span class="s2">''</span><span class="s3">) </span><span class="s0">return </span><span class="s1">sortOrders</span><span class="s3">[</span><span class="s4">0</span><span class="s3">];</span>
+      <span class="s0">const </span><span class="s1">index </span><span class="s3">= </span><span class="s1">sortOrders</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s1">order </span><span class="s3">|| </span><span class="s0">null</span><span class="s3">);</span>
+      <span class="s0">return </span><span class="s1">sortOrders</span><span class="s3">[</span><span class="s1">index </span><span class="s3">&gt; </span><span class="s1">sortOrders</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s4">2 </span><span class="s3">? </span><span class="s4">0 </span><span class="s3">: </span><span class="s1">index </span><span class="s3">+ </span><span class="s4">1</span><span class="s3">];</span>
+    <span class="s3">},</span>
+
+    <span class="s1">handleSortClick</span><span class="s3">(</span><span class="s1">event</span><span class="s3">, </span><span class="s1">column</span><span class="s3">, </span><span class="s1">givenOrder</span><span class="s3">) {</span>
+      <span class="s1">event</span><span class="s3">.</span><span class="s1">stopPropagation</span><span class="s3">();</span>
+      <span class="s0">let </span><span class="s1">order </span><span class="s3">= </span><span class="s1">column</span><span class="s3">.</span><span class="s1">order </span><span class="s3">=== </span><span class="s1">givenOrder</span>
+        <span class="s3">? </span><span class="s0">null</span>
+        <span class="s3">: (</span><span class="s1">givenOrder </span><span class="s3">|| </span><span class="s0">this</span><span class="s3">.</span><span class="s1">toggleOrder</span><span class="s3">(</span><span class="s1">column</span><span class="s3">));</span>
+
+      <span class="s0">let </span><span class="s1">target </span><span class="s3">= </span><span class="s1">event</span><span class="s3">.</span><span class="s1">target</span><span class="s3">;</span>
+      <span class="s0">while </span><span class="s3">(</span><span class="s1">target </span><span class="s3">&amp;&amp; </span><span class="s1">target</span><span class="s3">.</span><span class="s1">tagName </span><span class="s3">!== </span><span class="s2">'TH'</span><span class="s3">) {</span>
+        <span class="s1">target </span><span class="s3">= </span><span class="s1">target</span><span class="s3">.</span><span class="s1">parentNode</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">target </span><span class="s3">&amp;&amp; </span><span class="s1">target</span><span class="s3">.</span><span class="s1">tagName </span><span class="s3">=== </span><span class="s2">'TH'</span><span class="s3">) {</span>
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">hasClass</span><span class="s3">(</span><span class="s1">target</span><span class="s3">, </span><span class="s2">'noclick'</span><span class="s3">)) {</span>
+          <span class="s1">removeClass</span><span class="s3">(</span><span class="s1">target</span><span class="s3">, </span><span class="s2">'noclick'</span><span class="s3">);</span>
+          <span class="s0">return</span><span class="s3">;</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+
+      <span class="s0">if </span><span class="s3">(!</span><span class="s1">column</span><span class="s3">.</span><span class="s1">sortable</span><span class="s3">) </span><span class="s0">return</span><span class="s3">;</span>
+
+      <span class="s0">const </span><span class="s1">states </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">store</span><span class="s3">.</span><span class="s1">states</span><span class="s3">;</span>
+      <span class="s0">let </span><span class="s1">sortProp </span><span class="s3">= </span><span class="s1">states</span><span class="s3">.</span><span class="s1">sortProp</span><span class="s3">;</span>
+      <span class="s0">let </span><span class="s1">sortOrder</span><span class="s3">;</span>
+      <span class="s0">const </span><span class="s1">sortingColumn </span><span class="s3">= </span><span class="s1">states</span><span class="s3">.</span><span class="s1">sortingColumn</span><span class="s3">;</span>
+
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">sortingColumn </span><span class="s3">!== </span><span class="s1">column </span><span class="s3">|| (</span><span class="s1">sortingColumn </span><span class="s3">=== </span><span class="s1">column </span><span class="s3">&amp;&amp; </span><span class="s1">sortingColumn</span><span class="s3">.</span><span class="s1">order </span><span class="s3">=== </span><span class="s0">null</span><span class="s3">)) {</span>
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">sortingColumn</span><span class="s3">) {</span>
+          <span class="s1">sortingColumn</span><span class="s3">.</span><span class="s1">order </span><span class="s3">= </span><span class="s0">null</span><span class="s3">;</span>
+        <span class="s3">}</span>
+        <span class="s1">states</span><span class="s3">.</span><span class="s1">sortingColumn </span><span class="s3">= </span><span class="s1">column</span><span class="s3">;</span>
+        <span class="s1">sortProp </span><span class="s3">= </span><span class="s1">column</span><span class="s3">.</span><span class="s1">property</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s0">if </span><span class="s3">(!</span><span class="s1">order</span><span class="s3">) {</span>
+        <span class="s1">sortOrder </span><span class="s3">= </span><span class="s1">column</span><span class="s3">.</span><span class="s1">order </span><span class="s3">= </span><span class="s0">null</span><span class="s3">;</span>
+      <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+        <span class="s1">sortOrder </span><span class="s3">= </span><span class="s1">column</span><span class="s3">.</span><span class="s1">order </span><span class="s3">= </span><span class="s1">order</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s1">states</span><span class="s3">.</span><span class="s1">sortProp </span><span class="s3">= </span><span class="s1">sortProp</span><span class="s3">;</span>
+      <span class="s1">states</span><span class="s3">.</span><span class="s1">sortOrder </span><span class="s3">= </span><span class="s1">sortOrder</span><span class="s3">;</span>
+
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">store</span><span class="s3">.</span><span class="s1">commit</span><span class="s3">(</span><span class="s2">'changeSortCondition'</span><span class="s3">);</span>
+    <span class="s3">}</span>
+  <span class="s3">},</span>
+
+  <span class="s1">data</span><span class="s3">() {</span>
+    <span class="s0">return </span><span class="s3">{</span>
+      <span class="s1">draggingColumn</span><span class="s3">: </span><span class="s0">null</span><span class="s3">,</span>
+      <span class="s1">dragging</span><span class="s3">: </span><span class="s0">false</span><span class="s3">,</span>
+      <span class="s1">dragState</span><span class="s3">: {}</span>
+    <span class="s3">};</span>
+  <span class="s3">}</span>
+<span class="s3">};</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<html>
+<head>
+<title>keep-alive.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+keep-alive.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">isRegExp</span><span class="s2">, </span><span class="s1">isArray</span><span class="s2">, </span><span class="s1">remove </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'shared/util'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">getFirstComponentChild </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'core/vdom/helpers/index'</span>
+<span class="s0">import </span><span class="s1">type VNode from </span><span class="s3">'core/vdom/vnode'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">VNodeComponentOptions </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/vnode'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">Component </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/component'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">getComponentName </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../vdom/create-component'</span>
+
+<span class="s1">type CacheEntry </span><span class="s2">= {</span>
+  <span class="s1">name</span><span class="s2">?: </span><span class="s1">string</span>
+  <span class="s1">tag</span><span class="s2">?: </span><span class="s1">string</span>
+  <span class="s1">componentInstance</span><span class="s2">?: </span><span class="s1">Component</span>
+<span class="s2">}</span>
+
+<span class="s1">type CacheEntryMap </span><span class="s2">= </span><span class="s1">Record</span><span class="s2">&lt;</span><span class="s1">string</span><span class="s2">, </span><span class="s1">CacheEntry </span><span class="s2">| </span><span class="s0">null</span><span class="s2">&gt;</span>
+
+<span class="s0">function </span><span class="s1">_getComponentName</span><span class="s2">(</span><span class="s1">opts</span><span class="s2">?: </span><span class="s1">VNodeComponentOptions</span><span class="s2">): </span><span class="s1">string </span><span class="s2">| </span><span class="s0">null </span><span class="s2">{</span>
+  <span class="s0">return </span><span class="s1">opts </span><span class="s2">&amp;&amp; (</span><span class="s1">getComponentName</span><span class="s2">(</span><span class="s1">opts</span><span class="s2">.</span><span class="s1">Ctor</span><span class="s2">.</span><span class="s1">options </span><span class="s2">as </span><span class="s1">any</span><span class="s2">) || </span><span class="s1">opts</span><span class="s2">.</span><span class="s1">tag</span><span class="s2">)</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">matches</span><span class="s2">(</span>
+  <span class="s1">pattern</span><span class="s2">: </span><span class="s1">string </span><span class="s2">| </span><span class="s1">RegExp </span><span class="s2">| </span><span class="s1">Array</span><span class="s2">&lt;</span><span class="s1">string</span><span class="s2">&gt;,</span>
+  <span class="s1">name</span><span class="s2">: </span><span class="s1">string</span>
+<span class="s2">): </span><span class="s1">boolean </span><span class="s2">{</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">pattern</span><span class="s2">)) {</span>
+    <span class="s0">return </span><span class="s1">pattern</span><span class="s2">.</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s1">name</span><span class="s2">) &gt; -</span><span class="s4">1</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">pattern </span><span class="s2">=== </span><span class="s3">'string'</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">pattern</span><span class="s2">.</span><span class="s1">split</span><span class="s2">(</span><span class="s3">','</span><span class="s2">).</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s1">name</span><span class="s2">) &gt; -</span><span class="s4">1</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isRegExp</span><span class="s2">(</span><span class="s1">pattern</span><span class="s2">)) {</span>
+    <span class="s0">return </span><span class="s1">pattern</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">name</span><span class="s2">)</span>
+  <span class="s2">}</span>
+  <span class="s5">/* istanbul ignore next */</span>
+  <span class="s0">return false</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">pruneCache</span><span class="s2">(</span>
+  <span class="s1">keepAliveInstance</span><span class="s2">: { </span><span class="s1">cache</span><span class="s2">: </span><span class="s1">CacheEntryMap</span><span class="s2">; </span><span class="s1">keys</span><span class="s2">: </span><span class="s1">string</span><span class="s2">[]; </span><span class="s1">_vnode</span><span class="s2">: </span><span class="s1">VNode </span><span class="s2">},</span>
+  <span class="s1">filter</span><span class="s2">: </span><span class="s1">Function</span>
+<span class="s2">) {</span>
+  <span class="s0">const </span><span class="s2">{ </span><span class="s1">cache</span><span class="s2">, </span><span class="s1">keys</span><span class="s2">, </span><span class="s1">_vnode </span><span class="s2">} = </span><span class="s1">keepAliveInstance</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">cache</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">entry </span><span class="s2">= </span><span class="s1">cache</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">entry</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">name </span><span class="s2">= </span><span class="s1">entry</span><span class="s2">.</span><span class="s1">name</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">name </span><span class="s2">&amp;&amp; !</span><span class="s1">filter</span><span class="s2">(</span><span class="s1">name</span><span class="s2">)) {</span>
+        <span class="s1">pruneCacheEntry</span><span class="s2">(</span><span class="s1">cache</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">keys</span><span class="s2">, </span><span class="s1">_vnode</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">pruneCacheEntry</span><span class="s2">(</span>
+  <span class="s1">cache</span><span class="s2">: </span><span class="s1">CacheEntryMap</span><span class="s2">,</span>
+  <span class="s1">key</span><span class="s2">: </span><span class="s1">string</span><span class="s2">,</span>
+  <span class="s1">keys</span><span class="s2">: </span><span class="s1">Array</span><span class="s2">&lt;</span><span class="s1">string</span><span class="s2">&gt;,</span>
+  <span class="s1">current</span><span class="s2">?: </span><span class="s1">VNode</span>
+<span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">entry </span><span class="s2">= </span><span class="s1">cache</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">entry </span><span class="s2">&amp;&amp; (!</span><span class="s1">current </span><span class="s2">|| </span><span class="s1">entry</span><span class="s2">.</span><span class="s1">tag </span><span class="s2">!== </span><span class="s1">current</span><span class="s2">.</span><span class="s1">tag</span><span class="s2">)) {</span>
+    <span class="s5">// @ts-expect-error can be undefined</span>
+    <span class="s1">entry</span><span class="s2">.</span><span class="s1">componentInstance</span><span class="s2">.</span><span class="s1">$destroy</span><span class="s2">()</span>
+  <span class="s2">}</span>
+  <span class="s1">cache</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = </span><span class="s0">null</span>
+  <span class="s1">remove</span><span class="s2">(</span><span class="s1">keys</span><span class="s2">, </span><span class="s1">key</span><span class="s2">)</span>
+<span class="s2">}</span>
+
+<span class="s0">const </span><span class="s1">patternTypes</span><span class="s2">: </span><span class="s1">Array</span><span class="s2">&lt;</span><span class="s1">Function</span><span class="s2">&gt; = [</span><span class="s1">String</span><span class="s2">, </span><span class="s1">RegExp</span><span class="s2">, </span><span class="s1">Array</span><span class="s2">]</span>
+
+<span class="s5">// TODO defineComponent</span>
+<span class="s0">export default </span><span class="s2">{</span>
+  <span class="s1">name</span><span class="s2">: </span><span class="s3">'keep-alive'</span><span class="s2">,</span>
+  <span class="s1">abstract</span><span class="s2">: </span><span class="s0">true</span><span class="s2">,</span>
+
+  <span class="s1">props</span><span class="s2">: {</span>
+    <span class="s1">include</span><span class="s2">: </span><span class="s1">patternTypes</span><span class="s2">,</span>
+    <span class="s1">exclude</span><span class="s2">: </span><span class="s1">patternTypes</span><span class="s2">,</span>
+    <span class="s1">max</span><span class="s2">: [</span><span class="s1">String</span><span class="s2">, </span><span class="s1">Number</span><span class="s2">]</span>
+  <span class="s2">},</span>
+
+  <span class="s1">methods</span><span class="s2">: {</span>
+    <span class="s1">cacheVNode</span><span class="s2">() {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">cache</span><span class="s2">, </span><span class="s1">keys</span><span class="s2">, </span><span class="s1">vnodeToCache</span><span class="s2">, </span><span class="s1">keyToCache </span><span class="s2">} = </span><span class="s0">this</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">vnodeToCache</span><span class="s2">) {</span>
+        <span class="s0">const </span><span class="s2">{ </span><span class="s1">tag</span><span class="s2">, </span><span class="s1">componentInstance</span><span class="s2">, </span><span class="s1">componentOptions </span><span class="s2">} = </span><span class="s1">vnodeToCache</span>
+        <span class="s1">cache</span><span class="s2">[</span><span class="s1">keyToCache</span><span class="s2">] = {</span>
+          <span class="s1">name</span><span class="s2">: </span><span class="s1">_getComponentName</span><span class="s2">(</span><span class="s1">componentOptions</span><span class="s2">),</span>
+          <span class="s1">tag</span><span class="s2">,</span>
+          <span class="s1">componentInstance</span>
+        <span class="s2">}</span>
+        <span class="s1">keys</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">keyToCache</span><span class="s2">)</span>
+        <span class="s5">// prune oldest entry</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">max </span><span class="s2">&amp;&amp; </span><span class="s1">keys</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s1">parseInt</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">max</span><span class="s2">)) {</span>
+          <span class="s1">pruneCacheEntry</span><span class="s2">(</span><span class="s1">cache</span><span class="s2">, </span><span class="s1">keys</span><span class="s2">[</span><span class="s4">0</span><span class="s2">], </span><span class="s1">keys</span><span class="s2">, </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_vnode</span><span class="s2">)</span>
+        <span class="s2">}</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">vnodeToCache </span><span class="s2">= </span><span class="s0">null</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">},</span>
+
+  <span class="s1">created</span><span class="s2">() {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">cache </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">create</span><span class="s2">(</span><span class="s0">null</span><span class="s2">)</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">keys </span><span class="s2">= []</span>
+  <span class="s2">},</span>
+
+  <span class="s1">destroyed</span><span class="s2">() {</span>
+    <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in this</span><span class="s2">.</span><span class="s1">cache</span><span class="s2">) {</span>
+      <span class="s1">pruneCacheEntry</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">cache</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s0">this</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">},</span>
+
+  <span class="s1">mounted</span><span class="s2">() {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">cacheVNode</span><span class="s2">()</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">$watch</span><span class="s2">(</span><span class="s3">'include'</span><span class="s2">, </span><span class="s1">val </span><span class="s2">=&gt; {</span>
+      <span class="s1">pruneCache</span><span class="s2">(</span><span class="s0">this</span><span class="s2">, </span><span class="s1">name </span><span class="s2">=&gt; </span><span class="s1">matches</span><span class="s2">(</span><span class="s1">val</span><span class="s2">, </span><span class="s1">name</span><span class="s2">))</span>
+    <span class="s2">})</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">$watch</span><span class="s2">(</span><span class="s3">'exclude'</span><span class="s2">, </span><span class="s1">val </span><span class="s2">=&gt; {</span>
+      <span class="s1">pruneCache</span><span class="s2">(</span><span class="s0">this</span><span class="s2">, </span><span class="s1">name </span><span class="s2">=&gt; !</span><span class="s1">matches</span><span class="s2">(</span><span class="s1">val</span><span class="s2">, </span><span class="s1">name</span><span class="s2">))</span>
+    <span class="s2">})</span>
+  <span class="s2">},</span>
+
+  <span class="s1">updated</span><span class="s2">() {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">cacheVNode</span><span class="s2">()</span>
+  <span class="s2">},</span>
+
+  <span class="s1">render</span><span class="s2">() {</span>
+    <span class="s0">const </span><span class="s1">slot </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">$slots</span><span class="s2">.</span><span class="s1">default</span>
+    <span class="s0">const </span><span class="s1">vnode </span><span class="s2">= </span><span class="s1">getFirstComponentChild</span><span class="s2">(</span><span class="s1">slot</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">componentOptions </span><span class="s2">= </span><span class="s1">vnode </span><span class="s2">&amp;&amp; </span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">componentOptions</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">componentOptions</span><span class="s2">) {</span>
+      <span class="s5">// check pattern</span>
+      <span class="s0">const </span><span class="s1">name </span><span class="s2">= </span><span class="s1">_getComponentName</span><span class="s2">(</span><span class="s1">componentOptions</span><span class="s2">)</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">include</span><span class="s2">, </span><span class="s1">exclude </span><span class="s2">} = </span><span class="s0">this</span>
+      <span class="s0">if </span><span class="s2">(</span>
+        <span class="s5">// not included</span>
+        <span class="s2">(</span><span class="s1">include </span><span class="s2">&amp;&amp; (!</span><span class="s1">name </span><span class="s2">|| !</span><span class="s1">matches</span><span class="s2">(</span><span class="s1">include</span><span class="s2">, </span><span class="s1">name</span><span class="s2">))) ||</span>
+        <span class="s5">// excluded</span>
+        <span class="s2">(</span><span class="s1">exclude </span><span class="s2">&amp;&amp; </span><span class="s1">name </span><span class="s2">&amp;&amp; </span><span class="s1">matches</span><span class="s2">(</span><span class="s1">exclude</span><span class="s2">, </span><span class="s1">name</span><span class="s2">))</span>
+      <span class="s2">) {</span>
+        <span class="s0">return </span><span class="s1">vnode</span>
+      <span class="s2">}</span>
+
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">cache</span><span class="s2">, </span><span class="s1">keys </span><span class="s2">} = </span><span class="s0">this</span>
+      <span class="s0">const </span><span class="s1">key </span><span class="s2">=</span>
+        <span class="s1">vnode</span><span class="s2">.</span><span class="s1">key </span><span class="s2">== </span><span class="s0">null</span>
+          <span class="s2">? </span><span class="s5">// same constructor may get registered as different local components</span>
+            <span class="s5">// so cid alone is not enough (#3269)</span>
+            <span class="s1">componentOptions</span><span class="s2">.</span><span class="s1">Ctor</span><span class="s2">.</span><span class="s1">cid </span><span class="s2">+</span>
+            <span class="s2">(</span><span class="s1">componentOptions</span><span class="s2">.</span><span class="s1">tag </span><span class="s2">? </span><span class="s3">`::</span><span class="s1">$</span><span class="s2">{</span><span class="s1">componentOptions</span><span class="s2">.</span><span class="s1">tag</span><span class="s2">}</span><span class="s3">` </span><span class="s2">: </span><span class="s3">''</span><span class="s2">)</span>
+          <span class="s2">: </span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">key</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">cache</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]) {</span>
+        <span class="s1">vnode</span><span class="s2">.</span><span class="s1">componentInstance </span><span class="s2">= </span><span class="s1">cache</span><span class="s2">[</span><span class="s1">key</span><span class="s2">].</span><span class="s1">componentInstance</span>
+        <span class="s5">// make current key freshest</span>
+        <span class="s1">remove</span><span class="s2">(</span><span class="s1">keys</span><span class="s2">, </span><span class="s1">key</span><span class="s2">)</span>
+        <span class="s1">keys</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">key</span><span class="s2">)</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s5">// delay setting the cache until update</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">vnodeToCache </span><span class="s2">= </span><span class="s1">vnode</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">keyToCache </span><span class="s2">= </span><span class="s1">key</span>
+      <span class="s2">}</span>
+
+      <span class="s5">// @ts-expect-error can vnode.data can be undefined</span>
+      <span class="s1">vnode</span><span class="s2">.</span><span class="s1">data</span><span class="s2">.</span><span class="s1">keepAlive </span><span class="s2">= </span><span class="s0">true</span>
+    <span class="s2">}</span>
+    <span class="s0">return </span><span class="s1">vnode </span><span class="s2">|| (</span><span class="s1">slot </span><span class="s2">&amp;&amp; </span><span class="s1">slot</span><span class="s2">[</span><span class="s4">0</span><span class="s2">])</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

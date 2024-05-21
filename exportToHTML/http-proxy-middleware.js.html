@@ -1,0 +1,181 @@
+<html>
+<head>
+<title>http-proxy-middleware.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+.s6 { color: #5f826b; font-style: italic;}
+.s7 { color: #67a37c; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+http-proxy-middleware.js</font>
+</center></td></tr></table>
+<pre><span class="s0">&quot;use strict&quot;</span><span class="s1">;</span>
+<span class="s2">Object</span><span class="s1">.</span><span class="s2">defineProperty</span><span class="s1">(</span><span class="s2">exports</span><span class="s1">, </span><span class="s0">&quot;__esModule&quot;</span><span class="s1">, { </span><span class="s2">value</span><span class="s1">: </span><span class="s3">true </span><span class="s1">});</span>
+<span class="s2">exports</span><span class="s1">.</span><span class="s2">HttpProxyMiddleware </span><span class="s1">= </span><span class="s3">void </span><span class="s4">0</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">httpProxy </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;http-proxy&quot;</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">config_factory_1 </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./config-factory&quot;</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">contextMatcher </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./context-matcher&quot;</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">handlers </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./_handlers&quot;</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">logger_1 </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./logger&quot;</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">PathRewriter </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./path-rewriter&quot;</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">Router </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./router&quot;</span><span class="s1">);</span>
+<span class="s3">class </span><span class="s2">HttpProxyMiddleware </span><span class="s1">{</span>
+    <span class="s2">constructor</span><span class="s1">(</span><span class="s2">context</span><span class="s1">, </span><span class="s2">opts</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">logger </span><span class="s1">= (</span><span class="s4">0</span><span class="s1">, </span><span class="s2">logger_1</span><span class="s1">.</span><span class="s2">getInstance</span><span class="s1">)();</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">wsInternalSubscribed </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">serverOnCloseSubscribed </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+        <span class="s5">// https://github.com/Microsoft/TypeScript/wiki/'this'-in-TypeScript#red-flags-for-this</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">middleware </span><span class="s1">= </span><span class="s2">async </span><span class="s1">(</span><span class="s2">req</span><span class="s1">, </span><span class="s2">res</span><span class="s1">, </span><span class="s2">next</span><span class="s1">) =&gt; {</span>
+            <span class="s3">var </span><span class="s2">_a</span><span class="s1">, </span><span class="s2">_b</span><span class="s1">;</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">shouldProxy</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">context</span><span class="s1">, </span><span class="s2">req</span><span class="s1">)) {</span>
+                <span class="s3">try </span><span class="s1">{</span>
+                    <span class="s3">const </span><span class="s2">activeProxyOptions </span><span class="s1">= </span><span class="s3">await this</span><span class="s1">.</span><span class="s2">prepareProxyRequest</span><span class="s1">(</span><span class="s2">req</span><span class="s1">);</span>
+                    <span class="s3">this</span><span class="s1">.</span><span class="s2">proxy</span><span class="s1">.</span><span class="s2">web</span><span class="s1">(</span><span class="s2">req</span><span class="s1">, </span><span class="s2">res</span><span class="s1">, </span><span class="s2">activeProxyOptions</span><span class="s1">);</span>
+                <span class="s1">}</span>
+                <span class="s3">catch </span><span class="s1">(</span><span class="s2">err</span><span class="s1">) {</span>
+                    <span class="s2">next</span><span class="s1">(</span><span class="s2">err</span><span class="s1">);</span>
+                <span class="s1">}</span>
+            <span class="s1">}</span>
+            <span class="s3">else </span><span class="s1">{</span>
+                <span class="s2">next</span><span class="s1">();</span>
+            <span class="s1">}</span>
+            <span class="s6">/**</span>
+             <span class="s6">* Get the server object to subscribe to server events;</span>
+             <span class="s6">* 'upgrade' for websocket and 'close' for graceful shutdown</span>
+             <span class="s6">*</span>
+             <span class="s6">* NOTE:</span>
+             <span class="s6">* req.socket: node &gt;= 13</span>
+             <span class="s6">* req.connection: node &lt; 13 (Remove this when node 12/13 support is dropped)</span>
+             <span class="s6">*/</span>
+            <span class="s3">const </span><span class="s2">server </span><span class="s1">= (</span><span class="s2">_b </span><span class="s1">= ((</span><span class="s2">_a </span><span class="s1">= </span><span class="s2">req</span><span class="s1">.</span><span class="s2">socket</span><span class="s1">) !== </span><span class="s3">null </span><span class="s1">&amp;&amp; </span><span class="s2">_a </span><span class="s1">!== </span><span class="s3">void </span><span class="s4">0 </span><span class="s1">? </span><span class="s2">_a </span><span class="s1">: </span><span class="s2">req</span><span class="s1">.</span><span class="s2">connection</span><span class="s1">)) === </span><span class="s3">null </span><span class="s1">|| </span><span class="s2">_b </span><span class="s1">=== </span><span class="s3">void </span><span class="s4">0 </span><span class="s1">? </span><span class="s3">void </span><span class="s4">0 </span><span class="s1">: </span><span class="s2">_b</span><span class="s1">.</span><span class="s2">server</span><span class="s1">;</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s2">server </span><span class="s1">&amp;&amp; !</span><span class="s3">this</span><span class="s1">.</span><span class="s2">serverOnCloseSubscribed</span><span class="s1">) {</span>
+                <span class="s2">server</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">'close'</span><span class="s1">, () =&gt; {</span>
+                    <span class="s3">this</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">info</span><span class="s1">(</span><span class="s0">'[HPM] server close signal received: closing proxy server'</span><span class="s1">);</span>
+                    <span class="s3">this</span><span class="s1">.</span><span class="s2">proxy</span><span class="s1">.</span><span class="s2">close</span><span class="s1">();</span>
+                <span class="s1">});</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">serverOnCloseSubscribed </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+            <span class="s1">}</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">proxyOptions</span><span class="s1">.</span><span class="s2">ws </span><span class="s1">=== </span><span class="s3">true</span><span class="s1">) {</span>
+                <span class="s5">// use initial request to access the server object to subscribe to http upgrade event</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">catchUpgradeRequest</span><span class="s1">(</span><span class="s2">server</span><span class="s1">);</span>
+            <span class="s1">}</span>
+        <span class="s1">};</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">catchUpgradeRequest </span><span class="s1">= (</span><span class="s2">server</span><span class="s1">) =&gt; {</span>
+            <span class="s3">if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">wsInternalSubscribed</span><span class="s1">) {</span>
+                <span class="s2">server</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">'upgrade'</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">handleUpgrade</span><span class="s1">);</span>
+                <span class="s5">// prevent duplicate upgrade handling;</span>
+                <span class="s5">// in case external upgrade is also configured</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">wsInternalSubscribed </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+            <span class="s1">}</span>
+        <span class="s1">};</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">handleUpgrade </span><span class="s1">= </span><span class="s2">async </span><span class="s1">(</span><span class="s2">req</span><span class="s1">, </span><span class="s2">socket</span><span class="s1">, </span><span class="s2">head</span><span class="s1">) =&gt; {</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">shouldProxy</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">context</span><span class="s1">, </span><span class="s2">req</span><span class="s1">)) {</span>
+                <span class="s3">const </span><span class="s2">activeProxyOptions </span><span class="s1">= </span><span class="s3">await this</span><span class="s1">.</span><span class="s2">prepareProxyRequest</span><span class="s1">(</span><span class="s2">req</span><span class="s1">);</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">proxy</span><span class="s1">.</span><span class="s2">ws</span><span class="s1">(</span><span class="s2">req</span><span class="s1">, </span><span class="s2">socket</span><span class="s1">, </span><span class="s2">head</span><span class="s1">, </span><span class="s2">activeProxyOptions</span><span class="s1">);</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">info</span><span class="s1">(</span><span class="s0">'[HPM] Upgrading to WebSocket'</span><span class="s1">);</span>
+            <span class="s1">}</span>
+        <span class="s1">};</span>
+        <span class="s6">/**</span>
+         <span class="s6">* Determine whether request should be proxied.</span>
+         <span class="s6">*</span>
+         <span class="s6">* </span><span class="s7">@private</span>
+         <span class="s6">* </span><span class="s7">@param  </span><span class="s6">{String} context [description]</span>
+         <span class="s6">* </span><span class="s7">@param  </span><span class="s6">{Object} req     [description]</span>
+         <span class="s6">* </span><span class="s7">@return </span><span class="s6">{Boolean}</span>
+         <span class="s6">*/</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">shouldProxy </span><span class="s1">= (</span><span class="s2">context</span><span class="s1">, </span><span class="s2">req</span><span class="s1">) =&gt; {</span>
+            <span class="s3">const </span><span class="s2">path </span><span class="s1">= </span><span class="s2">req</span><span class="s1">.</span><span class="s2">originalUrl </span><span class="s1">|| </span><span class="s2">req</span><span class="s1">.</span><span class="s2">url</span><span class="s1">;</span>
+            <span class="s3">return </span><span class="s2">contextMatcher</span><span class="s1">.</span><span class="s2">match</span><span class="s1">(</span><span class="s2">context</span><span class="s1">, </span><span class="s2">path</span><span class="s1">, </span><span class="s2">req</span><span class="s1">);</span>
+        <span class="s1">};</span>
+        <span class="s6">/**</span>
+         <span class="s6">* Apply option.router and option.pathRewrite</span>
+         <span class="s6">* Order matters:</span>
+         <span class="s6">*    Router uses original path for routing;</span>
+         <span class="s6">*    NOT the modified path, after it has been rewritten by pathRewrite</span>
+         <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Object} req</span>
+         <span class="s6">* </span><span class="s7">@return </span><span class="s6">{Object} proxy options</span>
+         <span class="s6">*/</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">prepareProxyRequest </span><span class="s1">= </span><span class="s2">async </span><span class="s1">(</span><span class="s2">req</span><span class="s1">) =&gt; {</span>
+            <span class="s5">// https://github.com/chimurai/http-proxy-middleware/issues/17</span>
+            <span class="s5">// https://github.com/chimurai/http-proxy-middleware/issues/94</span>
+            <span class="s2">req</span><span class="s1">.</span><span class="s2">url </span><span class="s1">= </span><span class="s2">req</span><span class="s1">.</span><span class="s2">originalUrl </span><span class="s1">|| </span><span class="s2">req</span><span class="s1">.</span><span class="s2">url</span><span class="s1">;</span>
+            <span class="s5">// store uri before it gets rewritten for logging</span>
+            <span class="s3">const </span><span class="s2">originalPath </span><span class="s1">= </span><span class="s2">req</span><span class="s1">.</span><span class="s2">url</span><span class="s1">;</span>
+            <span class="s3">const </span><span class="s2">newProxyOptions </span><span class="s1">= </span><span class="s2">Object</span><span class="s1">.</span><span class="s2">assign</span><span class="s1">({}, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">proxyOptions</span><span class="s1">);</span>
+            <span class="s5">// Apply in order:</span>
+            <span class="s5">// 1. option.router</span>
+            <span class="s5">// 2. option.pathRewrite</span>
+            <span class="s3">await this</span><span class="s1">.</span><span class="s2">applyRouter</span><span class="s1">(</span><span class="s2">req</span><span class="s1">, </span><span class="s2">newProxyOptions</span><span class="s1">);</span>
+            <span class="s3">await this</span><span class="s1">.</span><span class="s2">applyPathRewrite</span><span class="s1">(</span><span class="s2">req</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">pathRewriter</span><span class="s1">);</span>
+            <span class="s5">// debug logging for both http(s) and websockets</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">proxyOptions</span><span class="s1">.</span><span class="s2">logLevel </span><span class="s1">=== </span><span class="s0">'debug'</span><span class="s1">) {</span>
+                <span class="s3">const </span><span class="s2">arrow </span><span class="s1">= (</span><span class="s4">0</span><span class="s1">, </span><span class="s2">logger_1</span><span class="s1">.</span><span class="s2">getArrow</span><span class="s1">)(</span><span class="s2">originalPath</span><span class="s1">, </span><span class="s2">req</span><span class="s1">.</span><span class="s2">url</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">proxyOptions</span><span class="s1">.</span><span class="s2">target</span><span class="s1">, </span><span class="s2">newProxyOptions</span><span class="s1">.</span><span class="s2">target</span><span class="s1">);</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">debug</span><span class="s1">(</span><span class="s0">'[HPM] %s %s %s %s'</span><span class="s1">, </span><span class="s2">req</span><span class="s1">.</span><span class="s2">method</span><span class="s1">, </span><span class="s2">originalPath</span><span class="s1">, </span><span class="s2">arrow</span><span class="s1">, </span><span class="s2">newProxyOptions</span><span class="s1">.</span><span class="s2">target</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">return </span><span class="s2">newProxyOptions</span><span class="s1">;</span>
+        <span class="s1">};</span>
+        <span class="s5">// Modify option.target when router present.</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">applyRouter </span><span class="s1">= </span><span class="s2">async </span><span class="s1">(</span><span class="s2">req</span><span class="s1">, </span><span class="s2">options</span><span class="s1">) =&gt; {</span>
+            <span class="s3">let </span><span class="s2">newTarget</span><span class="s1">;</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s2">options</span><span class="s1">.</span><span class="s2">router</span><span class="s1">) {</span>
+                <span class="s2">newTarget </span><span class="s1">= </span><span class="s3">await </span><span class="s2">Router</span><span class="s1">.</span><span class="s2">getTarget</span><span class="s1">(</span><span class="s2">req</span><span class="s1">, </span><span class="s2">options</span><span class="s1">);</span>
+                <span class="s3">if </span><span class="s1">(</span><span class="s2">newTarget</span><span class="s1">) {</span>
+                    <span class="s3">this</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">debug</span><span class="s1">(</span><span class="s0">'[HPM] Router new target: %s -&gt; &quot;%s&quot;'</span><span class="s1">, </span><span class="s2">options</span><span class="s1">.</span><span class="s2">target</span><span class="s1">, </span><span class="s2">newTarget</span><span class="s1">);</span>
+                    <span class="s2">options</span><span class="s1">.</span><span class="s2">target </span><span class="s1">= </span><span class="s2">newTarget</span><span class="s1">;</span>
+                <span class="s1">}</span>
+            <span class="s1">}</span>
+        <span class="s1">};</span>
+        <span class="s5">// rewrite path</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">applyPathRewrite </span><span class="s1">= </span><span class="s2">async </span><span class="s1">(</span><span class="s2">req</span><span class="s1">, </span><span class="s2">pathRewriter</span><span class="s1">) =&gt; {</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s2">pathRewriter</span><span class="s1">) {</span>
+                <span class="s3">const </span><span class="s2">path </span><span class="s1">= </span><span class="s3">await </span><span class="s2">pathRewriter</span><span class="s1">(</span><span class="s2">req</span><span class="s1">.</span><span class="s2">url</span><span class="s1">, </span><span class="s2">req</span><span class="s1">);</span>
+                <span class="s3">if </span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">path </span><span class="s1">=== </span><span class="s0">'string'</span><span class="s1">) {</span>
+                    <span class="s2">req</span><span class="s1">.</span><span class="s2">url </span><span class="s1">= </span><span class="s2">path</span><span class="s1">;</span>
+                <span class="s1">}</span>
+                <span class="s3">else </span><span class="s1">{</span>
+                    <span class="s3">this</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">info</span><span class="s1">(</span><span class="s0">'[HPM] pathRewrite: No rewritten path found. (%s)'</span><span class="s1">, </span><span class="s2">req</span><span class="s1">.</span><span class="s2">url</span><span class="s1">);</span>
+                <span class="s1">}</span>
+            <span class="s1">}</span>
+        <span class="s1">};</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">logError </span><span class="s1">= (</span><span class="s2">err</span><span class="s1">, </span><span class="s2">req</span><span class="s1">, </span><span class="s2">res</span><span class="s1">, </span><span class="s2">target</span><span class="s1">) =&gt; {</span>
+            <span class="s3">var </span><span class="s2">_a</span><span class="s1">;</span>
+            <span class="s3">const </span><span class="s2">hostname </span><span class="s1">= ((</span><span class="s2">_a </span><span class="s1">= </span><span class="s2">req</span><span class="s1">.</span><span class="s2">headers</span><span class="s1">) === </span><span class="s3">null </span><span class="s1">|| </span><span class="s2">_a </span><span class="s1">=== </span><span class="s3">void </span><span class="s4">0 </span><span class="s1">? </span><span class="s3">void </span><span class="s4">0 </span><span class="s1">: </span><span class="s2">_a</span><span class="s1">.</span><span class="s2">host</span><span class="s1">) || </span><span class="s2">req</span><span class="s1">.</span><span class="s2">hostname </span><span class="s1">|| </span><span class="s2">req</span><span class="s1">.</span><span class="s2">host</span><span class="s1">; </span><span class="s5">// (websocket) || (node0.10 || node 4/5)</span>
+            <span class="s3">const </span><span class="s2">requestHref </span><span class="s1">= </span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">hostname</span><span class="s1">}</span><span class="s2">$</span><span class="s1">{</span><span class="s2">req</span><span class="s1">.</span><span class="s2">url</span><span class="s1">}</span><span class="s0">`</span><span class="s1">;</span>
+            <span class="s3">const </span><span class="s2">targetHref </span><span class="s1">= </span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">target </span><span class="s1">=== </span><span class="s3">null </span><span class="s1">|| </span><span class="s2">target </span><span class="s1">=== </span><span class="s3">void </span><span class="s4">0 </span><span class="s1">? </span><span class="s3">void </span><span class="s4">0 </span><span class="s1">: </span><span class="s2">target</span><span class="s1">.</span><span class="s2">href</span><span class="s1">}</span><span class="s0">`</span><span class="s1">; </span><span class="s5">// target is undefined when websocket errors</span>
+            <span class="s3">const </span><span class="s2">errorMessage </span><span class="s1">= </span><span class="s0">'[HPM] Error occurred while proxying request %s to %s [%s] (%s)'</span><span class="s1">;</span>
+            <span class="s3">const </span><span class="s2">errReference </span><span class="s1">= </span><span class="s0">'https://nodejs.org/api/errors.html#errors_common_system_errors'</span><span class="s1">; </span><span class="s5">// link to Node Common Systems Errors page</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">error</span><span class="s1">(</span><span class="s2">errorMessage</span><span class="s1">, </span><span class="s2">requestHref</span><span class="s1">, </span><span class="s2">targetHref</span><span class="s1">, </span><span class="s2">err</span><span class="s1">.</span><span class="s2">code </span><span class="s1">|| </span><span class="s2">err</span><span class="s1">, </span><span class="s2">errReference</span><span class="s1">);</span>
+        <span class="s1">};</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">config </span><span class="s1">= (</span><span class="s4">0</span><span class="s1">, </span><span class="s2">config_factory_1</span><span class="s1">.</span><span class="s2">createConfig</span><span class="s1">)(</span><span class="s2">context</span><span class="s1">, </span><span class="s2">opts</span><span class="s1">);</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">proxyOptions </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">options</span><span class="s1">;</span>
+        <span class="s5">// create proxy</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">proxy </span><span class="s1">= </span><span class="s2">httpProxy</span><span class="s1">.</span><span class="s2">createProxyServer</span><span class="s1">({});</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">info</span><span class="s1">(</span><span class="s0">`[HPM] Proxy created: </span><span class="s2">$</span><span class="s1">{</span><span class="s3">this</span><span class="s1">.</span><span class="s2">config</span><span class="s1">.</span><span class="s2">context</span><span class="s1">}  </span><span class="s0">-&gt; </span><span class="s2">$</span><span class="s1">{</span><span class="s3">this</span><span class="s1">.</span><span class="s2">proxyOptions</span><span class="s1">.</span><span class="s2">target</span><span class="s1">}</span><span class="s0">`</span><span class="s1">);</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">pathRewriter </span><span class="s1">= </span><span class="s2">PathRewriter</span><span class="s1">.</span><span class="s2">createPathRewriter</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">proxyOptions</span><span class="s1">.</span><span class="s2">pathRewrite</span><span class="s1">); </span><span class="s5">// returns undefined when &quot;pathRewrite&quot; is not provided</span>
+        <span class="s5">// attach handler to http-proxy events</span>
+        <span class="s2">handlers</span><span class="s1">.</span><span class="s2">init</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">proxy</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">proxyOptions</span><span class="s1">);</span>
+        <span class="s5">// log errors for debug purpose</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">proxy</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">'error'</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">logError</span><span class="s1">);</span>
+        <span class="s5">// https://github.com/chimurai/http-proxy-middleware/issues/19</span>
+        <span class="s5">// expose function to upgrade externally</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">middleware</span><span class="s1">.</span><span class="s2">upgrade </span><span class="s1">= (</span><span class="s2">req</span><span class="s1">, </span><span class="s2">socket</span><span class="s1">, </span><span class="s2">head</span><span class="s1">) =&gt; {</span>
+            <span class="s3">if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">wsInternalSubscribed</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">handleUpgrade</span><span class="s1">(</span><span class="s2">req</span><span class="s1">, </span><span class="s2">socket</span><span class="s1">, </span><span class="s2">head</span><span class="s1">);</span>
+            <span class="s1">}</span>
+        <span class="s1">};</span>
+    <span class="s1">}</span>
+<span class="s1">}</span>
+<span class="s2">exports</span><span class="s1">.</span><span class="s2">HttpProxyMiddleware </span><span class="s1">= </span><span class="s2">HttpProxyMiddleware</span><span class="s1">;</span>
+</pre>
+</body>
+</html>

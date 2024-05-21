@@ -1,0 +1,102 @@
+<html>
+<head>
+<title>inject.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+inject.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">warn</span><span class="s2">, </span><span class="s1">hasSymbol</span><span class="s2">, </span><span class="s1">isFunction</span><span class="s2">, </span><span class="s1">isObject </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../util/index'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">defineReactive</span><span class="s2">, </span><span class="s1">toggleObserving </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../observer/index'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">Component </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/component'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">resolveProvided </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'v3/apiInject'</span>
+
+<span class="s0">export function </span><span class="s1">initProvide</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">: </span><span class="s1">Component</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">provideOption </span><span class="s2">= </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$options</span><span class="s2">.</span><span class="s1">provide</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">provideOption</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">provided </span><span class="s2">= </span><span class="s1">isFunction</span><span class="s2">(</span><span class="s1">provideOption</span><span class="s2">)</span>
+      <span class="s2">? </span><span class="s1">provideOption</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">)</span>
+      <span class="s2">: </span><span class="s1">provideOption</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">isObject</span><span class="s2">(</span><span class="s1">provided</span><span class="s2">)) {</span>
+      <span class="s0">return</span>
+    <span class="s2">}</span>
+    <span class="s0">const </span><span class="s1">source </span><span class="s2">= </span><span class="s1">resolveProvided</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">)</span>
+    <span class="s4">// IE9 doesn't support Object.getOwnPropertyDescriptors so we have to</span>
+    <span class="s4">// iterate the keys ourselves.</span>
+    <span class="s0">const </span><span class="s1">keys </span><span class="s2">= </span><span class="s1">hasSymbol </span><span class="s2">? </span><span class="s1">Reflect</span><span class="s2">.</span><span class="s1">ownKeys</span><span class="s2">(</span><span class="s1">provided</span><span class="s2">) : </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">provided</span><span class="s2">)</span>
+    <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s5">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">keys</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+      <span class="s0">const </span><span class="s1">key </span><span class="s2">= </span><span class="s1">keys</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]</span>
+      <span class="s1">Object</span><span class="s2">.</span><span class="s1">defineProperty</span><span class="s2">(</span>
+        <span class="s1">source</span><span class="s2">,</span>
+        <span class="s1">key</span><span class="s2">,</span>
+        <span class="s1">Object</span><span class="s2">.</span><span class="s1">getOwnPropertyDescriptor</span><span class="s2">(</span><span class="s1">provided</span><span class="s2">, </span><span class="s1">key</span><span class="s2">)!</span>
+      <span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">initInjections</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">: </span><span class="s1">Component</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">result </span><span class="s2">= </span><span class="s1">resolveInject</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$options</span><span class="s2">.</span><span class="s1">inject</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">)</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">result</span><span class="s2">) {</span>
+    <span class="s1">toggleObserving</span><span class="s2">(</span><span class="s0">false</span><span class="s2">)</span>
+    <span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">result</span><span class="s2">).</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">key </span><span class="s2">=&gt; {</span>
+      <span class="s4">/* istanbul ignore else */</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">__DEV__</span><span class="s2">) {</span>
+        <span class="s1">defineReactive</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">result</span><span class="s2">[</span><span class="s1">key</span><span class="s2">], () =&gt; {</span>
+          <span class="s1">warn</span><span class="s2">(</span>
+            <span class="s3">`Avoid mutating an injected value directly since the changes will be ` </span><span class="s2">+</span>
+              <span class="s3">`overwritten whenever the provided component re-renders. ` </span><span class="s2">+</span>
+              <span class="s3">`injection being mutated: &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">key</span><span class="s2">}</span><span class="s3">&quot;`</span><span class="s2">,</span>
+            <span class="s1">vm</span>
+          <span class="s2">)</span>
+        <span class="s2">})</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s1">defineReactive</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">result</span><span class="s2">[</span><span class="s1">key</span><span class="s2">])</span>
+      <span class="s2">}</span>
+    <span class="s2">})</span>
+    <span class="s1">toggleObserving</span><span class="s2">(</span><span class="s0">true</span><span class="s2">)</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">resolveInject</span><span class="s2">(</span>
+  <span class="s1">inject</span><span class="s2">: </span><span class="s1">any</span><span class="s2">,</span>
+  <span class="s1">vm</span><span class="s2">: </span><span class="s1">Component</span>
+<span class="s2">): </span><span class="s1">Record</span><span class="s2">&lt;</span><span class="s1">string</span><span class="s2">, </span><span class="s1">any</span><span class="s2">&gt; | </span><span class="s1">undefined </span><span class="s2">| </span><span class="s0">null </span><span class="s2">{</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">inject</span><span class="s2">) {</span>
+    <span class="s4">// inject is :any because flow is not smart enough to figure out cached</span>
+    <span class="s0">const </span><span class="s1">result </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">create</span><span class="s2">(</span><span class="s0">null</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">keys </span><span class="s2">= </span><span class="s1">hasSymbol </span><span class="s2">? </span><span class="s1">Reflect</span><span class="s2">.</span><span class="s1">ownKeys</span><span class="s2">(</span><span class="s1">inject</span><span class="s2">) : </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">inject</span><span class="s2">)</span>
+
+    <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s5">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">keys</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+      <span class="s0">const </span><span class="s1">key </span><span class="s2">= </span><span class="s1">keys</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]</span>
+      <span class="s4">// #6574 in case the inject object is observed...</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">key </span><span class="s2">=== </span><span class="s3">'__ob__'</span><span class="s2">) </span><span class="s0">continue</span>
+      <span class="s0">const </span><span class="s1">provideKey </span><span class="s2">= </span><span class="s1">inject</span><span class="s2">[</span><span class="s1">key</span><span class="s2">].</span><span class="s1">from</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">provideKey </span><span class="s0">in </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_provided</span><span class="s2">) {</span>
+        <span class="s1">result</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_provided</span><span class="s2">[</span><span class="s1">provideKey</span><span class="s2">]</span>
+      <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s3">'default' </span><span class="s0">in </span><span class="s1">inject</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]) {</span>
+        <span class="s0">const </span><span class="s1">provideDefault </span><span class="s2">= </span><span class="s1">inject</span><span class="s2">[</span><span class="s1">key</span><span class="s2">].</span><span class="s1">default</span>
+        <span class="s1">result</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = </span><span class="s1">isFunction</span><span class="s2">(</span><span class="s1">provideDefault</span><span class="s2">)</span>
+          <span class="s2">? </span><span class="s1">provideDefault</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">)</span>
+          <span class="s2">: </span><span class="s1">provideDefault</span>
+      <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">__DEV__</span><span class="s2">) {</span>
+        <span class="s1">warn</span><span class="s2">(</span><span class="s3">`Injection &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">key </span><span class="s2">as </span><span class="s1">string</span><span class="s2">}</span><span class="s3">&quot; not found`</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+    <span class="s0">return </span><span class="s1">result</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<html>
+<head>
+<title>SockJSServer.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #7a7e85;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+SockJSServer.js</font>
+</center></td></tr></table>
+<pre><span class="s0">&quot;use strict&quot;</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s2">sockjs </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;sockjs&quot;</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">BaseServer </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./BaseServer&quot;</span><span class="s1">);</span>
+
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;../Server&quot;).WebSocketServerConfiguration} WebSocketServerConfiguration */</span>
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;../Server&quot;).ClientConnection} ClientConnection */</span>
+
+<span class="s6">// Workaround for sockjs@~0.3.19</span>
+<span class="s6">// sockjs will remove Origin header, however Origin header is required for checking host.</span>
+<span class="s6">// See https://github.com/webpack/webpack-dev-server/issues/1604 for more information</span>
+<span class="s1">{</span>
+  <span class="s6">// @ts-ignore</span>
+  <span class="s3">const </span><span class="s2">SockjsSession </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;sockjs/lib/transport&quot;</span><span class="s1">).</span><span class="s2">Session</span><span class="s1">;</span>
+  <span class="s3">const </span><span class="s2">decorateConnection </span><span class="s1">= </span><span class="s2">SockjsSession</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">decorateConnection</span><span class="s1">;</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{import(&quot;http&quot;).IncomingMessage} req</span>
+   <span class="s4">*/</span>
+  <span class="s6">// eslint-disable-next-line func-names</span>
+  <span class="s2">SockjsSession</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">decorateConnection </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">req</span><span class="s1">) {</span>
+    <span class="s2">decorateConnection</span><span class="s1">.</span><span class="s2">call</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">req</span><span class="s1">);</span>
+
+    <span class="s3">const </span><span class="s2">connection </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">connection</span><span class="s1">;</span>
+
+    <span class="s3">if </span><span class="s1">(</span>
+      <span class="s2">connection</span><span class="s1">.</span><span class="s2">headers </span><span class="s1">&amp;&amp;</span>
+      <span class="s1">!(</span><span class="s0">&quot;origin&quot; </span><span class="s3">in </span><span class="s2">connection</span><span class="s1">.</span><span class="s2">headers</span><span class="s1">) &amp;&amp;</span>
+      <span class="s0">&quot;origin&quot; </span><span class="s3">in </span><span class="s2">req</span><span class="s1">.</span><span class="s2">headers</span>
+    <span class="s1">) {</span>
+      <span class="s2">connection</span><span class="s1">.</span><span class="s2">headers</span><span class="s1">.</span><span class="s2">origin </span><span class="s1">= </span><span class="s2">req</span><span class="s1">.</span><span class="s2">headers</span><span class="s1">.</span><span class="s2">origin</span><span class="s1">;</span>
+    <span class="s1">}</span>
+  <span class="s1">};</span>
+<span class="s1">}</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= </span><span class="s3">class </span><span class="s2">SockJSServer </span><span class="s3">extends </span><span class="s2">BaseServer </span><span class="s1">{</span>
+  <span class="s6">// options has: error (function), debug (function), server (http/s server), path (string)</span>
+  <span class="s4">/**</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{import(&quot;../Server&quot;)} server</span>
+   <span class="s4">*/</span>
+  <span class="s2">constructor</span><span class="s1">(</span><span class="s2">server</span><span class="s1">) {</span>
+    <span class="s3">super</span><span class="s1">(</span><span class="s2">server</span><span class="s1">);</span>
+
+    <span class="s3">const </span><span class="s2">webSocketServerOptions </span><span class="s1">=</span>
+      <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{NonNullable&lt;WebSocketServerConfiguration[&quot;options&quot;]&gt;} */</span>
+      <span class="s1">(</span>
+        <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{WebSocketServerConfiguration} */</span>
+        <span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">options</span><span class="s1">.</span><span class="s2">webSocketServer</span><span class="s1">).</span><span class="s2">options</span>
+      <span class="s1">);</span>
+
+    <span class="s4">/**</span>
+     <span class="s4">* </span><span class="s5">@param </span><span class="s4">{NonNullable&lt;WebSocketServerConfiguration[&quot;options&quot;]&gt;} options</span>
+     <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{string}</span>
+     <span class="s4">*/</span>
+    <span class="s3">const </span><span class="s2">getSockjsUrl </span><span class="s1">= (</span><span class="s2">options</span><span class="s1">) =&gt; {</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">options</span><span class="s1">.</span><span class="s2">sockjsUrl </span><span class="s1">!== </span><span class="s0">&quot;undefined&quot;</span><span class="s1">) {</span>
+        <span class="s3">return </span><span class="s2">options</span><span class="s1">.</span><span class="s2">sockjsUrl</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s3">return </span><span class="s0">&quot;/__webpack_dev_server__/sockjs.bundle.js&quot;</span><span class="s1">;</span>
+    <span class="s1">};</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">implementation </span><span class="s1">= </span><span class="s2">sockjs</span><span class="s1">.</span><span class="s2">createServer</span><span class="s1">({</span>
+      <span class="s6">// Use provided up-to-date sockjs-client</span>
+      <span class="s2">sockjs_url</span><span class="s1">: </span><span class="s2">getSockjsUrl</span><span class="s1">(</span><span class="s2">webSocketServerOptions</span><span class="s1">),</span>
+      <span class="s6">// Default logger is very annoy. Limit useless logs.</span>
+      <span class="s4">/**</span>
+       <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} severity</span>
+       <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} line</span>
+       <span class="s4">*/</span>
+      <span class="s2">log</span><span class="s1">: (</span><span class="s2">severity</span><span class="s1">, </span><span class="s2">line</span><span class="s1">) =&gt; {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">severity </span><span class="s1">=== </span><span class="s0">&quot;error&quot;</span><span class="s1">) {</span>
+          <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">error</span><span class="s1">(</span><span class="s2">line</span><span class="s1">);</span>
+        <span class="s1">} </span><span class="s3">else if </span><span class="s1">(</span><span class="s2">severity </span><span class="s1">=== </span><span class="s0">&quot;info&quot;</span><span class="s1">) {</span>
+          <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s2">line</span><span class="s1">);</span>
+        <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+          <span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">debug</span><span class="s1">(</span><span class="s2">line</span><span class="s1">);</span>
+        <span class="s1">}</span>
+      <span class="s1">},</span>
+    <span class="s1">});</span>
+
+    <span class="s4">/**</span>
+     <span class="s4">* </span><span class="s5">@param </span><span class="s4">{import(&quot;sockjs&quot;).ServerOptions &amp; { path?: string }} options</span>
+     <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{string | undefined}</span>
+     <span class="s4">*/</span>
+    <span class="s3">const </span><span class="s2">getPrefix </span><span class="s1">= (</span><span class="s2">options</span><span class="s1">) =&gt; {</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">options</span><span class="s1">.</span><span class="s2">prefix </span><span class="s1">!== </span><span class="s0">&quot;undefined&quot;</span><span class="s1">) {</span>
+        <span class="s3">return </span><span class="s2">options</span><span class="s1">.</span><span class="s2">prefix</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s3">return </span><span class="s2">options</span><span class="s1">.</span><span class="s2">path</span><span class="s1">;</span>
+    <span class="s1">};</span>
+
+    <span class="s3">const </span><span class="s2">options </span><span class="s1">= {</span>
+      <span class="s2">...webSocketServerOptions</span><span class="s1">,</span>
+      <span class="s2">prefix</span><span class="s1">: </span><span class="s2">getPrefix</span><span class="s1">(</span><span class="s2">webSocketServerOptions</span><span class="s1">),</span>
+    <span class="s1">};</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">implementation</span><span class="s1">.</span><span class="s2">installHandlers</span><span class="s1">(</span>
+      <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{import(&quot;http&quot;).Server} */ </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">.</span><span class="s2">server</span><span class="s1">),</span>
+      <span class="s2">options</span>
+    <span class="s1">);</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">implementation</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">&quot;connection&quot;</span><span class="s1">, (</span><span class="s2">client</span><span class="s1">) =&gt; {</span>
+      <span class="s6">// @ts-ignore</span>
+      <span class="s6">// Implement the the same API as for `ws`</span>
+      <span class="s2">client</span><span class="s1">.</span><span class="s2">send </span><span class="s1">= </span><span class="s2">client</span><span class="s1">.</span><span class="s2">write</span><span class="s1">;</span>
+      <span class="s6">// @ts-ignore</span>
+      <span class="s2">client</span><span class="s1">.</span><span class="s2">terminate </span><span class="s1">= </span><span class="s2">client</span><span class="s1">.</span><span class="s2">close</span><span class="s1">;</span>
+
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">clients</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(</span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{ClientConnection} */ </span><span class="s1">(</span><span class="s2">client</span><span class="s1">));</span>
+
+      <span class="s2">client</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">&quot;close&quot;</span><span class="s1">, () =&gt; {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">clients</span><span class="s1">.</span><span class="s2">splice</span><span class="s1">(</span>
+          <span class="s3">this</span><span class="s1">.</span><span class="s2">clients</span><span class="s1">.</span><span class="s2">indexOf</span><span class="s1">(</span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{ClientConnection} */ </span><span class="s1">(</span><span class="s2">client</span><span class="s1">)),</span>
+          <span class="s7">1</span>
+        <span class="s1">);</span>
+      <span class="s1">});</span>
+    <span class="s1">});</span>
+
+    <span class="s6">// @ts-ignore</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">implementation</span><span class="s1">.</span><span class="s2">close </span><span class="s1">= (</span><span class="s2">callback</span><span class="s1">) =&gt; {</span>
+      <span class="s2">callback</span><span class="s1">();</span>
+    <span class="s1">};</span>
+  <span class="s1">}</span>
+<span class="s1">};</span>
+</pre>
+</body>
+</html>

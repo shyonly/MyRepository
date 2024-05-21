@@ -1,0 +1,361 @@
+<html>
+<head>
+<title>tree-store.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+tree-store.js</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">Node from </span><span class="s2">'./node'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">getNodeKey </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./util'</span><span class="s3">;</span>
+
+<span class="s0">export default class </span><span class="s1">TreeStore </span><span class="s3">{</span>
+  <span class="s1">constructor</span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">currentNode </span><span class="s3">= </span><span class="s0">null</span><span class="s3">;</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">currentNodeKey </span><span class="s3">= </span><span class="s0">null</span><span class="s3">;</span>
+
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">option </span><span class="s0">in </span><span class="s1">options</span><span class="s3">) {</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">options</span><span class="s3">.</span><span class="s1">hasOwnProperty</span><span class="s3">(</span><span class="s1">option</span><span class="s3">)) {</span>
+        <span class="s0">this</span><span class="s3">[</span><span class="s1">option</span><span class="s3">] = </span><span class="s1">options</span><span class="s3">[</span><span class="s1">option</span><span class="s3">];</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">nodesMap </span><span class="s3">= {};</span>
+
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">root </span><span class="s3">= </span><span class="s0">new </span><span class="s1">Node</span><span class="s3">({</span>
+      <span class="s1">data</span><span class="s3">: </span><span class="s0">this</span><span class="s3">.</span><span class="s1">data</span><span class="s3">,</span>
+      <span class="s1">store</span><span class="s3">: </span><span class="s0">this</span>
+    <span class="s3">});</span>
+
+    <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">lazy </span><span class="s3">&amp;&amp; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">load</span><span class="s3">) {</span>
+      <span class="s0">const </span><span class="s1">loadFn </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">load</span><span class="s3">;</span>
+      <span class="s1">loadFn</span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">root</span><span class="s3">, (</span><span class="s1">data</span><span class="s3">) =&gt; {</span>
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">root</span><span class="s3">.</span><span class="s1">doCreateChildren</span><span class="s3">(</span><span class="s1">data</span><span class="s3">);</span>
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">_initDefaultCheckedNodes</span><span class="s3">();</span>
+      <span class="s3">});</span>
+    <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">_initDefaultCheckedNodes</span><span class="s3">();</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">filter</span><span class="s3">(</span><span class="s1">value</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">filterNodeMethod </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">filterNodeMethod</span><span class="s3">;</span>
+    <span class="s0">const </span><span class="s1">lazy </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">lazy</span><span class="s3">;</span>
+    <span class="s0">const </span><span class="s1">traverse </span><span class="s3">= </span><span class="s0">function</span><span class="s3">(</span><span class="s1">node</span><span class="s3">) {</span>
+      <span class="s0">const </span><span class="s1">childNodes </span><span class="s3">= </span><span class="s1">node</span><span class="s3">.</span><span class="s1">root </span><span class="s3">? </span><span class="s1">node</span><span class="s3">.</span><span class="s1">root</span><span class="s3">.</span><span class="s1">childNodes </span><span class="s3">: </span><span class="s1">node</span><span class="s3">.</span><span class="s1">childNodes</span><span class="s3">;</span>
+
+      <span class="s1">childNodes</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">((</span><span class="s1">child</span><span class="s3">) =&gt; {</span>
+        <span class="s1">child</span><span class="s3">.</span><span class="s1">visible </span><span class="s3">= </span><span class="s1">filterNodeMethod</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">child</span><span class="s3">, </span><span class="s1">value</span><span class="s3">, </span><span class="s1">child</span><span class="s3">.</span><span class="s1">data</span><span class="s3">, </span><span class="s1">child</span><span class="s3">);</span>
+
+        <span class="s1">traverse</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+      <span class="s3">});</span>
+
+      <span class="s0">if </span><span class="s3">(!</span><span class="s1">node</span><span class="s3">.</span><span class="s1">visible </span><span class="s3">&amp;&amp; </span><span class="s1">childNodes</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) {</span>
+        <span class="s0">let </span><span class="s1">allHidden </span><span class="s3">= </span><span class="s0">true</span><span class="s3">;</span>
+        <span class="s1">allHidden </span><span class="s3">= !</span><span class="s1">childNodes</span><span class="s3">.</span><span class="s1">some</span><span class="s3">(</span><span class="s1">child </span><span class="s3">=&gt; </span><span class="s1">child</span><span class="s3">.</span><span class="s1">visible</span><span class="s3">);</span>
+
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">root</span><span class="s3">) {</span>
+          <span class="s1">node</span><span class="s3">.</span><span class="s1">root</span><span class="s3">.</span><span class="s1">visible </span><span class="s3">= </span><span class="s1">allHidden </span><span class="s3">=== </span><span class="s0">false</span><span class="s3">;</span>
+        <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+          <span class="s1">node</span><span class="s3">.</span><span class="s1">visible </span><span class="s3">= </span><span class="s1">allHidden </span><span class="s3">=== </span><span class="s0">false</span><span class="s3">;</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+      <span class="s0">if </span><span class="s3">(!</span><span class="s1">value</span><span class="s3">) </span><span class="s0">return</span><span class="s3">;</span>
+
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">visible </span><span class="s3">&amp;&amp; !</span><span class="s1">node</span><span class="s3">.</span><span class="s1">isLeaf </span><span class="s3">&amp;&amp; !</span><span class="s1">lazy</span><span class="s3">) </span><span class="s1">node</span><span class="s3">.</span><span class="s1">expand</span><span class="s3">();</span>
+    <span class="s3">};</span>
+
+    <span class="s1">traverse</span><span class="s3">(</span><span class="s0">this</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s1">setData</span><span class="s3">(</span><span class="s1">newVal</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">instanceChanged </span><span class="s3">= </span><span class="s1">newVal </span><span class="s3">!== </span><span class="s0">this</span><span class="s3">.</span><span class="s1">root</span><span class="s3">.</span><span class="s1">data</span><span class="s3">;</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">instanceChanged</span><span class="s3">) {</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">root</span><span class="s3">.</span><span class="s1">setData</span><span class="s3">(</span><span class="s1">newVal</span><span class="s3">);</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">_initDefaultCheckedNodes</span><span class="s3">();</span>
+    <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">root</span><span class="s3">.</span><span class="s1">updateChildren</span><span class="s3">();</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">getNode</span><span class="s3">(</span><span class="s1">data</span><span class="s3">) {</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">data </span><span class="s0">instanceof </span><span class="s1">Node</span><span class="s3">) </span><span class="s0">return </span><span class="s1">data</span><span class="s3">;</span>
+    <span class="s0">const </span><span class="s1">key </span><span class="s3">= </span><span class="s0">typeof </span><span class="s1">data </span><span class="s3">!== </span><span class="s2">'object' </span><span class="s3">? </span><span class="s1">data </span><span class="s3">: </span><span class="s1">getNodeKey</span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">key</span><span class="s3">, </span><span class="s1">data</span><span class="s3">);</span>
+    <span class="s0">return this</span><span class="s3">.</span><span class="s1">nodesMap</span><span class="s3">[</span><span class="s1">key</span><span class="s3">] || </span><span class="s0">null</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s1">insertBefore</span><span class="s3">(</span><span class="s1">data</span><span class="s3">, </span><span class="s1">refData</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">refNode </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">getNode</span><span class="s3">(</span><span class="s1">refData</span><span class="s3">);</span>
+    <span class="s1">refNode</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">.</span><span class="s1">insertBefore</span><span class="s3">({ </span><span class="s1">data </span><span class="s3">}, </span><span class="s1">refNode</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s1">insertAfter</span><span class="s3">(</span><span class="s1">data</span><span class="s3">, </span><span class="s1">refData</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">refNode </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">getNode</span><span class="s3">(</span><span class="s1">refData</span><span class="s3">);</span>
+    <span class="s1">refNode</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">.</span><span class="s1">insertAfter</span><span class="s3">({ </span><span class="s1">data </span><span class="s3">}, </span><span class="s1">refNode</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s1">remove</span><span class="s3">(</span><span class="s1">data</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">node </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">getNode</span><span class="s3">(</span><span class="s1">data</span><span class="s3">);</span>
+
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">node </span><span class="s3">&amp;&amp; </span><span class="s1">node</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">) {</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">node </span><span class="s3">=== </span><span class="s0">this</span><span class="s3">.</span><span class="s1">currentNode</span><span class="s3">) {</span>
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">currentNode </span><span class="s3">= </span><span class="s0">null</span><span class="s3">;</span>
+      <span class="s3">}</span>
+      <span class="s1">node</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">.</span><span class="s1">removeChild</span><span class="s3">(</span><span class="s1">node</span><span class="s3">);</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">append</span><span class="s3">(</span><span class="s1">data</span><span class="s3">, </span><span class="s1">parentData</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">parentNode </span><span class="s3">= </span><span class="s1">parentData </span><span class="s3">? </span><span class="s0">this</span><span class="s3">.</span><span class="s1">getNode</span><span class="s3">(</span><span class="s1">parentData</span><span class="s3">) : </span><span class="s0">this</span><span class="s3">.</span><span class="s1">root</span><span class="s3">;</span>
+
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">parentNode</span><span class="s3">) {</span>
+      <span class="s1">parentNode</span><span class="s3">.</span><span class="s1">insertChild</span><span class="s3">({ </span><span class="s1">data </span><span class="s3">});</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">_initDefaultCheckedNodes</span><span class="s3">() {</span>
+    <span class="s0">const </span><span class="s1">defaultCheckedKeys </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">defaultCheckedKeys </span><span class="s3">|| [];</span>
+    <span class="s0">const </span><span class="s1">nodesMap </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">nodesMap</span><span class="s3">;</span>
+
+    <span class="s1">defaultCheckedKeys</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">((</span><span class="s1">checkedKey</span><span class="s3">) =&gt; {</span>
+      <span class="s0">const </span><span class="s1">node </span><span class="s3">= </span><span class="s1">nodesMap</span><span class="s3">[</span><span class="s1">checkedKey</span><span class="s3">];</span>
+
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">) {</span>
+        <span class="s1">node</span><span class="s3">.</span><span class="s1">setChecked</span><span class="s3">(</span><span class="s0">true</span><span class="s3">, !</span><span class="s0">this</span><span class="s3">.</span><span class="s1">checkStrictly</span><span class="s3">);</span>
+      <span class="s3">}</span>
+    <span class="s3">});</span>
+  <span class="s3">}</span>
+
+  <span class="s1">_initDefaultCheckedNode</span><span class="s3">(</span><span class="s1">node</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">defaultCheckedKeys </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">defaultCheckedKeys </span><span class="s3">|| [];</span>
+
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">defaultCheckedKeys</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">key</span><span class="s3">) !== -</span><span class="s4">1</span><span class="s3">) {</span>
+      <span class="s1">node</span><span class="s3">.</span><span class="s1">setChecked</span><span class="s3">(</span><span class="s0">true</span><span class="s3">, !</span><span class="s0">this</span><span class="s3">.</span><span class="s1">checkStrictly</span><span class="s3">);</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">setDefaultCheckedKey</span><span class="s3">(</span><span class="s1">newVal</span><span class="s3">) {</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">newVal </span><span class="s3">!== </span><span class="s0">this</span><span class="s3">.</span><span class="s1">defaultCheckedKeys</span><span class="s3">) {</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">defaultCheckedKeys </span><span class="s3">= </span><span class="s1">newVal</span><span class="s3">;</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">_initDefaultCheckedNodes</span><span class="s3">();</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">registerNode</span><span class="s3">(</span><span class="s1">node</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">key </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">key</span><span class="s3">;</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">key </span><span class="s3">|| !</span><span class="s1">node </span><span class="s3">|| !</span><span class="s1">node</span><span class="s3">.</span><span class="s1">data</span><span class="s3">) </span><span class="s0">return</span><span class="s3">;</span>
+
+    <span class="s0">const </span><span class="s1">nodeKey </span><span class="s3">= </span><span class="s1">node</span><span class="s3">.</span><span class="s1">key</span><span class="s3">;</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">nodeKey </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) </span><span class="s0">this</span><span class="s3">.</span><span class="s1">nodesMap</span><span class="s3">[</span><span class="s1">node</span><span class="s3">.</span><span class="s1">key</span><span class="s3">] = </span><span class="s1">node</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s1">deregisterNode</span><span class="s3">(</span><span class="s1">node</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">key </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">key</span><span class="s3">;</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">key </span><span class="s3">|| !</span><span class="s1">node </span><span class="s3">|| !</span><span class="s1">node</span><span class="s3">.</span><span class="s1">data</span><span class="s3">) </span><span class="s0">return</span><span class="s3">;</span>
+
+    <span class="s1">node</span><span class="s3">.</span><span class="s1">childNodes</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">(</span><span class="s1">child </span><span class="s3">=&gt; {</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">deregisterNode</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+    <span class="s3">});</span>
+
+    <span class="s0">delete this</span><span class="s3">.</span><span class="s1">nodesMap</span><span class="s3">[</span><span class="s1">node</span><span class="s3">.</span><span class="s1">key</span><span class="s3">];</span>
+  <span class="s3">}</span>
+
+  <span class="s1">getCheckedNodes</span><span class="s3">(</span><span class="s1">leafOnly </span><span class="s3">= </span><span class="s0">false</span><span class="s3">, </span><span class="s1">includeHalfChecked </span><span class="s3">= </span><span class="s0">false</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">checkedNodes </span><span class="s3">= [];</span>
+    <span class="s0">const </span><span class="s1">traverse </span><span class="s3">= </span><span class="s0">function</span><span class="s3">(</span><span class="s1">node</span><span class="s3">) {</span>
+      <span class="s0">const </span><span class="s1">childNodes </span><span class="s3">= </span><span class="s1">node</span><span class="s3">.</span><span class="s1">root </span><span class="s3">? </span><span class="s1">node</span><span class="s3">.</span><span class="s1">root</span><span class="s3">.</span><span class="s1">childNodes </span><span class="s3">: </span><span class="s1">node</span><span class="s3">.</span><span class="s1">childNodes</span><span class="s3">;</span>
+
+      <span class="s1">childNodes</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">((</span><span class="s1">child</span><span class="s3">) =&gt; {</span>
+        <span class="s0">if </span><span class="s3">((</span><span class="s1">child</span><span class="s3">.</span><span class="s1">checked </span><span class="s3">|| (</span><span class="s1">includeHalfChecked </span><span class="s3">&amp;&amp; </span><span class="s1">child</span><span class="s3">.</span><span class="s1">indeterminate</span><span class="s3">)) &amp;&amp; (!</span><span class="s1">leafOnly </span><span class="s3">|| (</span><span class="s1">leafOnly </span><span class="s3">&amp;&amp; </span><span class="s1">child</span><span class="s3">.</span><span class="s1">isLeaf</span><span class="s3">))) {</span>
+          <span class="s1">checkedNodes</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">child</span><span class="s3">.</span><span class="s1">data</span><span class="s3">);</span>
+        <span class="s3">}</span>
+
+        <span class="s1">traverse</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+      <span class="s3">});</span>
+    <span class="s3">};</span>
+
+    <span class="s1">traverse</span><span class="s3">(</span><span class="s0">this</span><span class="s3">);</span>
+
+    <span class="s0">return </span><span class="s1">checkedNodes</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s1">getCheckedKeys</span><span class="s3">(</span><span class="s1">leafOnly </span><span class="s3">= </span><span class="s0">false</span><span class="s3">) {</span>
+    <span class="s0">return this</span><span class="s3">.</span><span class="s1">getCheckedNodes</span><span class="s3">(</span><span class="s1">leafOnly</span><span class="s3">).</span><span class="s1">map</span><span class="s3">((</span><span class="s1">data</span><span class="s3">) =&gt; (</span><span class="s1">data </span><span class="s3">|| {})[</span><span class="s0">this</span><span class="s3">.</span><span class="s1">key</span><span class="s3">]);</span>
+  <span class="s3">}</span>
+
+  <span class="s1">getHalfCheckedNodes</span><span class="s3">() {</span>
+    <span class="s0">const </span><span class="s1">nodes </span><span class="s3">= [];</span>
+    <span class="s0">const </span><span class="s1">traverse </span><span class="s3">= </span><span class="s0">function</span><span class="s3">(</span><span class="s1">node</span><span class="s3">) {</span>
+      <span class="s0">const </span><span class="s1">childNodes </span><span class="s3">= </span><span class="s1">node</span><span class="s3">.</span><span class="s1">root </span><span class="s3">? </span><span class="s1">node</span><span class="s3">.</span><span class="s1">root</span><span class="s3">.</span><span class="s1">childNodes </span><span class="s3">: </span><span class="s1">node</span><span class="s3">.</span><span class="s1">childNodes</span><span class="s3">;</span>
+
+      <span class="s1">childNodes</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">((</span><span class="s1">child</span><span class="s3">) =&gt; {</span>
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">child</span><span class="s3">.</span><span class="s1">indeterminate</span><span class="s3">) {</span>
+          <span class="s1">nodes</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">child</span><span class="s3">.</span><span class="s1">data</span><span class="s3">);</span>
+        <span class="s3">}</span>
+
+        <span class="s1">traverse</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+      <span class="s3">});</span>
+    <span class="s3">};</span>
+
+    <span class="s1">traverse</span><span class="s3">(</span><span class="s0">this</span><span class="s3">);</span>
+
+    <span class="s0">return </span><span class="s1">nodes</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s1">getHalfCheckedKeys</span><span class="s3">() {</span>
+    <span class="s0">return this</span><span class="s3">.</span><span class="s1">getHalfCheckedNodes</span><span class="s3">().</span><span class="s1">map</span><span class="s3">((</span><span class="s1">data</span><span class="s3">) =&gt; (</span><span class="s1">data </span><span class="s3">|| {})[</span><span class="s0">this</span><span class="s3">.</span><span class="s1">key</span><span class="s3">]);</span>
+  <span class="s3">}</span>
+
+  <span class="s1">_getAllNodes</span><span class="s3">() {</span>
+    <span class="s0">const </span><span class="s1">allNodes </span><span class="s3">= [];</span>
+    <span class="s0">const </span><span class="s1">nodesMap </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">nodesMap</span><span class="s3">;</span>
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">nodeKey </span><span class="s0">in </span><span class="s1">nodesMap</span><span class="s3">) {</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">nodesMap</span><span class="s3">.</span><span class="s1">hasOwnProperty</span><span class="s3">(</span><span class="s1">nodeKey</span><span class="s3">)) {</span>
+        <span class="s1">allNodes</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">nodesMap</span><span class="s3">[</span><span class="s1">nodeKey</span><span class="s3">]);</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s0">return </span><span class="s1">allNodes</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s1">updateChildren</span><span class="s3">(</span><span class="s1">key</span><span class="s3">, </span><span class="s1">data</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">node </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">nodesMap</span><span class="s3">[</span><span class="s1">key</span><span class="s3">];</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">node</span><span class="s3">) </span><span class="s0">return</span><span class="s3">;</span>
+    <span class="s0">const </span><span class="s1">childNodes </span><span class="s3">= </span><span class="s1">node</span><span class="s3">.</span><span class="s1">childNodes</span><span class="s3">;</span>
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s1">childNodes</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s4">1</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&gt;= </span><span class="s4">0</span><span class="s3">; </span><span class="s1">i</span><span class="s3">--) {</span>
+      <span class="s0">const </span><span class="s1">child </span><span class="s3">= </span><span class="s1">childNodes</span><span class="s3">[</span><span class="s1">i</span><span class="s3">];</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">remove</span><span class="s3">(</span><span class="s1">child</span><span class="s3">.</span><span class="s1">data</span><span class="s3">);</span>
+    <span class="s3">}</span>
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s4">0</span><span class="s3">, </span><span class="s1">j </span><span class="s3">= </span><span class="s1">data</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">j</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+      <span class="s0">const </span><span class="s1">child </span><span class="s3">= </span><span class="s1">data</span><span class="s3">[</span><span class="s1">i</span><span class="s3">];</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">append</span><span class="s3">(</span><span class="s1">child</span><span class="s3">, </span><span class="s1">node</span><span class="s3">.</span><span class="s1">data</span><span class="s3">);</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">_setCheckedKeys</span><span class="s3">(</span><span class="s1">key</span><span class="s3">, </span><span class="s1">leafOnly </span><span class="s3">= </span><span class="s0">false</span><span class="s3">, </span><span class="s1">checkedKeys</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">allNodes </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">_getAllNodes</span><span class="s3">().</span><span class="s1">sort</span><span class="s3">((</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">) =&gt; </span><span class="s1">b</span><span class="s3">.</span><span class="s1">level </span><span class="s3">- </span><span class="s1">a</span><span class="s3">.</span><span class="s1">level</span><span class="s3">);</span>
+    <span class="s0">const </span><span class="s1">cache </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">create</span><span class="s3">(</span><span class="s0">null</span><span class="s3">);</span>
+    <span class="s0">const </span><span class="s1">keys </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">(</span><span class="s1">checkedKeys</span><span class="s3">);</span>
+    <span class="s1">allNodes</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">(</span><span class="s1">node </span><span class="s3">=&gt; </span><span class="s1">node</span><span class="s3">.</span><span class="s1">setChecked</span><span class="s3">(</span><span class="s0">false</span><span class="s3">, </span><span class="s0">false</span><span class="s3">));</span>
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s4">0</span><span class="s3">, </span><span class="s1">j </span><span class="s3">= </span><span class="s1">allNodes</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">j</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+      <span class="s0">const </span><span class="s1">node </span><span class="s3">= </span><span class="s1">allNodes</span><span class="s3">[</span><span class="s1">i</span><span class="s3">];</span>
+      <span class="s0">const </span><span class="s1">nodeKey </span><span class="s3">= </span><span class="s1">node</span><span class="s3">.</span><span class="s1">data</span><span class="s3">[</span><span class="s1">key</span><span class="s3">].</span><span class="s1">toString</span><span class="s3">();</span>
+      <span class="s0">let </span><span class="s1">checked </span><span class="s3">= </span><span class="s1">keys</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s1">nodeKey</span><span class="s3">) &gt; -</span><span class="s4">1</span><span class="s3">;</span>
+      <span class="s0">if </span><span class="s3">(!</span><span class="s1">checked</span><span class="s3">) {</span>
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">checked </span><span class="s3">&amp;&amp; !</span><span class="s1">cache</span><span class="s3">[</span><span class="s1">nodeKey</span><span class="s3">]) {</span>
+          <span class="s1">node</span><span class="s3">.</span><span class="s1">setChecked</span><span class="s3">(</span><span class="s0">false</span><span class="s3">, </span><span class="s0">false</span><span class="s3">);</span>
+        <span class="s3">}</span>
+        <span class="s0">continue</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s0">let </span><span class="s1">parent </span><span class="s3">= </span><span class="s1">node</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">;</span>
+      <span class="s0">while </span><span class="s3">(</span><span class="s1">parent </span><span class="s3">&amp;&amp; </span><span class="s1">parent</span><span class="s3">.</span><span class="s1">level </span><span class="s3">&gt; </span><span class="s4">0</span><span class="s3">) {</span>
+        <span class="s1">cache</span><span class="s3">[</span><span class="s1">parent</span><span class="s3">.</span><span class="s1">data</span><span class="s3">[</span><span class="s1">key</span><span class="s3">]] = </span><span class="s0">true</span><span class="s3">;</span>
+        <span class="s1">parent </span><span class="s3">= </span><span class="s1">parent</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">isLeaf </span><span class="s3">|| </span><span class="s0">this</span><span class="s3">.</span><span class="s1">checkStrictly</span><span class="s3">) {</span>
+        <span class="s1">node</span><span class="s3">.</span><span class="s1">setChecked</span><span class="s3">(</span><span class="s0">true</span><span class="s3">, </span><span class="s0">false</span><span class="s3">);</span>
+        <span class="s0">continue</span><span class="s3">;</span>
+      <span class="s3">}</span>
+      <span class="s1">node</span><span class="s3">.</span><span class="s1">setChecked</span><span class="s3">(</span><span class="s0">true</span><span class="s3">, </span><span class="s0">true</span><span class="s3">);</span>
+
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">leafOnly</span><span class="s3">) {</span>
+        <span class="s1">node</span><span class="s3">.</span><span class="s1">setChecked</span><span class="s3">(</span><span class="s0">false</span><span class="s3">, </span><span class="s0">false</span><span class="s3">);</span>
+        <span class="s0">const </span><span class="s1">traverse </span><span class="s3">= </span><span class="s0">function</span><span class="s3">(</span><span class="s1">node</span><span class="s3">) {</span>
+          <span class="s0">const </span><span class="s1">childNodes </span><span class="s3">= </span><span class="s1">node</span><span class="s3">.</span><span class="s1">childNodes</span><span class="s3">;</span>
+          <span class="s1">childNodes</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">((</span><span class="s1">child</span><span class="s3">) =&gt; {</span>
+            <span class="s0">if </span><span class="s3">(!</span><span class="s1">child</span><span class="s3">.</span><span class="s1">isLeaf</span><span class="s3">) {</span>
+              <span class="s1">child</span><span class="s3">.</span><span class="s1">setChecked</span><span class="s3">(</span><span class="s0">false</span><span class="s3">, </span><span class="s0">false</span><span class="s3">);</span>
+            <span class="s3">}</span>
+            <span class="s1">traverse</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+          <span class="s3">});</span>
+        <span class="s3">};</span>
+        <span class="s1">traverse</span><span class="s3">(</span><span class="s1">node</span><span class="s3">);</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">setCheckedNodes</span><span class="s3">(</span><span class="s1">array</span><span class="s3">, </span><span class="s1">leafOnly </span><span class="s3">= </span><span class="s0">false</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">key </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">key</span><span class="s3">;</span>
+    <span class="s0">const </span><span class="s1">checkedKeys </span><span class="s3">= {};</span>
+    <span class="s1">array</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">((</span><span class="s1">item</span><span class="s3">) =&gt; {</span>
+      <span class="s1">checkedKeys</span><span class="s3">[(</span><span class="s1">item </span><span class="s3">|| {})[</span><span class="s1">key</span><span class="s3">]] = </span><span class="s0">true</span><span class="s3">;</span>
+    <span class="s3">});</span>
+
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">_setCheckedKeys</span><span class="s3">(</span><span class="s1">key</span><span class="s3">, </span><span class="s1">leafOnly</span><span class="s3">, </span><span class="s1">checkedKeys</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s1">setCheckedKeys</span><span class="s3">(</span><span class="s1">keys</span><span class="s3">, </span><span class="s1">leafOnly </span><span class="s3">= </span><span class="s0">false</span><span class="s3">) {</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">defaultCheckedKeys </span><span class="s3">= </span><span class="s1">keys</span><span class="s3">;</span>
+    <span class="s0">const </span><span class="s1">key </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">key</span><span class="s3">;</span>
+    <span class="s0">const </span><span class="s1">checkedKeys </span><span class="s3">= {};</span>
+    <span class="s1">keys</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">((</span><span class="s1">key</span><span class="s3">) =&gt; {</span>
+      <span class="s1">checkedKeys</span><span class="s3">[</span><span class="s1">key</span><span class="s3">] = </span><span class="s0">true</span><span class="s3">;</span>
+    <span class="s3">});</span>
+
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">_setCheckedKeys</span><span class="s3">(</span><span class="s1">key</span><span class="s3">, </span><span class="s1">leafOnly</span><span class="s3">, </span><span class="s1">checkedKeys</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s1">setDefaultExpandedKeys</span><span class="s3">(</span><span class="s1">keys</span><span class="s3">) {</span>
+    <span class="s1">keys </span><span class="s3">= </span><span class="s1">keys </span><span class="s3">|| [];</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">defaultExpandedKeys </span><span class="s3">= </span><span class="s1">keys</span><span class="s3">;</span>
+
+    <span class="s1">keys</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">((</span><span class="s1">key</span><span class="s3">) =&gt; {</span>
+      <span class="s0">const </span><span class="s1">node </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">getNode</span><span class="s3">(</span><span class="s1">key</span><span class="s3">);</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">) </span><span class="s1">node</span><span class="s3">.</span><span class="s1">expand</span><span class="s3">(</span><span class="s0">null</span><span class="s3">, </span><span class="s0">this</span><span class="s3">.</span><span class="s1">autoExpandParent</span><span class="s3">);</span>
+    <span class="s3">});</span>
+  <span class="s3">}</span>
+
+  <span class="s1">setChecked</span><span class="s3">(</span><span class="s1">data</span><span class="s3">, </span><span class="s1">checked</span><span class="s3">, </span><span class="s1">deep</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">node </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">getNode</span><span class="s3">(</span><span class="s1">data</span><span class="s3">);</span>
+
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">) {</span>
+      <span class="s1">node</span><span class="s3">.</span><span class="s1">setChecked</span><span class="s3">(!!</span><span class="s1">checked</span><span class="s3">, </span><span class="s1">deep</span><span class="s3">);</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">getCurrentNode</span><span class="s3">() {</span>
+    <span class="s0">return this</span><span class="s3">.</span><span class="s1">currentNode</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s1">setCurrentNode</span><span class="s3">(</span><span class="s1">currentNode</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">prevCurrentNode </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">currentNode</span><span class="s3">;</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">prevCurrentNode</span><span class="s3">) {</span>
+      <span class="s1">prevCurrentNode</span><span class="s3">.</span><span class="s1">isCurrent </span><span class="s3">= </span><span class="s0">false</span><span class="s3">;</span>
+    <span class="s3">}</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">currentNode </span><span class="s3">= </span><span class="s1">currentNode</span><span class="s3">;</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">currentNode</span><span class="s3">.</span><span class="s1">isCurrent </span><span class="s3">= </span><span class="s0">true</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s1">setUserCurrentNode</span><span class="s3">(</span><span class="s1">node</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">key </span><span class="s3">= </span><span class="s1">node</span><span class="s3">[</span><span class="s0">this</span><span class="s3">.</span><span class="s1">key</span><span class="s3">];</span>
+    <span class="s0">const </span><span class="s1">currNode </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">nodesMap</span><span class="s3">[</span><span class="s1">key</span><span class="s3">];</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">setCurrentNode</span><span class="s3">(</span><span class="s1">currNode</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s1">setCurrentNodeKey</span><span class="s3">(</span><span class="s1">key</span><span class="s3">) {</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">key </span><span class="s3">=== </span><span class="s0">null </span><span class="s3">|| </span><span class="s1">key </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">currentNode </span><span class="s3">&amp;&amp; (</span><span class="s0">this</span><span class="s3">.</span><span class="s1">currentNode</span><span class="s3">.</span><span class="s1">isCurrent </span><span class="s3">= </span><span class="s0">false</span><span class="s3">);</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">currentNode </span><span class="s3">= </span><span class="s0">null</span><span class="s3">;</span>
+      <span class="s0">return</span><span class="s3">;</span>
+    <span class="s3">}</span>
+    <span class="s0">const </span><span class="s1">node </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">getNode</span><span class="s3">(</span><span class="s1">key</span><span class="s3">);</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">) {</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">setCurrentNode</span><span class="s3">(</span><span class="s1">node</span><span class="s3">);</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">};</span>
+</pre>
+</body>
+</html>

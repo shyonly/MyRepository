@@ -1,0 +1,141 @@
+<html>
+<head>
+<title>next-tick.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #2aacb8;}
+.s6 { color: #5f826b; font-style: italic;}
+.s7 { color: #67a37c; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+next-tick.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">/* globals MutationObserver */</span>
+
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">noop </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'shared/util'</span>
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">handleError </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'./error'</span>
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">isIE</span><span class="s3">, </span><span class="s1">isIOS</span><span class="s3">, </span><span class="s1">isNative </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'./env'</span>
+
+<span class="s2">export let </span><span class="s1">isUsingMicroTask </span><span class="s3">= </span><span class="s2">false</span>
+
+<span class="s2">const </span><span class="s1">callbacks</span><span class="s3">: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">Function</span><span class="s3">&gt; = []</span>
+<span class="s2">let </span><span class="s1">pending </span><span class="s3">= </span><span class="s2">false</span>
+
+<span class="s2">function </span><span class="s1">flushCallbacks</span><span class="s3">() {</span>
+  <span class="s1">pending </span><span class="s3">= </span><span class="s2">false</span>
+  <span class="s2">const </span><span class="s1">copies </span><span class="s3">= </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s5">0</span><span class="s3">)</span>
+  <span class="s1">callbacks</span><span class="s3">.</span><span class="s1">length </span><span class="s3">= </span><span class="s5">0</span>
+  <span class="s2">for </span><span class="s3">(</span><span class="s2">let </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">copies</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+    <span class="s1">copies</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]()</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">// Here we have async deferring wrappers using microtasks.</span>
+<span class="s0">// In 2.5 we used (macro) tasks (in combination with microtasks).</span>
+<span class="s0">// However, it has subtle problems when state is changed right before repaint</span>
+<span class="s0">// (e.g. #6813, out-in transitions).</span>
+<span class="s0">// Also, using (macro) tasks in event handler would cause some weird behaviors</span>
+<span class="s0">// that cannot be circumvented (e.g. #7109, #7153, #7546, #7834, #8109).</span>
+<span class="s0">// So we now use microtasks everywhere, again.</span>
+<span class="s0">// A major drawback of this tradeoff is that there are some scenarios</span>
+<span class="s0">// where microtasks have too high a priority and fire in between supposedly</span>
+<span class="s0">// sequential events (e.g. #4521, #6690, which have workarounds)</span>
+<span class="s0">// or even between bubbling of the same event (#6566).</span>
+<span class="s2">let </span><span class="s1">timerFunc</span>
+
+<span class="s0">// The nextTick behavior leverages the microtask queue, which can be accessed</span>
+<span class="s0">// via either native Promise.then or MutationObserver.</span>
+<span class="s0">// MutationObserver has wider support, however it is seriously bugged in</span>
+<span class="s0">// UIWebView in iOS &gt;= 9.3.3 when triggered in touch event handlers. It</span>
+<span class="s0">// completely stops working after triggering a few times... so, if native</span>
+<span class="s0">// Promise is available, we will use it:</span>
+<span class="s0">/* istanbul ignore next, $flow-disable-line */</span>
+<span class="s2">if </span><span class="s3">(</span><span class="s2">typeof </span><span class="s1">Promise </span><span class="s3">!== </span><span class="s4">'undefined' </span><span class="s3">&amp;&amp; </span><span class="s1">isNative</span><span class="s3">(</span><span class="s1">Promise</span><span class="s3">)) {</span>
+  <span class="s2">const </span><span class="s1">p </span><span class="s3">= </span><span class="s1">Promise</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">()</span>
+  <span class="s1">timerFunc </span><span class="s3">= () =&gt; {</span>
+    <span class="s1">p</span><span class="s3">.</span><span class="s1">then</span><span class="s3">(</span><span class="s1">flushCallbacks</span><span class="s3">)</span>
+    <span class="s0">// In problematic UIWebViews, Promise.then doesn't completely break, but</span>
+    <span class="s0">// it can get stuck in a weird state where callbacks are pushed into the</span>
+    <span class="s0">// microtask queue but the queue isn't being flushed, until the browser</span>
+    <span class="s0">// needs to do some other work, e.g. handle a timer. Therefore we can</span>
+    <span class="s0">// &quot;force&quot; the microtask queue to be flushed by adding an empty timer.</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">isIOS</span><span class="s3">) </span><span class="s1">setTimeout</span><span class="s3">(</span><span class="s1">noop</span><span class="s3">)</span>
+  <span class="s3">}</span>
+  <span class="s1">isUsingMicroTask </span><span class="s3">= </span><span class="s2">true</span>
+<span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span>
+  <span class="s3">!</span><span class="s1">isIE </span><span class="s3">&amp;&amp;</span>
+  <span class="s2">typeof </span><span class="s1">MutationObserver </span><span class="s3">!== </span><span class="s4">'undefined' </span><span class="s3">&amp;&amp;</span>
+  <span class="s3">(</span><span class="s1">isNative</span><span class="s3">(</span><span class="s1">MutationObserver</span><span class="s3">) ||</span>
+    <span class="s0">// PhantomJS and iOS 7.x</span>
+    <span class="s1">MutationObserver</span><span class="s3">.</span><span class="s1">toString</span><span class="s3">() === </span><span class="s4">'[object MutationObserverConstructor]'</span><span class="s3">)</span>
+<span class="s3">) {</span>
+  <span class="s0">// Use MutationObserver where native Promise is not available,</span>
+  <span class="s0">// e.g. PhantomJS, iOS7, Android 4.4</span>
+  <span class="s0">// (#6466 MutationObserver is unreliable in IE11)</span>
+  <span class="s2">let </span><span class="s1">counter </span><span class="s3">= </span><span class="s5">1</span>
+  <span class="s2">const </span><span class="s1">observer </span><span class="s3">= </span><span class="s2">new </span><span class="s1">MutationObserver</span><span class="s3">(</span><span class="s1">flushCallbacks</span><span class="s3">)</span>
+  <span class="s2">const </span><span class="s1">textNode </span><span class="s3">= </span><span class="s1">document</span><span class="s3">.</span><span class="s1">createTextNode</span><span class="s3">(</span><span class="s1">String</span><span class="s3">(</span><span class="s1">counter</span><span class="s3">))</span>
+  <span class="s1">observer</span><span class="s3">.</span><span class="s1">observe</span><span class="s3">(</span><span class="s1">textNode</span><span class="s3">, {</span>
+    <span class="s1">characterData</span><span class="s3">: </span><span class="s2">true</span>
+  <span class="s3">})</span>
+  <span class="s1">timerFunc </span><span class="s3">= () =&gt; {</span>
+    <span class="s1">counter </span><span class="s3">= (</span><span class="s1">counter </span><span class="s3">+ </span><span class="s5">1</span><span class="s3">) % </span><span class="s5">2</span>
+    <span class="s1">textNode</span><span class="s3">.</span><span class="s1">data </span><span class="s3">= </span><span class="s1">String</span><span class="s3">(</span><span class="s1">counter</span><span class="s3">)</span>
+  <span class="s3">}</span>
+  <span class="s1">isUsingMicroTask </span><span class="s3">= </span><span class="s2">true</span>
+<span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s2">typeof </span><span class="s1">setImmediate </span><span class="s3">!== </span><span class="s4">'undefined' </span><span class="s3">&amp;&amp; </span><span class="s1">isNative</span><span class="s3">(</span><span class="s1">setImmediate</span><span class="s3">)) {</span>
+  <span class="s0">// Fallback to setImmediate.</span>
+  <span class="s0">// Technically it leverages the (macro) task queue,</span>
+  <span class="s0">// but it is still a better choice than setTimeout.</span>
+  <span class="s1">timerFunc </span><span class="s3">= () =&gt; {</span>
+    <span class="s1">setImmediate</span><span class="s3">(</span><span class="s1">flushCallbacks</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+  <span class="s0">// Fallback to setTimeout.</span>
+  <span class="s1">timerFunc </span><span class="s3">= () =&gt; {</span>
+    <span class="s1">setTimeout</span><span class="s3">(</span><span class="s1">flushCallbacks</span><span class="s3">, </span><span class="s5">0</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s2">export function </span><span class="s1">nextTick</span><span class="s3">(): </span><span class="s1">Promise</span><span class="s3">&lt;</span><span class="s2">void</span><span class="s3">&gt;</span>
+<span class="s2">export function </span><span class="s1">nextTick</span><span class="s3">&lt;</span><span class="s1">T</span><span class="s3">&gt;(</span><span class="s2">this</span><span class="s3">: </span><span class="s1">T</span><span class="s3">, </span><span class="s1">cb</span><span class="s3">: (</span><span class="s2">this</span><span class="s3">: </span><span class="s1">T</span><span class="s3">, </span><span class="s1">...args</span><span class="s3">: </span><span class="s1">any</span><span class="s3">[]) =&gt; </span><span class="s1">any</span><span class="s3">): </span><span class="s2">void</span>
+<span class="s2">export function </span><span class="s1">nextTick</span><span class="s3">&lt;</span><span class="s1">T</span><span class="s3">&gt;(</span><span class="s1">cb</span><span class="s3">: (</span><span class="s2">this</span><span class="s3">: </span><span class="s1">T</span><span class="s3">, </span><span class="s1">...args</span><span class="s3">: </span><span class="s1">any</span><span class="s3">[]) =&gt; </span><span class="s1">any</span><span class="s3">, </span><span class="s1">ctx</span><span class="s3">: </span><span class="s1">T</span><span class="s3">): </span><span class="s2">void</span>
+<span class="s6">/**</span>
+ <span class="s6">* </span><span class="s7">@internal</span>
+ <span class="s6">*/</span>
+<span class="s2">export function </span><span class="s1">nextTick</span><span class="s3">(</span><span class="s1">cb</span><span class="s3">?: (</span><span class="s1">...args</span><span class="s3">: </span><span class="s1">any</span><span class="s3">[]) =&gt; </span><span class="s1">any</span><span class="s3">, </span><span class="s1">ctx</span><span class="s3">?: </span><span class="s1">object</span><span class="s3">) {</span>
+  <span class="s2">let </span><span class="s1">_resolve</span>
+  <span class="s1">callbacks</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(() =&gt; {</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">cb</span><span class="s3">) {</span>
+      <span class="s2">try </span><span class="s3">{</span>
+        <span class="s1">cb</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">ctx</span><span class="s3">)</span>
+      <span class="s3">} </span><span class="s2">catch </span><span class="s3">(</span><span class="s1">e</span><span class="s3">: </span><span class="s1">any</span><span class="s3">) {</span>
+        <span class="s1">handleError</span><span class="s3">(</span><span class="s1">e</span><span class="s3">, </span><span class="s1">ctx</span><span class="s3">, </span><span class="s4">'nextTick'</span><span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s1">_resolve</span><span class="s3">) {</span>
+      <span class="s1">_resolve</span><span class="s3">(</span><span class="s1">ctx</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">})</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">pending</span><span class="s3">) {</span>
+    <span class="s1">pending </span><span class="s3">= </span><span class="s2">true</span>
+    <span class="s1">timerFunc</span><span class="s3">()</span>
+  <span class="s3">}</span>
+  <span class="s0">// $flow-disable-line</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">cb </span><span class="s3">&amp;&amp; </span><span class="s2">typeof </span><span class="s1">Promise </span><span class="s3">!== </span><span class="s4">'undefined'</span><span class="s3">) {</span>
+    <span class="s2">return new </span><span class="s1">Promise</span><span class="s3">(</span><span class="s1">resolve </span><span class="s3">=&gt; {</span>
+      <span class="s1">_resolve </span><span class="s3">= </span><span class="s1">resolve</span>
+    <span class="s3">})</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

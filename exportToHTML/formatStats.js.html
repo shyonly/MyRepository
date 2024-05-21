@@ -1,0 +1,99 @@
+<html>
+<head>
+<title>formatStats.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #bcbec4;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+formatStats.js</font>
+</center></td></tr></table>
+<pre><span class="s0">module</span><span class="s1">.</span><span class="s0">exports </span><span class="s1">= </span><span class="s2">function </span><span class="s0">formatStats </span><span class="s1">(</span><span class="s0">stats</span><span class="s1">, </span><span class="s0">dir</span><span class="s1">, </span><span class="s0">api</span><span class="s1">) {</span>
+  <span class="s2">const </span><span class="s0">fs </span><span class="s1">= </span><span class="s0">require</span><span class="s1">(</span><span class="s3">'fs'</span><span class="s1">)</span>
+  <span class="s2">const </span><span class="s0">path </span><span class="s1">= </span><span class="s0">require</span><span class="s1">(</span><span class="s3">'path'</span><span class="s1">)</span>
+  <span class="s2">const </span><span class="s0">zlib </span><span class="s1">= </span><span class="s0">require</span><span class="s1">(</span><span class="s3">'zlib'</span><span class="s1">)</span>
+  <span class="s2">const </span><span class="s0">ui </span><span class="s1">= </span><span class="s0">require</span><span class="s1">(</span><span class="s3">'cliui'</span><span class="s1">)({ </span><span class="s0">width</span><span class="s1">: </span><span class="s0">process</span><span class="s1">.</span><span class="s0">stdout</span><span class="s1">.</span><span class="s0">columns </span><span class="s1">|| </span><span class="s4">80 </span><span class="s1">})</span>
+  <span class="s2">const </span><span class="s1">{ </span><span class="s0">chalk </span><span class="s1">} = </span><span class="s0">require</span><span class="s1">(</span><span class="s3">'@vue/cli-shared-utils'</span><span class="s1">)</span>
+
+  <span class="s2">const </span><span class="s0">json </span><span class="s1">= </span><span class="s0">stats</span><span class="s1">.</span><span class="s0">toJson</span><span class="s1">({</span>
+    <span class="s0">hash</span><span class="s1">: </span><span class="s2">false</span><span class="s1">,</span>
+    <span class="s0">modules</span><span class="s1">: </span><span class="s2">false</span><span class="s1">,</span>
+    <span class="s0">chunks</span><span class="s1">: </span><span class="s2">false</span>
+  <span class="s1">})</span>
+
+  <span class="s2">let </span><span class="s0">assets </span><span class="s1">= </span><span class="s0">json</span><span class="s1">.</span><span class="s0">assets</span>
+    <span class="s1">? </span><span class="s0">json</span><span class="s1">.</span><span class="s0">assets</span>
+    <span class="s1">: </span><span class="s0">json</span><span class="s1">.</span><span class="s0">children</span><span class="s1">.</span><span class="s0">reduce</span><span class="s1">((</span><span class="s0">acc</span><span class="s1">, </span><span class="s0">child</span><span class="s1">) =&gt; </span><span class="s0">acc</span><span class="s1">.</span><span class="s0">concat</span><span class="s1">(</span><span class="s0">child</span><span class="s1">.</span><span class="s0">assets</span><span class="s1">), [])</span>
+
+  <span class="s2">const </span><span class="s0">seenNames </span><span class="s1">= </span><span class="s2">new </span><span class="s0">Map</span><span class="s1">()</span>
+  <span class="s2">const </span><span class="s0">isJS </span><span class="s1">= </span><span class="s0">val </span><span class="s1">=&gt; </span><span class="s5">/\.js$/</span><span class="s1">.</span><span class="s0">test</span><span class="s1">(</span><span class="s0">val</span><span class="s1">)</span>
+  <span class="s2">const </span><span class="s0">isCSS </span><span class="s1">= </span><span class="s0">val </span><span class="s1">=&gt; </span><span class="s5">/\.css$/</span><span class="s1">.</span><span class="s0">test</span><span class="s1">(</span><span class="s0">val</span><span class="s1">)</span>
+  <span class="s2">const </span><span class="s0">isMinJS </span><span class="s1">= </span><span class="s0">val </span><span class="s1">=&gt; </span><span class="s5">/\.min\.js$/</span><span class="s1">.</span><span class="s0">test</span><span class="s1">(</span><span class="s0">val</span><span class="s1">)</span>
+  <span class="s0">assets </span><span class="s1">= </span><span class="s0">assets</span>
+    <span class="s1">.</span><span class="s0">map</span><span class="s1">(</span><span class="s0">a </span><span class="s1">=&gt; {</span>
+      <span class="s0">a</span><span class="s1">.</span><span class="s0">name </span><span class="s1">= </span><span class="s0">a</span><span class="s1">.</span><span class="s0">name</span><span class="s1">.</span><span class="s0">split</span><span class="s1">(</span><span class="s3">'?'</span><span class="s1">)[</span><span class="s4">0</span><span class="s1">]</span>
+      <span class="s2">return </span><span class="s0">a</span>
+    <span class="s1">})</span>
+    <span class="s1">.</span><span class="s0">filter</span><span class="s1">(</span><span class="s0">a </span><span class="s1">=&gt; {</span>
+      <span class="s2">if </span><span class="s1">(</span><span class="s0">seenNames</span><span class="s1">.</span><span class="s0">has</span><span class="s1">(</span><span class="s0">a</span><span class="s1">.</span><span class="s0">name</span><span class="s1">)) {</span>
+        <span class="s2">return false</span>
+      <span class="s1">}</span>
+      <span class="s0">seenNames</span><span class="s1">.</span><span class="s0">set</span><span class="s1">(</span><span class="s0">a</span><span class="s1">.</span><span class="s0">name</span><span class="s1">, </span><span class="s2">true</span><span class="s1">)</span>
+      <span class="s2">return </span><span class="s0">isJS</span><span class="s1">(</span><span class="s0">a</span><span class="s1">.</span><span class="s0">name</span><span class="s1">) || </span><span class="s0">isCSS</span><span class="s1">(</span><span class="s0">a</span><span class="s1">.</span><span class="s0">name</span><span class="s1">)</span>
+    <span class="s1">})</span>
+    <span class="s1">.</span><span class="s0">sort</span><span class="s1">((</span><span class="s0">a</span><span class="s1">, </span><span class="s0">b</span><span class="s1">) =&gt; {</span>
+      <span class="s2">if </span><span class="s1">(</span><span class="s0">isJS</span><span class="s1">(</span><span class="s0">a</span><span class="s1">.</span><span class="s0">name</span><span class="s1">) &amp;&amp; </span><span class="s0">isCSS</span><span class="s1">(</span><span class="s0">b</span><span class="s1">.</span><span class="s0">name</span><span class="s1">)) </span><span class="s2">return </span><span class="s1">-</span><span class="s4">1</span>
+      <span class="s2">if </span><span class="s1">(</span><span class="s0">isCSS</span><span class="s1">(</span><span class="s0">a</span><span class="s1">.</span><span class="s0">name</span><span class="s1">) &amp;&amp; </span><span class="s0">isJS</span><span class="s1">(</span><span class="s0">b</span><span class="s1">.</span><span class="s0">name</span><span class="s1">)) </span><span class="s2">return </span><span class="s4">1</span>
+      <span class="s2">if </span><span class="s1">(</span><span class="s0">isMinJS</span><span class="s1">(</span><span class="s0">a</span><span class="s1">.</span><span class="s0">name</span><span class="s1">) &amp;&amp; !</span><span class="s0">isMinJS</span><span class="s1">(</span><span class="s0">b</span><span class="s1">.</span><span class="s0">name</span><span class="s1">)) </span><span class="s2">return </span><span class="s1">-</span><span class="s4">1</span>
+      <span class="s2">if </span><span class="s1">(!</span><span class="s0">isMinJS</span><span class="s1">(</span><span class="s0">a</span><span class="s1">.</span><span class="s0">name</span><span class="s1">) &amp;&amp; </span><span class="s0">isMinJS</span><span class="s1">(</span><span class="s0">b</span><span class="s1">.</span><span class="s0">name</span><span class="s1">)) </span><span class="s2">return </span><span class="s4">1</span>
+      <span class="s2">return </span><span class="s0">b</span><span class="s1">.</span><span class="s0">size </span><span class="s1">- </span><span class="s0">a</span><span class="s1">.</span><span class="s0">size</span>
+    <span class="s1">})</span>
+
+  <span class="s2">function </span><span class="s0">formatSize </span><span class="s1">(</span><span class="s0">size</span><span class="s1">) {</span>
+    <span class="s2">return </span><span class="s1">(</span><span class="s0">size </span><span class="s1">/ </span><span class="s4">1024</span><span class="s1">).</span><span class="s0">toFixed</span><span class="s1">(</span><span class="s4">2</span><span class="s1">) + </span><span class="s3">' KiB'</span>
+  <span class="s1">}</span>
+
+  <span class="s2">function </span><span class="s0">getGzippedSize </span><span class="s1">(</span><span class="s0">asset</span><span class="s1">) {</span>
+    <span class="s2">const </span><span class="s0">filepath </span><span class="s1">= </span><span class="s0">api</span><span class="s1">.</span><span class="s0">resolve</span><span class="s1">(</span><span class="s0">path</span><span class="s1">.</span><span class="s0">join</span><span class="s1">(</span><span class="s0">dir</span><span class="s1">, </span><span class="s0">asset</span><span class="s1">.</span><span class="s0">name</span><span class="s1">))</span>
+    <span class="s2">const </span><span class="s0">buffer </span><span class="s1">= </span><span class="s0">fs</span><span class="s1">.</span><span class="s0">readFileSync</span><span class="s1">(</span><span class="s0">filepath</span><span class="s1">)</span>
+    <span class="s2">return </span><span class="s0">formatSize</span><span class="s1">(</span><span class="s0">zlib</span><span class="s1">.</span><span class="s0">gzipSync</span><span class="s1">(</span><span class="s0">buffer</span><span class="s1">).</span><span class="s0">length</span><span class="s1">)</span>
+  <span class="s1">}</span>
+
+  <span class="s2">function </span><span class="s0">makeRow </span><span class="s1">(</span><span class="s0">a</span><span class="s1">, </span><span class="s0">b</span><span class="s1">, </span><span class="s0">c</span><span class="s1">) {</span>
+    <span class="s2">return </span><span class="s3">`  </span><span class="s0">$</span><span class="s1">{</span><span class="s0">a</span><span class="s1">}</span><span class="s2">\t    </span><span class="s0">$</span><span class="s1">{</span><span class="s0">b</span><span class="s1">}</span><span class="s2">\t </span><span class="s0">$</span><span class="s1">{</span><span class="s0">c</span><span class="s1">}</span><span class="s3">`</span>
+  <span class="s1">}</span>
+
+  <span class="s0">ui</span><span class="s1">.</span><span class="s0">div</span><span class="s1">(</span>
+    <span class="s0">makeRow</span><span class="s1">(</span>
+      <span class="s0">chalk</span><span class="s1">.</span><span class="s0">cyan</span><span class="s1">.</span><span class="s0">bold</span><span class="s1">(</span><span class="s3">`File`</span><span class="s1">),</span>
+      <span class="s0">chalk</span><span class="s1">.</span><span class="s0">cyan</span><span class="s1">.</span><span class="s0">bold</span><span class="s1">(</span><span class="s3">`Size`</span><span class="s1">),</span>
+      <span class="s0">chalk</span><span class="s1">.</span><span class="s0">cyan</span><span class="s1">.</span><span class="s0">bold</span><span class="s1">(</span><span class="s3">`Gzipped`</span><span class="s1">)</span>
+    <span class="s1">) + </span><span class="s3">`</span><span class="s2">\n\n</span><span class="s3">` </span><span class="s1">+</span>
+    <span class="s0">assets</span><span class="s1">.</span><span class="s0">map</span><span class="s1">(</span><span class="s0">asset </span><span class="s1">=&gt; </span><span class="s0">makeRow</span><span class="s1">(</span>
+      <span class="s5">/js$/</span><span class="s1">.</span><span class="s0">test</span><span class="s1">(</span><span class="s0">asset</span><span class="s1">.</span><span class="s0">name</span><span class="s1">)</span>
+        <span class="s1">? </span><span class="s0">chalk</span><span class="s1">.</span><span class="s0">green</span><span class="s1">(</span><span class="s0">path</span><span class="s1">.</span><span class="s0">join</span><span class="s1">(</span><span class="s0">dir</span><span class="s1">, </span><span class="s0">asset</span><span class="s1">.</span><span class="s0">name</span><span class="s1">))</span>
+        <span class="s1">: </span><span class="s0">chalk</span><span class="s1">.</span><span class="s0">blue</span><span class="s1">(</span><span class="s0">path</span><span class="s1">.</span><span class="s0">join</span><span class="s1">(</span><span class="s0">dir</span><span class="s1">, </span><span class="s0">asset</span><span class="s1">.</span><span class="s0">name</span><span class="s1">)),</span>
+      <span class="s0">formatSize</span><span class="s1">(</span><span class="s0">asset</span><span class="s1">.</span><span class="s0">size</span><span class="s1">),</span>
+      <span class="s0">getGzippedSize</span><span class="s1">(</span><span class="s0">asset</span><span class="s1">)</span>
+    <span class="s1">)).</span><span class="s0">join</span><span class="s1">(</span><span class="s3">`</span><span class="s2">\n</span><span class="s3">`</span><span class="s1">)</span>
+  <span class="s1">)</span>
+
+  <span class="s2">const </span><span class="s0">time </span><span class="s1">= </span><span class="s0">stats</span><span class="s1">.</span><span class="s0">endTime </span><span class="s1">- </span><span class="s0">stats</span><span class="s1">.</span><span class="s0">startTime</span>
+  <span class="s2">const </span><span class="s0">now </span><span class="s1">= </span><span class="s2">new </span><span class="s0">Date</span><span class="s1">().</span><span class="s0">toISOString</span><span class="s1">()</span>
+  <span class="s2">const </span><span class="s0">hash </span><span class="s1">= </span><span class="s0">stats</span><span class="s1">.</span><span class="s0">hash</span>
+  <span class="s2">const </span><span class="s0">info </span><span class="s1">= </span><span class="s3">`Build at: </span><span class="s0">$</span><span class="s1">{</span><span class="s0">chalk</span><span class="s1">.</span><span class="s0">white</span><span class="s1">(</span><span class="s0">now</span><span class="s1">)} </span><span class="s3">- Hash: </span><span class="s0">$</span><span class="s1">{</span><span class="s0">chalk</span><span class="s1">.</span><span class="s0">white</span><span class="s1">(</span><span class="s0">hash</span><span class="s1">)} </span><span class="s3">- Time: </span><span class="s0">$</span><span class="s1">{</span><span class="s0">chalk</span><span class="s1">.</span><span class="s0">white</span><span class="s1">(</span><span class="s0">time</span><span class="s1">)}</span><span class="s3">ms`</span>
+
+  <span class="s2">return </span><span class="s3">`</span><span class="s0">$</span><span class="s1">{</span><span class="s0">ui</span><span class="s1">.</span><span class="s0">toString</span><span class="s1">()}</span><span class="s2">\n\n  </span><span class="s0">$</span><span class="s1">{</span><span class="s0">chalk</span><span class="s1">.</span><span class="s0">gray</span><span class="s1">(</span><span class="s3">`Images and other types of assets omitted.`</span><span class="s1">)}</span><span class="s2">\n  </span><span class="s0">$</span><span class="s1">{</span><span class="s0">info</span><span class="s1">}</span><span class="s2">\n</span><span class="s3">`</span>
+<span class="s1">}</span>
+</pre>
+</body>
+</html>

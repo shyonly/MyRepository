@@ -1,0 +1,162 @@
+<html>
+<head>
+<title>init.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+init.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">config from </span><span class="s2">'../config'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">initProxy </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./proxy'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">initState </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./state'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">initRender </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./render'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">initEvents </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./events'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">mark</span><span class="s3">, </span><span class="s1">measure </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'../util/perf'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">initLifecycle</span><span class="s3">, </span><span class="s1">callHook </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./lifecycle'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">initProvide</span><span class="s3">, </span><span class="s1">initInjections </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./inject'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">extend</span><span class="s3">, </span><span class="s1">mergeOptions</span><span class="s3">, </span><span class="s1">formatComponentName </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'../util/index'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s3">{ </span><span class="s1">Component </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'types/component'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s3">{ </span><span class="s1">InternalComponentOptions </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'types/options'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">EffectScope </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'v3/reactivity/effectScope'</span>
+
+<span class="s0">let </span><span class="s1">uid </span><span class="s3">= </span><span class="s4">0</span>
+
+<span class="s0">export function </span><span class="s1">initMixin</span><span class="s3">(</span><span class="s1">Vue</span><span class="s3">: </span><span class="s0">typeof </span><span class="s1">Component</span><span class="s3">) {</span>
+  <span class="s1">Vue</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_init </span><span class="s3">= </span><span class="s0">function </span><span class="s3">(</span><span class="s1">options</span><span class="s3">?: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;) {</span>
+    <span class="s0">const </span><span class="s1">vm</span><span class="s3">: </span><span class="s1">Component </span><span class="s3">= </span><span class="s0">this</span>
+    <span class="s5">// a uid</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">_uid </span><span class="s3">= </span><span class="s1">uid</span><span class="s3">++</span>
+
+    <span class="s0">let </span><span class="s1">startTag</span><span class="s3">, </span><span class="s1">endTag</span>
+    <span class="s5">/* istanbul ignore if */</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__ </span><span class="s3">&amp;&amp; </span><span class="s1">config</span><span class="s3">.</span><span class="s1">performance </span><span class="s3">&amp;&amp; </span><span class="s1">mark</span><span class="s3">) {</span>
+      <span class="s1">startTag </span><span class="s3">= </span><span class="s2">`vue-perf-start:</span><span class="s1">$</span><span class="s3">{</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_uid</span><span class="s3">}</span><span class="s2">`</span>
+      <span class="s1">endTag </span><span class="s3">= </span><span class="s2">`vue-perf-end:</span><span class="s1">$</span><span class="s3">{</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_uid</span><span class="s3">}</span><span class="s2">`</span>
+      <span class="s1">mark</span><span class="s3">(</span><span class="s1">startTag</span><span class="s3">)</span>
+    <span class="s3">}</span>
+
+    <span class="s5">// a flag to mark this as a Vue instance without having to do instanceof</span>
+    <span class="s5">// check</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">_isVue </span><span class="s3">= </span><span class="s0">true</span>
+    <span class="s5">// avoid instances from being observed</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">__v_skip </span><span class="s3">= </span><span class="s0">true</span>
+    <span class="s5">// effect scope</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">_scope </span><span class="s3">= </span><span class="s0">new </span><span class="s1">EffectScope</span><span class="s3">(</span><span class="s0">true </span><span class="s5">/* detached */</span><span class="s3">)</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">_scope</span><span class="s3">.</span><span class="s1">_vm </span><span class="s3">= </span><span class="s0">true</span>
+    <span class="s5">// merge options</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">options </span><span class="s3">&amp;&amp; </span><span class="s1">options</span><span class="s3">.</span><span class="s1">_isComponent</span><span class="s3">) {</span>
+      <span class="s5">// optimize internal component instantiation</span>
+      <span class="s5">// since dynamic options merging is pretty slow, and none of the</span>
+      <span class="s5">// internal component options needs special treatment.</span>
+      <span class="s1">initInternalComponent</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s1">options </span><span class="s3">as </span><span class="s1">any</span><span class="s3">)</span>
+    <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+      <span class="s1">vm</span><span class="s3">.</span><span class="s1">$options </span><span class="s3">= </span><span class="s1">mergeOptions</span><span class="s3">(</span>
+        <span class="s1">resolveConstructorOptions</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">constructor </span><span class="s3">as </span><span class="s1">any</span><span class="s3">),</span>
+        <span class="s1">options </span><span class="s3">|| {},</span>
+        <span class="s1">vm</span>
+      <span class="s3">)</span>
+    <span class="s3">}</span>
+    <span class="s5">/* istanbul ignore else */</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__</span><span class="s3">) {</span>
+      <span class="s1">initProxy</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">)</span>
+    <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+      <span class="s1">vm</span><span class="s3">.</span><span class="s1">_renderProxy </span><span class="s3">= </span><span class="s1">vm</span>
+    <span class="s3">}</span>
+    <span class="s5">// expose real self</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">_self </span><span class="s3">= </span><span class="s1">vm</span>
+    <span class="s1">initLifecycle</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">)</span>
+    <span class="s1">initEvents</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">)</span>
+    <span class="s1">initRender</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">)</span>
+    <span class="s1">callHook</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s2">'beforeCreate'</span><span class="s3">, </span><span class="s1">undefined</span><span class="s3">, </span><span class="s0">false </span><span class="s5">/* setContext */</span><span class="s3">)</span>
+    <span class="s1">initInjections</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">) </span><span class="s5">// resolve injections before data/props</span>
+    <span class="s1">initState</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">)</span>
+    <span class="s1">initProvide</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">) </span><span class="s5">// resolve provide after data/props</span>
+    <span class="s1">callHook</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s2">'created'</span><span class="s3">)</span>
+
+    <span class="s5">/* istanbul ignore if */</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__ </span><span class="s3">&amp;&amp; </span><span class="s1">config</span><span class="s3">.</span><span class="s1">performance </span><span class="s3">&amp;&amp; </span><span class="s1">mark</span><span class="s3">) {</span>
+      <span class="s1">vm</span><span class="s3">.</span><span class="s1">_name </span><span class="s3">= </span><span class="s1">formatComponentName</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s0">false</span><span class="s3">)</span>
+      <span class="s1">mark</span><span class="s3">(</span><span class="s1">endTag</span><span class="s3">)</span>
+      <span class="s1">measure</span><span class="s3">(</span><span class="s2">`vue </span><span class="s1">$</span><span class="s3">{</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_name</span><span class="s3">} </span><span class="s2">init`</span><span class="s3">, </span><span class="s1">startTag</span><span class="s3">, </span><span class="s1">endTag</span><span class="s3">)</span>
+    <span class="s3">}</span>
+
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">el</span><span class="s3">) {</span>
+      <span class="s1">vm</span><span class="s3">.</span><span class="s1">$mount</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">el</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">export function </span><span class="s1">initInternalComponent</span><span class="s3">(</span>
+  <span class="s1">vm</span><span class="s3">: </span><span class="s1">Component</span><span class="s3">,</span>
+  <span class="s1">options</span><span class="s3">: </span><span class="s1">InternalComponentOptions</span>
+<span class="s3">) {</span>
+  <span class="s0">const </span><span class="s1">opts </span><span class="s3">= (</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$options </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">create</span><span class="s3">((</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">constructor </span><span class="s3">as </span><span class="s1">any</span><span class="s3">).</span><span class="s1">options</span><span class="s3">))</span>
+  <span class="s5">// doing this because it's faster than dynamic enumeration.</span>
+  <span class="s0">const </span><span class="s1">parentVnode </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">_parentVnode</span>
+  <span class="s1">opts</span><span class="s3">.</span><span class="s1">parent </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">parent</span>
+  <span class="s1">opts</span><span class="s3">.</span><span class="s1">_parentVnode </span><span class="s3">= </span><span class="s1">parentVnode</span>
+
+  <span class="s0">const </span><span class="s1">vnodeComponentOptions </span><span class="s3">= </span><span class="s1">parentVnode</span><span class="s3">.</span><span class="s1">componentOptions</span><span class="s3">!</span>
+  <span class="s1">opts</span><span class="s3">.</span><span class="s1">propsData </span><span class="s3">= </span><span class="s1">vnodeComponentOptions</span><span class="s3">.</span><span class="s1">propsData</span>
+  <span class="s1">opts</span><span class="s3">.</span><span class="s1">_parentListeners </span><span class="s3">= </span><span class="s1">vnodeComponentOptions</span><span class="s3">.</span><span class="s1">listeners</span>
+  <span class="s1">opts</span><span class="s3">.</span><span class="s1">_renderChildren </span><span class="s3">= </span><span class="s1">vnodeComponentOptions</span><span class="s3">.</span><span class="s1">children</span>
+  <span class="s1">opts</span><span class="s3">.</span><span class="s1">_componentTag </span><span class="s3">= </span><span class="s1">vnodeComponentOptions</span><span class="s3">.</span><span class="s1">tag</span>
+
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">options</span><span class="s3">.</span><span class="s1">render</span><span class="s3">) {</span>
+    <span class="s1">opts</span><span class="s3">.</span><span class="s1">render </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">render</span>
+    <span class="s1">opts</span><span class="s3">.</span><span class="s1">staticRenderFns </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">staticRenderFns</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">export function </span><span class="s1">resolveConstructorOptions</span><span class="s3">(</span><span class="s1">Ctor</span><span class="s3">: </span><span class="s0">typeof </span><span class="s1">Component</span><span class="s3">) {</span>
+  <span class="s0">let </span><span class="s1">options </span><span class="s3">= </span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">options</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">super</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">superOptions </span><span class="s3">= </span><span class="s1">resolveConstructorOptions</span><span class="s3">(</span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">super</span><span class="s3">)</span>
+    <span class="s0">const </span><span class="s1">cachedSuperOptions </span><span class="s3">= </span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">superOptions</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">superOptions </span><span class="s3">!== </span><span class="s1">cachedSuperOptions</span><span class="s3">) {</span>
+      <span class="s5">// super option changed,</span>
+      <span class="s5">// need to resolve new options.</span>
+      <span class="s1">Ctor</span><span class="s3">.</span><span class="s1">superOptions </span><span class="s3">= </span><span class="s1">superOptions</span>
+      <span class="s5">// check if there are any late-modified/attached options (#4976)</span>
+      <span class="s0">const </span><span class="s1">modifiedOptions </span><span class="s3">= </span><span class="s1">resolveModifiedOptions</span><span class="s3">(</span><span class="s1">Ctor</span><span class="s3">)</span>
+      <span class="s5">// update base extend options</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">modifiedOptions</span><span class="s3">) {</span>
+        <span class="s1">extend</span><span class="s3">(</span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">extendOptions</span><span class="s3">, </span><span class="s1">modifiedOptions</span><span class="s3">)</span>
+      <span class="s3">}</span>
+      <span class="s1">options </span><span class="s3">= </span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">options </span><span class="s3">= </span><span class="s1">mergeOptions</span><span class="s3">(</span><span class="s1">superOptions</span><span class="s3">, </span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">extendOptions</span><span class="s3">)</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">options</span><span class="s3">.</span><span class="s1">name</span><span class="s3">) {</span>
+        <span class="s1">options</span><span class="s3">.</span><span class="s1">components</span><span class="s3">[</span><span class="s1">options</span><span class="s3">.</span><span class="s1">name</span><span class="s3">] = </span><span class="s1">Ctor</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+  <span class="s0">return </span><span class="s1">options</span>
+<span class="s3">}</span>
+
+<span class="s0">function </span><span class="s1">resolveModifiedOptions</span><span class="s3">(</span>
+  <span class="s1">Ctor</span><span class="s3">: </span><span class="s0">typeof </span><span class="s1">Component</span>
+<span class="s3">): </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt; | </span><span class="s0">null </span><span class="s3">{</span>
+  <span class="s0">let </span><span class="s1">modified</span>
+  <span class="s0">const </span><span class="s1">latest </span><span class="s3">= </span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">options</span>
+  <span class="s0">const </span><span class="s1">sealed </span><span class="s3">= </span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">sealedOptions</span>
+  <span class="s0">for </span><span class="s3">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">latest</span><span class="s3">) {</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">latest</span><span class="s3">[</span><span class="s1">key</span><span class="s3">] !== </span><span class="s1">sealed</span><span class="s3">[</span><span class="s1">key</span><span class="s3">]) {</span>
+      <span class="s0">if </span><span class="s3">(!</span><span class="s1">modified</span><span class="s3">) </span><span class="s1">modified </span><span class="s3">= {}</span>
+      <span class="s1">modified</span><span class="s3">[</span><span class="s1">key</span><span class="s3">] = </span><span class="s1">latest</span><span class="s3">[</span><span class="s1">key</span><span class="s3">]</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+  <span class="s0">return </span><span class="s1">modified</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

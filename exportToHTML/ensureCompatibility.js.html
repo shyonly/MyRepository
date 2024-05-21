@@ -1,0 +1,256 @@
+<html>
+<head>
+<title>ensureCompatibility.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #42c3d4;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #67a37c; font-style: italic;}
+.s7 { color: #2aacb8;}
+.s8 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+ensureCompatibility.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s1">{ </span><span class="s2">isSupported </span><span class="s1">} = </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'caniuse-api'</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">selectorParser </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'postcss-selector-parser'</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s2">simpleSelectorRe </span><span class="s1">= </span><span class="s4">/^#?[-._a-z0-9 ]+$/i</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s2">cssSel2 </span><span class="s1">= </span><span class="s0">'css-sel2'</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">cssSel3 </span><span class="s1">= </span><span class="s0">'css-sel3'</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">cssGencontent </span><span class="s1">= </span><span class="s0">'css-gencontent'</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">cssFirstLetter </span><span class="s1">= </span><span class="s0">'css-first-letter'</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">cssFirstLine </span><span class="s1">= </span><span class="s0">'css-first-line'</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">cssInOutOfRange </span><span class="s1">= </span><span class="s0">'css-in-out-of-range'</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">formValidation </span><span class="s1">= </span><span class="s0">'form-validation'</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s2">vendorPrefix </span><span class="s1">=</span>
+  <span class="s4">/-(ah|apple|atsc|epub|hp|khtml|moz|ms|o|rim|ro|tc|wap|webkit|xv)-/</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s2">level2Sel </span><span class="s1">= </span><span class="s3">new </span><span class="s2">Set</span><span class="s1">([</span><span class="s0">'='</span><span class="s1">, </span><span class="s0">'~='</span><span class="s1">, </span><span class="s0">'|='</span><span class="s1">]);</span>
+<span class="s3">const </span><span class="s2">level3Sel </span><span class="s1">= </span><span class="s3">new </span><span class="s2">Set</span><span class="s1">([</span><span class="s0">'^='</span><span class="s1">, </span><span class="s0">'$='</span><span class="s1">, </span><span class="s0">'*='</span><span class="s1">]);</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} selector</span>
+ <span class="s5">* </span><span class="s6">@return </span><span class="s5">{RegExpMatchArray | null}</span>
+ <span class="s5">*/</span>
+<span class="s3">function </span><span class="s2">filterPrefixes</span><span class="s1">(</span><span class="s2">selector</span><span class="s1">) {</span>
+  <span class="s3">return </span><span class="s2">selector</span><span class="s1">.</span><span class="s2">match</span><span class="s1">(</span><span class="s2">vendorPrefix</span><span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* Internet Explorer use :-ms-input-placeholder.</span>
+ <span class="s5">* Microsoft Edge use ::-ms-input-placeholder.</span>
+ <span class="s5">*</span>
+ <span class="s5">* </span><span class="s6">@type </span><span class="s5">{(selector: string) =&gt; number}</span>
+ <span class="s5">*/</span>
+<span class="s3">const </span><span class="s2">findMsInputPlaceholder </span><span class="s1">= (</span><span class="s2">selector</span><span class="s1">) =&gt;</span>
+  <span class="s1">~</span><span class="s2">selector</span><span class="s1">.</span><span class="s2">search</span><span class="s1">(</span><span class="s4">/-ms-input-placeholder/i</span><span class="s1">);</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string[]} selectorsA</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string[]} selectorsB</span>
+ <span class="s5">* </span><span class="s6">@return </span><span class="s5">{boolean}</span>
+ <span class="s5">*/</span>
+<span class="s3">function </span><span class="s2">sameVendor</span><span class="s1">(</span><span class="s2">selectorsA</span><span class="s1">, </span><span class="s2">selectorsB</span><span class="s1">) {</span>
+  <span class="s5">/** </span><span class="s6">@type </span><span class="s5">{(selectors: string[]) =&gt; string} */</span>
+  <span class="s3">let </span><span class="s2">same </span><span class="s1">= (</span><span class="s2">selectors</span><span class="s1">) =&gt; </span><span class="s2">selectors</span><span class="s1">.</span><span class="s2">map</span><span class="s1">(</span><span class="s2">filterPrefixes</span><span class="s1">).</span><span class="s2">join</span><span class="s1">();</span>
+  <span class="s5">/** </span><span class="s6">@type </span><span class="s5">{(selectors: string[]) =&gt; string | undefined} */</span>
+  <span class="s3">let </span><span class="s2">findMsVendor </span><span class="s1">= (</span><span class="s2">selectors</span><span class="s1">) =&gt; </span><span class="s2">selectors</span><span class="s1">.</span><span class="s2">find</span><span class="s1">(</span><span class="s2">findMsInputPlaceholder</span><span class="s1">);</span>
+  <span class="s3">return </span><span class="s1">(</span>
+    <span class="s2">same</span><span class="s1">(</span><span class="s2">selectorsA</span><span class="s1">) === </span><span class="s2">same</span><span class="s1">(</span><span class="s2">selectorsB</span><span class="s1">) &amp;&amp;</span>
+    <span class="s1">!(</span><span class="s2">findMsVendor</span><span class="s1">(</span><span class="s2">selectorsA</span><span class="s1">) &amp;&amp; </span><span class="s2">findMsVendor</span><span class="s1">(</span><span class="s2">selectorsB</span><span class="s1">))</span>
+  <span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} selector</span>
+ <span class="s5">* </span><span class="s6">@return </span><span class="s5">{boolean}</span>
+ <span class="s5">*/</span>
+<span class="s3">function </span><span class="s2">noVendor</span><span class="s1">(</span><span class="s2">selector</span><span class="s1">) {</span>
+  <span class="s3">return </span><span class="s1">!</span><span class="s2">vendorPrefix</span><span class="s1">.</span><span class="s2">test</span><span class="s1">(</span><span class="s2">selector</span><span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s3">const </span><span class="s2">pseudoElements </span><span class="s1">= {</span>
+  <span class="s0">':active'</span><span class="s1">: </span><span class="s2">cssSel2</span><span class="s1">,</span>
+  <span class="s0">':after'</span><span class="s1">: </span><span class="s2">cssGencontent</span><span class="s1">,</span>
+  <span class="s0">':any-link'</span><span class="s1">: </span><span class="s0">'css-any-link'</span><span class="s1">,</span>
+  <span class="s0">':before'</span><span class="s1">: </span><span class="s2">cssGencontent</span><span class="s1">,</span>
+  <span class="s0">':checked'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">':default'</span><span class="s1">: </span><span class="s0">'css-default-pseudo'</span><span class="s1">,</span>
+  <span class="s0">':dir'</span><span class="s1">: </span><span class="s0">'css-dir-pseudo'</span><span class="s1">,</span>
+  <span class="s0">':disabled'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">':empty'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">':enabled'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">':first-child'</span><span class="s1">: </span><span class="s2">cssSel2</span><span class="s1">,</span>
+  <span class="s0">':first-letter'</span><span class="s1">: </span><span class="s2">cssFirstLetter</span><span class="s1">,</span>
+  <span class="s0">':first-line'</span><span class="s1">: </span><span class="s2">cssFirstLine</span><span class="s1">,</span>
+  <span class="s0">':first-of-type'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">':focus'</span><span class="s1">: </span><span class="s2">cssSel2</span><span class="s1">,</span>
+  <span class="s0">':focus-within'</span><span class="s1">: </span><span class="s0">'css-focus-within'</span><span class="s1">,</span>
+  <span class="s0">':focus-visible'</span><span class="s1">: </span><span class="s0">'css-focus-visible'</span><span class="s1">,</span>
+  <span class="s0">':has'</span><span class="s1">: </span><span class="s0">'css-has'</span><span class="s1">,</span>
+  <span class="s0">':hover'</span><span class="s1">: </span><span class="s2">cssSel2</span><span class="s1">,</span>
+  <span class="s0">':in-range'</span><span class="s1">: </span><span class="s2">cssInOutOfRange</span><span class="s1">,</span>
+  <span class="s0">':indeterminate'</span><span class="s1">: </span><span class="s0">'css-indeterminate-pseudo'</span><span class="s1">,</span>
+  <span class="s0">':invalid'</span><span class="s1">: </span><span class="s2">formValidation</span><span class="s1">,</span>
+  <span class="s0">':is'</span><span class="s1">: </span><span class="s0">'css-matches-pseudo'</span><span class="s1">,</span>
+  <span class="s0">':lang'</span><span class="s1">: </span><span class="s2">cssSel2</span><span class="s1">,</span>
+  <span class="s0">':last-child'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">':last-of-type'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">':link'</span><span class="s1">: </span><span class="s2">cssSel2</span><span class="s1">,</span>
+  <span class="s0">':matches'</span><span class="s1">: </span><span class="s0">'css-matches-pseudo'</span><span class="s1">,</span>
+  <span class="s0">':not'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">':nth-child'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">':nth-last-child'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">':nth-last-of-type'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">':nth-of-type'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">':only-child'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">':only-of-type'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">':optional'</span><span class="s1">: </span><span class="s0">'css-optional-pseudo'</span><span class="s1">,</span>
+  <span class="s0">':out-of-range'</span><span class="s1">: </span><span class="s2">cssInOutOfRange</span><span class="s1">,</span>
+  <span class="s0">':placeholder-shown'</span><span class="s1">: </span><span class="s0">'css-placeholder-shown'</span><span class="s1">,</span>
+  <span class="s0">':required'</span><span class="s1">: </span><span class="s2">formValidation</span><span class="s1">,</span>
+  <span class="s0">':root'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">':target'</span><span class="s1">: </span><span class="s2">cssSel3</span><span class="s1">,</span>
+  <span class="s0">'::after'</span><span class="s1">: </span><span class="s2">cssGencontent</span><span class="s1">,</span>
+  <span class="s0">'::backdrop'</span><span class="s1">: </span><span class="s0">'dialog'</span><span class="s1">,</span>
+  <span class="s0">'::before'</span><span class="s1">: </span><span class="s2">cssGencontent</span><span class="s1">,</span>
+  <span class="s0">'::first-letter'</span><span class="s1">: </span><span class="s2">cssFirstLetter</span><span class="s1">,</span>
+  <span class="s0">'::first-line'</span><span class="s1">: </span><span class="s2">cssFirstLine</span><span class="s1">,</span>
+  <span class="s0">'::marker'</span><span class="s1">: </span><span class="s0">'css-marker-pseudo'</span><span class="s1">,</span>
+  <span class="s0">'::placeholder'</span><span class="s1">: </span><span class="s0">'css-placeholder'</span><span class="s1">,</span>
+  <span class="s0">'::selection'</span><span class="s1">: </span><span class="s0">'css-selection'</span><span class="s1">,</span>
+  <span class="s0">':valid'</span><span class="s1">: </span><span class="s2">formValidation</span><span class="s1">,</span>
+  <span class="s0">':visited'</span><span class="s1">: </span><span class="s2">cssSel2</span><span class="s1">,</span>
+<span class="s1">};</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} selector</span>
+ <span class="s5">* </span><span class="s6">@return </span><span class="s5">{boolean}</span>
+ <span class="s5">*/</span>
+<span class="s3">function </span><span class="s2">isCssMixin</span><span class="s1">(</span><span class="s2">selector</span><span class="s1">) {</span>
+  <span class="s3">return </span><span class="s2">selector</span><span class="s1">[</span><span class="s2">selector</span><span class="s1">.</span><span class="s2">length </span><span class="s1">- </span><span class="s7">1</span><span class="s1">] === </span><span class="s0">':'</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} selector</span>
+ <span class="s5">* </span><span class="s6">@return </span><span class="s5">{boolean}</span>
+ <span class="s5">*/</span>
+<span class="s3">function </span><span class="s2">isHostPseudoClass</span><span class="s1">(</span><span class="s2">selector</span><span class="s1">) {</span>
+  <span class="s3">return </span><span class="s2">selector</span><span class="s1">.</span><span class="s2">includes</span><span class="s1">(</span><span class="s0">':host'</span><span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s3">const </span><span class="s2">isSupportedCache </span><span class="s1">= </span><span class="s3">new </span><span class="s2">Map</span><span class="s1">();</span>
+
+<span class="s8">// Move to util in future</span>
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} feature</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string[] | undefined} browsers</span>
+ <span class="s5">*/</span>
+<span class="s3">function </span><span class="s2">isSupportedCached</span><span class="s1">(</span><span class="s2">feature</span><span class="s1">, </span><span class="s2">browsers</span><span class="s1">) {</span>
+  <span class="s3">const </span><span class="s2">key </span><span class="s1">= </span><span class="s2">JSON</span><span class="s1">.</span><span class="s2">stringify</span><span class="s1">({ </span><span class="s2">feature</span><span class="s1">, </span><span class="s2">browsers </span><span class="s1">});</span>
+  <span class="s3">let </span><span class="s2">result </span><span class="s1">= </span><span class="s2">isSupportedCache</span><span class="s1">.</span><span class="s2">get</span><span class="s1">(</span><span class="s2">key</span><span class="s1">);</span>
+
+  <span class="s3">if </span><span class="s1">(!</span><span class="s2">result</span><span class="s1">) {</span>
+    <span class="s2">result </span><span class="s1">= </span><span class="s2">isSupported</span><span class="s1">(</span><span class="s2">feature</span><span class="s1">, </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{string[]} */ </span><span class="s1">(</span><span class="s2">browsers</span><span class="s1">));</span>
+    <span class="s2">isSupportedCache</span><span class="s1">.</span><span class="s2">set</span><span class="s1">(</span><span class="s2">key</span><span class="s1">, </span><span class="s2">result</span><span class="s1">);</span>
+  <span class="s1">}</span>
+
+  <span class="s3">return </span><span class="s2">result</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string[]} selectors</span>
+ <span class="s5">* </span><span class="s6">@param</span><span class="s5">{string[]=} browsers</span>
+ <span class="s5">* </span><span class="s6">@param</span><span class="s5">{Map&lt;string,boolean&gt;=} compatibilityCache</span>
+ <span class="s5">* </span><span class="s6">@return </span><span class="s5">{boolean}</span>
+ <span class="s5">*/</span>
+<span class="s3">function </span><span class="s2">ensureCompatibility</span><span class="s1">(</span><span class="s2">selectors</span><span class="s1">, </span><span class="s2">browsers</span><span class="s1">, </span><span class="s2">compatibilityCache</span><span class="s1">) {</span>
+  <span class="s8">// Should not merge mixins</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s2">selectors</span><span class="s1">.</span><span class="s2">some</span><span class="s1">(</span><span class="s2">isCssMixin</span><span class="s1">)) {</span>
+    <span class="s3">return false</span><span class="s1">;</span>
+  <span class="s1">}</span>
+
+  <span class="s8">// Should not merge :host selector https://github.com/angular/angular-cli/issues/18672</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s2">selectors</span><span class="s1">.</span><span class="s2">some</span><span class="s1">(</span><span class="s2">isHostPseudoClass</span><span class="s1">)) {</span>
+    <span class="s3">return false</span><span class="s1">;</span>
+  <span class="s1">}</span>
+  <span class="s3">return </span><span class="s2">selectors</span><span class="s1">.</span><span class="s2">every</span><span class="s1">((</span><span class="s2">selector</span><span class="s1">) =&gt; {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">simpleSelectorRe</span><span class="s1">.</span><span class="s2">test</span><span class="s1">(</span><span class="s2">selector</span><span class="s1">)) {</span>
+      <span class="s3">return true</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">compatibilityCache </span><span class="s1">&amp;&amp; </span><span class="s2">compatibilityCache</span><span class="s1">.</span><span class="s2">has</span><span class="s1">(</span><span class="s2">selector</span><span class="s1">)) {</span>
+      <span class="s3">return </span><span class="s2">compatibilityCache</span><span class="s1">.</span><span class="s2">get</span><span class="s1">(</span><span class="s2">selector</span><span class="s1">);</span>
+    <span class="s1">}</span>
+    <span class="s3">let </span><span class="s2">compatible </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+    <span class="s2">selectorParser</span><span class="s1">((</span><span class="s2">ast</span><span class="s1">) =&gt; {</span>
+      <span class="s2">ast</span><span class="s1">.</span><span class="s2">walk</span><span class="s1">((</span><span class="s2">node</span><span class="s1">) =&gt; {</span>
+        <span class="s3">const </span><span class="s1">{ </span><span class="s2">type</span><span class="s1">, </span><span class="s2">value </span><span class="s1">} = </span><span class="s2">node</span><span class="s1">;</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">type </span><span class="s1">=== </span><span class="s0">'pseudo'</span><span class="s1">) {</span>
+          <span class="s3">const </span><span class="s2">entry </span><span class="s1">=</span>
+            <span class="s2">pseudoElements</span><span class="s1">[</span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{keyof pseudoElements} */ </span><span class="s1">(</span><span class="s2">value</span><span class="s1">)];</span>
+          <span class="s3">if </span><span class="s1">(!</span><span class="s2">entry </span><span class="s1">&amp;&amp; </span><span class="s2">noVendor</span><span class="s1">(</span><span class="s2">value</span><span class="s1">)) {</span>
+            <span class="s2">compatible </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+          <span class="s1">}</span>
+          <span class="s3">if </span><span class="s1">(</span><span class="s2">entry </span><span class="s1">&amp;&amp; </span><span class="s2">compatible</span><span class="s1">) {</span>
+            <span class="s2">compatible </span><span class="s1">= </span><span class="s2">isSupportedCached</span><span class="s1">(</span><span class="s2">entry</span><span class="s1">, </span><span class="s2">browsers</span><span class="s1">);</span>
+          <span class="s1">}</span>
+        <span class="s1">}</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">type </span><span class="s1">=== </span><span class="s0">'combinator'</span><span class="s1">) {</span>
+          <span class="s3">if </span><span class="s1">(</span><span class="s2">value</span><span class="s1">.</span><span class="s2">includes</span><span class="s1">(</span><span class="s0">'~'</span><span class="s1">)) {</span>
+            <span class="s2">compatible </span><span class="s1">= </span><span class="s2">isSupportedCached</span><span class="s1">(</span><span class="s2">cssSel3</span><span class="s1">, </span><span class="s2">browsers</span><span class="s1">);</span>
+          <span class="s1">}</span>
+          <span class="s3">if </span><span class="s1">(</span><span class="s2">value</span><span class="s1">.</span><span class="s2">includes</span><span class="s1">(</span><span class="s0">'&gt;'</span><span class="s1">) || </span><span class="s2">value</span><span class="s1">.</span><span class="s2">includes</span><span class="s1">(</span><span class="s0">'+'</span><span class="s1">)) {</span>
+            <span class="s2">compatible </span><span class="s1">= </span><span class="s2">isSupportedCached</span><span class="s1">(</span><span class="s2">cssSel2</span><span class="s1">, </span><span class="s2">browsers</span><span class="s1">);</span>
+          <span class="s1">}</span>
+        <span class="s1">}</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">type </span><span class="s1">=== </span><span class="s0">'attribute' </span><span class="s1">&amp;&amp; </span><span class="s2">node</span><span class="s1">.</span><span class="s2">attribute</span><span class="s1">) {</span>
+          <span class="s8">// [foo]</span>
+          <span class="s3">if </span><span class="s1">(!</span><span class="s2">node</span><span class="s1">.</span><span class="s2">operator</span><span class="s1">) {</span>
+            <span class="s2">compatible </span><span class="s1">= </span><span class="s2">isSupportedCached</span><span class="s1">(</span><span class="s2">cssSel2</span><span class="s1">, </span><span class="s2">browsers</span><span class="s1">);</span>
+          <span class="s1">}</span>
+          <span class="s3">if </span><span class="s1">(</span><span class="s2">value</span><span class="s1">) {</span>
+            <span class="s8">// [foo=&quot;bar&quot;], [foo~=&quot;bar&quot;], [foo|=&quot;bar&quot;]</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s2">level2Sel</span><span class="s1">.</span><span class="s2">has</span><span class="s1">(</span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{string} */ </span><span class="s1">(</span><span class="s2">node</span><span class="s1">.</span><span class="s2">operator</span><span class="s1">))) {</span>
+              <span class="s2">compatible </span><span class="s1">= </span><span class="s2">isSupportedCached</span><span class="s1">(</span><span class="s2">cssSel2</span><span class="s1">, </span><span class="s2">browsers</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s8">// [foo^=&quot;bar&quot;], [foo$=&quot;bar&quot;], [foo*=&quot;bar&quot;]</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s2">level3Sel</span><span class="s1">.</span><span class="s2">has</span><span class="s1">(</span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{string} */ </span><span class="s1">(</span><span class="s2">node</span><span class="s1">.</span><span class="s2">operator</span><span class="s1">))) {</span>
+              <span class="s2">compatible </span><span class="s1">= </span><span class="s2">isSupportedCached</span><span class="s1">(</span><span class="s2">cssSel3</span><span class="s1">, </span><span class="s2">browsers</span><span class="s1">);</span>
+            <span class="s1">}</span>
+          <span class="s1">}</span>
+
+          <span class="s8">// [foo=&quot;bar&quot; i]</span>
+          <span class="s3">if </span><span class="s1">(</span><span class="s2">node</span><span class="s1">.</span><span class="s2">insensitive</span><span class="s1">) {</span>
+            <span class="s2">compatible </span><span class="s1">= </span><span class="s2">isSupportedCached</span><span class="s1">(</span><span class="s0">'css-case-insensitive'</span><span class="s1">, </span><span class="s2">browsers</span><span class="s1">);</span>
+          <span class="s1">}</span>
+        <span class="s1">}</span>
+        <span class="s3">if </span><span class="s1">(!</span><span class="s2">compatible</span><span class="s1">) {</span>
+          <span class="s8">// If this node was not compatible,</span>
+          <span class="s8">// break out early from walking the rest</span>
+          <span class="s3">return false</span><span class="s1">;</span>
+        <span class="s1">}</span>
+      <span class="s1">});</span>
+    <span class="s1">}).</span><span class="s2">processSync</span><span class="s1">(</span><span class="s2">selector</span><span class="s1">);</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">compatibilityCache</span><span class="s1">) {</span>
+      <span class="s2">compatibilityCache</span><span class="s1">.</span><span class="s2">set</span><span class="s1">(</span><span class="s2">selector</span><span class="s1">, </span><span class="s2">compatible</span><span class="s1">);</span>
+    <span class="s1">}</span>
+    <span class="s3">return </span><span class="s2">compatible</span><span class="s1">;</span>
+  <span class="s1">});</span>
+<span class="s1">}</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= { </span><span class="s2">sameVendor</span><span class="s1">, </span><span class="s2">noVendor</span><span class="s1">, </span><span class="s2">pseudoElements</span><span class="s1">, </span><span class="s2">ensureCompatibility </span><span class="s1">};</span>
+</pre>
+</body>
+</html>

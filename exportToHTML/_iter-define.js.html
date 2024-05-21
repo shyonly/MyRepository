@@ -1,0 +1,90 @@
+<html>
+<head>
+<title>_iter-define.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_iter-define.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span><span class="s1">;</span>
+<span class="s3">var </span><span class="s2">LIBRARY </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./_library'</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">$export </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./_export'</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">redefine </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./_redefine'</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">hide </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./_hide'</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">Iterators </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./_iterators'</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">$iterCreate </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./_iter-create'</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">setToStringTag </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./_set-to-string-tag'</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">getPrototypeOf </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./_object-gpo'</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">ITERATOR </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./_wks'</span><span class="s1">)(</span><span class="s0">'iterator'</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">BUGGY </span><span class="s1">= !([].</span><span class="s2">keys </span><span class="s1">&amp;&amp; </span><span class="s0">'next' </span><span class="s3">in </span><span class="s1">[].</span><span class="s2">keys</span><span class="s1">()); </span><span class="s4">// Safari has buggy iterators w/o `next`</span>
+<span class="s3">var </span><span class="s2">FF_ITERATOR </span><span class="s1">= </span><span class="s0">'@@iterator'</span><span class="s1">;</span>
+<span class="s3">var </span><span class="s2">KEYS </span><span class="s1">= </span><span class="s0">'keys'</span><span class="s1">;</span>
+<span class="s3">var </span><span class="s2">VALUES </span><span class="s1">= </span><span class="s0">'values'</span><span class="s1">;</span>
+
+<span class="s3">var </span><span class="s2">returnThis </span><span class="s1">= </span><span class="s3">function </span><span class="s1">() { </span><span class="s3">return this</span><span class="s1">; };</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">Base</span><span class="s1">, </span><span class="s2">NAME</span><span class="s1">, </span><span class="s2">Constructor</span><span class="s1">, </span><span class="s2">next</span><span class="s1">, </span><span class="s2">DEFAULT</span><span class="s1">, </span><span class="s2">IS_SET</span><span class="s1">, </span><span class="s2">FORCED</span><span class="s1">) {</span>
+  <span class="s2">$iterCreate</span><span class="s1">(</span><span class="s2">Constructor</span><span class="s1">, </span><span class="s2">NAME</span><span class="s1">, </span><span class="s2">next</span><span class="s1">);</span>
+  <span class="s3">var </span><span class="s2">getMethod </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">kind</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(!</span><span class="s2">BUGGY </span><span class="s1">&amp;&amp; </span><span class="s2">kind </span><span class="s3">in </span><span class="s2">proto</span><span class="s1">) </span><span class="s3">return </span><span class="s2">proto</span><span class="s1">[</span><span class="s2">kind</span><span class="s1">];</span>
+    <span class="s3">switch </span><span class="s1">(</span><span class="s2">kind</span><span class="s1">) {</span>
+      <span class="s3">case </span><span class="s2">KEYS</span><span class="s1">: </span><span class="s3">return function </span><span class="s2">keys</span><span class="s1">() { </span><span class="s3">return new </span><span class="s2">Constructor</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">kind</span><span class="s1">); };</span>
+      <span class="s3">case </span><span class="s2">VALUES</span><span class="s1">: </span><span class="s3">return function </span><span class="s2">values</span><span class="s1">() { </span><span class="s3">return new </span><span class="s2">Constructor</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">kind</span><span class="s1">); };</span>
+    <span class="s1">} </span><span class="s3">return function </span><span class="s2">entries</span><span class="s1">() { </span><span class="s3">return new </span><span class="s2">Constructor</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">kind</span><span class="s1">); };</span>
+  <span class="s1">};</span>
+  <span class="s3">var </span><span class="s2">TAG </span><span class="s1">= </span><span class="s2">NAME </span><span class="s1">+ </span><span class="s0">' Iterator'</span><span class="s1">;</span>
+  <span class="s3">var </span><span class="s2">DEF_VALUES </span><span class="s1">= </span><span class="s2">DEFAULT </span><span class="s1">== </span><span class="s2">VALUES</span><span class="s1">;</span>
+  <span class="s3">var </span><span class="s2">VALUES_BUG </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+  <span class="s3">var </span><span class="s2">proto </span><span class="s1">= </span><span class="s2">Base</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">;</span>
+  <span class="s3">var </span><span class="s2">$native </span><span class="s1">= </span><span class="s2">proto</span><span class="s1">[</span><span class="s2">ITERATOR</span><span class="s1">] || </span><span class="s2">proto</span><span class="s1">[</span><span class="s2">FF_ITERATOR</span><span class="s1">] || </span><span class="s2">DEFAULT </span><span class="s1">&amp;&amp; </span><span class="s2">proto</span><span class="s1">[</span><span class="s2">DEFAULT</span><span class="s1">];</span>
+  <span class="s3">var </span><span class="s2">$default </span><span class="s1">= </span><span class="s2">$native </span><span class="s1">|| </span><span class="s2">getMethod</span><span class="s1">(</span><span class="s2">DEFAULT</span><span class="s1">);</span>
+  <span class="s3">var </span><span class="s2">$entries </span><span class="s1">= </span><span class="s2">DEFAULT </span><span class="s1">? !</span><span class="s2">DEF_VALUES </span><span class="s1">? </span><span class="s2">$default </span><span class="s1">: </span><span class="s2">getMethod</span><span class="s1">(</span><span class="s0">'entries'</span><span class="s1">) : </span><span class="s2">undefined</span><span class="s1">;</span>
+  <span class="s3">var </span><span class="s2">$anyNative </span><span class="s1">= </span><span class="s2">NAME </span><span class="s1">== </span><span class="s0">'Array' </span><span class="s1">? </span><span class="s2">proto</span><span class="s1">.</span><span class="s2">entries </span><span class="s1">|| </span><span class="s2">$native </span><span class="s1">: </span><span class="s2">$native</span><span class="s1">;</span>
+  <span class="s3">var </span><span class="s2">methods</span><span class="s1">, </span><span class="s2">key</span><span class="s1">, </span><span class="s2">IteratorPrototype</span><span class="s1">;</span>
+  <span class="s4">// Fix native</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s2">$anyNative</span><span class="s1">) {</span>
+    <span class="s2">IteratorPrototype </span><span class="s1">= </span><span class="s2">getPrototypeOf</span><span class="s1">(</span><span class="s2">$anyNative</span><span class="s1">.</span><span class="s2">call</span><span class="s1">(</span><span class="s3">new </span><span class="s2">Base</span><span class="s1">()));</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">IteratorPrototype </span><span class="s1">!== </span><span class="s2">Object</span><span class="s1">.</span><span class="s2">prototype </span><span class="s1">&amp;&amp; </span><span class="s2">IteratorPrototype</span><span class="s1">.</span><span class="s2">next</span><span class="s1">) {</span>
+      <span class="s4">// Set @@toStringTag to native iterators</span>
+      <span class="s2">setToStringTag</span><span class="s1">(</span><span class="s2">IteratorPrototype</span><span class="s1">, </span><span class="s2">TAG</span><span class="s1">, </span><span class="s3">true</span><span class="s1">);</span>
+      <span class="s4">// fix for some old engines</span>
+      <span class="s3">if </span><span class="s1">(!</span><span class="s2">LIBRARY </span><span class="s1">&amp;&amp; </span><span class="s3">typeof </span><span class="s2">IteratorPrototype</span><span class="s1">[</span><span class="s2">ITERATOR</span><span class="s1">] != </span><span class="s0">'function'</span><span class="s1">) </span><span class="s2">hide</span><span class="s1">(</span><span class="s2">IteratorPrototype</span><span class="s1">, </span><span class="s2">ITERATOR</span><span class="s1">, </span><span class="s2">returnThis</span><span class="s1">);</span>
+    <span class="s1">}</span>
+  <span class="s1">}</span>
+  <span class="s4">// fix Array#{values, @@iterator}.name in V8 / FF</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s2">DEF_VALUES </span><span class="s1">&amp;&amp; </span><span class="s2">$native </span><span class="s1">&amp;&amp; </span><span class="s2">$native</span><span class="s1">.</span><span class="s2">name </span><span class="s1">!== </span><span class="s2">VALUES</span><span class="s1">) {</span>
+    <span class="s2">VALUES_BUG </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+    <span class="s2">$default </span><span class="s1">= </span><span class="s3">function </span><span class="s2">values</span><span class="s1">() { </span><span class="s3">return </span><span class="s2">$native</span><span class="s1">.</span><span class="s2">call</span><span class="s1">(</span><span class="s3">this</span><span class="s1">); };</span>
+  <span class="s1">}</span>
+  <span class="s4">// Define iterator</span>
+  <span class="s3">if </span><span class="s1">((!</span><span class="s2">LIBRARY </span><span class="s1">|| </span><span class="s2">FORCED</span><span class="s1">) &amp;&amp; (</span><span class="s2">BUGGY </span><span class="s1">|| </span><span class="s2">VALUES_BUG </span><span class="s1">|| !</span><span class="s2">proto</span><span class="s1">[</span><span class="s2">ITERATOR</span><span class="s1">])) {</span>
+    <span class="s2">hide</span><span class="s1">(</span><span class="s2">proto</span><span class="s1">, </span><span class="s2">ITERATOR</span><span class="s1">, </span><span class="s2">$default</span><span class="s1">);</span>
+  <span class="s1">}</span>
+  <span class="s4">// Plug for library</span>
+  <span class="s2">Iterators</span><span class="s1">[</span><span class="s2">NAME</span><span class="s1">] = </span><span class="s2">$default</span><span class="s1">;</span>
+  <span class="s2">Iterators</span><span class="s1">[</span><span class="s2">TAG</span><span class="s1">] = </span><span class="s2">returnThis</span><span class="s1">;</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s2">DEFAULT</span><span class="s1">) {</span>
+    <span class="s2">methods </span><span class="s1">= {</span>
+      <span class="s2">values</span><span class="s1">: </span><span class="s2">DEF_VALUES </span><span class="s1">? </span><span class="s2">$default </span><span class="s1">: </span><span class="s2">getMethod</span><span class="s1">(</span><span class="s2">VALUES</span><span class="s1">),</span>
+      <span class="s2">keys</span><span class="s1">: </span><span class="s2">IS_SET </span><span class="s1">? </span><span class="s2">$default </span><span class="s1">: </span><span class="s2">getMethod</span><span class="s1">(</span><span class="s2">KEYS</span><span class="s1">),</span>
+      <span class="s2">entries</span><span class="s1">: </span><span class="s2">$entries</span>
+    <span class="s1">};</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">FORCED</span><span class="s1">) </span><span class="s3">for </span><span class="s1">(</span><span class="s2">key </span><span class="s3">in </span><span class="s2">methods</span><span class="s1">) {</span>
+      <span class="s3">if </span><span class="s1">(!(</span><span class="s2">key </span><span class="s3">in </span><span class="s2">proto</span><span class="s1">)) </span><span class="s2">redefine</span><span class="s1">(</span><span class="s2">proto</span><span class="s1">, </span><span class="s2">key</span><span class="s1">, </span><span class="s2">methods</span><span class="s1">[</span><span class="s2">key</span><span class="s1">]);</span>
+    <span class="s1">} </span><span class="s3">else </span><span class="s2">$export</span><span class="s1">(</span><span class="s2">$export</span><span class="s1">.</span><span class="s2">P </span><span class="s1">+ </span><span class="s2">$export</span><span class="s1">.</span><span class="s2">F </span><span class="s1">* (</span><span class="s2">BUGGY </span><span class="s1">|| </span><span class="s2">VALUES_BUG</span><span class="s1">), </span><span class="s2">NAME</span><span class="s1">, </span><span class="s2">methods</span><span class="s1">);</span>
+  <span class="s1">}</span>
+  <span class="s3">return </span><span class="s2">methods</span><span class="s1">;</span>
+<span class="s1">};</span>
+</pre>
+</body>
+</html>

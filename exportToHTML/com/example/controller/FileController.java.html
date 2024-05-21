@@ -1,0 +1,144 @@
+<html>
+<head>
+<title>FileController.java</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #5f826b; font-style: italic;}
+.s4 { color: #6aab73;}
+.s5 { color: #7a7e85;}
+.s6 { color: #2aacb8;}
+.s7 { color: #67a37c; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+FileController.java</font>
+</center></td></tr></table>
+<pre><span class="s0">package </span><span class="s1">com</span><span class="s2">.</span><span class="s1">example</span><span class="s2">.</span><span class="s1">controller</span><span class="s2">;</span>
+
+<span class="s0">import </span><span class="s1">cn</span><span class="s2">.</span><span class="s1">hutool</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">collection</span><span class="s2">.</span><span class="s1">CollUtil</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">cn</span><span class="s2">.</span><span class="s1">hutool</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">io</span><span class="s2">.</span><span class="s1">FileUtil</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">cn</span><span class="s2">.</span><span class="s1">hutool</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">lang</span><span class="s2">.</span><span class="s1">Dict</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">cn</span><span class="s2">.</span><span class="s1">hutool</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">thread</span><span class="s2">.</span><span class="s1">ThreadUtil</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">cn</span><span class="s2">.</span><span class="s1">hutool</span><span class="s2">.</span><span class="s1">core</span><span class="s2">.</span><span class="s1">util</span><span class="s2">.</span><span class="s1">StrUtil</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">com</span><span class="s2">.</span><span class="s1">example</span><span class="s2">.</span><span class="s1">common</span><span class="s2">.</span><span class="s1">Result</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">org</span><span class="s2">.</span><span class="s1">springframework</span><span class="s2">.</span><span class="s1">beans</span><span class="s2">.</span><span class="s1">factory</span><span class="s2">.</span><span class="s1">annotation</span><span class="s2">.</span><span class="s1">Value</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">org</span><span class="s2">.</span><span class="s1">springframework</span><span class="s2">.</span><span class="s1">web</span><span class="s2">.</span><span class="s1">bind</span><span class="s2">.</span><span class="s1">annotation</span><span class="s2">.*;</span>
+<span class="s0">import </span><span class="s1">org</span><span class="s2">.</span><span class="s1">springframework</span><span class="s2">.</span><span class="s1">web</span><span class="s2">.</span><span class="s1">multipart</span><span class="s2">.</span><span class="s1">MultipartFile</span><span class="s2">;</span>
+
+<span class="s0">import </span><span class="s1">javax</span><span class="s2">.</span><span class="s1">servlet</span><span class="s2">.</span><span class="s1">http</span><span class="s2">.</span><span class="s1">HttpServletResponse</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">java</span><span class="s2">.</span><span class="s1">io</span><span class="s2">.</span><span class="s1">OutputStream</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">java</span><span class="s2">.</span><span class="s1">net</span><span class="s2">.</span><span class="s1">URLEncoder</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">java</span><span class="s2">.</span><span class="s1">util</span><span class="s2">.</span><span class="s1">HashMap</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">java</span><span class="s2">.</span><span class="s1">util</span><span class="s2">.</span><span class="s1">List</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">java</span><span class="s2">.</span><span class="s1">util</span><span class="s2">.</span><span class="s1">Map</span><span class="s2">;</span>
+
+<span class="s3">/**</span>
+ <span class="s3">* 文件接口</span>
+ <span class="s3">*/</span>
+<span class="s1">@RestController</span>
+<span class="s1">@RequestMapping</span><span class="s2">(</span><span class="s4">&quot;/files&quot;</span><span class="s2">)</span>
+<span class="s0">public class </span><span class="s1">FileController </span><span class="s2">{</span>
+
+    <span class="s5">// 文件上传存储路径</span>
+    <span class="s0">private static final </span><span class="s1">String filePath </span><span class="s2">= </span><span class="s1">System</span><span class="s2">.</span><span class="s1">getProperty</span><span class="s2">(</span><span class="s4">&quot;user.dir&quot;</span><span class="s2">) + </span><span class="s4">&quot;/files/&quot;</span><span class="s2">;</span>
+
+    <span class="s1">@Value</span><span class="s2">(</span><span class="s4">&quot;${server.port:9090}&quot;</span><span class="s2">)</span>
+    <span class="s0">private </span><span class="s1">String port</span><span class="s2">;</span>
+
+    <span class="s1">@Value</span><span class="s2">(</span><span class="s4">&quot;${ip:localhost}&quot;</span><span class="s2">)</span>
+    <span class="s0">private </span><span class="s1">String ip</span><span class="s2">;</span>
+
+    <span class="s3">/**</span>
+     <span class="s3">* 文件上传</span>
+     <span class="s3">*/</span>
+    <span class="s1">@PostMapping</span><span class="s2">(</span><span class="s4">&quot;/upload&quot;</span><span class="s2">)</span>
+    <span class="s0">public </span><span class="s1">Result upload</span><span class="s2">(</span><span class="s1">MultipartFile file</span><span class="s2">) {</span>
+        <span class="s1">String flag</span><span class="s2">;</span>
+        <span class="s0">synchronized </span><span class="s2">(</span><span class="s1">FileController</span><span class="s2">.</span><span class="s0">class</span><span class="s2">) {</span>
+            <span class="s1">flag </span><span class="s2">= </span><span class="s1">System</span><span class="s2">.</span><span class="s1">currentTimeMillis</span><span class="s2">() + </span><span class="s4">&quot;&quot;</span><span class="s2">;</span>
+            <span class="s1">ThreadUtil</span><span class="s2">.</span><span class="s1">sleep</span><span class="s2">(</span><span class="s6">1L</span><span class="s2">);</span>
+        <span class="s2">}</span>
+        <span class="s1">String fileName </span><span class="s2">= </span><span class="s1">file</span><span class="s2">.</span><span class="s1">getOriginalFilename</span><span class="s2">();</span>
+        <span class="s0">try </span><span class="s2">{</span>
+            <span class="s0">if </span><span class="s2">(!</span><span class="s1">FileUtil</span><span class="s2">.</span><span class="s1">isDirectory</span><span class="s2">(</span><span class="s1">filePath</span><span class="s2">)) {</span>
+                <span class="s1">FileUtil</span><span class="s2">.</span><span class="s1">mkdir</span><span class="s2">(</span><span class="s1">filePath</span><span class="s2">);</span>
+            <span class="s2">}</span>
+            <span class="s5">// 文件存储形式：时间戳-文件名</span>
+            <span class="s1">FileUtil</span><span class="s2">.</span><span class="s1">writeBytes</span><span class="s2">(</span><span class="s1">file</span><span class="s2">.</span><span class="s1">getBytes</span><span class="s2">(), </span><span class="s1">filePath </span><span class="s2">+ </span><span class="s1">flag </span><span class="s2">+ </span><span class="s4">&quot;-&quot; </span><span class="s2">+ </span><span class="s1">fileName</span><span class="s2">);  </span><span class="s5">// ***/manager/files/1697438073596-avatar.png</span>
+            <span class="s1">System</span><span class="s2">.</span><span class="s1">out</span><span class="s2">.</span><span class="s1">println</span><span class="s2">(</span><span class="s1">fileName </span><span class="s2">+ </span><span class="s4">&quot;--上传成功&quot;</span><span class="s2">);</span>
+
+        <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">Exception e</span><span class="s2">) {</span>
+            <span class="s1">System</span><span class="s2">.</span><span class="s1">err</span><span class="s2">.</span><span class="s1">println</span><span class="s2">(</span><span class="s1">fileName </span><span class="s2">+ </span><span class="s4">&quot;--文件上传失败&quot;</span><span class="s2">);</span>
+        <span class="s2">}</span>
+        <span class="s1">String http </span><span class="s2">= </span><span class="s4">&quot;http://&quot; </span><span class="s2">+ </span><span class="s1">ip </span><span class="s2">+ </span><span class="s4">&quot;:&quot; </span><span class="s2">+ </span><span class="s1">port </span><span class="s2">+ </span><span class="s4">&quot;/files/&quot;</span><span class="s2">;</span>
+        <span class="s0">return </span><span class="s1">Result</span><span class="s2">.</span><span class="s1">success</span><span class="s2">(</span><span class="s1">http </span><span class="s2">+ </span><span class="s1">flag </span><span class="s2">+ </span><span class="s4">&quot;-&quot; </span><span class="s2">+ </span><span class="s1">fileName</span><span class="s2">);  </span><span class="s5">//  http://localhost:9090/files/1697438073596-avatar.png</span>
+    <span class="s2">}</span>
+
+
+    <span class="s3">/**</span>
+     <span class="s3">* 获取文件</span>
+     <span class="s3">*</span>
+     <span class="s3">* </span><span class="s7">@param </span><span class="s3">flag</span>
+     <span class="s3">* </span><span class="s7">@param </span><span class="s3">response</span>
+     <span class="s3">*/</span>
+    <span class="s1">@GetMapping</span><span class="s2">(</span><span class="s4">&quot;/{flag}&quot;</span><span class="s2">)   </span><span class="s5">//  1697438073596-avatar.png</span>
+    <span class="s0">public void </span><span class="s1">avatarPath</span><span class="s2">(</span><span class="s1">@PathVariable String flag</span><span class="s2">, </span><span class="s1">HttpServletResponse response</span><span class="s2">) {</span>
+        <span class="s1">OutputStream os</span><span class="s2">;</span>
+        <span class="s0">try </span><span class="s2">{</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s1">StrUtil</span><span class="s2">.</span><span class="s1">isNotEmpty</span><span class="s2">(</span><span class="s1">flag</span><span class="s2">)) {</span>
+                <span class="s1">response</span><span class="s2">.</span><span class="s1">addHeader</span><span class="s2">(</span><span class="s4">&quot;Content-Disposition&quot;</span><span class="s2">, </span><span class="s4">&quot;attachment;filename=&quot; </span><span class="s2">+ </span><span class="s1">URLEncoder</span><span class="s2">.</span><span class="s1">encode</span><span class="s2">(</span><span class="s1">flag</span><span class="s2">, </span><span class="s4">&quot;UTF-8&quot;</span><span class="s2">));</span>
+                <span class="s1">response</span><span class="s2">.</span><span class="s1">setContentType</span><span class="s2">(</span><span class="s4">&quot;application/octet-stream&quot;</span><span class="s2">);</span>
+                <span class="s0">byte</span><span class="s2">[] </span><span class="s1">bytes </span><span class="s2">= </span><span class="s1">FileUtil</span><span class="s2">.</span><span class="s1">readBytes</span><span class="s2">(</span><span class="s1">filePath </span><span class="s2">+ </span><span class="s1">flag</span><span class="s2">);</span>
+                <span class="s1">os </span><span class="s2">= </span><span class="s1">response</span><span class="s2">.</span><span class="s1">getOutputStream</span><span class="s2">();</span>
+                <span class="s1">os</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s1">bytes</span><span class="s2">);</span>
+                <span class="s1">os</span><span class="s2">.</span><span class="s1">flush</span><span class="s2">();</span>
+                <span class="s1">os</span><span class="s2">.</span><span class="s1">close</span><span class="s2">();</span>
+            <span class="s2">}</span>
+        <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">Exception e</span><span class="s2">) {</span>
+            <span class="s1">System</span><span class="s2">.</span><span class="s1">out</span><span class="s2">.</span><span class="s1">println</span><span class="s2">(</span><span class="s4">&quot;文件下载失败&quot;</span><span class="s2">);</span>
+        <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s3">/**</span>
+     <span class="s3">* 删除文件</span>
+     <span class="s3">*</span>
+     <span class="s3">* </span><span class="s7">@param </span><span class="s3">flag</span>
+     <span class="s3">*/</span>
+    <span class="s1">@DeleteMapping</span><span class="s2">(</span><span class="s4">&quot;/{flag}&quot;</span><span class="s2">)</span>
+    <span class="s0">public void </span><span class="s1">delFile</span><span class="s2">(</span><span class="s1">@PathVariable String flag</span><span class="s2">) {</span>
+        <span class="s1">FileUtil</span><span class="s2">.</span><span class="s1">del</span><span class="s2">(</span><span class="s1">filePath </span><span class="s2">+ </span><span class="s1">flag</span><span class="s2">);</span>
+        <span class="s1">System</span><span class="s2">.</span><span class="s1">out</span><span class="s2">.</span><span class="s1">println</span><span class="s2">(</span><span class="s4">&quot;删除文件&quot; </span><span class="s2">+ </span><span class="s1">flag </span><span class="s2">+ </span><span class="s4">&quot;成功&quot;</span><span class="s2">);</span>
+    <span class="s2">}</span>
+    <span class="s3">/**</span>
+     <span class="s3">* wang-editor编辑器文件上传接口</span>
+     <span class="s3">*/</span>
+    <span class="s1">@PostMapping</span><span class="s2">(</span><span class="s4">&quot;/wang/upload&quot;</span><span class="s2">)</span>
+    <span class="s0">public </span><span class="s1">Map</span><span class="s2">&lt;</span><span class="s1">String</span><span class="s2">, </span><span class="s1">Object</span><span class="s2">&gt; </span><span class="s1">wangEditorUpload</span><span class="s2">(</span><span class="s1">MultipartFile file</span><span class="s2">) {</span>
+        <span class="s1">String flag </span><span class="s2">= </span><span class="s1">System</span><span class="s2">.</span><span class="s1">currentTimeMillis</span><span class="s2">() + </span><span class="s4">&quot;&quot;</span><span class="s2">;</span>
+        <span class="s1">String fileName </span><span class="s2">= </span><span class="s1">file</span><span class="s2">.</span><span class="s1">getOriginalFilename</span><span class="s2">();</span>
+        <span class="s0">try </span><span class="s2">{</span>
+            <span class="s5">// 文件存储形式：时间戳-文件名</span>
+            <span class="s1">FileUtil</span><span class="s2">.</span><span class="s1">writeBytes</span><span class="s2">(</span><span class="s1">file</span><span class="s2">.</span><span class="s1">getBytes</span><span class="s2">(), </span><span class="s1">filePath </span><span class="s2">+ </span><span class="s1">flag </span><span class="s2">+ </span><span class="s4">&quot;-&quot; </span><span class="s2">+ </span><span class="s1">fileName</span><span class="s2">);</span>
+            <span class="s1">System</span><span class="s2">.</span><span class="s1">out</span><span class="s2">.</span><span class="s1">println</span><span class="s2">(</span><span class="s1">fileName </span><span class="s2">+ </span><span class="s4">&quot;--上传成功&quot;</span><span class="s2">);</span>
+            <span class="s1">Thread</span><span class="s2">.</span><span class="s1">sleep</span><span class="s2">(</span><span class="s6">1L</span><span class="s2">);</span>
+        <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">Exception e</span><span class="s2">) {</span>
+            <span class="s1">System</span><span class="s2">.</span><span class="s1">err</span><span class="s2">.</span><span class="s1">println</span><span class="s2">(</span><span class="s1">fileName </span><span class="s2">+ </span><span class="s4">&quot;--文件上传失败&quot;</span><span class="s2">);</span>
+        <span class="s2">}</span>
+        <span class="s1">String http </span><span class="s2">= </span><span class="s4">&quot;http://&quot; </span><span class="s2">+ </span><span class="s1">ip </span><span class="s2">+ </span><span class="s4">&quot;:&quot; </span><span class="s2">+ </span><span class="s1">port </span><span class="s2">+ </span><span class="s4">&quot;/files/&quot;</span><span class="s2">;</span>
+        <span class="s1">Map</span><span class="s2">&lt;</span><span class="s1">String</span><span class="s2">, </span><span class="s1">Object</span><span class="s2">&gt; </span><span class="s1">resMap </span><span class="s2">= </span><span class="s0">new </span><span class="s1">HashMap</span><span class="s2">&lt;&gt;();</span>
+        <span class="s5">// wangEditor上传图片成功后， 需要返回的参数</span>
+        <span class="s1">resMap</span><span class="s2">.</span><span class="s1">put</span><span class="s2">(</span><span class="s4">&quot;errno&quot;</span><span class="s2">, </span><span class="s6">0</span><span class="s2">);</span>
+        <span class="s1">resMap</span><span class="s2">.</span><span class="s1">put</span><span class="s2">(</span><span class="s4">&quot;data&quot;</span><span class="s2">, </span><span class="s1">CollUtil</span><span class="s2">.</span><span class="s1">newArrayList</span><span class="s2">(</span><span class="s1">Dict</span><span class="s2">.</span><span class="s1">create</span><span class="s2">().</span><span class="s1">set</span><span class="s2">(</span><span class="s4">&quot;url&quot;</span><span class="s2">, </span><span class="s1">http </span><span class="s2">+ </span><span class="s1">flag </span><span class="s2">+ </span><span class="s4">&quot;-&quot; </span><span class="s2">+ </span><span class="s1">fileName</span><span class="s2">)));</span>
+        <span class="s0">return </span><span class="s1">resMap</span><span class="s2">;</span>
+    <span class="s2">}</span>
+
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

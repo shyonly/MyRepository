@@ -1,0 +1,91 @@
+<html>
+<head>
+<title>location.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #6aab73;}
+.s4 { color: #bcbec4;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+location.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* @flow */</span>
+
+<span class="s2">import </span><span class="s1">type VueRouter from </span><span class="s3">'../index'</span>
+<span class="s2">import </span><span class="s4">{ </span><span class="s1">parsePath</span><span class="s4">, </span><span class="s1">resolvePath </span><span class="s4">} </span><span class="s1">from </span><span class="s3">'./path'</span>
+<span class="s2">import </span><span class="s4">{ </span><span class="s1">resolveQuery </span><span class="s4">} </span><span class="s1">from </span><span class="s3">'./query'</span>
+<span class="s2">import </span><span class="s4">{ </span><span class="s1">fillParams </span><span class="s4">} </span><span class="s1">from </span><span class="s3">'./params'</span>
+<span class="s2">import </span><span class="s4">{ </span><span class="s1">warn </span><span class="s4">} </span><span class="s1">from </span><span class="s3">'./warn'</span>
+<span class="s2">import </span><span class="s4">{ </span><span class="s1">extend </span><span class="s4">} </span><span class="s1">from </span><span class="s3">'./misc'</span>
+
+<span class="s2">export function </span><span class="s1">normalizeLocation </span><span class="s4">(</span>
+  <span class="s1">raw</span><span class="s4">: </span><span class="s1">RawLocation</span><span class="s4">,</span>
+  <span class="s1">current</span><span class="s4">: ?</span><span class="s1">Route</span><span class="s4">,</span>
+  <span class="s1">append</span><span class="s4">: ?</span><span class="s1">boolean</span><span class="s4">,</span>
+  <span class="s1">router</span><span class="s4">: ?</span><span class="s1">VueRouter</span>
+<span class="s4">): </span><span class="s1">Location </span><span class="s4">{</span>
+  <span class="s2">let </span><span class="s1">next</span><span class="s4">: </span><span class="s1">Location </span><span class="s4">= </span><span class="s2">typeof </span><span class="s1">raw </span><span class="s4">=== </span><span class="s3">'string' </span><span class="s4">? { </span><span class="s1">path</span><span class="s4">: </span><span class="s1">raw </span><span class="s4">} : </span><span class="s1">raw</span>
+  <span class="s0">// named target</span>
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">next</span><span class="s4">.</span><span class="s1">_normalized</span><span class="s4">) {</span>
+    <span class="s2">return </span><span class="s1">next</span>
+  <span class="s4">} </span><span class="s2">else if </span><span class="s4">(</span><span class="s1">next</span><span class="s4">.</span><span class="s1">name</span><span class="s4">) {</span>
+    <span class="s1">next </span><span class="s4">= </span><span class="s1">extend</span><span class="s4">({}, </span><span class="s1">raw</span><span class="s4">)</span>
+    <span class="s2">const </span><span class="s1">params </span><span class="s4">= </span><span class="s1">next</span><span class="s4">.</span><span class="s1">params</span>
+    <span class="s2">if </span><span class="s4">(</span><span class="s1">params </span><span class="s4">&amp;&amp; </span><span class="s2">typeof </span><span class="s1">params </span><span class="s4">=== </span><span class="s3">'object'</span><span class="s4">) {</span>
+      <span class="s1">next</span><span class="s4">.</span><span class="s1">params </span><span class="s4">= </span><span class="s1">extend</span><span class="s4">({}, </span><span class="s1">params</span><span class="s4">)</span>
+    <span class="s4">}</span>
+    <span class="s2">return </span><span class="s1">next</span>
+  <span class="s4">}</span>
+
+  <span class="s0">// relative params</span>
+  <span class="s2">if </span><span class="s4">(!</span><span class="s1">next</span><span class="s4">.</span><span class="s1">path </span><span class="s4">&amp;&amp; </span><span class="s1">next</span><span class="s4">.</span><span class="s1">params </span><span class="s4">&amp;&amp; </span><span class="s1">current</span><span class="s4">) {</span>
+    <span class="s1">next </span><span class="s4">= </span><span class="s1">extend</span><span class="s4">({}, </span><span class="s1">next</span><span class="s4">)</span>
+    <span class="s1">next</span><span class="s4">.</span><span class="s1">_normalized </span><span class="s4">= </span><span class="s2">true</span>
+    <span class="s2">const </span><span class="s1">params</span><span class="s4">: </span><span class="s1">any </span><span class="s4">= </span><span class="s1">extend</span><span class="s4">(</span><span class="s1">extend</span><span class="s4">({}, </span><span class="s1">current</span><span class="s4">.</span><span class="s1">params</span><span class="s4">), </span><span class="s1">next</span><span class="s4">.</span><span class="s1">params</span><span class="s4">)</span>
+    <span class="s2">if </span><span class="s4">(</span><span class="s1">current</span><span class="s4">.</span><span class="s1">name</span><span class="s4">) {</span>
+      <span class="s1">next</span><span class="s4">.</span><span class="s1">name </span><span class="s4">= </span><span class="s1">current</span><span class="s4">.</span><span class="s1">name</span>
+      <span class="s1">next</span><span class="s4">.</span><span class="s1">params </span><span class="s4">= </span><span class="s1">params</span>
+    <span class="s4">} </span><span class="s2">else if </span><span class="s4">(</span><span class="s1">current</span><span class="s4">.</span><span class="s1">matched</span><span class="s4">.</span><span class="s1">length</span><span class="s4">) {</span>
+      <span class="s2">const </span><span class="s1">rawPath </span><span class="s4">= </span><span class="s1">current</span><span class="s4">.</span><span class="s1">matched</span><span class="s4">[</span><span class="s1">current</span><span class="s4">.</span><span class="s1">matched</span><span class="s4">.</span><span class="s1">length </span><span class="s4">- </span><span class="s5">1</span><span class="s4">].</span><span class="s1">path</span>
+      <span class="s1">next</span><span class="s4">.</span><span class="s1">path </span><span class="s4">= </span><span class="s1">fillParams</span><span class="s4">(</span><span class="s1">rawPath</span><span class="s4">, </span><span class="s1">params</span><span class="s4">, </span><span class="s3">`path </span><span class="s1">$</span><span class="s4">{</span><span class="s1">current</span><span class="s4">.</span><span class="s1">path</span><span class="s4">}</span><span class="s3">`</span><span class="s4">)</span>
+    <span class="s4">} </span><span class="s2">else if </span><span class="s4">(</span><span class="s1">process</span><span class="s4">.</span><span class="s1">env</span><span class="s4">.</span><span class="s1">NODE_ENV </span><span class="s4">!== </span><span class="s3">'production'</span><span class="s4">) {</span>
+      <span class="s1">warn</span><span class="s4">(</span><span class="s2">false</span><span class="s4">, </span><span class="s3">`relative params navigation requires a current route.`</span><span class="s4">)</span>
+    <span class="s4">}</span>
+    <span class="s2">return </span><span class="s1">next</span>
+  <span class="s4">}</span>
+
+  <span class="s2">const </span><span class="s1">parsedPath </span><span class="s4">= </span><span class="s1">parsePath</span><span class="s4">(</span><span class="s1">next</span><span class="s4">.</span><span class="s1">path </span><span class="s4">|| </span><span class="s3">''</span><span class="s4">)</span>
+  <span class="s2">const </span><span class="s1">basePath </span><span class="s4">= (</span><span class="s1">current </span><span class="s4">&amp;&amp; </span><span class="s1">current</span><span class="s4">.</span><span class="s1">path</span><span class="s4">) || </span><span class="s3">'/'</span>
+  <span class="s2">const </span><span class="s1">path </span><span class="s4">= </span><span class="s1">parsedPath</span><span class="s4">.</span><span class="s1">path</span>
+    <span class="s4">? </span><span class="s1">resolvePath</span><span class="s4">(</span><span class="s1">parsedPath</span><span class="s4">.</span><span class="s1">path</span><span class="s4">, </span><span class="s1">basePath</span><span class="s4">, </span><span class="s1">append </span><span class="s4">|| </span><span class="s1">next</span><span class="s4">.</span><span class="s1">append</span><span class="s4">)</span>
+    <span class="s4">: </span><span class="s1">basePath</span>
+
+  <span class="s2">const </span><span class="s1">query </span><span class="s4">= </span><span class="s1">resolveQuery</span><span class="s4">(</span>
+    <span class="s1">parsedPath</span><span class="s4">.</span><span class="s1">query</span><span class="s4">,</span>
+    <span class="s1">next</span><span class="s4">.</span><span class="s1">query</span><span class="s4">,</span>
+    <span class="s1">router </span><span class="s4">&amp;&amp; </span><span class="s1">router</span><span class="s4">.</span><span class="s1">options</span><span class="s4">.</span><span class="s1">parseQuery</span>
+  <span class="s4">)</span>
+
+  <span class="s2">let </span><span class="s1">hash </span><span class="s4">= </span><span class="s1">next</span><span class="s4">.</span><span class="s1">hash </span><span class="s4">|| </span><span class="s1">parsedPath</span><span class="s4">.</span><span class="s1">hash</span>
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">hash </span><span class="s4">&amp;&amp; </span><span class="s1">hash</span><span class="s4">.</span><span class="s1">charAt</span><span class="s4">(</span><span class="s5">0</span><span class="s4">) !== </span><span class="s3">'#'</span><span class="s4">) {</span>
+    <span class="s1">hash </span><span class="s4">= </span><span class="s3">`#</span><span class="s1">$</span><span class="s4">{</span><span class="s1">hash</span><span class="s4">}</span><span class="s3">`</span>
+  <span class="s4">}</span>
+
+  <span class="s2">return </span><span class="s4">{</span>
+    <span class="s1">_normalized</span><span class="s4">: </span><span class="s2">true</span><span class="s4">,</span>
+    <span class="s1">path</span><span class="s4">,</span>
+    <span class="s1">query</span><span class="s4">,</span>
+    <span class="s1">hash</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+</pre>
+</body>
+</html>

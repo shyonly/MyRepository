@@ -1,0 +1,219 @@
+<html>
+<head>
+<title>ada.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #5f826b; font-style: italic;}
+.s3 { color: #67a37c; font-style: italic;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #bcbec4;}
+.s6 { color: #6aab73;}
+.s7 { color: #2aacb8;}
+.s8 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+ada.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+Language: Ada 
+Author: Lars Schulna &lt;kartoffelbrei.mit.muskatnuss@gmail.org&gt; 
+Description: Ada is a general-purpose programming language that has great support for saftey critical and real-time applications. 
+             It has been developed by the DoD and thus has been used in military and safety-critical applications (like civil aviation). 
+             The first version appeared in the 80s, but it's still actively developed today with 
+             the newest standard being Ada2012. 
+*/</span>
+
+<span class="s0">// We try to support full Ada2012</span>
+<span class="s0">//</span>
+<span class="s0">// We highlight all appearances of types, keywords, literals (string, char, number, bool)</span>
+<span class="s0">// and titles (user defined function/procedure/package)</span>
+<span class="s0">// CSS classes are set accordingly</span>
+<span class="s0">//</span>
+<span class="s0">// Languages causing problems for language detection:</span>
+<span class="s0">// xml (broken by Foo : Bar type), elm (broken by Foo : Bar type), vbscript-html (broken by body keyword)</span>
+<span class="s0">// sql (ada default.txt has a lot of sql keywords)</span>
+
+<span class="s2">/** </span><span class="s3">@type </span><span class="s2">LanguageFn */</span>
+<span class="s4">function </span><span class="s1">ada</span><span class="s5">(</span><span class="s1">hljs</span><span class="s5">) {</span>
+  <span class="s0">// Regular expression for Ada numeric literals.</span>
+  <span class="s0">// stolen form the VHDL highlighter</span>
+
+  <span class="s0">// Decimal literal:</span>
+  <span class="s4">const </span><span class="s1">INTEGER_RE </span><span class="s5">= </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">d(_|</span><span class="s4">\\</span><span class="s6">d)*'</span><span class="s5">;</span>
+  <span class="s4">const </span><span class="s1">EXPONENT_RE </span><span class="s5">= </span><span class="s6">'[eE][-+]?' </span><span class="s5">+ </span><span class="s1">INTEGER_RE</span><span class="s5">;</span>
+  <span class="s4">const </span><span class="s1">DECIMAL_LITERAL_RE </span><span class="s5">= </span><span class="s1">INTEGER_RE </span><span class="s5">+ </span><span class="s6">'(</span><span class="s4">\\</span><span class="s6">.' </span><span class="s5">+ </span><span class="s1">INTEGER_RE </span><span class="s5">+ </span><span class="s6">')?' </span><span class="s5">+ </span><span class="s6">'(' </span><span class="s5">+ </span><span class="s1">EXPONENT_RE </span><span class="s5">+ </span><span class="s6">')?'</span><span class="s5">;</span>
+
+  <span class="s0">// Based literal:</span>
+  <span class="s4">const </span><span class="s1">BASED_INTEGER_RE </span><span class="s5">= </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">w+'</span><span class="s5">;</span>
+  <span class="s4">const </span><span class="s1">BASED_LITERAL_RE </span><span class="s5">= </span><span class="s1">INTEGER_RE </span><span class="s5">+ </span><span class="s6">'#' </span><span class="s5">+ </span><span class="s1">BASED_INTEGER_RE </span><span class="s5">+ </span><span class="s6">'(</span><span class="s4">\\</span><span class="s6">.' </span><span class="s5">+ </span><span class="s1">BASED_INTEGER_RE </span><span class="s5">+ </span><span class="s6">')?' </span><span class="s5">+ </span><span class="s6">'#' </span><span class="s5">+ </span><span class="s6">'(' </span><span class="s5">+ </span><span class="s1">EXPONENT_RE </span><span class="s5">+ </span><span class="s6">')?'</span><span class="s5">;</span>
+
+  <span class="s4">const </span><span class="s1">NUMBER_RE </span><span class="s5">= </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">b(' </span><span class="s5">+ </span><span class="s1">BASED_LITERAL_RE </span><span class="s5">+ </span><span class="s6">'|' </span><span class="s5">+ </span><span class="s1">DECIMAL_LITERAL_RE </span><span class="s5">+ </span><span class="s6">')'</span><span class="s5">;</span>
+
+  <span class="s0">// Identifier regex</span>
+  <span class="s4">const </span><span class="s1">ID_REGEX </span><span class="s5">= </span><span class="s6">'[A-Za-z](_?[A-Za-z0-9.])*'</span><span class="s5">;</span>
+
+  <span class="s0">// bad chars, only allowed in literals</span>
+  <span class="s4">const </span><span class="s1">BAD_CHARS </span><span class="s5">= </span><span class="s6">`[]</span><span class="s4">\\</span><span class="s6">{</span><span class="s4">\\</span><span class="s6">}%#'&quot;`</span><span class="s5">;</span>
+
+  <span class="s0">// Ada doesn't have block comments, only line comments</span>
+  <span class="s4">const </span><span class="s1">COMMENTS </span><span class="s5">= </span><span class="s1">hljs</span><span class="s5">.</span><span class="s1">COMMENT</span><span class="s5">(</span><span class="s6">'--'</span><span class="s5">, </span><span class="s6">'$'</span><span class="s5">);</span>
+
+  <span class="s0">// variable declarations of the form</span>
+  <span class="s0">// Foo : Bar := Baz;</span>
+  <span class="s0">// where only Bar will be highlighted</span>
+  <span class="s4">const </span><span class="s1">VAR_DECLS </span><span class="s5">= {</span>
+    <span class="s0">// TODO: These spaces are not required by the Ada syntax</span>
+    <span class="s0">// however, I have yet to see handwritten Ada code where</span>
+    <span class="s0">// someone does not put spaces around :</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">s+:</span><span class="s4">\\</span><span class="s6">s+'</span><span class="s5">,</span>
+    <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">s*(:=|;|</span><span class="s4">\\</span><span class="s6">)|=&gt;|$)'</span><span class="s5">,</span>
+    <span class="s0">// endsWithParent: true,</span>
+    <span class="s0">// returnBegin: true,</span>
+    <span class="s1">illegal</span><span class="s5">: </span><span class="s1">BAD_CHARS</span><span class="s5">,</span>
+    <span class="s1">contains</span><span class="s5">: [</span>
+      <span class="s5">{</span>
+        <span class="s0">// workaround to avoid highlighting</span>
+        <span class="s0">// named loops and declare blocks</span>
+        <span class="s1">beginKeywords</span><span class="s5">: </span><span class="s6">'loop for declare others'</span><span class="s5">,</span>
+        <span class="s1">endsParent</span><span class="s5">: </span><span class="s4">true</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s0">// properly highlight all modifiers</span>
+        <span class="s1">className</span><span class="s5">: </span><span class="s6">'keyword'</span><span class="s5">,</span>
+        <span class="s1">beginKeywords</span><span class="s5">: </span><span class="s6">'not null constant access function procedure in out aliased exception'</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">className</span><span class="s5">: </span><span class="s6">'type'</span><span class="s5">,</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s1">ID_REGEX</span><span class="s5">,</span>
+        <span class="s1">endsParent</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+        <span class="s1">relevance</span><span class="s5">: </span><span class="s7">0</span>
+      <span class="s5">}</span>
+    <span class="s5">]</span>
+  <span class="s5">};</span>
+
+  <span class="s4">return </span><span class="s5">{</span>
+    <span class="s1">name</span><span class="s5">: </span><span class="s6">'Ada'</span><span class="s5">,</span>
+    <span class="s1">case_insensitive</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+    <span class="s1">keywords</span><span class="s5">: {</span>
+      <span class="s1">keyword</span><span class="s5">:</span>
+                <span class="s6">'abort else new return abs elsif not reverse abstract end ' </span><span class="s5">+</span>
+                <span class="s6">'accept entry select access exception of separate aliased exit or some ' </span><span class="s5">+</span>
+                <span class="s6">'all others subtype and for out synchronized array function overriding ' </span><span class="s5">+</span>
+                <span class="s6">'at tagged generic package task begin goto pragma terminate ' </span><span class="s5">+</span>
+                <span class="s6">'body private then if procedure type case in protected constant interface ' </span><span class="s5">+</span>
+                <span class="s6">'is raise use declare range delay limited record when delta loop rem while ' </span><span class="s5">+</span>
+                <span class="s6">'digits renames with do mod requeue xor'</span><span class="s5">,</span>
+      <span class="s1">literal</span><span class="s5">:</span>
+                <span class="s6">'True False'</span>
+    <span class="s5">},</span>
+    <span class="s1">contains</span><span class="s5">: [</span>
+      <span class="s1">COMMENTS</span><span class="s5">,</span>
+      <span class="s0">// strings &quot;foobar&quot;</span>
+      <span class="s5">{</span>
+        <span class="s1">className</span><span class="s5">: </span><span class="s6">'string'</span><span class="s5">,</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s8">/&quot;/</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s8">/&quot;/</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: [{</span>
+          <span class="s1">begin</span><span class="s5">: </span><span class="s8">/&quot;&quot;/</span><span class="s5">,</span>
+          <span class="s1">relevance</span><span class="s5">: </span><span class="s7">0</span>
+        <span class="s5">}]</span>
+      <span class="s5">},</span>
+      <span class="s0">// characters ''</span>
+      <span class="s5">{</span>
+        <span class="s0">// character literals always contain one char</span>
+        <span class="s1">className</span><span class="s5">: </span><span class="s6">'string'</span><span class="s5">,</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s8">/'.'/</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s0">// number literals</span>
+        <span class="s1">className</span><span class="s5">: </span><span class="s6">'number'</span><span class="s5">,</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s1">NUMBER_RE</span><span class="s5">,</span>
+        <span class="s1">relevance</span><span class="s5">: </span><span class="s7">0</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s0">// Attributes</span>
+        <span class="s1">className</span><span class="s5">: </span><span class="s6">'symbol'</span><span class="s5">,</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">&quot;'&quot; </span><span class="s5">+ </span><span class="s1">ID_REGEX</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s0">// package definition, maybe inside generic</span>
+        <span class="s1">className</span><span class="s5">: </span><span class="s6">'title'</span><span class="s5">,</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'(</span><span class="s4">\\</span><span class="s6">bwith</span><span class="s4">\\</span><span class="s6">s+)?(</span><span class="s4">\\</span><span class="s6">bprivate</span><span class="s4">\\</span><span class="s6">s+)?</span><span class="s4">\\</span><span class="s6">bpackage</span><span class="s4">\\</span><span class="s6">s+(</span><span class="s4">\\</span><span class="s6">bbody</span><span class="s4">\\</span><span class="s6">s+)?'</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'(is|$)'</span><span class="s5">,</span>
+        <span class="s1">keywords</span><span class="s5">: </span><span class="s6">'package body'</span><span class="s5">,</span>
+        <span class="s1">excludeBegin</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+        <span class="s1">excludeEnd</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+        <span class="s1">illegal</span><span class="s5">: </span><span class="s1">BAD_CHARS</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s0">// function/procedure declaration/definition</span>
+        <span class="s0">// maybe inside generic</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'(</span><span class="s4">\\</span><span class="s6">b(with|overriding)</span><span class="s4">\\</span><span class="s6">s+)?</span><span class="s4">\\</span><span class="s6">b(function|procedure)</span><span class="s4">\\</span><span class="s6">s+'</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'(</span><span class="s4">\\</span><span class="s6">bis|</span><span class="s4">\\</span><span class="s6">bwith|</span><span class="s4">\\</span><span class="s6">brenames|</span><span class="s4">\\</span><span class="s6">)</span><span class="s4">\\</span><span class="s6">s*;)'</span><span class="s5">,</span>
+        <span class="s1">keywords</span><span class="s5">: </span><span class="s6">'overriding function procedure with is renames return'</span><span class="s5">,</span>
+        <span class="s0">// we need to re-match the 'function' keyword, so that</span>
+        <span class="s0">// the title mode below matches only exactly once</span>
+        <span class="s1">returnBegin</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">:</span>
+                <span class="s5">[</span>
+                  <span class="s1">COMMENTS</span><span class="s5">,</span>
+                  <span class="s5">{</span>
+                    <span class="s0">// name of the function/procedure</span>
+                    <span class="s1">className</span><span class="s5">: </span><span class="s6">'title'</span><span class="s5">,</span>
+                    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'(</span><span class="s4">\\</span><span class="s6">bwith</span><span class="s4">\\</span><span class="s6">s+)?</span><span class="s4">\\</span><span class="s6">b(function|procedure)</span><span class="s4">\\</span><span class="s6">s+'</span><span class="s5">,</span>
+                    <span class="s1">end</span><span class="s5">: </span><span class="s6">'(</span><span class="s4">\\</span><span class="s6">(|</span><span class="s4">\\</span><span class="s6">s+|$)'</span><span class="s5">,</span>
+                    <span class="s1">excludeBegin</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+                    <span class="s1">excludeEnd</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+                    <span class="s1">illegal</span><span class="s5">: </span><span class="s1">BAD_CHARS</span>
+                  <span class="s5">},</span>
+                  <span class="s0">// 'self'</span>
+                  <span class="s0">// // parameter types</span>
+                  <span class="s1">VAR_DECLS</span><span class="s5">,</span>
+                  <span class="s5">{</span>
+                    <span class="s0">// return type</span>
+                    <span class="s1">className</span><span class="s5">: </span><span class="s6">'type'</span><span class="s5">,</span>
+                    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">breturn</span><span class="s4">\\</span><span class="s6">s+'</span><span class="s5">,</span>
+                    <span class="s1">end</span><span class="s5">: </span><span class="s6">'(</span><span class="s4">\\</span><span class="s6">s+|;|$)'</span><span class="s5">,</span>
+                    <span class="s1">keywords</span><span class="s5">: </span><span class="s6">'return'</span><span class="s5">,</span>
+                    <span class="s1">excludeBegin</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+                    <span class="s1">excludeEnd</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+                    <span class="s0">// we are done with functions</span>
+                    <span class="s1">endsParent</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+                    <span class="s1">illegal</span><span class="s5">: </span><span class="s1">BAD_CHARS</span>
+
+                  <span class="s5">}</span>
+                <span class="s5">]</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s0">// new type declarations</span>
+        <span class="s0">// maybe inside generic</span>
+        <span class="s1">className</span><span class="s5">: </span><span class="s6">'type'</span><span class="s5">,</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">b(sub)?type</span><span class="s4">\\</span><span class="s6">s+'</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">s+'</span><span class="s5">,</span>
+        <span class="s1">keywords</span><span class="s5">: </span><span class="s6">'type'</span><span class="s5">,</span>
+        <span class="s1">excludeBegin</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+        <span class="s1">illegal</span><span class="s5">: </span><span class="s1">BAD_CHARS</span>
+      <span class="s5">},</span>
+
+      <span class="s0">// see comment above the definition</span>
+      <span class="s1">VAR_DECLS</span>
+
+      <span class="s0">// no markup</span>
+      <span class="s0">// relevance boosters for small snippets</span>
+      <span class="s0">// {begin: '\\s*=&gt;\\s*'},</span>
+      <span class="s0">// {begin: '\\s*:=\\s*'},</span>
+      <span class="s0">// {begin: '\\s+:=\\s+'},</span>
+    <span class="s5">]</span>
+  <span class="s5">};</span>
+<span class="s5">}</span>
+
+<span class="s1">module</span><span class="s5">.</span><span class="s1">exports </span><span class="s5">= </span><span class="s1">ada</span><span class="s5">;</span>
+</pre>
+</body>
+</html>

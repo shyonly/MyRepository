@@ -1,0 +1,282 @@
+<html>
+<head>
+<title>compileTemplate.spec.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+.s6 { color: #5f826b; font-style: italic;}
+.s7 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+compileTemplate.spec.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">parse </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../src/parse'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">SFCBlock </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../src/parseComponent'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">compileTemplate </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../src/compileTemplate'</span>
+<span class="s0">import </span><span class="s1">Vue from </span><span class="s3">'vue'</span>
+
+<span class="s0">function </span><span class="s1">mockRender</span><span class="s2">(</span><span class="s1">code</span><span class="s2">: </span><span class="s1">string</span><span class="s2">, </span><span class="s1">mocks</span><span class="s2">: </span><span class="s1">Record</span><span class="s2">&lt;</span><span class="s1">string</span><span class="s2">, </span><span class="s1">any</span><span class="s2">&gt; = {}) {</span>
+  <span class="s0">const </span><span class="s1">fn </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Function</span><span class="s2">(</span>
+    <span class="s3">`require`</span><span class="s2">,</span>
+    <span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">code</span><span class="s2">}</span><span class="s3">; return { render, staticRenderFns }`</span>
+  <span class="s2">)</span>
+  <span class="s0">const </span><span class="s1">vm </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Vue</span><span class="s2">(</span>
+    <span class="s1">Object</span><span class="s2">.</span><span class="s1">assign</span><span class="s2">(</span>
+      <span class="s2">{},</span>
+      <span class="s1">fn</span><span class="s2">((</span><span class="s1">id</span><span class="s2">: </span><span class="s1">string</span><span class="s2">) =&gt; </span><span class="s1">mocks</span><span class="s2">[</span><span class="s1">id</span><span class="s2">])</span>
+    <span class="s2">)</span>
+  <span class="s2">)</span>
+  <span class="s1">vm</span><span class="s2">.</span><span class="s1">$mount</span><span class="s2">()</span>
+  <span class="s0">return </span><span class="s2">(</span><span class="s1">vm </span><span class="s2">as </span><span class="s1">any</span><span class="s2">).</span><span class="s1">_vnode</span>
+<span class="s2">}</span>
+
+<span class="s1">test</span><span class="s2">(</span><span class="s3">'should work'</span><span class="s2">, () =&gt; {</span>
+  <span class="s0">const </span><span class="s1">source </span><span class="s2">= </span><span class="s3">`&lt;div&gt;&lt;p&gt;{{ render }}&lt;/p&gt;&lt;/div&gt;`</span>
+
+  <span class="s0">const </span><span class="s1">result </span><span class="s2">= </span><span class="s1">compileTemplate</span><span class="s2">({</span>
+    <span class="s1">filename</span><span class="s2">: </span><span class="s3">'example.vue'</span><span class="s2">,</span>
+    <span class="s1">source</span>
+  <span class="s2">})</span>
+
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">errors</span><span class="s2">.</span><span class="s1">length</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s4">0</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">source</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s1">source</span><span class="s2">)</span>
+  <span class="s5">// should expose render fns</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">code</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`var render = function`</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">code</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`var staticRenderFns = []`</span><span class="s2">)</span>
+  <span class="s5">// should mark with stripped</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">code</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`render._withStripped = true`</span><span class="s2">)</span>
+  <span class="s5">// should prefix bindings</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">code</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`_vm.render`</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">ast</span><span class="s2">).</span><span class="s1">not</span><span class="s2">.</span><span class="s1">toBeUndefined</span><span class="s2">()</span>
+<span class="s2">})</span>
+
+<span class="s1">test</span><span class="s2">(</span><span class="s3">'preprocess pug'</span><span class="s2">, () =&gt; {</span>
+  <span class="s0">const </span><span class="s1">template </span><span class="s2">= </span><span class="s1">parse</span><span class="s2">({</span>
+    <span class="s1">source</span><span class="s2">:</span>
+      <span class="s3">'&lt;template lang=&quot;pug&quot;&gt;</span><span class="s0">\n</span><span class="s3">' </span><span class="s2">+</span>
+      <span class="s3">'body</span><span class="s0">\n</span><span class="s3">' </span><span class="s2">+</span>
+      <span class="s3">' h1 Pug Examples</span><span class="s0">\n</span><span class="s3">' </span><span class="s2">+</span>
+      <span class="s3">' div.container</span><span class="s0">\n</span><span class="s3">' </span><span class="s2">+</span>
+      <span class="s3">'   p Cool Pug example!</span><span class="s0">\n</span><span class="s3">' </span><span class="s2">+</span>
+      <span class="s3">'&lt;/template&gt;</span><span class="s0">\n</span><span class="s3">'</span><span class="s2">,</span>
+    <span class="s1">filename</span><span class="s2">: </span><span class="s3">'example.vue'</span><span class="s2">,</span>
+    <span class="s1">sourceMap</span><span class="s2">: </span><span class="s0">true</span>
+  <span class="s2">}).</span><span class="s1">template </span><span class="s2">as </span><span class="s1">SFCBlock</span>
+
+  <span class="s0">const </span><span class="s1">result </span><span class="s2">= </span><span class="s1">compileTemplate</span><span class="s2">({</span>
+    <span class="s1">filename</span><span class="s2">: </span><span class="s3">'example.vue'</span><span class="s2">,</span>
+    <span class="s1">source</span><span class="s2">: </span><span class="s1">template</span><span class="s2">.</span><span class="s1">content</span><span class="s2">,</span>
+    <span class="s1">preprocessLang</span><span class="s2">: </span><span class="s1">template</span><span class="s2">.</span><span class="s1">lang</span>
+  <span class="s2">})</span>
+
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">errors</span><span class="s2">.</span><span class="s1">length</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s4">0</span><span class="s2">)</span>
+<span class="s2">})</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* vuejs/component-compiler-utils#22 Support uri fragment in transformed require</span>
+ <span class="s6">*/</span>
+<span class="s1">test</span><span class="s2">(</span><span class="s3">'supports uri fragment in transformed require'</span><span class="s2">, () =&gt; {</span>
+  <span class="s0">const </span><span class="s1">source </span><span class="s2">= </span><span class="s3">'&lt;svg&gt;</span><span class="s0">\ 
+    </span><span class="s3">&lt;use href=&quot;~@svg/file.svg#fragment&quot;&gt;&lt;/use&gt;</span><span class="s0">\ 
+  </span><span class="s3">&lt;/svg&gt;' </span><span class="s5">//</span>
+  <span class="s0">const </span><span class="s1">result </span><span class="s2">= </span><span class="s1">compileTemplate</span><span class="s2">({</span>
+    <span class="s1">filename</span><span class="s2">: </span><span class="s3">'svgparticle.html'</span><span class="s2">,</span>
+    <span class="s1">source</span><span class="s2">: </span><span class="s1">source</span><span class="s2">,</span>
+    <span class="s1">transformAssetUrls</span><span class="s2">: {</span>
+      <span class="s1">use</span><span class="s2">: </span><span class="s3">'href'</span>
+    <span class="s2">}</span>
+  <span class="s2">})</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">errors</span><span class="s2">.</span><span class="s1">length</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s4">0</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">code</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span>
+    <span class="s7">/href: require\(&quot;@svg\/file.svg&quot;\) \+ &quot;#fragment&quot;/</span>
+  <span class="s2">)</span>
+<span class="s2">})</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* vuejs/component-compiler-utils#22 Support uri fragment in transformed require</span>
+ <span class="s6">*/</span>
+<span class="s1">test</span><span class="s2">(</span><span class="s3">'when too short uri then empty require'</span><span class="s2">, () =&gt; {</span>
+  <span class="s0">const </span><span class="s1">source </span><span class="s2">= </span><span class="s3">'&lt;svg&gt;</span><span class="s0">\ 
+    </span><span class="s3">&lt;use href=&quot;~&quot;&gt;&lt;/use&gt;</span><span class="s0">\ 
+  </span><span class="s3">&lt;/svg&gt;' </span><span class="s5">//</span>
+  <span class="s0">const </span><span class="s1">result </span><span class="s2">= </span><span class="s1">compileTemplate</span><span class="s2">({</span>
+    <span class="s1">filename</span><span class="s2">: </span><span class="s3">'svgparticle.html'</span><span class="s2">,</span>
+    <span class="s1">source</span><span class="s2">: </span><span class="s1">source</span><span class="s2">,</span>
+    <span class="s1">transformAssetUrls</span><span class="s2">: {</span>
+      <span class="s1">use</span><span class="s2">: </span><span class="s3">'href'</span>
+    <span class="s2">}</span>
+  <span class="s2">})</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">errors</span><span class="s2">.</span><span class="s1">length</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s4">0</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">code</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s7">/href: require\(&quot;&quot;\)/</span><span class="s2">)</span>
+<span class="s2">})</span>
+
+<span class="s1">test</span><span class="s2">(</span><span class="s3">'warn missing preprocessor'</span><span class="s2">, () =&gt; {</span>
+  <span class="s0">const </span><span class="s1">template </span><span class="s2">= </span><span class="s1">parse</span><span class="s2">({</span>
+    <span class="s1">source</span><span class="s2">: </span><span class="s3">'&lt;template lang=&quot;unknownLang&quot;&gt;</span><span class="s0">\n</span><span class="s3">' </span><span class="s2">+ </span><span class="s3">'&lt;/template&gt;</span><span class="s0">\n</span><span class="s3">'</span><span class="s2">,</span>
+
+    <span class="s1">filename</span><span class="s2">: </span><span class="s3">'example.vue'</span><span class="s2">,</span>
+    <span class="s1">sourceMap</span><span class="s2">: </span><span class="s0">true</span>
+  <span class="s2">}).</span><span class="s1">template </span><span class="s2">as </span><span class="s1">SFCBlock</span>
+
+  <span class="s0">const </span><span class="s1">result </span><span class="s2">= </span><span class="s1">compileTemplate</span><span class="s2">({</span>
+    <span class="s1">filename</span><span class="s2">: </span><span class="s3">'example.vue'</span><span class="s2">,</span>
+    <span class="s1">source</span><span class="s2">: </span><span class="s1">template</span><span class="s2">.</span><span class="s1">content</span><span class="s2">,</span>
+    <span class="s1">preprocessLang</span><span class="s2">: </span><span class="s1">template</span><span class="s2">.</span><span class="s1">lang</span>
+  <span class="s2">})</span>
+
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">errors</span><span class="s2">.</span><span class="s1">length</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s4">1</span><span class="s2">)</span>
+<span class="s2">})</span>
+
+<span class="s1">test</span><span class="s2">(</span><span class="s3">'transform assetUrls'</span><span class="s2">, () =&gt; {</span>
+  <span class="s0">const </span><span class="s1">source </span><span class="s2">= </span><span class="s3">`</span>
+<span class="s3">&lt;div&gt; 
+  &lt;img src=&quot;./logo.png&quot;&gt; 
+  &lt;img src=&quot;~fixtures/logo.png&quot;&gt; 
+  &lt;img src=&quot;~/fixtures/logo.png&quot;&gt; 
+&lt;/div&gt; 
+`</span>
+  <span class="s0">const </span><span class="s1">result </span><span class="s2">= </span><span class="s1">compileTemplate</span><span class="s2">({</span>
+    <span class="s1">filename</span><span class="s2">: </span><span class="s3">'example.vue'</span><span class="s2">,</span>
+    <span class="s1">source</span><span class="s2">,</span>
+    <span class="s1">transformAssetUrls</span><span class="s2">: </span><span class="s0">true</span>
+  <span class="s2">})</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">errors</span><span class="s2">.</span><span class="s1">length</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s4">0</span><span class="s2">)</span>
+
+  <span class="s0">const </span><span class="s1">vnode </span><span class="s2">= </span><span class="s1">mockRender</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">code</span><span class="s2">, {</span>
+    <span class="s3">'./logo.png'</span><span class="s2">: </span><span class="s3">'a'</span><span class="s2">,</span>
+    <span class="s3">'fixtures/logo.png'</span><span class="s2">: </span><span class="s3">'b'</span>
+  <span class="s2">})</span>
+
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">0</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">src</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'a'</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">2</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">src</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'b'</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">4</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">src</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'b'</span><span class="s2">)</span>
+<span class="s2">})</span>
+
+<span class="s1">test</span><span class="s2">(</span><span class="s3">'transform srcset'</span><span class="s2">, () =&gt; {</span>
+  <span class="s0">const </span><span class="s1">source </span><span class="s2">= </span><span class="s3">`</span>
+<span class="s3">&lt;div&gt; 
+  &lt;img src=&quot;./logo.png&quot;&gt; 
+  &lt;svg version=&quot;1.1&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot; xmlns:xlink= &quot;http://www.w3.org/1999/xlink&quot;&gt; 
+    &lt;image xlink:href=&quot;./logo.png&quot; /&gt; 
+  &lt;/svg&gt; 
+  &lt;svg version=&quot;1.1&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot; xmlns:xlink= &quot;http://www.w3.org/1999/xlink&quot;&gt; 
+    &lt;use xlink:href=&quot;./logo.png&quot;/&gt; 
+  &lt;/svg&gt; 
+  &lt;/svg&gt; 
+  &lt;img src=&quot;./logo.png&quot; srcset=&quot;./logo.png&quot;&gt; 
+  &lt;img src=&quot;./logo.png&quot; srcset=&quot;./logo.png 2x&quot;&gt; 
+  &lt;img src=&quot;./logo.png&quot; srcset=&quot;./logo.png, ./logo.png 2x&quot;&gt; 
+  &lt;img src=&quot;./logo.png&quot; srcset=&quot;./logo.png 2x, ./logo.png&quot;&gt; 
+  &lt;img src=&quot;./logo.png&quot; srcset=&quot;./logo.png 2x, ./logo.png 3x&quot;&gt; 
+  &lt;img src=&quot;./logo.png&quot; srcset=&quot;./logo.png, ./logo.png 2x, ./logo.png 3x&quot;&gt; 
+  &lt;img 
+    src=&quot;./logo.png&quot; 
+    srcset=&quot; 
+      ./logo.png 2x, 
+      ./logo.png 3x 
+  &quot;&gt; 
+&lt;/div&gt; 
+`</span>
+  <span class="s0">const </span><span class="s1">result </span><span class="s2">= </span><span class="s1">compileTemplate</span><span class="s2">({</span>
+    <span class="s1">filename</span><span class="s2">: </span><span class="s3">'example.vue'</span><span class="s2">,</span>
+    <span class="s1">source</span><span class="s2">,</span>
+    <span class="s1">transformAssetUrls</span><span class="s2">: </span><span class="s0">true</span>
+  <span class="s2">})</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">errors</span><span class="s2">.</span><span class="s1">length</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s4">0</span><span class="s2">)</span>
+
+  <span class="s0">const </span><span class="s1">vnode </span><span class="s2">= </span><span class="s1">mockRender</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">code</span><span class="s2">, {</span>
+    <span class="s3">'./logo.png'</span><span class="s2">: </span><span class="s3">'test-url'</span>
+  <span class="s2">})</span>
+
+  <span class="s5">// img tag</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">0</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">src</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'test-url'</span><span class="s2">)</span>
+  <span class="s5">// image tag (SVG)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">2</span><span class="s2">].</span><span class="s1">children</span><span class="s2">[</span><span class="s4">0</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">[</span><span class="s3">'xlink:href'</span><span class="s2">]).</span><span class="s1">toBe</span><span class="s2">(</span>
+    <span class="s3">'test-url'</span>
+  <span class="s2">)</span>
+  <span class="s5">// use tag (SVG)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">4</span><span class="s2">].</span><span class="s1">children</span><span class="s2">[</span><span class="s4">0</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">[</span><span class="s3">'xlink:href'</span><span class="s2">]).</span><span class="s1">toBe</span><span class="s2">(</span>
+    <span class="s3">'test-url'</span>
+  <span class="s2">)</span>
+
+  <span class="s5">// image tag with srcset</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">6</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">srcset</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'test-url'</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">8</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">srcset</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'test-url 2x'</span><span class="s2">)</span>
+  <span class="s5">// image tag with multiline srcset</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">10</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">srcset</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'test-url, test-url 2x'</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">12</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">srcset</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'test-url 2x, test-url'</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">14</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">srcset</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'test-url 2x, test-url 3x'</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">16</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">srcset</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span>
+    <span class="s3">'test-url, test-url 2x, test-url 3x'</span>
+  <span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">18</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">srcset</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'test-url 2x, test-url 3x'</span><span class="s2">)</span>
+<span class="s2">})</span>
+
+<span class="s1">test</span><span class="s2">(</span><span class="s3">'transform assetUrls and srcset with base option'</span><span class="s2">, () =&gt; {</span>
+  <span class="s0">const </span><span class="s1">source </span><span class="s2">= </span><span class="s3">`</span>
+<span class="s3">&lt;div&gt; 
+  &lt;img src=&quot;./logo.png&quot;&gt; 
+  &lt;img src=&quot;~fixtures/logo.png&quot;&gt; 
+  &lt;img src=&quot;~/fixtures/logo.png&quot;&gt; 
+  &lt;img src=&quot;./logo.png&quot; srcset=&quot;./logo.png 2x, ./logo.png 3x&quot;&gt; 
+  &lt;img src=&quot;@/fixtures/logo.png&quot;&gt; 
+&lt;/div&gt; 
+`</span>
+  <span class="s0">const </span><span class="s1">result </span><span class="s2">= </span><span class="s1">compileTemplate</span><span class="s2">({</span>
+    <span class="s1">filename</span><span class="s2">: </span><span class="s3">'example.vue'</span><span class="s2">,</span>
+    <span class="s1">source</span><span class="s2">,</span>
+    <span class="s1">transformAssetUrls</span><span class="s2">: </span><span class="s0">true</span><span class="s2">,</span>
+    <span class="s1">transformAssetUrlsOptions</span><span class="s2">: { </span><span class="s1">base</span><span class="s2">: </span><span class="s3">'/base/' </span><span class="s2">}</span>
+  <span class="s2">})</span>
+
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">errors</span><span class="s2">.</span><span class="s1">length</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s4">0</span><span class="s2">)</span>
+
+  <span class="s0">const </span><span class="s1">vnode </span><span class="s2">= </span><span class="s1">mockRender</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">code</span><span class="s2">, {</span>
+    <span class="s3">'@/fixtures/logo.png'</span><span class="s2">: </span><span class="s3">'aliased'</span>
+  <span class="s2">})</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">0</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">src</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'/base/logo.png'</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">2</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">src</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'/base/fixtures/logo.png'</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">4</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">src</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'/base/fixtures/logo.png'</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">6</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">srcset</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span>
+    <span class="s3">'/base/logo.png 2x, /base/logo.png 3x'</span>
+  <span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">8</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">src</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'aliased'</span><span class="s2">)</span>
+<span class="s2">})</span>
+
+<span class="s1">test</span><span class="s2">(</span><span class="s3">'transform with includeAbsolute'</span><span class="s2">, () =&gt; {</span>
+  <span class="s0">const </span><span class="s1">source </span><span class="s2">= </span><span class="s3">`</span>
+  <span class="s3">&lt;div&gt; 
+    &lt;img src=&quot;./logo.png&quot;&gt; 
+    &lt;img src=&quot;/logo.png&quot;&gt; 
+    &lt;img src=&quot;https://foo.com/logo.png&quot;&gt; 
+  &lt;/div&gt; 
+  `</span>
+  <span class="s0">const </span><span class="s1">result </span><span class="s2">= </span><span class="s1">compileTemplate</span><span class="s2">({</span>
+    <span class="s1">filename</span><span class="s2">: </span><span class="s3">'example.vue'</span><span class="s2">,</span>
+    <span class="s1">source</span><span class="s2">,</span>
+    <span class="s1">transformAssetUrls</span><span class="s2">: </span><span class="s0">true</span><span class="s2">,</span>
+    <span class="s1">transformAssetUrlsOptions</span><span class="s2">: { </span><span class="s1">includeAbsolute</span><span class="s2">: </span><span class="s0">true </span><span class="s2">}</span>
+  <span class="s2">})</span>
+
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">errors</span><span class="s2">.</span><span class="s1">length</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s4">0</span><span class="s2">)</span>
+
+  <span class="s0">const </span><span class="s1">vnode </span><span class="s2">= </span><span class="s1">mockRender</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">code</span><span class="s2">, {</span>
+    <span class="s3">'./logo.png'</span><span class="s2">: </span><span class="s3">'relative'</span><span class="s2">,</span>
+    <span class="s3">'/logo.png'</span><span class="s2">: </span><span class="s3">'absolute'</span>
+  <span class="s2">})</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">0</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">src</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'relative'</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">2</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">src</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'absolute'</span><span class="s2">)</span>
+  <span class="s1">expect</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s4">4</span><span class="s2">].</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">src</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s3">'https://foo.com/logo.png'</span><span class="s2">)</span>
+<span class="s2">})</span>
+</pre>
+</body>
+</html>

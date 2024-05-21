@@ -1,0 +1,122 @@
+<html>
+<head>
+<title>html5.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #6aab73;}
+.s4 { color: #bcbec4;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+html5.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* @flow */</span>
+
+<span class="s2">import </span><span class="s1">type Router from </span><span class="s3">'../index'</span>
+<span class="s2">import </span><span class="s4">{ </span><span class="s1">History </span><span class="s4">} </span><span class="s1">from </span><span class="s3">'./base'</span>
+<span class="s2">import </span><span class="s4">{ </span><span class="s1">cleanPath </span><span class="s4">} </span><span class="s1">from </span><span class="s3">'../util/path'</span>
+<span class="s2">import </span><span class="s4">{ </span><span class="s1">START </span><span class="s4">} </span><span class="s1">from </span><span class="s3">'../util/route'</span>
+<span class="s2">import </span><span class="s4">{ </span><span class="s1">setupScroll</span><span class="s4">, </span><span class="s1">handleScroll </span><span class="s4">} </span><span class="s1">from </span><span class="s3">'../util/scroll'</span>
+<span class="s2">import </span><span class="s4">{ </span><span class="s1">pushState</span><span class="s4">, </span><span class="s1">replaceState</span><span class="s4">, </span><span class="s1">supportsPushState </span><span class="s4">} </span><span class="s1">from </span><span class="s3">'../util/push-state'</span>
+
+<span class="s2">export class </span><span class="s1">HTML5History </span><span class="s2">extends </span><span class="s1">History </span><span class="s4">{</span>
+  <span class="s1">_startLocation</span><span class="s4">: </span><span class="s1">string</span>
+
+  <span class="s1">constructor </span><span class="s4">(</span><span class="s1">router</span><span class="s4">: </span><span class="s1">Router</span><span class="s4">, </span><span class="s1">base</span><span class="s4">: ?</span><span class="s1">string</span><span class="s4">) {</span>
+    <span class="s2">super</span><span class="s4">(</span><span class="s1">router</span><span class="s4">, </span><span class="s1">base</span><span class="s4">)</span>
+
+    <span class="s2">this</span><span class="s4">.</span><span class="s1">_startLocation </span><span class="s4">= </span><span class="s1">getLocation</span><span class="s4">(</span><span class="s2">this</span><span class="s4">.</span><span class="s1">base</span><span class="s4">)</span>
+  <span class="s4">}</span>
+
+  <span class="s1">setupListeners </span><span class="s4">() {</span>
+    <span class="s2">if </span><span class="s4">(</span><span class="s2">this</span><span class="s4">.</span><span class="s1">listeners</span><span class="s4">.</span><span class="s1">length </span><span class="s4">&gt; </span><span class="s5">0</span><span class="s4">) {</span>
+      <span class="s2">return</span>
+    <span class="s4">}</span>
+
+    <span class="s2">const </span><span class="s1">router </span><span class="s4">= </span><span class="s2">this</span><span class="s4">.</span><span class="s1">router</span>
+    <span class="s2">const </span><span class="s1">expectScroll </span><span class="s4">= </span><span class="s1">router</span><span class="s4">.</span><span class="s1">options</span><span class="s4">.</span><span class="s1">scrollBehavior</span>
+    <span class="s2">const </span><span class="s1">supportsScroll </span><span class="s4">= </span><span class="s1">supportsPushState </span><span class="s4">&amp;&amp; </span><span class="s1">expectScroll</span>
+
+    <span class="s2">if </span><span class="s4">(</span><span class="s1">supportsScroll</span><span class="s4">) {</span>
+      <span class="s2">this</span><span class="s4">.</span><span class="s1">listeners</span><span class="s4">.</span><span class="s1">push</span><span class="s4">(</span><span class="s1">setupScroll</span><span class="s4">())</span>
+    <span class="s4">}</span>
+
+    <span class="s2">const </span><span class="s1">handleRoutingEvent </span><span class="s4">= () =&gt; {</span>
+      <span class="s2">const </span><span class="s1">current </span><span class="s4">= </span><span class="s2">this</span><span class="s4">.</span><span class="s1">current</span>
+
+      <span class="s0">// Avoiding first `popstate` event dispatched in some browsers but first</span>
+      <span class="s0">// history route not updated since async guard at the same time.</span>
+      <span class="s2">const </span><span class="s1">location </span><span class="s4">= </span><span class="s1">getLocation</span><span class="s4">(</span><span class="s2">this</span><span class="s4">.</span><span class="s1">base</span><span class="s4">)</span>
+      <span class="s2">if </span><span class="s4">(</span><span class="s2">this</span><span class="s4">.</span><span class="s1">current </span><span class="s4">=== </span><span class="s1">START </span><span class="s4">&amp;&amp; </span><span class="s1">location </span><span class="s4">=== </span><span class="s2">this</span><span class="s4">.</span><span class="s1">_startLocation</span><span class="s4">) {</span>
+        <span class="s2">return</span>
+      <span class="s4">}</span>
+
+      <span class="s2">this</span><span class="s4">.</span><span class="s1">transitionTo</span><span class="s4">(</span><span class="s1">location</span><span class="s4">, </span><span class="s1">route </span><span class="s4">=&gt; {</span>
+        <span class="s2">if </span><span class="s4">(</span><span class="s1">supportsScroll</span><span class="s4">) {</span>
+          <span class="s1">handleScroll</span><span class="s4">(</span><span class="s1">router</span><span class="s4">, </span><span class="s1">route</span><span class="s4">, </span><span class="s1">current</span><span class="s4">, </span><span class="s2">true</span><span class="s4">)</span>
+        <span class="s4">}</span>
+      <span class="s4">})</span>
+    <span class="s4">}</span>
+    <span class="s1">window</span><span class="s4">.</span><span class="s1">addEventListener</span><span class="s4">(</span><span class="s3">'popstate'</span><span class="s4">, </span><span class="s1">handleRoutingEvent</span><span class="s4">)</span>
+    <span class="s2">this</span><span class="s4">.</span><span class="s1">listeners</span><span class="s4">.</span><span class="s1">push</span><span class="s4">(() =&gt; {</span>
+      <span class="s1">window</span><span class="s4">.</span><span class="s1">removeEventListener</span><span class="s4">(</span><span class="s3">'popstate'</span><span class="s4">, </span><span class="s1">handleRoutingEvent</span><span class="s4">)</span>
+    <span class="s4">})</span>
+  <span class="s4">}</span>
+
+  <span class="s1">go </span><span class="s4">(</span><span class="s1">n</span><span class="s4">: </span><span class="s1">number</span><span class="s4">) {</span>
+    <span class="s1">window</span><span class="s4">.</span><span class="s1">history</span><span class="s4">.</span><span class="s1">go</span><span class="s4">(</span><span class="s1">n</span><span class="s4">)</span>
+  <span class="s4">}</span>
+
+  <span class="s1">push </span><span class="s4">(</span><span class="s1">location</span><span class="s4">: </span><span class="s1">RawLocation</span><span class="s4">, </span><span class="s1">onComplete</span><span class="s4">?: </span><span class="s1">Function</span><span class="s4">, </span><span class="s1">onAbort</span><span class="s4">?: </span><span class="s1">Function</span><span class="s4">) {</span>
+    <span class="s2">const </span><span class="s4">{ </span><span class="s1">current</span><span class="s4">: </span><span class="s1">fromRoute </span><span class="s4">} = </span><span class="s2">this</span>
+    <span class="s2">this</span><span class="s4">.</span><span class="s1">transitionTo</span><span class="s4">(</span><span class="s1">location</span><span class="s4">, </span><span class="s1">route </span><span class="s4">=&gt; {</span>
+      <span class="s1">pushState</span><span class="s4">(</span><span class="s1">cleanPath</span><span class="s4">(</span><span class="s2">this</span><span class="s4">.</span><span class="s1">base </span><span class="s4">+ </span><span class="s1">route</span><span class="s4">.</span><span class="s1">fullPath</span><span class="s4">))</span>
+      <span class="s1">handleScroll</span><span class="s4">(</span><span class="s2">this</span><span class="s4">.</span><span class="s1">router</span><span class="s4">, </span><span class="s1">route</span><span class="s4">, </span><span class="s1">fromRoute</span><span class="s4">, </span><span class="s2">false</span><span class="s4">)</span>
+      <span class="s1">onComplete </span><span class="s4">&amp;&amp; </span><span class="s1">onComplete</span><span class="s4">(</span><span class="s1">route</span><span class="s4">)</span>
+    <span class="s4">}, </span><span class="s1">onAbort</span><span class="s4">)</span>
+  <span class="s4">}</span>
+
+  <span class="s1">replace </span><span class="s4">(</span><span class="s1">location</span><span class="s4">: </span><span class="s1">RawLocation</span><span class="s4">, </span><span class="s1">onComplete</span><span class="s4">?: </span><span class="s1">Function</span><span class="s4">, </span><span class="s1">onAbort</span><span class="s4">?: </span><span class="s1">Function</span><span class="s4">) {</span>
+    <span class="s2">const </span><span class="s4">{ </span><span class="s1">current</span><span class="s4">: </span><span class="s1">fromRoute </span><span class="s4">} = </span><span class="s2">this</span>
+    <span class="s2">this</span><span class="s4">.</span><span class="s1">transitionTo</span><span class="s4">(</span><span class="s1">location</span><span class="s4">, </span><span class="s1">route </span><span class="s4">=&gt; {</span>
+      <span class="s1">replaceState</span><span class="s4">(</span><span class="s1">cleanPath</span><span class="s4">(</span><span class="s2">this</span><span class="s4">.</span><span class="s1">base </span><span class="s4">+ </span><span class="s1">route</span><span class="s4">.</span><span class="s1">fullPath</span><span class="s4">))</span>
+      <span class="s1">handleScroll</span><span class="s4">(</span><span class="s2">this</span><span class="s4">.</span><span class="s1">router</span><span class="s4">, </span><span class="s1">route</span><span class="s4">, </span><span class="s1">fromRoute</span><span class="s4">, </span><span class="s2">false</span><span class="s4">)</span>
+      <span class="s1">onComplete </span><span class="s4">&amp;&amp; </span><span class="s1">onComplete</span><span class="s4">(</span><span class="s1">route</span><span class="s4">)</span>
+    <span class="s4">}, </span><span class="s1">onAbort</span><span class="s4">)</span>
+  <span class="s4">}</span>
+
+  <span class="s1">ensureURL </span><span class="s4">(</span><span class="s1">push</span><span class="s4">?: </span><span class="s1">boolean</span><span class="s4">) {</span>
+    <span class="s2">if </span><span class="s4">(</span><span class="s1">getLocation</span><span class="s4">(</span><span class="s2">this</span><span class="s4">.</span><span class="s1">base</span><span class="s4">) !== </span><span class="s2">this</span><span class="s4">.</span><span class="s1">current</span><span class="s4">.</span><span class="s1">fullPath</span><span class="s4">) {</span>
+      <span class="s2">const </span><span class="s1">current </span><span class="s4">= </span><span class="s1">cleanPath</span><span class="s4">(</span><span class="s2">this</span><span class="s4">.</span><span class="s1">base </span><span class="s4">+ </span><span class="s2">this</span><span class="s4">.</span><span class="s1">current</span><span class="s4">.</span><span class="s1">fullPath</span><span class="s4">)</span>
+      <span class="s1">push </span><span class="s4">? </span><span class="s1">pushState</span><span class="s4">(</span><span class="s1">current</span><span class="s4">) : </span><span class="s1">replaceState</span><span class="s4">(</span><span class="s1">current</span><span class="s4">)</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+
+  <span class="s1">getCurrentLocation </span><span class="s4">(): </span><span class="s1">string </span><span class="s4">{</span>
+    <span class="s2">return </span><span class="s1">getLocation</span><span class="s4">(</span><span class="s2">this</span><span class="s4">.</span><span class="s1">base</span><span class="s4">)</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s2">export function </span><span class="s1">getLocation </span><span class="s4">(</span><span class="s1">base</span><span class="s4">: </span><span class="s1">string</span><span class="s4">): </span><span class="s1">string </span><span class="s4">{</span>
+  <span class="s2">let </span><span class="s1">path </span><span class="s4">= </span><span class="s1">window</span><span class="s4">.</span><span class="s1">location</span><span class="s4">.</span><span class="s1">pathname</span>
+  <span class="s2">const </span><span class="s1">pathLowerCase </span><span class="s4">= </span><span class="s1">path</span><span class="s4">.</span><span class="s1">toLowerCase</span><span class="s4">()</span>
+  <span class="s2">const </span><span class="s1">baseLowerCase </span><span class="s4">= </span><span class="s1">base</span><span class="s4">.</span><span class="s1">toLowerCase</span><span class="s4">()</span>
+  <span class="s0">// base=&quot;/a&quot; shouldn't turn path=&quot;/app&quot; into &quot;/a/pp&quot;</span>
+  <span class="s0">// https://github.com/vuejs/vue-router/issues/3555</span>
+  <span class="s0">// so we ensure the trailing slash in the base</span>
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">base </span><span class="s4">&amp;&amp; ((</span><span class="s1">pathLowerCase </span><span class="s4">=== </span><span class="s1">baseLowerCase</span><span class="s4">) ||</span>
+    <span class="s4">(</span><span class="s1">pathLowerCase</span><span class="s4">.</span><span class="s1">indexOf</span><span class="s4">(</span><span class="s1">cleanPath</span><span class="s4">(</span><span class="s1">baseLowerCase </span><span class="s4">+ </span><span class="s3">'/'</span><span class="s4">)) === </span><span class="s5">0</span><span class="s4">))) {</span>
+    <span class="s1">path </span><span class="s4">= </span><span class="s1">path</span><span class="s4">.</span><span class="s1">slice</span><span class="s4">(</span><span class="s1">base</span><span class="s4">.</span><span class="s1">length</span><span class="s4">)</span>
+  <span class="s4">}</span>
+  <span class="s2">return </span><span class="s4">(</span><span class="s1">path </span><span class="s4">|| </span><span class="s3">'/'</span><span class="s4">) + </span><span class="s1">window</span><span class="s4">.</span><span class="s1">location</span><span class="s4">.</span><span class="s1">search </span><span class="s4">+ </span><span class="s1">window</span><span class="s4">.</span><span class="s1">location</span><span class="s4">.</span><span class="s1">hash</span>
+<span class="s4">}</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<html>
+<head>
+<title>create-functional-component.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+create-functional-component.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">VNode</span><span class="s2">, { </span><span class="s1">cloneVNode </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./vnode'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">createElement </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./create-element'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">resolveInject </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../instance/inject'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">normalizeChildren </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../vdom/helpers/normalize-children'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">resolveSlots </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../instance/render-helpers/resolve-slots'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">normalizeScopedSlots </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../vdom/helpers/normalize-scoped-slots'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">installRenderHelpers </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../instance/render-helpers/index'</span>
+
+<span class="s0">import </span><span class="s2">{</span>
+  <span class="s1">isDef</span><span class="s2">,</span>
+  <span class="s1">isTrue</span><span class="s2">,</span>
+  <span class="s1">hasOwn</span><span class="s2">,</span>
+  <span class="s1">isArray</span><span class="s2">,</span>
+  <span class="s1">camelize</span><span class="s2">,</span>
+  <span class="s1">emptyObject</span><span class="s2">,</span>
+  <span class="s1">validateProp</span>
+<span class="s2">} </span><span class="s1">from </span><span class="s3">'../util/index'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">Component </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/component'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">VNodeData </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/vnode'</span>
+
+<span class="s0">export function </span><span class="s1">FunctionalRenderContext</span><span class="s2">(</span>
+  <span class="s1">data</span><span class="s2">: </span><span class="s1">VNodeData</span><span class="s2">,</span>
+  <span class="s1">props</span><span class="s2">: </span><span class="s1">Object</span><span class="s2">,</span>
+  <span class="s1">children</span><span class="s2">: </span><span class="s1">Array</span><span class="s2">&lt;</span><span class="s1">VNode</span><span class="s2">&gt; | </span><span class="s1">undefined</span><span class="s2">,</span>
+  <span class="s1">parent</span><span class="s2">: </span><span class="s1">Component</span><span class="s2">,</span>
+  <span class="s1">Ctor</span><span class="s2">: </span><span class="s0">typeof </span><span class="s1">Component</span>
+<span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">options </span><span class="s2">= </span><span class="s1">Ctor</span><span class="s2">.</span><span class="s1">options</span>
+  <span class="s4">// ensure the createElement function in functional components</span>
+  <span class="s4">// gets a unique context - this is necessary for correct named slot check</span>
+  <span class="s0">let </span><span class="s1">contextVm</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">hasOwn</span><span class="s2">(</span><span class="s1">parent</span><span class="s2">, </span><span class="s3">'_uid'</span><span class="s2">)) {</span>
+    <span class="s1">contextVm </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">create</span><span class="s2">(</span><span class="s1">parent</span><span class="s2">)</span>
+    <span class="s1">contextVm</span><span class="s2">.</span><span class="s1">_original </span><span class="s2">= </span><span class="s1">parent</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s4">// the context vm passed in is a functional context as well.</span>
+    <span class="s4">// in this case we want to make sure we are able to get a hold to the</span>
+    <span class="s4">// real context instance.</span>
+    <span class="s1">contextVm </span><span class="s2">= </span><span class="s1">parent</span>
+    <span class="s4">// @ts-ignore</span>
+    <span class="s1">parent </span><span class="s2">= </span><span class="s1">parent</span><span class="s2">.</span><span class="s1">_original</span>
+  <span class="s2">}</span>
+  <span class="s0">const </span><span class="s1">isCompiled </span><span class="s2">= </span><span class="s1">isTrue</span><span class="s2">(</span><span class="s1">options</span><span class="s2">.</span><span class="s1">_compiled</span><span class="s2">)</span>
+  <span class="s0">const </span><span class="s1">needNormalization </span><span class="s2">= !</span><span class="s1">isCompiled</span>
+
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">data </span><span class="s2">= </span><span class="s1">data</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">props </span><span class="s2">= </span><span class="s1">props</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">children </span><span class="s2">= </span><span class="s1">children</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">parent </span><span class="s2">= </span><span class="s1">parent</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">listeners </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">on </span><span class="s2">|| </span><span class="s1">emptyObject</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">injections </span><span class="s2">= </span><span class="s1">resolveInject</span><span class="s2">(</span><span class="s1">options</span><span class="s2">.</span><span class="s1">inject</span><span class="s2">, </span><span class="s1">parent</span><span class="s2">)</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">slots </span><span class="s2">= () =&gt; {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s0">this</span><span class="s2">.</span><span class="s1">$slots</span><span class="s2">) {</span>
+      <span class="s1">normalizeScopedSlots</span><span class="s2">(</span>
+        <span class="s1">parent</span><span class="s2">,</span>
+        <span class="s1">data</span><span class="s2">.</span><span class="s1">scopedSlots</span><span class="s2">,</span>
+        <span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">$slots </span><span class="s2">= </span><span class="s1">resolveSlots</span><span class="s2">(</span><span class="s1">children</span><span class="s2">, </span><span class="s1">parent</span><span class="s2">))</span>
+      <span class="s2">)</span>
+    <span class="s2">}</span>
+    <span class="s0">return this</span><span class="s2">.</span><span class="s1">$slots</span>
+  <span class="s2">}</span>
+
+  <span class="s1">Object</span><span class="s2">.</span><span class="s1">defineProperty</span><span class="s2">(</span><span class="s0">this</span><span class="s2">, </span><span class="s3">'scopedSlots'</span><span class="s2">, {</span>
+    <span class="s1">enumerable</span><span class="s2">: </span><span class="s0">true</span><span class="s2">,</span>
+    <span class="s1">get</span><span class="s2">() {</span>
+      <span class="s0">return </span><span class="s1">normalizeScopedSlots</span><span class="s2">(</span><span class="s1">parent</span><span class="s2">, </span><span class="s1">data</span><span class="s2">.</span><span class="s1">scopedSlots</span><span class="s2">, </span><span class="s0">this</span><span class="s2">.</span><span class="s1">slots</span><span class="s2">())</span>
+    <span class="s2">}</span>
+  <span class="s2">} as </span><span class="s1">any</span><span class="s2">)</span>
+
+  <span class="s4">// support for compiled functional template</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isCompiled</span><span class="s2">) {</span>
+    <span class="s4">// exposing $options for renderStatic()</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">$options </span><span class="s2">= </span><span class="s1">options</span>
+    <span class="s4">// pre-resolve slots for renderSlot()</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">$slots </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">slots</span><span class="s2">()</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">$scopedSlots </span><span class="s2">= </span><span class="s1">normalizeScopedSlots</span><span class="s2">(</span>
+      <span class="s1">parent</span><span class="s2">,</span>
+      <span class="s1">data</span><span class="s2">.</span><span class="s1">scopedSlots</span><span class="s2">,</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">$slots</span>
+    <span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">options</span><span class="s2">.</span><span class="s1">_scopeId</span><span class="s2">) {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">_c </span><span class="s2">= (</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">, </span><span class="s1">c</span><span class="s2">, </span><span class="s1">d</span><span class="s2">) =&gt; {</span>
+      <span class="s0">const </span><span class="s1">vnode </span><span class="s2">= </span><span class="s1">createElement</span><span class="s2">(</span><span class="s1">contextVm</span><span class="s2">, </span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">, </span><span class="s1">c</span><span class="s2">, </span><span class="s1">d</span><span class="s2">, </span><span class="s1">needNormalization</span><span class="s2">)</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">vnode </span><span class="s2">&amp;&amp; !</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">)) {</span>
+        <span class="s1">vnode</span><span class="s2">.</span><span class="s1">fnScopeId </span><span class="s2">= </span><span class="s1">options</span><span class="s2">.</span><span class="s1">_scopeId</span>
+        <span class="s1">vnode</span><span class="s2">.</span><span class="s1">fnContext </span><span class="s2">= </span><span class="s1">parent</span>
+      <span class="s2">}</span>
+      <span class="s0">return </span><span class="s1">vnode</span>
+    <span class="s2">}</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">_c </span><span class="s2">= (</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">, </span><span class="s1">c</span><span class="s2">, </span><span class="s1">d</span><span class="s2">) =&gt;</span>
+      <span class="s1">createElement</span><span class="s2">(</span><span class="s1">contextVm</span><span class="s2">, </span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">, </span><span class="s1">c</span><span class="s2">, </span><span class="s1">d</span><span class="s2">, </span><span class="s1">needNormalization</span><span class="s2">)</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s1">installRenderHelpers</span><span class="s2">(</span><span class="s1">FunctionalRenderContext</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">)</span>
+
+<span class="s0">export function </span><span class="s1">createFunctionalComponent</span><span class="s2">(</span>
+  <span class="s1">Ctor</span><span class="s2">: </span><span class="s0">typeof </span><span class="s1">Component</span><span class="s2">,</span>
+  <span class="s1">propsData</span><span class="s2">: </span><span class="s1">Object </span><span class="s2">| </span><span class="s1">undefined</span><span class="s2">,</span>
+  <span class="s1">data</span><span class="s2">: </span><span class="s1">VNodeData</span><span class="s2">,</span>
+  <span class="s1">contextVm</span><span class="s2">: </span><span class="s1">Component</span><span class="s2">,</span>
+  <span class="s1">children</span><span class="s2">?: </span><span class="s1">Array</span><span class="s2">&lt;</span><span class="s1">VNode</span><span class="s2">&gt;</span>
+<span class="s2">): </span><span class="s1">VNode </span><span class="s2">| </span><span class="s1">Array</span><span class="s2">&lt;</span><span class="s1">VNode</span><span class="s2">&gt; | </span><span class="s0">void </span><span class="s2">{</span>
+  <span class="s0">const </span><span class="s1">options </span><span class="s2">= </span><span class="s1">Ctor</span><span class="s2">.</span><span class="s1">options</span>
+  <span class="s0">const </span><span class="s1">props </span><span class="s2">= {}</span>
+  <span class="s0">const </span><span class="s1">propOptions </span><span class="s2">= </span><span class="s1">options</span><span class="s2">.</span><span class="s1">props</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">propOptions</span><span class="s2">)) {</span>
+    <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">propOptions</span><span class="s2">) {</span>
+      <span class="s1">props</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = </span><span class="s1">validateProp</span><span class="s2">(</span><span class="s1">key</span><span class="s2">, </span><span class="s1">propOptions</span><span class="s2">, </span><span class="s1">propsData </span><span class="s2">|| </span><span class="s1">emptyObject</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">)) </span><span class="s1">mergeProps</span><span class="s2">(</span><span class="s1">props</span><span class="s2">, </span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">)</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">props</span><span class="s2">)) </span><span class="s1">mergeProps</span><span class="s2">(</span><span class="s1">props</span><span class="s2">, </span><span class="s1">data</span><span class="s2">.</span><span class="s1">props</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s0">const </span><span class="s1">renderContext </span><span class="s2">= </span><span class="s0">new </span><span class="s1">FunctionalRenderContext</span><span class="s2">(</span>
+    <span class="s1">data</span><span class="s2">,</span>
+    <span class="s1">props</span><span class="s2">,</span>
+    <span class="s1">children</span><span class="s2">,</span>
+    <span class="s1">contextVm</span><span class="s2">,</span>
+    <span class="s1">Ctor</span>
+  <span class="s2">)</span>
+
+  <span class="s0">const </span><span class="s1">vnode </span><span class="s2">= </span><span class="s1">options</span><span class="s2">.</span><span class="s1">render</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s0">null</span><span class="s2">, </span><span class="s1">renderContext</span><span class="s2">.</span><span class="s1">_c</span><span class="s2">, </span><span class="s1">renderContext</span><span class="s2">)</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">vnode </span><span class="s0">instanceof </span><span class="s1">VNode</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">cloneAndMarkFunctionalResult</span><span class="s2">(</span>
+      <span class="s1">vnode</span><span class="s2">,</span>
+      <span class="s1">data</span><span class="s2">,</span>
+      <span class="s1">renderContext</span><span class="s2">.</span><span class="s1">parent</span><span class="s2">,</span>
+      <span class="s1">options</span><span class="s2">,</span>
+      <span class="s1">renderContext</span>
+    <span class="s2">)</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">)) {</span>
+    <span class="s0">const </span><span class="s1">vnodes </span><span class="s2">= </span><span class="s1">normalizeChildren</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">) || []</span>
+    <span class="s0">const </span><span class="s1">res </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Array</span><span class="s2">(</span><span class="s1">vnodes</span><span class="s2">.</span><span class="s1">length</span><span class="s2">)</span>
+    <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s5">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">vnodes</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+      <span class="s1">res</span><span class="s2">[</span><span class="s1">i</span><span class="s2">] = </span><span class="s1">cloneAndMarkFunctionalResult</span><span class="s2">(</span>
+        <span class="s1">vnodes</span><span class="s2">[</span><span class="s1">i</span><span class="s2">],</span>
+        <span class="s1">data</span><span class="s2">,</span>
+        <span class="s1">renderContext</span><span class="s2">.</span><span class="s1">parent</span><span class="s2">,</span>
+        <span class="s1">options</span><span class="s2">,</span>
+        <span class="s1">renderContext</span>
+      <span class="s2">)</span>
+    <span class="s2">}</span>
+    <span class="s0">return </span><span class="s1">res</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">cloneAndMarkFunctionalResult</span><span class="s2">(</span>
+  <span class="s1">vnode</span><span class="s2">,</span>
+  <span class="s1">data</span><span class="s2">,</span>
+  <span class="s1">contextVm</span><span class="s2">,</span>
+  <span class="s1">options</span><span class="s2">,</span>
+  <span class="s1">renderContext</span>
+<span class="s2">) {</span>
+  <span class="s4">// #7817 clone node before setting fnContext, otherwise if the node is reused</span>
+  <span class="s4">// (e.g. it was from a cached normal slot) the fnContext causes named slots</span>
+  <span class="s4">// that should not be matched to match.</span>
+  <span class="s0">const </span><span class="s1">clone </span><span class="s2">= </span><span class="s1">cloneVNode</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">)</span>
+  <span class="s1">clone</span><span class="s2">.</span><span class="s1">fnContext </span><span class="s2">= </span><span class="s1">contextVm</span>
+  <span class="s1">clone</span><span class="s2">.</span><span class="s1">fnOptions </span><span class="s2">= </span><span class="s1">options</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">__DEV__</span><span class="s2">) {</span>
+    <span class="s2">;(</span><span class="s1">clone</span><span class="s2">.</span><span class="s1">devtoolsMeta </span><span class="s2">= </span><span class="s1">clone</span><span class="s2">.</span><span class="s1">devtoolsMeta </span><span class="s2">|| ({} as </span><span class="s1">any</span><span class="s2">)).</span><span class="s1">renderContext </span><span class="s2">=</span>
+      <span class="s1">renderContext</span>
+  <span class="s2">}</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">slot</span><span class="s2">) {</span>
+    <span class="s2">;(</span><span class="s1">clone</span><span class="s2">.</span><span class="s1">data </span><span class="s2">|| (</span><span class="s1">clone</span><span class="s2">.</span><span class="s1">data </span><span class="s2">= {})).</span><span class="s1">slot </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">slot</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s1">clone</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">mergeProps</span><span class="s2">(</span><span class="s1">to</span><span class="s2">, </span><span class="s1">from</span><span class="s2">) {</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">from</span><span class="s2">) {</span>
+    <span class="s1">to</span><span class="s2">[</span><span class="s1">camelize</span><span class="s2">(</span><span class="s1">key</span><span class="s2">)] = </span><span class="s1">from</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<html>
+<head>
+<title>AxiosTransformStream.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+AxiosTransformStream.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span><span class="s1">;</span>
+
+<span class="s3">import </span><span class="s2">stream from </span><span class="s0">'stream'</span><span class="s1">;</span>
+<span class="s3">import </span><span class="s2">utils from </span><span class="s0">'../utils.js'</span><span class="s1">;</span>
+<span class="s3">import </span><span class="s2">throttle from </span><span class="s0">'./throttle.js'</span><span class="s1">;</span>
+<span class="s3">import </span><span class="s2">speedometer from </span><span class="s0">'./speedometer.js'</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s2">kInternals </span><span class="s1">= </span><span class="s2">Symbol</span><span class="s1">(</span><span class="s0">'internals'</span><span class="s1">);</span>
+
+<span class="s3">class </span><span class="s2">AxiosTransformStream </span><span class="s3">extends </span><span class="s2">stream</span><span class="s1">.</span><span class="s2">Transform</span><span class="s1">{</span>
+  <span class="s2">constructor</span><span class="s1">(</span><span class="s2">options</span><span class="s1">) {</span>
+    <span class="s2">options </span><span class="s1">= </span><span class="s2">utils</span><span class="s1">.</span><span class="s2">toFlatObject</span><span class="s1">(</span><span class="s2">options</span><span class="s1">, {</span>
+      <span class="s2">maxRate</span><span class="s1">: </span><span class="s4">0</span><span class="s1">,</span>
+      <span class="s2">chunkSize</span><span class="s1">: </span><span class="s4">64 </span><span class="s1">* </span><span class="s4">1024</span><span class="s1">,</span>
+      <span class="s2">minChunkSize</span><span class="s1">: </span><span class="s4">100</span><span class="s1">,</span>
+      <span class="s2">timeWindow</span><span class="s1">: </span><span class="s4">500</span><span class="s1">,</span>
+      <span class="s2">ticksRate</span><span class="s1">: </span><span class="s4">2</span><span class="s1">,</span>
+      <span class="s2">samplesCount</span><span class="s1">: </span><span class="s4">15</span>
+    <span class="s1">}, </span><span class="s3">null</span><span class="s1">, (</span><span class="s2">prop</span><span class="s1">, </span><span class="s2">source</span><span class="s1">) =&gt; {</span>
+      <span class="s3">return </span><span class="s1">!</span><span class="s2">utils</span><span class="s1">.</span><span class="s2">isUndefined</span><span class="s1">(</span><span class="s2">source</span><span class="s1">[</span><span class="s2">prop</span><span class="s1">]);</span>
+    <span class="s1">});</span>
+
+    <span class="s3">super</span><span class="s1">({</span>
+      <span class="s2">readableHighWaterMark</span><span class="s1">: </span><span class="s2">options</span><span class="s1">.</span><span class="s2">chunkSize</span>
+    <span class="s1">});</span>
+
+    <span class="s3">const </span><span class="s2">self </span><span class="s1">= </span><span class="s3">this</span><span class="s1">;</span>
+
+    <span class="s3">const </span><span class="s2">internals </span><span class="s1">= </span><span class="s3">this</span><span class="s1">[</span><span class="s2">kInternals</span><span class="s1">] = {</span>
+      <span class="s2">length</span><span class="s1">: </span><span class="s2">options</span><span class="s1">.</span><span class="s2">length</span><span class="s1">,</span>
+      <span class="s2">timeWindow</span><span class="s1">: </span><span class="s2">options</span><span class="s1">.</span><span class="s2">timeWindow</span><span class="s1">,</span>
+      <span class="s2">ticksRate</span><span class="s1">: </span><span class="s2">options</span><span class="s1">.</span><span class="s2">ticksRate</span><span class="s1">,</span>
+      <span class="s2">chunkSize</span><span class="s1">: </span><span class="s2">options</span><span class="s1">.</span><span class="s2">chunkSize</span><span class="s1">,</span>
+      <span class="s2">maxRate</span><span class="s1">: </span><span class="s2">options</span><span class="s1">.</span><span class="s2">maxRate</span><span class="s1">,</span>
+      <span class="s2">minChunkSize</span><span class="s1">: </span><span class="s2">options</span><span class="s1">.</span><span class="s2">minChunkSize</span><span class="s1">,</span>
+      <span class="s2">bytesSeen</span><span class="s1">: </span><span class="s4">0</span><span class="s1">,</span>
+      <span class="s2">isCaptured</span><span class="s1">: </span><span class="s3">false</span><span class="s1">,</span>
+      <span class="s2">notifiedBytesLoaded</span><span class="s1">: </span><span class="s4">0</span><span class="s1">,</span>
+      <span class="s2">ts</span><span class="s1">: </span><span class="s2">Date</span><span class="s1">.</span><span class="s2">now</span><span class="s1">(),</span>
+      <span class="s2">bytes</span><span class="s1">: </span><span class="s4">0</span><span class="s1">,</span>
+      <span class="s2">onReadCallback</span><span class="s1">: </span><span class="s3">null</span>
+    <span class="s1">};</span>
+
+    <span class="s3">const </span><span class="s2">_speedometer </span><span class="s1">= </span><span class="s2">speedometer</span><span class="s1">(</span><span class="s2">internals</span><span class="s1">.</span><span class="s2">ticksRate </span><span class="s1">* </span><span class="s2">options</span><span class="s1">.</span><span class="s2">samplesCount</span><span class="s1">, </span><span class="s2">internals</span><span class="s1">.</span><span class="s2">timeWindow</span><span class="s1">);</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">'newListener'</span><span class="s1">, </span><span class="s2">event </span><span class="s1">=&gt; {</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">event </span><span class="s1">=== </span><span class="s0">'progress'</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(!</span><span class="s2">internals</span><span class="s1">.</span><span class="s2">isCaptured</span><span class="s1">) {</span>
+          <span class="s2">internals</span><span class="s1">.</span><span class="s2">isCaptured </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+        <span class="s1">}</span>
+      <span class="s1">}</span>
+    <span class="s1">});</span>
+
+    <span class="s3">let </span><span class="s2">bytesNotified </span><span class="s1">= </span><span class="s4">0</span><span class="s1">;</span>
+
+    <span class="s2">internals</span><span class="s1">.</span><span class="s2">updateProgress </span><span class="s1">= </span><span class="s2">throttle</span><span class="s1">(</span><span class="s3">function </span><span class="s2">throttledHandler</span><span class="s1">() {</span>
+      <span class="s3">const </span><span class="s2">totalBytes </span><span class="s1">= </span><span class="s2">internals</span><span class="s1">.</span><span class="s2">length</span><span class="s1">;</span>
+      <span class="s3">const </span><span class="s2">bytesTransferred </span><span class="s1">= </span><span class="s2">internals</span><span class="s1">.</span><span class="s2">bytesSeen</span><span class="s1">;</span>
+      <span class="s3">const </span><span class="s2">progressBytes </span><span class="s1">= </span><span class="s2">bytesTransferred </span><span class="s1">- </span><span class="s2">bytesNotified</span><span class="s1">;</span>
+      <span class="s3">if </span><span class="s1">(!</span><span class="s2">progressBytes </span><span class="s1">|| </span><span class="s2">self</span><span class="s1">.</span><span class="s2">destroyed</span><span class="s1">) </span><span class="s3">return</span><span class="s1">;</span>
+
+      <span class="s3">const </span><span class="s2">rate </span><span class="s1">= </span><span class="s2">_speedometer</span><span class="s1">(</span><span class="s2">progressBytes</span><span class="s1">);</span>
+
+      <span class="s2">bytesNotified </span><span class="s1">= </span><span class="s2">bytesTransferred</span><span class="s1">;</span>
+
+      <span class="s2">process</span><span class="s1">.</span><span class="s2">nextTick</span><span class="s1">(() =&gt; {</span>
+        <span class="s2">self</span><span class="s1">.</span><span class="s2">emit</span><span class="s1">(</span><span class="s0">'progress'</span><span class="s1">, {</span>
+          <span class="s0">'loaded'</span><span class="s1">: </span><span class="s2">bytesTransferred</span><span class="s1">,</span>
+          <span class="s0">'total'</span><span class="s1">: </span><span class="s2">totalBytes</span><span class="s1">,</span>
+          <span class="s0">'progress'</span><span class="s1">: </span><span class="s2">totalBytes </span><span class="s1">? (</span><span class="s2">bytesTransferred </span><span class="s1">/ </span><span class="s2">totalBytes</span><span class="s1">) : </span><span class="s2">undefined</span><span class="s1">,</span>
+          <span class="s0">'bytes'</span><span class="s1">: </span><span class="s2">progressBytes</span><span class="s1">,</span>
+          <span class="s0">'rate'</span><span class="s1">: </span><span class="s2">rate </span><span class="s1">? </span><span class="s2">rate </span><span class="s1">: </span><span class="s2">undefined</span><span class="s1">,</span>
+          <span class="s0">'estimated'</span><span class="s1">: </span><span class="s2">rate </span><span class="s1">&amp;&amp; </span><span class="s2">totalBytes </span><span class="s1">&amp;&amp; </span><span class="s2">bytesTransferred </span><span class="s1">&lt;= </span><span class="s2">totalBytes </span><span class="s1">?</span>
+            <span class="s1">(</span><span class="s2">totalBytes </span><span class="s1">- </span><span class="s2">bytesTransferred</span><span class="s1">) / </span><span class="s2">rate </span><span class="s1">: </span><span class="s2">undefined</span>
+        <span class="s1">});</span>
+      <span class="s1">});</span>
+    <span class="s1">}, </span><span class="s2">internals</span><span class="s1">.</span><span class="s2">ticksRate</span><span class="s1">);</span>
+
+    <span class="s3">const </span><span class="s2">onFinish </span><span class="s1">= () =&gt; {</span>
+      <span class="s2">internals</span><span class="s1">.</span><span class="s2">updateProgress</span><span class="s1">(</span><span class="s3">true</span><span class="s1">);</span>
+    <span class="s1">};</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">once</span><span class="s1">(</span><span class="s0">'end'</span><span class="s1">, </span><span class="s2">onFinish</span><span class="s1">);</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">once</span><span class="s1">(</span><span class="s0">'error'</span><span class="s1">, </span><span class="s2">onFinish</span><span class="s1">);</span>
+  <span class="s1">}</span>
+
+  <span class="s2">_read</span><span class="s1">(</span><span class="s2">size</span><span class="s1">) {</span>
+    <span class="s3">const </span><span class="s2">internals </span><span class="s1">= </span><span class="s3">this</span><span class="s1">[</span><span class="s2">kInternals</span><span class="s1">];</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">internals</span><span class="s1">.</span><span class="s2">onReadCallback</span><span class="s1">) {</span>
+      <span class="s2">internals</span><span class="s1">.</span><span class="s2">onReadCallback</span><span class="s1">();</span>
+    <span class="s1">}</span>
+
+    <span class="s3">return super</span><span class="s1">.</span><span class="s2">_read</span><span class="s1">(</span><span class="s2">size</span><span class="s1">);</span>
+  <span class="s1">}</span>
+
+  <span class="s2">_transform</span><span class="s1">(</span><span class="s2">chunk</span><span class="s1">, </span><span class="s2">encoding</span><span class="s1">, </span><span class="s2">callback</span><span class="s1">) {</span>
+    <span class="s3">const </span><span class="s2">self </span><span class="s1">= </span><span class="s3">this</span><span class="s1">;</span>
+    <span class="s3">const </span><span class="s2">internals </span><span class="s1">= </span><span class="s3">this</span><span class="s1">[</span><span class="s2">kInternals</span><span class="s1">];</span>
+    <span class="s3">const </span><span class="s2">maxRate </span><span class="s1">= </span><span class="s2">internals</span><span class="s1">.</span><span class="s2">maxRate</span><span class="s1">;</span>
+
+    <span class="s3">const </span><span class="s2">readableHighWaterMark </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">readableHighWaterMark</span><span class="s1">;</span>
+
+    <span class="s3">const </span><span class="s2">timeWindow </span><span class="s1">= </span><span class="s2">internals</span><span class="s1">.</span><span class="s2">timeWindow</span><span class="s1">;</span>
+
+    <span class="s3">const </span><span class="s2">divider </span><span class="s1">= </span><span class="s4">1000 </span><span class="s1">/ </span><span class="s2">timeWindow</span><span class="s1">;</span>
+    <span class="s3">const </span><span class="s2">bytesThreshold </span><span class="s1">= (</span><span class="s2">maxRate </span><span class="s1">/ </span><span class="s2">divider</span><span class="s1">);</span>
+    <span class="s3">const </span><span class="s2">minChunkSize </span><span class="s1">= </span><span class="s2">internals</span><span class="s1">.</span><span class="s2">minChunkSize </span><span class="s1">!== </span><span class="s3">false </span><span class="s1">? </span><span class="s2">Math</span><span class="s1">.</span><span class="s2">max</span><span class="s1">(</span><span class="s2">internals</span><span class="s1">.</span><span class="s2">minChunkSize</span><span class="s1">, </span><span class="s2">bytesThreshold </span><span class="s1">* </span><span class="s4">0.01</span><span class="s1">) : </span><span class="s4">0</span><span class="s1">;</span>
+
+    <span class="s3">function </span><span class="s2">pushChunk</span><span class="s1">(</span><span class="s2">_chunk</span><span class="s1">, </span><span class="s2">_callback</span><span class="s1">) {</span>
+      <span class="s3">const </span><span class="s2">bytes </span><span class="s1">= </span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">byteLength</span><span class="s1">(</span><span class="s2">_chunk</span><span class="s1">);</span>
+      <span class="s2">internals</span><span class="s1">.</span><span class="s2">bytesSeen </span><span class="s1">+= </span><span class="s2">bytes</span><span class="s1">;</span>
+      <span class="s2">internals</span><span class="s1">.</span><span class="s2">bytes </span><span class="s1">+= </span><span class="s2">bytes</span><span class="s1">;</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">internals</span><span class="s1">.</span><span class="s2">isCaptured</span><span class="s1">) {</span>
+        <span class="s2">internals</span><span class="s1">.</span><span class="s2">updateProgress</span><span class="s1">();</span>
+      <span class="s1">}</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">self</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(</span><span class="s2">_chunk</span><span class="s1">)) {</span>
+        <span class="s2">process</span><span class="s1">.</span><span class="s2">nextTick</span><span class="s1">(</span><span class="s2">_callback</span><span class="s1">);</span>
+      <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+        <span class="s2">internals</span><span class="s1">.</span><span class="s2">onReadCallback </span><span class="s1">= () =&gt; {</span>
+          <span class="s2">internals</span><span class="s1">.</span><span class="s2">onReadCallback </span><span class="s1">= </span><span class="s3">null</span><span class="s1">;</span>
+          <span class="s2">process</span><span class="s1">.</span><span class="s2">nextTick</span><span class="s1">(</span><span class="s2">_callback</span><span class="s1">);</span>
+        <span class="s1">};</span>
+      <span class="s1">}</span>
+    <span class="s1">}</span>
+
+    <span class="s3">const </span><span class="s2">transformChunk </span><span class="s1">= (</span><span class="s2">_chunk</span><span class="s1">, </span><span class="s2">_callback</span><span class="s1">) =&gt; {</span>
+      <span class="s3">const </span><span class="s2">chunkSize </span><span class="s1">= </span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">byteLength</span><span class="s1">(</span><span class="s2">_chunk</span><span class="s1">);</span>
+      <span class="s3">let </span><span class="s2">chunkRemainder </span><span class="s1">= </span><span class="s3">null</span><span class="s1">;</span>
+      <span class="s3">let </span><span class="s2">maxChunkSize </span><span class="s1">= </span><span class="s2">readableHighWaterMark</span><span class="s1">;</span>
+      <span class="s3">let </span><span class="s2">bytesLeft</span><span class="s1">;</span>
+      <span class="s3">let </span><span class="s2">passed </span><span class="s1">= </span><span class="s4">0</span><span class="s1">;</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">maxRate</span><span class="s1">) {</span>
+        <span class="s3">const </span><span class="s2">now </span><span class="s1">= </span><span class="s2">Date</span><span class="s1">.</span><span class="s2">now</span><span class="s1">();</span>
+
+        <span class="s3">if </span><span class="s1">(!</span><span class="s2">internals</span><span class="s1">.</span><span class="s2">ts </span><span class="s1">|| (</span><span class="s2">passed </span><span class="s1">= (</span><span class="s2">now </span><span class="s1">- </span><span class="s2">internals</span><span class="s1">.</span><span class="s2">ts</span><span class="s1">)) &gt;= </span><span class="s2">timeWindow</span><span class="s1">) {</span>
+          <span class="s2">internals</span><span class="s1">.</span><span class="s2">ts </span><span class="s1">= </span><span class="s2">now</span><span class="s1">;</span>
+          <span class="s2">bytesLeft </span><span class="s1">= </span><span class="s2">bytesThreshold </span><span class="s1">- </span><span class="s2">internals</span><span class="s1">.</span><span class="s2">bytes</span><span class="s1">;</span>
+          <span class="s2">internals</span><span class="s1">.</span><span class="s2">bytes </span><span class="s1">= </span><span class="s2">bytesLeft </span><span class="s1">&lt; </span><span class="s4">0 </span><span class="s1">? -</span><span class="s2">bytesLeft </span><span class="s1">: </span><span class="s4">0</span><span class="s1">;</span>
+          <span class="s2">passed </span><span class="s1">= </span><span class="s4">0</span><span class="s1">;</span>
+        <span class="s1">}</span>
+
+        <span class="s2">bytesLeft </span><span class="s1">= </span><span class="s2">bytesThreshold </span><span class="s1">- </span><span class="s2">internals</span><span class="s1">.</span><span class="s2">bytes</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">maxRate</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">bytesLeft </span><span class="s1">&lt;= </span><span class="s4">0</span><span class="s1">) {</span>
+          <span class="s5">// next time window</span>
+          <span class="s3">return </span><span class="s2">setTimeout</span><span class="s1">(() =&gt; {</span>
+            <span class="s2">_callback</span><span class="s1">(</span><span class="s3">null</span><span class="s1">, </span><span class="s2">_chunk</span><span class="s1">);</span>
+          <span class="s1">}, </span><span class="s2">timeWindow </span><span class="s1">- </span><span class="s2">passed</span><span class="s1">);</span>
+        <span class="s1">}</span>
+
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">bytesLeft </span><span class="s1">&lt; </span><span class="s2">maxChunkSize</span><span class="s1">) {</span>
+          <span class="s2">maxChunkSize </span><span class="s1">= </span><span class="s2">bytesLeft</span><span class="s1">;</span>
+        <span class="s1">}</span>
+      <span class="s1">}</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">maxChunkSize </span><span class="s1">&amp;&amp; </span><span class="s2">chunkSize </span><span class="s1">&gt; </span><span class="s2">maxChunkSize </span><span class="s1">&amp;&amp; (</span><span class="s2">chunkSize </span><span class="s1">- </span><span class="s2">maxChunkSize</span><span class="s1">) &gt; </span><span class="s2">minChunkSize</span><span class="s1">) {</span>
+        <span class="s2">chunkRemainder </span><span class="s1">= </span><span class="s2">_chunk</span><span class="s1">.</span><span class="s2">subarray</span><span class="s1">(</span><span class="s2">maxChunkSize</span><span class="s1">);</span>
+        <span class="s2">_chunk </span><span class="s1">= </span><span class="s2">_chunk</span><span class="s1">.</span><span class="s2">subarray</span><span class="s1">(</span><span class="s4">0</span><span class="s1">, </span><span class="s2">maxChunkSize</span><span class="s1">);</span>
+      <span class="s1">}</span>
+
+      <span class="s2">pushChunk</span><span class="s1">(</span><span class="s2">_chunk</span><span class="s1">, </span><span class="s2">chunkRemainder </span><span class="s1">? () =&gt; {</span>
+        <span class="s2">process</span><span class="s1">.</span><span class="s2">nextTick</span><span class="s1">(</span><span class="s2">_callback</span><span class="s1">, </span><span class="s3">null</span><span class="s1">, </span><span class="s2">chunkRemainder</span><span class="s1">);</span>
+      <span class="s1">} : </span><span class="s2">_callback</span><span class="s1">);</span>
+    <span class="s1">};</span>
+
+    <span class="s2">transformChunk</span><span class="s1">(</span><span class="s2">chunk</span><span class="s1">, </span><span class="s3">function </span><span class="s2">transformNextChunk</span><span class="s1">(</span><span class="s2">err</span><span class="s1">, </span><span class="s2">_chunk</span><span class="s1">) {</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">err</span><span class="s1">) {</span>
+        <span class="s3">return </span><span class="s2">callback</span><span class="s1">(</span><span class="s2">err</span><span class="s1">);</span>
+      <span class="s1">}</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">_chunk</span><span class="s1">) {</span>
+        <span class="s2">transformChunk</span><span class="s1">(</span><span class="s2">_chunk</span><span class="s1">, </span><span class="s2">transformNextChunk</span><span class="s1">);</span>
+      <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+        <span class="s2">callback</span><span class="s1">(</span><span class="s3">null</span><span class="s1">);</span>
+      <span class="s1">}</span>
+    <span class="s1">});</span>
+  <span class="s1">}</span>
+
+  <span class="s2">setLength</span><span class="s1">(</span><span class="s2">length</span><span class="s1">) {</span>
+    <span class="s3">this</span><span class="s1">[</span><span class="s2">kInternals</span><span class="s1">].</span><span class="s2">length </span><span class="s1">= +</span><span class="s2">length</span><span class="s1">;</span>
+    <span class="s3">return this</span><span class="s1">;</span>
+  <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s3">export default </span><span class="s2">AxiosTransformStream</span><span class="s1">;</span>
+</pre>
+</body>
+</html>

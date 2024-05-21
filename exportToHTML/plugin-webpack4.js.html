@@ -1,0 +1,255 @@
+<html>
+<head>
+<title>plugin-webpack4.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+plugin-webpack4.js</font>
+</center></td></tr></table>
+<pre><span class="s0">const </span><span class="s1">qs </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'querystring'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s1">RuleSet </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'webpack/lib/RuleSet'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s2">{ </span><span class="s1">resolveCompiler </span><span class="s2">} = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./compiler'</span><span class="s2">)</span>
+
+<span class="s0">const </span><span class="s1">id </span><span class="s2">= </span><span class="s3">'vue-loader-plugin'</span>
+<span class="s0">const </span><span class="s1">NS </span><span class="s2">= </span><span class="s3">'vue-loader'</span>
+
+<span class="s0">class </span><span class="s1">VueLoaderPlugin </span><span class="s2">{</span>
+  <span class="s1">apply</span><span class="s2">(</span><span class="s1">compiler</span><span class="s2">) {</span>
+    <span class="s4">// add NS marker so that the loader can detect and report missing plugin</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">compiler</span><span class="s2">.</span><span class="s1">hooks</span><span class="s2">) {</span>
+      <span class="s4">// webpack 4</span>
+      <span class="s1">compiler</span><span class="s2">.</span><span class="s1">hooks</span><span class="s2">.</span><span class="s1">compilation</span><span class="s2">.</span><span class="s1">tap</span><span class="s2">(</span><span class="s1">id</span><span class="s2">, (</span><span class="s1">compilation</span><span class="s2">) =&gt; {</span>
+        <span class="s0">const </span><span class="s1">normalModuleLoader </span><span class="s2">= </span><span class="s1">compilation</span><span class="s2">.</span><span class="s1">hooks</span><span class="s2">.</span><span class="s1">normalModuleLoader</span>
+        <span class="s1">normalModuleLoader</span><span class="s2">.</span><span class="s1">tap</span><span class="s2">(</span><span class="s1">id</span><span class="s2">, (</span><span class="s1">loaderContext</span><span class="s2">) =&gt; {</span>
+          <span class="s1">loaderContext</span><span class="s2">[</span><span class="s1">NS</span><span class="s2">] = </span><span class="s0">true</span>
+        <span class="s2">})</span>
+      <span class="s2">})</span>
+    <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+      <span class="s4">// webpack &lt; 4</span>
+      <span class="s1">compiler</span><span class="s2">.</span><span class="s1">plugin</span><span class="s2">(</span><span class="s3">'compilation'</span><span class="s2">, (</span><span class="s1">compilation</span><span class="s2">) =&gt; {</span>
+        <span class="s1">compilation</span><span class="s2">.</span><span class="s1">plugin</span><span class="s2">(</span><span class="s3">'normal-module-loader'</span><span class="s2">, (</span><span class="s1">loaderContext</span><span class="s2">) =&gt; {</span>
+          <span class="s1">loaderContext</span><span class="s2">[</span><span class="s1">NS</span><span class="s2">] = </span><span class="s0">true</span>
+        <span class="s2">})</span>
+      <span class="s2">})</span>
+    <span class="s2">}</span>
+
+    <span class="s4">// use webpack's RuleSet utility to normalize user rules</span>
+    <span class="s0">const </span><span class="s1">rawRules </span><span class="s2">= </span><span class="s1">compiler</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">module</span><span class="s2">.</span><span class="s1">rules</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">rules </span><span class="s2">} = </span><span class="s0">new </span><span class="s1">RuleSet</span><span class="s2">(</span><span class="s1">rawRules</span><span class="s2">)</span>
+
+    <span class="s4">// find the rule that applies to vue files</span>
+    <span class="s0">let </span><span class="s1">vueRuleIndex </span><span class="s2">= </span><span class="s1">rawRules</span><span class="s2">.</span><span class="s1">findIndex</span><span class="s2">(</span><span class="s1">createMatcher</span><span class="s2">(</span><span class="s3">`foo.vue`</span><span class="s2">))</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">vueRuleIndex </span><span class="s2">&lt; </span><span class="s5">0</span><span class="s2">) {</span>
+      <span class="s1">vueRuleIndex </span><span class="s2">= </span><span class="s1">rawRules</span><span class="s2">.</span><span class="s1">findIndex</span><span class="s2">(</span><span class="s1">createMatcher</span><span class="s2">(</span><span class="s3">`foo.vue.html`</span><span class="s2">))</span>
+    <span class="s2">}</span>
+    <span class="s0">const </span><span class="s1">vueRule </span><span class="s2">= </span><span class="s1">rules</span><span class="s2">[</span><span class="s1">vueRuleIndex</span><span class="s2">]</span>
+
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">vueRule</span><span class="s2">) {</span>
+      <span class="s0">throw new </span><span class="s1">Error</span><span class="s2">(</span>
+        <span class="s3">`[VueLoaderPlugin Error] No matching rule for .vue files found.</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+          <span class="s3">`Make sure there is at least one root-level rule that matches .vue or .vue.html files.`</span>
+      <span class="s2">)</span>
+    <span class="s2">}</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">vueRule</span><span class="s2">.</span><span class="s1">oneOf</span><span class="s2">) {</span>
+      <span class="s0">throw new </span><span class="s1">Error</span><span class="s2">(</span>
+        <span class="s3">`[VueLoaderPlugin Error] vue-loader 15 currently does not support vue rules with oneOf.`</span>
+      <span class="s2">)</span>
+    <span class="s2">}</span>
+
+    <span class="s4">// get the normalized &quot;use&quot; for vue files</span>
+    <span class="s0">const </span><span class="s1">vueUse </span><span class="s2">= </span><span class="s1">vueRule</span><span class="s2">.</span><span class="s1">use</span>
+    <span class="s4">// get vue-loader options</span>
+    <span class="s0">const </span><span class="s1">vueLoaderUseIndex </span><span class="s2">= </span><span class="s1">vueUse</span><span class="s2">.</span><span class="s1">findIndex</span><span class="s2">((</span><span class="s1">u</span><span class="s2">) =&gt; {</span>
+      <span class="s0">return </span><span class="s6">/^vue-loader|(\/|\\|@)vue-loader/</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">u</span><span class="s2">.</span><span class="s1">loader</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">vueLoaderUseIndex </span><span class="s2">&lt; </span><span class="s5">0</span><span class="s2">) {</span>
+      <span class="s0">throw new </span><span class="s1">Error</span><span class="s2">(</span>
+        <span class="s3">`[VueLoaderPlugin Error] No matching use for vue-loader is found.</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+          <span class="s3">`Make sure the rule matching .vue files include vue-loader in its use.`</span>
+      <span class="s2">)</span>
+    <span class="s2">}</span>
+
+    <span class="s4">// make sure vue-loader options has a known ident so that we can share</span>
+    <span class="s4">// options by reference in the template-loader by using a ref query like</span>
+    <span class="s4">// template-loader??vue-loader-options</span>
+    <span class="s0">const </span><span class="s1">vueLoaderUse </span><span class="s2">= </span><span class="s1">vueUse</span><span class="s2">[</span><span class="s1">vueLoaderUseIndex</span><span class="s2">]</span>
+    <span class="s1">vueLoaderUse</span><span class="s2">.</span><span class="s1">ident </span><span class="s2">= </span><span class="s3">'vue-loader-options'</span>
+    <span class="s1">vueLoaderUse</span><span class="s2">.</span><span class="s1">options </span><span class="s2">= </span><span class="s1">vueLoaderUse</span><span class="s2">.</span><span class="s1">options </span><span class="s2">|| {}</span>
+
+    <span class="s4">// for each user rule (except the vue rule), create a cloned rule</span>
+    <span class="s4">// that targets the corresponding language blocks in *.vue files.</span>
+    <span class="s0">const </span><span class="s1">clonedRules </span><span class="s2">= </span><span class="s1">rules</span><span class="s2">.</span><span class="s1">filter</span><span class="s2">((</span><span class="s1">r</span><span class="s2">) =&gt; </span><span class="s1">r </span><span class="s2">!== </span><span class="s1">vueRule</span><span class="s2">).</span><span class="s1">map</span><span class="s2">(</span><span class="s1">cloneRule</span><span class="s2">)</span>
+
+    <span class="s4">// rule for template compiler</span>
+    <span class="s0">const </span><span class="s1">templateCompilerRule </span><span class="s2">= {</span>
+      <span class="s1">loader</span><span class="s2">: </span><span class="s1">require</span><span class="s2">.</span><span class="s1">resolve</span><span class="s2">(</span><span class="s3">'./loaders/templateLoader'</span><span class="s2">),</span>
+      <span class="s1">resourceQuery</span><span class="s2">: (</span><span class="s1">query</span><span class="s2">) =&gt; {</span>
+        <span class="s0">const </span><span class="s1">parsed </span><span class="s2">= </span><span class="s1">qs</span><span class="s2">.</span><span class="s1">parse</span><span class="s2">(</span><span class="s1">query</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s5">1</span><span class="s2">))</span>
+        <span class="s0">return </span><span class="s1">parsed</span><span class="s2">.</span><span class="s1">vue </span><span class="s2">!= </span><span class="s0">null </span><span class="s2">&amp;&amp; </span><span class="s1">parsed</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'template'</span>
+      <span class="s2">},</span>
+      <span class="s1">options</span><span class="s2">: </span><span class="s1">vueLoaderUse</span><span class="s2">.</span><span class="s1">options</span>
+    <span class="s2">}</span>
+
+    <span class="s4">// for each rule that matches plain .js/.ts files, also create a clone and</span>
+    <span class="s4">// match it against the compiled template code inside *.vue files, so that</span>
+    <span class="s4">// compiled vue render functions receive the same treatment as user code</span>
+    <span class="s4">// (mostly babel)</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">is27 </span><span class="s2">} = </span><span class="s1">resolveCompiler</span><span class="s2">(</span><span class="s1">compiler</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">context</span><span class="s2">)</span>
+    <span class="s0">let </span><span class="s1">jsRulesForRenderFn </span><span class="s2">= []</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">is27</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">matchesJS </span><span class="s2">= </span><span class="s1">createMatcher</span><span class="s2">(</span><span class="s3">`test.js`</span><span class="s2">)</span>
+      <span class="s4">// const matchesTS = createMatcher(`test.ts`)</span>
+      <span class="s1">jsRulesForRenderFn </span><span class="s2">= </span><span class="s1">rules</span>
+        <span class="s2">.</span><span class="s1">filter</span><span class="s2">((</span><span class="s1">r</span><span class="s2">) =&gt; </span><span class="s1">r </span><span class="s2">!== </span><span class="s1">vueRule </span><span class="s2">&amp;&amp; </span><span class="s1">matchesJS</span><span class="s2">(</span><span class="s1">r</span><span class="s2">))</span>
+        <span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">cloneRuleForRenderFn</span><span class="s2">)</span>
+    <span class="s2">}</span>
+
+    <span class="s4">// global pitcher (responsible for injecting template compiler loader &amp; CSS</span>
+    <span class="s4">// post loader)</span>
+    <span class="s0">const </span><span class="s1">pitcher </span><span class="s2">= {</span>
+      <span class="s1">loader</span><span class="s2">: </span><span class="s1">require</span><span class="s2">.</span><span class="s1">resolve</span><span class="s2">(</span><span class="s3">'./loaders/pitcher'</span><span class="s2">),</span>
+      <span class="s1">resourceQuery</span><span class="s2">: (</span><span class="s1">query</span><span class="s2">) =&gt; {</span>
+        <span class="s0">const </span><span class="s1">parsed </span><span class="s2">= </span><span class="s1">qs</span><span class="s2">.</span><span class="s1">parse</span><span class="s2">(</span><span class="s1">query</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s5">1</span><span class="s2">))</span>
+        <span class="s0">return </span><span class="s1">parsed</span><span class="s2">.</span><span class="s1">vue </span><span class="s2">!= </span><span class="s0">null</span>
+      <span class="s2">},</span>
+      <span class="s1">options</span><span class="s2">: {</span>
+        <span class="s1">cacheDirectory</span><span class="s2">: </span><span class="s1">vueLoaderUse</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">cacheDirectory</span><span class="s2">,</span>
+        <span class="s1">cacheIdentifier</span><span class="s2">: </span><span class="s1">vueLoaderUse</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">cacheIdentifier</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s4">// replace original rules</span>
+    <span class="s1">compiler</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">module</span><span class="s2">.</span><span class="s1">rules </span><span class="s2">= [</span>
+      <span class="s1">pitcher</span><span class="s2">,</span>
+      <span class="s1">...jsRulesForRenderFn</span><span class="s2">,</span>
+      <span class="s1">...</span><span class="s2">(</span><span class="s1">is27 </span><span class="s2">? [</span><span class="s1">templateCompilerRule</span><span class="s2">] : []),</span>
+      <span class="s1">...clonedRules</span><span class="s2">,</span>
+      <span class="s1">...rules</span>
+    <span class="s2">]</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">createMatcher</span><span class="s2">(</span><span class="s1">fakeFile</span><span class="s2">) {</span>
+  <span class="s0">return </span><span class="s2">(</span><span class="s1">rule</span><span class="s2">, </span><span class="s1">i</span><span class="s2">) =&gt; {</span>
+    <span class="s4">// #1201 we need to skip the `include` check when locating the vue rule</span>
+    <span class="s0">const </span><span class="s1">clone </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">assign</span><span class="s2">({}, </span><span class="s1">rule</span><span class="s2">)</span>
+    <span class="s0">delete </span><span class="s1">clone</span><span class="s2">.</span><span class="s1">include</span>
+    <span class="s0">const </span><span class="s1">normalized </span><span class="s2">= </span><span class="s1">RuleSet</span><span class="s2">.</span><span class="s1">normalizeRule</span><span class="s2">(</span><span class="s1">clone</span><span class="s2">, {}, </span><span class="s3">''</span><span class="s2">)</span>
+    <span class="s0">return </span><span class="s2">!</span><span class="s1">rule</span><span class="s2">.</span><span class="s1">enforce </span><span class="s2">&amp;&amp; </span><span class="s1">normalized</span><span class="s2">.</span><span class="s1">resource </span><span class="s2">&amp;&amp; </span><span class="s1">normalized</span><span class="s2">.</span><span class="s1">resource</span><span class="s2">(</span><span class="s1">fakeFile</span><span class="s2">)</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">cloneRule</span><span class="s2">(</span><span class="s1">rule</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s2">{ </span><span class="s1">resource</span><span class="s2">, </span><span class="s1">resourceQuery </span><span class="s2">} = </span><span class="s1">rule</span>
+  <span class="s4">// Assuming `test` and `resourceQuery` tests are executed in series and</span>
+  <span class="s4">// synchronously (which is true based on RuleSet's implementation), we can</span>
+  <span class="s4">// save the current resource being matched from `test` so that we can access</span>
+  <span class="s4">// it in `resourceQuery`. This ensures when we use the normalized rule's</span>
+  <span class="s4">// resource check, include/exclude are matched correctly.</span>
+  <span class="s0">let </span><span class="s1">currentResource</span>
+  <span class="s0">const </span><span class="s1">res </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">assign</span><span class="s2">({}, </span><span class="s1">rule</span><span class="s2">, {</span>
+    <span class="s1">resource</span><span class="s2">: {</span>
+      <span class="s1">test</span><span class="s2">: (</span><span class="s1">resource</span><span class="s2">) =&gt; {</span>
+        <span class="s1">currentResource </span><span class="s2">= </span><span class="s1">resource</span>
+        <span class="s0">return true</span>
+      <span class="s2">}</span>
+    <span class="s2">},</span>
+    <span class="s1">resourceQuery</span><span class="s2">: (</span><span class="s1">query</span><span class="s2">) =&gt; {</span>
+      <span class="s0">const </span><span class="s1">parsed </span><span class="s2">= </span><span class="s1">qs</span><span class="s2">.</span><span class="s1">parse</span><span class="s2">(</span><span class="s1">query</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s5">1</span><span class="s2">))</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">parsed</span><span class="s2">.</span><span class="s1">vue </span><span class="s2">== </span><span class="s0">null</span><span class="s2">) {</span>
+        <span class="s0">return false</span>
+      <span class="s2">}</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">resource </span><span class="s2">&amp;&amp; </span><span class="s1">parsed</span><span class="s2">.</span><span class="s1">lang </span><span class="s2">== </span><span class="s0">null</span><span class="s2">) {</span>
+        <span class="s0">return false</span>
+      <span class="s2">}</span>
+      <span class="s0">const </span><span class="s1">fakeResourcePath </span><span class="s2">= </span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">currentResource</span><span class="s2">}</span><span class="s3">.</span><span class="s1">$</span><span class="s2">{</span><span class="s1">parsed</span><span class="s2">.</span><span class="s1">lang</span><span class="s2">}</span><span class="s3">`</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">resource </span><span class="s2">&amp;&amp; !</span><span class="s1">resource</span><span class="s2">(</span><span class="s1">fakeResourcePath</span><span class="s2">)) {</span>
+        <span class="s0">return false</span>
+      <span class="s2">}</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">resourceQuery </span><span class="s2">&amp;&amp; !</span><span class="s1">resourceQuery</span><span class="s2">(</span><span class="s1">query</span><span class="s2">)) {</span>
+        <span class="s0">return false</span>
+      <span class="s2">}</span>
+      <span class="s0">return true</span>
+    <span class="s2">}</span>
+  <span class="s2">})</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">rule</span><span class="s2">.</span><span class="s1">rules</span><span class="s2">) {</span>
+    <span class="s1">res</span><span class="s2">.</span><span class="s1">rules </span><span class="s2">= </span><span class="s1">rule</span><span class="s2">.</span><span class="s1">rules</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">cloneRule</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">rule</span><span class="s2">.</span><span class="s1">oneOf</span><span class="s2">) {</span>
+    <span class="s1">res</span><span class="s2">.</span><span class="s1">oneOf </span><span class="s2">= </span><span class="s1">rule</span><span class="s2">.</span><span class="s1">oneOf</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">cloneRule</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s0">return </span><span class="s1">res</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">cloneRuleForRenderFn</span><span class="s2">(</span><span class="s1">rule</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">resource </span><span class="s2">= </span><span class="s1">rule</span><span class="s2">.</span><span class="s1">resource</span>
+  <span class="s0">const </span><span class="s1">resourceQuery </span><span class="s2">= </span><span class="s1">rule</span><span class="s2">.</span><span class="s1">resourceQuery</span>
+  <span class="s0">let </span><span class="s1">currentResource</span>
+
+  <span class="s0">const </span><span class="s1">res </span><span class="s2">= {</span>
+    <span class="s1">...rule</span><span class="s2">,</span>
+    <span class="s1">resource</span><span class="s2">: (</span><span class="s1">resource</span><span class="s2">) =&gt; {</span>
+      <span class="s1">currentResource </span><span class="s2">= </span><span class="s1">resource</span>
+      <span class="s0">return true</span>
+    <span class="s2">},</span>
+    <span class="s1">resourceQuery</span><span class="s2">: (</span><span class="s1">query</span><span class="s2">) =&gt; {</span>
+      <span class="s0">const </span><span class="s1">parsed </span><span class="s2">= </span><span class="s1">qs</span><span class="s2">.</span><span class="s1">parse</span><span class="s2">(</span><span class="s1">query</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s5">1</span><span class="s2">))</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">parsed</span><span class="s2">.</span><span class="s1">vue </span><span class="s2">== </span><span class="s0">null </span><span class="s2">|| </span><span class="s1">parsed</span><span class="s2">.</span><span class="s1">type </span><span class="s2">!== </span><span class="s3">'template'</span><span class="s2">) {</span>
+        <span class="s0">return false</span>
+      <span class="s2">}</span>
+      <span class="s0">const </span><span class="s1">fakeResourcePath </span><span class="s2">= </span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">currentResource</span><span class="s2">}</span><span class="s3">.</span><span class="s1">$</span><span class="s2">{</span><span class="s1">parsed</span><span class="s2">.</span><span class="s1">ts </span><span class="s2">? </span><span class="s3">`ts` </span><span class="s2">: </span><span class="s3">`js`</span><span class="s2">}</span><span class="s3">`</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">resource </span><span class="s2">&amp;&amp; !</span><span class="s1">resource</span><span class="s2">(</span><span class="s1">fakeResourcePath</span><span class="s2">)) {</span>
+        <span class="s0">return false</span>
+      <span class="s2">}</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">resourceQuery </span><span class="s2">&amp;&amp; !</span><span class="s1">resourceQuery</span><span class="s2">(</span><span class="s1">query</span><span class="s2">)) {</span>
+        <span class="s0">return false</span>
+      <span class="s2">}</span>
+      <span class="s0">return true</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+  <span class="s4">// Filter out `thread-loader` from the `use` array.</span>
+  <span class="s4">// Mitigate https://github.com/vuejs/vue/issues/12828</span>
+  <span class="s4">// Note this won't work if the `use` filed is a function</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">res</span><span class="s2">.</span><span class="s1">use</span><span class="s2">)) {</span>
+    <span class="s0">const </span><span class="s1">isThreadLoader </span><span class="s2">= (</span><span class="s1">loader</span><span class="s2">) =&gt; </span><span class="s1">loader </span><span class="s2">=== </span><span class="s3">'thread-loader' </span><span class="s2">|| </span><span class="s6">/\/node_modules\/thread-loader\//</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">loader</span><span class="s2">)</span>
+
+    <span class="s1">res</span><span class="s2">.</span><span class="s1">use </span><span class="s2">= </span><span class="s1">res</span><span class="s2">.</span><span class="s1">use</span><span class="s2">.</span><span class="s1">filter</span><span class="s2">(</span><span class="s1">useEntry </span><span class="s2">=&gt; {</span>
+      <span class="s0">const </span><span class="s1">loader </span><span class="s2">= </span><span class="s0">typeof </span><span class="s1">useEntry </span><span class="s2">=== </span><span class="s3">'string' </span><span class="s2">? </span><span class="s1">useEntry </span><span class="s2">: </span><span class="s1">useEntry</span><span class="s2">.</span><span class="s1">loader</span>
+      <span class="s0">return </span><span class="s2">!</span><span class="s1">isThreadLoader</span><span class="s2">(</span><span class="s1">loader</span><span class="s2">)</span>
+    <span class="s2">})</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">rule</span><span class="s2">.</span><span class="s1">rules</span><span class="s2">) {</span>
+    <span class="s1">res</span><span class="s2">.</span><span class="s1">rules </span><span class="s2">= </span><span class="s1">rule</span><span class="s2">.</span><span class="s1">rules</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">cloneRuleForRenderFn</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">rule</span><span class="s2">.</span><span class="s1">oneOf</span><span class="s2">) {</span>
+    <span class="s1">res</span><span class="s2">.</span><span class="s1">oneOf </span><span class="s2">= </span><span class="s1">rule</span><span class="s2">.</span><span class="s1">oneOf</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">cloneRuleForRenderFn</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s0">return </span><span class="s1">res</span>
+<span class="s2">}</span>
+
+<span class="s1">VueLoaderPlugin</span><span class="s2">.</span><span class="s1">NS </span><span class="s2">= </span><span class="s1">NS</span>
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= </span><span class="s1">VueLoaderPlugin</span>
+</pre>
+</body>
+</html>

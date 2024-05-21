@@ -1,0 +1,90 @@
+<html>
+<head>
+<title>_microtask.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_microtask.js</font>
+</center></td></tr></table>
+<pre><span class="s0">var </span><span class="s1">global </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./_global'</span><span class="s2">);</span>
+<span class="s0">var </span><span class="s1">macrotask </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./_task'</span><span class="s2">).</span><span class="s1">set</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">Observer </span><span class="s2">= </span><span class="s1">global</span><span class="s2">.</span><span class="s1">MutationObserver </span><span class="s2">|| </span><span class="s1">global</span><span class="s2">.</span><span class="s1">WebKitMutationObserver</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">process </span><span class="s2">= </span><span class="s1">global</span><span class="s2">.</span><span class="s1">process</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">Promise </span><span class="s2">= </span><span class="s1">global</span><span class="s2">.</span><span class="s1">Promise</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">isNode </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./_cof'</span><span class="s2">)(</span><span class="s1">process</span><span class="s2">) == </span><span class="s3">'process'</span><span class="s2">;</span>
+
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= </span><span class="s0">function </span><span class="s2">() {</span>
+  <span class="s0">var </span><span class="s1">head</span><span class="s2">, </span><span class="s1">last</span><span class="s2">, </span><span class="s1">notify</span><span class="s2">;</span>
+
+  <span class="s0">var </span><span class="s1">flush </span><span class="s2">= </span><span class="s0">function </span><span class="s2">() {</span>
+    <span class="s0">var </span><span class="s1">parent</span><span class="s2">, </span><span class="s1">fn</span><span class="s2">;</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isNode </span><span class="s2">&amp;&amp; (</span><span class="s1">parent </span><span class="s2">= </span><span class="s1">process</span><span class="s2">.</span><span class="s1">domain</span><span class="s2">)) </span><span class="s1">parent</span><span class="s2">.</span><span class="s1">exit</span><span class="s2">();</span>
+    <span class="s0">while </span><span class="s2">(</span><span class="s1">head</span><span class="s2">) {</span>
+      <span class="s1">fn </span><span class="s2">= </span><span class="s1">head</span><span class="s2">.</span><span class="s1">fn</span><span class="s2">;</span>
+      <span class="s1">head </span><span class="s2">= </span><span class="s1">head</span><span class="s2">.</span><span class="s1">next</span><span class="s2">;</span>
+      <span class="s0">try </span><span class="s2">{</span>
+        <span class="s1">fn</span><span class="s2">();</span>
+      <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">e</span><span class="s2">) {</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">head</span><span class="s2">) </span><span class="s1">notify</span><span class="s2">();</span>
+        <span class="s0">else </span><span class="s1">last </span><span class="s2">= </span><span class="s1">undefined</span><span class="s2">;</span>
+        <span class="s0">throw </span><span class="s1">e</span><span class="s2">;</span>
+      <span class="s2">}</span>
+    <span class="s2">} </span><span class="s1">last </span><span class="s2">= </span><span class="s1">undefined</span><span class="s2">;</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">parent</span><span class="s2">) </span><span class="s1">parent</span><span class="s2">.</span><span class="s1">enter</span><span class="s2">();</span>
+  <span class="s2">};</span>
+
+  <span class="s4">// Node.js</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isNode</span><span class="s2">) {</span>
+    <span class="s1">notify </span><span class="s2">= </span><span class="s0">function </span><span class="s2">() {</span>
+      <span class="s1">process</span><span class="s2">.</span><span class="s1">nextTick</span><span class="s2">(</span><span class="s1">flush</span><span class="s2">);</span>
+    <span class="s2">};</span>
+  <span class="s4">// browsers with MutationObserver, except iOS Safari - https://github.com/zloirock/core-js/issues/339</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">Observer </span><span class="s2">&amp;&amp; !(</span><span class="s1">global</span><span class="s2">.</span><span class="s1">navigator </span><span class="s2">&amp;&amp; </span><span class="s1">global</span><span class="s2">.</span><span class="s1">navigator</span><span class="s2">.</span><span class="s1">standalone</span><span class="s2">)) {</span>
+    <span class="s0">var </span><span class="s1">toggle </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+    <span class="s0">var </span><span class="s1">node </span><span class="s2">= </span><span class="s1">document</span><span class="s2">.</span><span class="s1">createTextNode</span><span class="s2">(</span><span class="s3">''</span><span class="s2">);</span>
+    <span class="s0">new </span><span class="s1">Observer</span><span class="s2">(</span><span class="s1">flush</span><span class="s2">).</span><span class="s1">observe</span><span class="s2">(</span><span class="s1">node</span><span class="s2">, { </span><span class="s1">characterData</span><span class="s2">: </span><span class="s0">true </span><span class="s2">}); </span><span class="s4">// eslint-disable-line no-new</span>
+    <span class="s1">notify </span><span class="s2">= </span><span class="s0">function </span><span class="s2">() {</span>
+      <span class="s1">node</span><span class="s2">.</span><span class="s1">data </span><span class="s2">= </span><span class="s1">toggle </span><span class="s2">= !</span><span class="s1">toggle</span><span class="s2">;</span>
+    <span class="s2">};</span>
+  <span class="s4">// environments with maybe non-completely correct, but existent Promise</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">Promise </span><span class="s2">&amp;&amp; </span><span class="s1">Promise</span><span class="s2">.</span><span class="s1">resolve</span><span class="s2">) {</span>
+    <span class="s4">// Promise.resolve without an argument throws an error in LG WebOS 2</span>
+    <span class="s0">var </span><span class="s1">promise </span><span class="s2">= </span><span class="s1">Promise</span><span class="s2">.</span><span class="s1">resolve</span><span class="s2">(</span><span class="s1">undefined</span><span class="s2">);</span>
+    <span class="s1">notify </span><span class="s2">= </span><span class="s0">function </span><span class="s2">() {</span>
+      <span class="s1">promise</span><span class="s2">.</span><span class="s1">then</span><span class="s2">(</span><span class="s1">flush</span><span class="s2">);</span>
+    <span class="s2">};</span>
+  <span class="s4">// for other environments - macrotask based on:</span>
+  <span class="s4">// - setImmediate</span>
+  <span class="s4">// - MessageChannel</span>
+  <span class="s4">// - window.postMessag</span>
+  <span class="s4">// - onreadystatechange</span>
+  <span class="s4">// - setTimeout</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s1">notify </span><span class="s2">= </span><span class="s0">function </span><span class="s2">() {</span>
+      <span class="s4">// strange IE + webpack dev server bug - use .call(global)</span>
+      <span class="s1">macrotask</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s1">global</span><span class="s2">, </span><span class="s1">flush</span><span class="s2">);</span>
+    <span class="s2">};</span>
+  <span class="s2">}</span>
+
+  <span class="s0">return function </span><span class="s2">(</span><span class="s1">fn</span><span class="s2">) {</span>
+    <span class="s0">var </span><span class="s1">task </span><span class="s2">= { </span><span class="s1">fn</span><span class="s2">: </span><span class="s1">fn</span><span class="s2">, </span><span class="s1">next</span><span class="s2">: </span><span class="s1">undefined </span><span class="s2">};</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">last</span><span class="s2">) </span><span class="s1">last</span><span class="s2">.</span><span class="s1">next </span><span class="s2">= </span><span class="s1">task</span><span class="s2">;</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">head</span><span class="s2">) {</span>
+      <span class="s1">head </span><span class="s2">= </span><span class="s1">task</span><span class="s2">;</span>
+      <span class="s1">notify</span><span class="s2">();</span>
+    <span class="s2">} </span><span class="s1">last </span><span class="s2">= </span><span class="s1">task</span><span class="s2">;</span>
+  <span class="s2">};</span>
+<span class="s2">};</span>
+</pre>
+</body>
+</html>

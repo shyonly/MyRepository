@@ -1,0 +1,351 @@
+<html>
+<head>
+<title>crystal.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #5f826b; font-style: italic;}
+.s3 { color: #67a37c; font-style: italic;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #bcbec4;}
+.s6 { color: #6aab73;}
+.s7 { color: #42c3d4;}
+.s8 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+crystal.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+Language: Crystal 
+Author: TSUYUSATO Kitsune &lt;make.just.on@gmail.com&gt; 
+Website: https://crystal-lang.org 
+*/</span>
+
+<span class="s2">/** </span><span class="s3">@type </span><span class="s2">LanguageFn */</span>
+<span class="s4">function </span><span class="s1">crystal</span><span class="s5">(</span><span class="s1">hljs</span><span class="s5">) {</span>
+  <span class="s4">const </span><span class="s1">INT_SUFFIX </span><span class="s5">= </span><span class="s6">'(_?[ui](8|16|32|64|128))?'</span><span class="s5">;</span>
+  <span class="s4">const </span><span class="s1">FLOAT_SUFFIX </span><span class="s5">= </span><span class="s6">'(_?f(32|64))?'</span><span class="s5">;</span>
+  <span class="s4">const </span><span class="s1">CRYSTAL_IDENT_RE </span><span class="s5">= </span><span class="s6">'[a-zA-Z_]</span><span class="s4">\\</span><span class="s6">w*[!?=]?'</span><span class="s5">;</span>
+  <span class="s4">const </span><span class="s1">CRYSTAL_METHOD_RE </span><span class="s5">= </span><span class="s6">'[a-zA-Z_]</span><span class="s4">\\</span><span class="s6">w*[!?=]?|[-+~]@|&lt;&lt;|&gt;&gt;|[=!]~|===?|&lt;=&gt;|[&lt;&gt;]=?|</span><span class="s4">\\</span><span class="s6">*</span><span class="s4">\\</span><span class="s6">*|[-/+%^&amp;*~|]|//|//=|&amp;[-+*]=?|&amp;</span><span class="s4">\\</span><span class="s6">*</span><span class="s4">\\</span><span class="s6">*|</span><span class="s4">\\</span><span class="s6">[</span><span class="s4">\\</span><span class="s6">][=?]?'</span><span class="s5">;</span>
+  <span class="s4">const </span><span class="s1">CRYSTAL_PATH_RE </span><span class="s5">= </span><span class="s6">'[A-Za-z_]</span><span class="s4">\\</span><span class="s6">w*(::</span><span class="s4">\\</span><span class="s6">w+)*(</span><span class="s4">\\</span><span class="s6">?|!)?'</span><span class="s5">;</span>
+  <span class="s4">const </span><span class="s1">CRYSTAL_KEYWORDS </span><span class="s5">= {</span>
+    <span class="s1">$pattern</span><span class="s5">: </span><span class="s1">CRYSTAL_IDENT_RE</span><span class="s5">,</span>
+    <span class="s1">keyword</span><span class="s5">:</span>
+      <span class="s6">'abstract alias annotation as as? asm begin break case class def do else elsif end ensure enum extend for fun if ' </span><span class="s5">+</span>
+      <span class="s6">'include instance_sizeof is_a? lib macro module next nil? of out pointerof private protected rescue responds_to? ' </span><span class="s5">+</span>
+      <span class="s6">'return require select self sizeof struct super then type typeof union uninitialized unless until verbatim when while with yield ' </span><span class="s5">+</span>
+      <span class="s6">'__DIR__ __END_LINE__ __FILE__ __LINE__'</span><span class="s5">,</span>
+    <span class="s1">literal</span><span class="s5">: </span><span class="s6">'false nil true'</span>
+  <span class="s5">};</span>
+  <span class="s4">const </span><span class="s1">SUBST </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'subst'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s7">/#\{/</span><span class="s5">,</span>
+    <span class="s1">end</span><span class="s5">: </span><span class="s7">/\}/</span><span class="s5">,</span>
+    <span class="s1">keywords</span><span class="s5">: </span><span class="s1">CRYSTAL_KEYWORDS</span>
+  <span class="s5">};</span>
+  <span class="s4">const </span><span class="s1">EXPANSION </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'template-variable'</span><span class="s5">,</span>
+    <span class="s1">variants</span><span class="s5">: [</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">{</span><span class="s4">\\</span><span class="s6">{'</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">}</span><span class="s4">\\</span><span class="s6">}'</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">{%'</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'%</span><span class="s4">\\</span><span class="s6">}'</span>
+      <span class="s5">}</span>
+    <span class="s5">],</span>
+    <span class="s1">keywords</span><span class="s5">: </span><span class="s1">CRYSTAL_KEYWORDS</span>
+  <span class="s5">};</span>
+
+  <span class="s4">function </span><span class="s1">recursiveParen</span><span class="s5">(</span><span class="s1">begin</span><span class="s5">, </span><span class="s1">end</span><span class="s5">) {</span>
+    <span class="s4">const</span>
+        <span class="s1">contains </span><span class="s5">= [</span>
+          <span class="s5">{</span>
+            <span class="s1">begin</span><span class="s5">: </span><span class="s1">begin</span><span class="s5">,</span>
+            <span class="s1">end</span><span class="s5">: </span><span class="s1">end</span>
+          <span class="s5">}</span>
+        <span class="s5">];</span>
+    <span class="s1">contains</span><span class="s5">[</span><span class="s8">0</span><span class="s5">].</span><span class="s1">contains </span><span class="s5">= </span><span class="s1">contains</span><span class="s5">;</span>
+    <span class="s4">return </span><span class="s1">contains</span><span class="s5">;</span>
+  <span class="s5">}</span>
+  <span class="s4">const </span><span class="s1">STRING </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'string'</span><span class="s5">,</span>
+    <span class="s1">contains</span><span class="s5">: [</span>
+      <span class="s1">hljs</span><span class="s5">.</span><span class="s1">BACKSLASH_ESCAPE</span><span class="s5">,</span>
+      <span class="s1">SUBST</span>
+    <span class="s5">],</span>
+    <span class="s1">variants</span><span class="s5">: [</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s7">/'/</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s7">/'/</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s7">/&quot;/</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s7">/&quot;/</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s7">/`/</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s7">/`/</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'%[Qwi]?</span><span class="s4">\\</span><span class="s6">('</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">)'</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: </span><span class="s1">recursiveParen</span><span class="s5">(</span><span class="s6">'</span><span class="s4">\\</span><span class="s6">('</span><span class="s5">, </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">)'</span><span class="s5">)</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'%[Qwi]?</span><span class="s4">\\</span><span class="s6">['</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">]'</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: </span><span class="s1">recursiveParen</span><span class="s5">(</span><span class="s6">'</span><span class="s4">\\</span><span class="s6">['</span><span class="s5">, </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">]'</span><span class="s5">)</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'%[Qwi]?</span><span class="s4">\\</span><span class="s6">{'</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s7">/\}/</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: </span><span class="s1">recursiveParen</span><span class="s5">(</span><span class="s7">/\{/</span><span class="s5">, </span><span class="s7">/\}/</span><span class="s5">)</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'%[Qwi]?&lt;'</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'&gt;'</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: </span><span class="s1">recursiveParen</span><span class="s5">(</span><span class="s6">'&lt;'</span><span class="s5">, </span><span class="s6">'&gt;'</span><span class="s5">)</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'%[Qwi]?</span><span class="s4">\\</span><span class="s6">|'</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">|'</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s7">/&lt;&lt;-\w+$/</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s7">/^\s*\w+$/</span>
+      <span class="s5">}</span>
+    <span class="s5">],</span>
+    <span class="s1">relevance</span><span class="s5">: </span><span class="s8">0</span>
+  <span class="s5">};</span>
+  <span class="s4">const </span><span class="s1">Q_STRING </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'string'</span><span class="s5">,</span>
+    <span class="s1">variants</span><span class="s5">: [</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'%q</span><span class="s4">\\</span><span class="s6">('</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">)'</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: </span><span class="s1">recursiveParen</span><span class="s5">(</span><span class="s6">'</span><span class="s4">\\</span><span class="s6">('</span><span class="s5">, </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">)'</span><span class="s5">)</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'%q</span><span class="s4">\\</span><span class="s6">['</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">]'</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: </span><span class="s1">recursiveParen</span><span class="s5">(</span><span class="s6">'</span><span class="s4">\\</span><span class="s6">['</span><span class="s5">, </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">]'</span><span class="s5">)</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'%q</span><span class="s4">\\</span><span class="s6">{'</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s7">/\}/</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: </span><span class="s1">recursiveParen</span><span class="s5">(</span><span class="s7">/\{/</span><span class="s5">, </span><span class="s7">/\}/</span><span class="s5">)</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'%q&lt;'</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'&gt;'</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: </span><span class="s1">recursiveParen</span><span class="s5">(</span><span class="s6">'&lt;'</span><span class="s5">, </span><span class="s6">'&gt;'</span><span class="s5">)</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'%q</span><span class="s4">\\</span><span class="s6">|'</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">|'</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s7">/&lt;&lt;-'\w+'$/</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s7">/^\s*\w+$/</span>
+      <span class="s5">}</span>
+    <span class="s5">],</span>
+    <span class="s1">relevance</span><span class="s5">: </span><span class="s8">0</span>
+  <span class="s5">};</span>
+  <span class="s4">const </span><span class="s1">REGEXP </span><span class="s5">= {</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'(?!%</span><span class="s4">\\</span><span class="s6">})(' </span><span class="s5">+ </span><span class="s1">hljs</span><span class="s5">.</span><span class="s1">RE_STARTERS_RE </span><span class="s5">+ </span><span class="s6">'|</span><span class="s4">\\</span><span class="s6">n|</span><span class="s4">\\</span><span class="s6">b(case|if|select|unless|until|when|while)</span><span class="s4">\\</span><span class="s6">b)</span><span class="s4">\\</span><span class="s6">s*'</span><span class="s5">,</span>
+    <span class="s1">keywords</span><span class="s5">: </span><span class="s6">'case if select unless until when while'</span><span class="s5">,</span>
+    <span class="s1">contains</span><span class="s5">: [</span>
+      <span class="s5">{</span>
+        <span class="s1">className</span><span class="s5">: </span><span class="s6">'regexp'</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: [</span>
+          <span class="s1">hljs</span><span class="s5">.</span><span class="s1">BACKSLASH_ESCAPE</span><span class="s5">,</span>
+          <span class="s1">SUBST</span>
+        <span class="s5">],</span>
+        <span class="s1">variants</span><span class="s5">: [</span>
+          <span class="s5">{</span>
+            <span class="s1">begin</span><span class="s5">: </span><span class="s6">'//[a-z]*'</span><span class="s5">,</span>
+            <span class="s1">relevance</span><span class="s5">: </span><span class="s8">0</span>
+          <span class="s5">},</span>
+          <span class="s5">{</span>
+            <span class="s1">begin</span><span class="s5">: </span><span class="s6">'/(?!</span><span class="s4">\\</span><span class="s6">/)'</span><span class="s5">,</span>
+            <span class="s1">end</span><span class="s5">: </span><span class="s6">'/[a-z]*'</span>
+          <span class="s5">}</span>
+        <span class="s5">]</span>
+      <span class="s5">}</span>
+    <span class="s5">],</span>
+    <span class="s1">relevance</span><span class="s5">: </span><span class="s8">0</span>
+  <span class="s5">};</span>
+  <span class="s4">const </span><span class="s1">REGEXP2 </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'regexp'</span><span class="s5">,</span>
+    <span class="s1">contains</span><span class="s5">: [</span>
+      <span class="s1">hljs</span><span class="s5">.</span><span class="s1">BACKSLASH_ESCAPE</span><span class="s5">,</span>
+      <span class="s1">SUBST</span>
+    <span class="s5">],</span>
+    <span class="s1">variants</span><span class="s5">: [</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'%r</span><span class="s4">\\</span><span class="s6">('</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">)'</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: </span><span class="s1">recursiveParen</span><span class="s5">(</span><span class="s6">'</span><span class="s4">\\</span><span class="s6">('</span><span class="s5">, </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">)'</span><span class="s5">)</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'%r</span><span class="s4">\\</span><span class="s6">['</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">]'</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: </span><span class="s1">recursiveParen</span><span class="s5">(</span><span class="s6">'</span><span class="s4">\\</span><span class="s6">['</span><span class="s5">, </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">]'</span><span class="s5">)</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'%r</span><span class="s4">\\</span><span class="s6">{'</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s7">/\}/</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: </span><span class="s1">recursiveParen</span><span class="s5">(</span><span class="s7">/\{/</span><span class="s5">, </span><span class="s7">/\}/</span><span class="s5">)</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'%r&lt;'</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'&gt;'</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: </span><span class="s1">recursiveParen</span><span class="s5">(</span><span class="s6">'&lt;'</span><span class="s5">, </span><span class="s6">'&gt;'</span><span class="s5">)</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'%r</span><span class="s4">\\</span><span class="s6">|'</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">|'</span>
+      <span class="s5">}</span>
+    <span class="s5">],</span>
+    <span class="s1">relevance</span><span class="s5">: </span><span class="s8">0</span>
+  <span class="s5">};</span>
+  <span class="s4">const </span><span class="s1">ATTRIBUTE </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'meta'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'@</span><span class="s4">\\</span><span class="s6">['</span><span class="s5">,</span>
+    <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">]'</span><span class="s5">,</span>
+    <span class="s1">contains</span><span class="s5">: [</span>
+      <span class="s1">hljs</span><span class="s5">.</span><span class="s1">inherit</span><span class="s5">(</span><span class="s1">hljs</span><span class="s5">.</span><span class="s1">QUOTE_STRING_MODE</span><span class="s5">, {</span>
+        <span class="s1">className</span><span class="s5">: </span><span class="s6">'meta-string'</span>
+      <span class="s5">})</span>
+    <span class="s5">]</span>
+  <span class="s5">};</span>
+  <span class="s4">const </span><span class="s1">CRYSTAL_DEFAULT_CONTAINS </span><span class="s5">= [</span>
+    <span class="s1">EXPANSION</span><span class="s5">,</span>
+    <span class="s1">STRING</span><span class="s5">,</span>
+    <span class="s1">Q_STRING</span><span class="s5">,</span>
+    <span class="s1">REGEXP2</span><span class="s5">,</span>
+    <span class="s1">REGEXP</span><span class="s5">,</span>
+    <span class="s1">ATTRIBUTE</span><span class="s5">,</span>
+    <span class="s1">hljs</span><span class="s5">.</span><span class="s1">HASH_COMMENT_MODE</span><span class="s5">,</span>
+    <span class="s5">{</span>
+      <span class="s1">className</span><span class="s5">: </span><span class="s6">'class'</span><span class="s5">,</span>
+      <span class="s1">beginKeywords</span><span class="s5">: </span><span class="s6">'class module struct'</span><span class="s5">,</span>
+      <span class="s1">end</span><span class="s5">: </span><span class="s6">'$|;'</span><span class="s5">,</span>
+      <span class="s1">illegal</span><span class="s5">: </span><span class="s7">/=/</span><span class="s5">,</span>
+      <span class="s1">contains</span><span class="s5">: [</span>
+        <span class="s1">hljs</span><span class="s5">.</span><span class="s1">HASH_COMMENT_MODE</span><span class="s5">,</span>
+        <span class="s1">hljs</span><span class="s5">.</span><span class="s1">inherit</span><span class="s5">(</span><span class="s1">hljs</span><span class="s5">.</span><span class="s1">TITLE_MODE</span><span class="s5">, {</span>
+          <span class="s1">begin</span><span class="s5">: </span><span class="s1">CRYSTAL_PATH_RE</span>
+        <span class="s5">}),</span>
+        <span class="s5">{ </span><span class="s0">// relevance booster for inheritance</span>
+          <span class="s1">begin</span><span class="s5">: </span><span class="s6">'&lt;'</span>
+        <span class="s5">}</span>
+      <span class="s5">]</span>
+    <span class="s5">},</span>
+    <span class="s5">{</span>
+      <span class="s1">className</span><span class="s5">: </span><span class="s6">'class'</span><span class="s5">,</span>
+      <span class="s1">beginKeywords</span><span class="s5">: </span><span class="s6">'lib enum union'</span><span class="s5">,</span>
+      <span class="s1">end</span><span class="s5">: </span><span class="s6">'$|;'</span><span class="s5">,</span>
+      <span class="s1">illegal</span><span class="s5">: </span><span class="s7">/=/</span><span class="s5">,</span>
+      <span class="s1">contains</span><span class="s5">: [</span>
+        <span class="s1">hljs</span><span class="s5">.</span><span class="s1">HASH_COMMENT_MODE</span><span class="s5">,</span>
+        <span class="s1">hljs</span><span class="s5">.</span><span class="s1">inherit</span><span class="s5">(</span><span class="s1">hljs</span><span class="s5">.</span><span class="s1">TITLE_MODE</span><span class="s5">, {</span>
+          <span class="s1">begin</span><span class="s5">: </span><span class="s1">CRYSTAL_PATH_RE</span>
+        <span class="s5">})</span>
+      <span class="s5">]</span>
+    <span class="s5">},</span>
+    <span class="s5">{</span>
+      <span class="s1">beginKeywords</span><span class="s5">: </span><span class="s6">'annotation'</span><span class="s5">,</span>
+      <span class="s1">end</span><span class="s5">: </span><span class="s6">'$|;'</span><span class="s5">,</span>
+      <span class="s1">illegal</span><span class="s5">: </span><span class="s7">/=/</span><span class="s5">,</span>
+      <span class="s1">contains</span><span class="s5">: [</span>
+        <span class="s1">hljs</span><span class="s5">.</span><span class="s1">HASH_COMMENT_MODE</span><span class="s5">,</span>
+        <span class="s1">hljs</span><span class="s5">.</span><span class="s1">inherit</span><span class="s5">(</span><span class="s1">hljs</span><span class="s5">.</span><span class="s1">TITLE_MODE</span><span class="s5">, {</span>
+          <span class="s1">begin</span><span class="s5">: </span><span class="s1">CRYSTAL_PATH_RE</span>
+        <span class="s5">})</span>
+      <span class="s5">],</span>
+      <span class="s1">relevance</span><span class="s5">: </span><span class="s8">2</span>
+    <span class="s5">},</span>
+    <span class="s5">{</span>
+      <span class="s1">className</span><span class="s5">: </span><span class="s6">'function'</span><span class="s5">,</span>
+      <span class="s1">beginKeywords</span><span class="s5">: </span><span class="s6">'def'</span><span class="s5">,</span>
+      <span class="s1">end</span><span class="s5">: </span><span class="s7">/\B\b/</span><span class="s5">,</span>
+      <span class="s1">contains</span><span class="s5">: [</span>
+        <span class="s1">hljs</span><span class="s5">.</span><span class="s1">inherit</span><span class="s5">(</span><span class="s1">hljs</span><span class="s5">.</span><span class="s1">TITLE_MODE</span><span class="s5">, {</span>
+          <span class="s1">begin</span><span class="s5">: </span><span class="s1">CRYSTAL_METHOD_RE</span><span class="s5">,</span>
+          <span class="s1">endsParent</span><span class="s5">: </span><span class="s4">true</span>
+        <span class="s5">})</span>
+      <span class="s5">]</span>
+    <span class="s5">},</span>
+    <span class="s5">{</span>
+      <span class="s1">className</span><span class="s5">: </span><span class="s6">'function'</span><span class="s5">,</span>
+      <span class="s1">beginKeywords</span><span class="s5">: </span><span class="s6">'fun macro'</span><span class="s5">,</span>
+      <span class="s1">end</span><span class="s5">: </span><span class="s7">/\B\b/</span><span class="s5">,</span>
+      <span class="s1">contains</span><span class="s5">: [</span>
+        <span class="s1">hljs</span><span class="s5">.</span><span class="s1">inherit</span><span class="s5">(</span><span class="s1">hljs</span><span class="s5">.</span><span class="s1">TITLE_MODE</span><span class="s5">, {</span>
+          <span class="s1">begin</span><span class="s5">: </span><span class="s1">CRYSTAL_METHOD_RE</span><span class="s5">,</span>
+          <span class="s1">endsParent</span><span class="s5">: </span><span class="s4">true</span>
+        <span class="s5">})</span>
+      <span class="s5">],</span>
+      <span class="s1">relevance</span><span class="s5">: </span><span class="s8">2</span>
+    <span class="s5">},</span>
+    <span class="s5">{</span>
+      <span class="s1">className</span><span class="s5">: </span><span class="s6">'symbol'</span><span class="s5">,</span>
+      <span class="s1">begin</span><span class="s5">: </span><span class="s1">hljs</span><span class="s5">.</span><span class="s1">UNDERSCORE_IDENT_RE </span><span class="s5">+ </span><span class="s6">'(!|</span><span class="s4">\\</span><span class="s6">?)?:'</span><span class="s5">,</span>
+      <span class="s1">relevance</span><span class="s5">: </span><span class="s8">0</span>
+    <span class="s5">},</span>
+    <span class="s5">{</span>
+      <span class="s1">className</span><span class="s5">: </span><span class="s6">'symbol'</span><span class="s5">,</span>
+      <span class="s1">begin</span><span class="s5">: </span><span class="s6">':'</span><span class="s5">,</span>
+      <span class="s1">contains</span><span class="s5">: [</span>
+        <span class="s1">STRING</span><span class="s5">,</span>
+        <span class="s5">{</span>
+          <span class="s1">begin</span><span class="s5">: </span><span class="s1">CRYSTAL_METHOD_RE</span>
+        <span class="s5">}</span>
+      <span class="s5">],</span>
+      <span class="s1">relevance</span><span class="s5">: </span><span class="s8">0</span>
+    <span class="s5">},</span>
+    <span class="s5">{</span>
+      <span class="s1">className</span><span class="s5">: </span><span class="s6">'number'</span><span class="s5">,</span>
+      <span class="s1">variants</span><span class="s5">: [</span>
+        <span class="s5">{</span>
+          <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">b0b([01_]+)' </span><span class="s5">+ </span><span class="s1">INT_SUFFIX</span>
+        <span class="s5">},</span>
+        <span class="s5">{</span>
+          <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">b0o([0-7_]+)' </span><span class="s5">+ </span><span class="s1">INT_SUFFIX</span>
+        <span class="s5">},</span>
+        <span class="s5">{</span>
+          <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">b0x([A-Fa-f0-9_]+)' </span><span class="s5">+ </span><span class="s1">INT_SUFFIX</span>
+        <span class="s5">},</span>
+        <span class="s5">{</span>
+          <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">b([1-9][0-9_]*[0-9]|[0-9])(</span><span class="s4">\\</span><span class="s6">.[0-9][0-9_]*)?([eE]_?[-+]?[0-9_]*)?' </span><span class="s5">+ </span><span class="s1">FLOAT_SUFFIX </span><span class="s5">+ </span><span class="s6">'(?!_)'</span>
+        <span class="s5">},</span>
+        <span class="s5">{</span>
+          <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">b([1-9][0-9_]*|0)' </span><span class="s5">+ </span><span class="s1">INT_SUFFIX</span>
+        <span class="s5">}</span>
+      <span class="s5">],</span>
+      <span class="s1">relevance</span><span class="s5">: </span><span class="s8">0</span>
+    <span class="s5">}</span>
+  <span class="s5">];</span>
+  <span class="s1">SUBST</span><span class="s5">.</span><span class="s1">contains </span><span class="s5">= </span><span class="s1">CRYSTAL_DEFAULT_CONTAINS</span><span class="s5">;</span>
+  <span class="s1">EXPANSION</span><span class="s5">.</span><span class="s1">contains </span><span class="s5">= </span><span class="s1">CRYSTAL_DEFAULT_CONTAINS</span><span class="s5">.</span><span class="s1">slice</span><span class="s5">(</span><span class="s8">1</span><span class="s5">); </span><span class="s0">// without EXPANSION</span>
+
+  <span class="s4">return </span><span class="s5">{</span>
+    <span class="s1">name</span><span class="s5">: </span><span class="s6">'Crystal'</span><span class="s5">,</span>
+    <span class="s1">aliases</span><span class="s5">: [ </span><span class="s6">'cr' </span><span class="s5">],</span>
+    <span class="s1">keywords</span><span class="s5">: </span><span class="s1">CRYSTAL_KEYWORDS</span><span class="s5">,</span>
+    <span class="s1">contains</span><span class="s5">: </span><span class="s1">CRYSTAL_DEFAULT_CONTAINS</span>
+  <span class="s5">};</span>
+<span class="s5">}</span>
+
+<span class="s1">module</span><span class="s5">.</span><span class="s1">exports </span><span class="s5">= </span><span class="s1">crystal</span><span class="s5">;</span>
+</pre>
+</body>
+</html>

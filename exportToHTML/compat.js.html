@@ -1,0 +1,110 @@
+<html>
+<head>
+<title>compat.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+compat.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s1">{ </span><span class="s2">compare</span><span class="s1">, </span><span class="s2">filterOutStabilizedProposals</span><span class="s1">, </span><span class="s2">has</span><span class="s1">, </span><span class="s2">intersection </span><span class="s1">} = </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./helpers'</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">data </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./data'</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">entries </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./entries'</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">getModulesListForTargetVersion </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./get-modules-list-for-target-version'</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">allModules </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./modules'</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">targetsParser </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./targets-parser'</span><span class="s1">);</span>
+
+<span class="s3">function </span><span class="s2">throwInvalidFilter</span><span class="s1">(</span><span class="s2">filter</span><span class="s1">) {</span>
+  <span class="s3">throw new </span><span class="s2">TypeError</span><span class="s1">(</span><span class="s0">`Specified invalid module name or pattern: </span><span class="s2">$</span><span class="s1">{ </span><span class="s2">filter </span><span class="s1">}</span><span class="s0">`</span><span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">atLeastSomeModules</span><span class="s1">(</span><span class="s2">modules</span><span class="s1">, </span><span class="s2">filter</span><span class="s1">) {</span>
+  <span class="s3">if </span><span class="s1">(!</span><span class="s2">modules</span><span class="s1">.</span><span class="s2">length</span><span class="s1">) </span><span class="s2">throwInvalidFilter</span><span class="s1">(</span><span class="s2">filter</span><span class="s1">);</span>
+  <span class="s3">return </span><span class="s2">modules</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">getModules</span><span class="s1">(</span><span class="s2">filter</span><span class="s1">) {</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">filter </span><span class="s1">== </span><span class="s0">'string'</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">has</span><span class="s1">(</span><span class="s2">entries</span><span class="s1">, </span><span class="s2">filter</span><span class="s1">)) </span><span class="s3">return </span><span class="s2">entries</span><span class="s1">[</span><span class="s2">filter</span><span class="s1">];</span>
+    <span class="s3">return </span><span class="s2">atLeastSomeModules</span><span class="s1">(</span><span class="s2">allModules</span><span class="s1">.</span><span class="s2">filter</span><span class="s1">(</span><span class="s2">it </span><span class="s1">=&gt; </span><span class="s2">it</span><span class="s1">.</span><span class="s2">startsWith</span><span class="s1">(</span><span class="s2">filter</span><span class="s1">)), </span><span class="s2">filter</span><span class="s1">);</span>
+  <span class="s1">} </span><span class="s3">else if </span><span class="s1">(</span><span class="s2">filter </span><span class="s3">instanceof </span><span class="s2">RegExp</span><span class="s1">) </span><span class="s3">return </span><span class="s2">atLeastSomeModules</span><span class="s1">(</span><span class="s2">allModules</span><span class="s1">.</span><span class="s2">filter</span><span class="s1">(</span><span class="s2">it </span><span class="s1">=&gt; </span><span class="s2">filter</span><span class="s1">.</span><span class="s2">test</span><span class="s1">(</span><span class="s2">it</span><span class="s1">)), </span><span class="s2">filter</span><span class="s1">);</span>
+  <span class="s2">throwInvalidFilter</span><span class="s1">(</span><span class="s2">filter</span><span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">normalizeModules</span><span class="s1">(</span><span class="s2">option</span><span class="s1">) {</span>
+  <span class="s4">// TODO: use `.flatMap` in core-js@4</span>
+  <span class="s3">return new </span><span class="s2">Set</span><span class="s1">(</span><span class="s2">Array</span><span class="s1">.</span><span class="s2">isArray</span><span class="s1">(</span><span class="s2">option</span><span class="s1">) ? [].</span><span class="s2">concat</span><span class="s1">(</span><span class="s2">...option</span><span class="s1">.</span><span class="s2">map</span><span class="s1">(</span><span class="s2">getModules</span><span class="s1">)) : </span><span class="s2">getModules</span><span class="s1">(</span><span class="s2">option</span><span class="s1">));</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">checkModule</span><span class="s1">(</span><span class="s2">name</span><span class="s1">, </span><span class="s2">targets</span><span class="s1">) {</span>
+  <span class="s3">const </span><span class="s2">result </span><span class="s1">= {</span>
+    <span class="s2">required</span><span class="s1">: !</span><span class="s2">targets</span><span class="s1">,</span>
+    <span class="s2">targets</span><span class="s1">: {},</span>
+  <span class="s1">};</span>
+
+  <span class="s3">if </span><span class="s1">(!</span><span class="s2">targets</span><span class="s1">) </span><span class="s3">return </span><span class="s2">result</span><span class="s1">;</span>
+
+  <span class="s3">const </span><span class="s2">requirements </span><span class="s1">= </span><span class="s2">data</span><span class="s1">[</span><span class="s2">name</span><span class="s1">];</span>
+
+  <span class="s3">for </span><span class="s1">(</span><span class="s3">const </span><span class="s1">[</span><span class="s2">engine</span><span class="s1">, </span><span class="s2">version</span><span class="s1">] </span><span class="s2">of targets</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(!</span><span class="s2">has</span><span class="s1">(</span><span class="s2">requirements</span><span class="s1">, </span><span class="s2">engine</span><span class="s1">) || </span><span class="s2">compare</span><span class="s1">(</span><span class="s2">version</span><span class="s1">, </span><span class="s0">'&lt;'</span><span class="s1">, </span><span class="s2">requirements</span><span class="s1">[</span><span class="s2">engine</span><span class="s1">])) {</span>
+      <span class="s2">result</span><span class="s1">.</span><span class="s2">required </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+      <span class="s2">result</span><span class="s1">.</span><span class="s2">targets</span><span class="s1">[</span><span class="s2">engine</span><span class="s1">] = </span><span class="s2">version</span><span class="s1">;</span>
+    <span class="s1">}</span>
+  <span class="s1">}</span>
+
+  <span class="s3">return </span><span class="s2">result</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= </span><span class="s3">function </span><span class="s1">({</span>
+  <span class="s2">filter </span><span class="s1">= </span><span class="s3">null</span><span class="s1">, </span><span class="s4">// TODO: Obsolete, remove from `core-js@4`</span>
+  <span class="s2">modules </span><span class="s1">= </span><span class="s3">null</span><span class="s1">,</span>
+  <span class="s2">exclude </span><span class="s1">= [],</span>
+  <span class="s2">targets </span><span class="s1">= </span><span class="s3">null</span><span class="s1">,</span>
+  <span class="s2">version </span><span class="s1">= </span><span class="s3">null</span><span class="s1">,</span>
+  <span class="s2">inverse </span><span class="s1">= </span><span class="s3">false</span><span class="s1">,</span>
+<span class="s1">} = {}) {</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s2">modules </span><span class="s1">=== </span><span class="s3">null </span><span class="s1">|| </span><span class="s2">modules </span><span class="s1">=== </span><span class="s2">undefined</span><span class="s1">) </span><span class="s2">modules </span><span class="s1">= </span><span class="s2">filter</span><span class="s1">;</span>
+  <span class="s2">inverse </span><span class="s1">= !!</span><span class="s2">inverse</span><span class="s1">;</span>
+
+  <span class="s3">const </span><span class="s2">parsedTargets </span><span class="s1">= </span><span class="s2">targets </span><span class="s1">? </span><span class="s2">targetsParser</span><span class="s1">(</span><span class="s2">targets</span><span class="s1">) : </span><span class="s3">null</span><span class="s1">;</span>
+
+  <span class="s3">const </span><span class="s2">result </span><span class="s1">= {</span>
+    <span class="s2">list</span><span class="s1">: [],</span>
+    <span class="s2">targets</span><span class="s1">: {},</span>
+  <span class="s1">};</span>
+
+  <span class="s2">exclude </span><span class="s1">= </span><span class="s2">normalizeModules</span><span class="s1">(</span><span class="s2">exclude</span><span class="s1">);</span>
+
+  <span class="s2">modules </span><span class="s1">= </span><span class="s2">modules </span><span class="s1">? [</span><span class="s2">...normalizeModules</span><span class="s1">(</span><span class="s2">modules</span><span class="s1">)] : </span><span class="s2">allModules</span><span class="s1">;</span>
+
+  <span class="s3">if </span><span class="s1">(</span><span class="s2">exclude</span><span class="s1">.</span><span class="s2">size</span><span class="s1">) </span><span class="s2">modules </span><span class="s1">= </span><span class="s2">modules</span><span class="s1">.</span><span class="s2">filter</span><span class="s1">(</span><span class="s2">it </span><span class="s1">=&gt; !</span><span class="s2">exclude</span><span class="s1">.</span><span class="s2">has</span><span class="s1">(</span><span class="s2">it</span><span class="s1">));</span>
+
+  <span class="s2">modules </span><span class="s1">= </span><span class="s2">intersection</span><span class="s1">(</span><span class="s2">modules</span><span class="s1">, </span><span class="s2">version </span><span class="s1">? </span><span class="s2">getModulesListForTargetVersion</span><span class="s1">(</span><span class="s2">version</span><span class="s1">) : </span><span class="s2">allModules</span><span class="s1">);</span>
+
+  <span class="s3">if </span><span class="s1">(!</span><span class="s2">inverse</span><span class="s1">) </span><span class="s2">modules </span><span class="s1">= </span><span class="s2">filterOutStabilizedProposals</span><span class="s1">(</span><span class="s2">modules</span><span class="s1">);</span>
+
+  <span class="s3">for </span><span class="s1">(</span><span class="s3">const </span><span class="s2">key of modules</span><span class="s1">) {</span>
+    <span class="s3">const </span><span class="s2">check </span><span class="s1">= </span><span class="s2">checkModule</span><span class="s1">(</span><span class="s2">key</span><span class="s1">, </span><span class="s2">parsedTargets</span><span class="s1">);</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">check</span><span class="s1">.</span><span class="s2">required </span><span class="s1">^ </span><span class="s2">inverse</span><span class="s1">) {</span>
+      <span class="s2">result</span><span class="s1">.</span><span class="s2">list</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(</span><span class="s2">key</span><span class="s1">);</span>
+      <span class="s2">result</span><span class="s1">.</span><span class="s2">targets</span><span class="s1">[</span><span class="s2">key</span><span class="s1">] = </span><span class="s2">check</span><span class="s1">.</span><span class="s2">targets</span><span class="s1">;</span>
+    <span class="s1">}</span>
+  <span class="s1">}</span>
+
+  <span class="s3">return </span><span class="s2">result</span><span class="s1">;</span>
+<span class="s1">};</span>
+</pre>
+</body>
+</html>

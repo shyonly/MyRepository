@@ -1,0 +1,99 @@
+<html>
+<head>
+<title>adapters.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+adapters.js</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">utils from </span><span class="s2">'../utils.js'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s1">httpAdapter from </span><span class="s2">'./http.js'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s1">xhrAdapter from </span><span class="s2">'./xhr.js'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s1">AxiosError from </span><span class="s2">&quot;../core/AxiosError.js&quot;</span><span class="s3">;</span>
+
+<span class="s0">const </span><span class="s1">knownAdapters </span><span class="s3">= {</span>
+  <span class="s1">http</span><span class="s3">: </span><span class="s1">httpAdapter</span><span class="s3">,</span>
+  <span class="s1">xhr</span><span class="s3">: </span><span class="s1">xhrAdapter</span>
+<span class="s3">}</span>
+
+<span class="s1">utils</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">(</span><span class="s1">knownAdapters</span><span class="s3">, (</span><span class="s1">fn</span><span class="s3">, </span><span class="s1">value</span><span class="s3">) =&gt; {</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">fn</span><span class="s3">) {</span>
+    <span class="s0">try </span><span class="s3">{</span>
+      <span class="s1">Object</span><span class="s3">.</span><span class="s1">defineProperty</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">, </span><span class="s2">'name'</span><span class="s3">, {</span><span class="s1">value</span><span class="s3">});</span>
+    <span class="s3">} </span><span class="s0">catch </span><span class="s3">(</span><span class="s1">e</span><span class="s3">) {</span>
+      <span class="s4">// eslint-disable-next-line no-empty</span>
+    <span class="s3">}</span>
+    <span class="s1">Object</span><span class="s3">.</span><span class="s1">defineProperty</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">, </span><span class="s2">'adapterName'</span><span class="s3">, {</span><span class="s1">value</span><span class="s3">});</span>
+  <span class="s3">}</span>
+<span class="s3">});</span>
+
+<span class="s0">const </span><span class="s1">renderReason </span><span class="s3">= (</span><span class="s1">reason</span><span class="s3">) =&gt; </span><span class="s2">`- </span><span class="s1">$</span><span class="s3">{</span><span class="s1">reason</span><span class="s3">}</span><span class="s2">`</span><span class="s3">;</span>
+
+<span class="s0">const </span><span class="s1">isResolvedHandle </span><span class="s3">= (</span><span class="s1">adapter</span><span class="s3">) =&gt; </span><span class="s1">utils</span><span class="s3">.</span><span class="s1">isFunction</span><span class="s3">(</span><span class="s1">adapter</span><span class="s3">) || </span><span class="s1">adapter </span><span class="s3">=== </span><span class="s0">null </span><span class="s3">|| </span><span class="s1">adapter </span><span class="s3">=== </span><span class="s0">false</span><span class="s3">;</span>
+
+<span class="s0">export default </span><span class="s3">{</span>
+  <span class="s1">getAdapter</span><span class="s3">: (</span><span class="s1">adapters</span><span class="s3">) =&gt; {</span>
+    <span class="s1">adapters </span><span class="s3">= </span><span class="s1">utils</span><span class="s3">.</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">adapters</span><span class="s3">) ? </span><span class="s1">adapters </span><span class="s3">: [</span><span class="s1">adapters</span><span class="s3">];</span>
+
+    <span class="s0">const </span><span class="s3">{</span><span class="s1">length</span><span class="s3">} = </span><span class="s1">adapters</span><span class="s3">;</span>
+    <span class="s0">let </span><span class="s1">nameOrAdapter</span><span class="s3">;</span>
+    <span class="s0">let </span><span class="s1">adapter</span><span class="s3">;</span>
+
+    <span class="s0">const </span><span class="s1">rejectedReasons </span><span class="s3">= {};</span>
+
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+      <span class="s1">nameOrAdapter </span><span class="s3">= </span><span class="s1">adapters</span><span class="s3">[</span><span class="s1">i</span><span class="s3">];</span>
+      <span class="s0">let </span><span class="s1">id</span><span class="s3">;</span>
+
+      <span class="s1">adapter </span><span class="s3">= </span><span class="s1">nameOrAdapter</span><span class="s3">;</span>
+
+      <span class="s0">if </span><span class="s3">(!</span><span class="s1">isResolvedHandle</span><span class="s3">(</span><span class="s1">nameOrAdapter</span><span class="s3">)) {</span>
+        <span class="s1">adapter </span><span class="s3">= </span><span class="s1">knownAdapters</span><span class="s3">[(</span><span class="s1">id </span><span class="s3">= </span><span class="s1">String</span><span class="s3">(</span><span class="s1">nameOrAdapter</span><span class="s3">)).</span><span class="s1">toLowerCase</span><span class="s3">()];</span>
+
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">adapter </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+          <span class="s0">throw new </span><span class="s1">AxiosError</span><span class="s3">(</span><span class="s2">`Unknown adapter '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">id</span><span class="s3">}</span><span class="s2">'`</span><span class="s3">);</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">adapter</span><span class="s3">) {</span>
+        <span class="s0">break</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s1">rejectedReasons</span><span class="s3">[</span><span class="s1">id </span><span class="s3">|| </span><span class="s2">'#' </span><span class="s3">+ </span><span class="s1">i</span><span class="s3">] = </span><span class="s1">adapter</span><span class="s3">;</span>
+    <span class="s3">}</span>
+
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">adapter</span><span class="s3">) {</span>
+
+      <span class="s0">const </span><span class="s1">reasons </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">entries</span><span class="s3">(</span><span class="s1">rejectedReasons</span><span class="s3">)</span>
+        <span class="s3">.</span><span class="s1">map</span><span class="s3">(([</span><span class="s1">id</span><span class="s3">, </span><span class="s1">state</span><span class="s3">]) =&gt; </span><span class="s2">`adapter </span><span class="s1">$</span><span class="s3">{</span><span class="s1">id</span><span class="s3">} </span><span class="s2">` </span><span class="s3">+</span>
+          <span class="s3">(</span><span class="s1">state </span><span class="s3">=== </span><span class="s0">false </span><span class="s3">? </span><span class="s2">'is not supported by the environment' </span><span class="s3">: </span><span class="s2">'is not available in the build'</span><span class="s3">)</span>
+        <span class="s3">);</span>
+
+      <span class="s0">let </span><span class="s1">s </span><span class="s3">= </span><span class="s1">length </span><span class="s3">?</span>
+        <span class="s3">(</span><span class="s1">reasons</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s5">1 </span><span class="s3">? </span><span class="s2">'since :</span><span class="s0">\n</span><span class="s2">' </span><span class="s3">+ </span><span class="s1">reasons</span><span class="s3">.</span><span class="s1">map</span><span class="s3">(</span><span class="s1">renderReason</span><span class="s3">).</span><span class="s1">join</span><span class="s3">(</span><span class="s2">'</span><span class="s0">\n</span><span class="s2">'</span><span class="s3">) : </span><span class="s2">' ' </span><span class="s3">+ </span><span class="s1">renderReason</span><span class="s3">(</span><span class="s1">reasons</span><span class="s3">[</span><span class="s5">0</span><span class="s3">])) :</span>
+        <span class="s2">'as no adapter specified'</span><span class="s3">;</span>
+
+      <span class="s0">throw new </span><span class="s1">AxiosError</span><span class="s3">(</span>
+        <span class="s2">`There is no suitable adapter to dispatch the request ` </span><span class="s3">+ </span><span class="s1">s</span><span class="s3">,</span>
+        <span class="s2">'ERR_NOT_SUPPORT'</span>
+      <span class="s3">);</span>
+    <span class="s3">}</span>
+
+    <span class="s0">return </span><span class="s1">adapter</span><span class="s3">;</span>
+  <span class="s3">},</span>
+  <span class="s1">adapters</span><span class="s3">: </span><span class="s1">knownAdapters</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

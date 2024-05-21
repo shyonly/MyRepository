@@ -1,0 +1,1058 @@
+<html>
+<head>
+<title>CssParser.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #67a37c; font-style: italic;}
+.s7 { color: #2aacb8;}
+.s8 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+CssParser.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+    MIT License http://www.opensource.org/licenses/mit-license.php 
+    Author Tobias Koppers @sokra 
+*/</span>
+
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">const </span><span class="s1">ModuleDependencyWarning </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;../ModuleDependencyWarning&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s3">{ </span><span class="s1">CSS_MODULE_TYPE_AUTO </span><span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;../ModuleTypeConstants&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">Parser </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;../Parser&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">WebpackError </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;../WebpackError&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">ConstDependency </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;../dependencies/ConstDependency&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">CssExportDependency </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;../dependencies/CssExportDependency&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">CssImportDependency </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;../dependencies/CssImportDependency&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">CssLocalIdentifierDependency </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;../dependencies/CssLocalIdentifierDependency&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">CssSelfLocalIdentifierDependency </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;../dependencies/CssSelfLocalIdentifierDependency&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">CssUrlDependency </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;../dependencies/CssUrlDependency&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">StaticExportsDependency </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;../dependencies/StaticExportsDependency&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s3">{ </span><span class="s1">parseResource </span><span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;../util/identifier&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">walkCssTokens </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./walkCssTokens&quot;</span><span class="s3">);</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;../Parser&quot;).ParserState} ParserState */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;../Parser&quot;).PreparsedAst} PreparsedAst */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{[number, number]} Range */</span>
+
+<span class="s4">const </span><span class="s1">CC_LEFT_CURLY </span><span class="s3">= </span><span class="s2">&quot;{&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">CC_RIGHT_CURLY </span><span class="s3">= </span><span class="s2">&quot;}&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">CC_COLON </span><span class="s3">= </span><span class="s2">&quot;:&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">CC_SLASH </span><span class="s3">= </span><span class="s2">&quot;/&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">CC_SEMICOLON </span><span class="s3">= </span><span class="s2">&quot;;&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+
+<span class="s0">// https://www.w3.org/TR/css-syntax-3/#newline</span>
+<span class="s0">// We don't have `preprocessing` stage, so we need specify all of them</span>
+<span class="s4">const </span><span class="s1">STRING_MULTILINE </span><span class="s3">= </span><span class="s8">/\\[\n\r\f]/g</span><span class="s3">;</span>
+<span class="s0">// https://www.w3.org/TR/css-syntax-3/#whitespace</span>
+<span class="s4">const </span><span class="s1">TRIM_WHITE_SPACES </span><span class="s3">= </span><span class="s8">/(^[ \t\n\r\f]*|[ \t\n\r\f]*$)/g</span><span class="s3">;</span>
+<span class="s4">const </span><span class="s1">UNESCAPE </span><span class="s3">= </span><span class="s8">/\\([0-9a-fA-F]{1,6}[ \t\n\r\f]?|[\s\S])/g</span><span class="s3">;</span>
+<span class="s4">const </span><span class="s1">IMAGE_SET_FUNCTION </span><span class="s3">= </span><span class="s8">/^(-\w+-)?image-set$/i</span><span class="s3">;</span>
+<span class="s4">const </span><span class="s1">OPTIONALLY_VENDOR_PREFIXED_KEYFRAMES_AT_RULE </span><span class="s3">= </span><span class="s8">/^@(-\w+-)?keyframes$/</span><span class="s3">;</span>
+<span class="s4">const </span><span class="s1">OPTIONALLY_VENDOR_PREFIXED_ANIMATION_PROPERTY </span><span class="s3">=</span>
+	<span class="s8">/^(-\w+-)?animation(-name)?$/i</span><span class="s3">;</span>
+<span class="s4">const </span><span class="s1">IS_MODULES </span><span class="s3">= </span><span class="s8">/\.module(s)?\.[^.]+$/i</span><span class="s3">;</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} str url string</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{boolean} isString is url wrapped in quotes</span>
+ <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{string} normalized url</span>
+ <span class="s5">*/</span>
+<span class="s4">const </span><span class="s1">normalizeUrl </span><span class="s3">= (</span><span class="s1">str</span><span class="s3">, </span><span class="s1">isString</span><span class="s3">) =&gt; {</span>
+	<span class="s0">// Remove extra spaces and newlines:</span>
+	<span class="s0">// `url(&quot;im\</span>
+	<span class="s0">// g.png&quot;)`</span>
+	<span class="s4">if </span><span class="s3">(</span><span class="s1">isString</span><span class="s3">) {</span>
+		<span class="s1">str </span><span class="s3">= </span><span class="s1">str</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s1">STRING_MULTILINE</span><span class="s3">, </span><span class="s2">&quot;&quot;</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s1">str </span><span class="s3">= </span><span class="s1">str</span>
+		<span class="s0">// Remove unnecessary spaces from `url(&quot;   img.png   &quot;)`</span>
+		<span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s1">TRIM_WHITE_SPACES</span><span class="s3">, </span><span class="s2">&quot;&quot;</span><span class="s3">)</span>
+		<span class="s0">// Unescape</span>
+		<span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s1">UNESCAPE</span><span class="s3">, </span><span class="s1">match </span><span class="s3">=&gt; {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">match</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s7">2</span><span class="s3">) {</span>
+				<span class="s4">return </span><span class="s1">String</span><span class="s3">.</span><span class="s1">fromCharCode</span><span class="s3">(</span><span class="s1">parseInt</span><span class="s3">(</span><span class="s1">match</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s7">1</span><span class="s3">).</span><span class="s1">trim</span><span class="s3">(), </span><span class="s7">16</span><span class="s3">));</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s4">return </span><span class="s1">match</span><span class="s3">[</span><span class="s7">1</span><span class="s3">];</span>
+			<span class="s3">}</span>
+		<span class="s3">});</span>
+
+	<span class="s4">if </span><span class="s3">(</span><span class="s8">/^data:/i</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">str</span><span class="s3">)) {</span>
+		<span class="s4">return </span><span class="s1">str</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s4">if </span><span class="s3">(</span><span class="s1">str</span><span class="s3">.</span><span class="s1">includes</span><span class="s3">(</span><span class="s2">&quot;%&quot;</span><span class="s3">)) {</span>
+		<span class="s0">// Convert `url('%2E/img.png')` -&gt; `url('./img.png')`</span>
+		<span class="s4">try </span><span class="s3">{</span>
+			<span class="s1">str </span><span class="s3">= </span><span class="s1">decodeURIComponent</span><span class="s3">(</span><span class="s1">str</span><span class="s3">);</span>
+		<span class="s3">} </span><span class="s4">catch </span><span class="s3">(</span><span class="s1">error</span><span class="s3">) {</span>
+			<span class="s0">// Ignore</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+
+	<span class="s4">return </span><span class="s1">str</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">class </span><span class="s1">LocConverter </span><span class="s3">{</span>
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} input input</span>
+	 <span class="s5">*/</span>
+	<span class="s1">constructor</span><span class="s3">(</span><span class="s1">input</span><span class="s3">) {</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_input </span><span class="s3">= </span><span class="s1">input</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">line </span><span class="s3">= </span><span class="s7">1</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">column </span><span class="s3">= </span><span class="s7">0</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">pos </span><span class="s3">= </span><span class="s7">0</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{number} pos position</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{LocConverter} location converter</span>
+	 <span class="s5">*/</span>
+	<span class="s1">get</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">) {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">pos </span><span class="s3">!== </span><span class="s1">pos</span><span class="s3">) {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">pos </span><span class="s3">&lt; </span><span class="s1">pos</span><span class="s3">) {</span>
+				<span class="s4">const </span><span class="s1">str </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">pos</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+				<span class="s4">let </span><span class="s1">i </span><span class="s3">= </span><span class="s1">str</span><span class="s3">.</span><span class="s1">lastIndexOf</span><span class="s3">(</span><span class="s2">&quot;</span><span class="s4">\n</span><span class="s2">&quot;</span><span class="s3">);</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">i </span><span class="s3">=== -</span><span class="s7">1</span><span class="s3">) {</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">column </span><span class="s3">+= </span><span class="s1">str</span><span class="s3">.</span><span class="s1">length</span><span class="s3">;</span>
+				<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">column </span><span class="s3">= </span><span class="s1">str</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s1">i </span><span class="s3">- </span><span class="s7">1</span><span class="s3">;</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">line</span><span class="s3">++;</span>
+					<span class="s4">while </span><span class="s3">(</span><span class="s1">i </span><span class="s3">&gt; </span><span class="s7">0 </span><span class="s3">&amp;&amp; (</span><span class="s1">i </span><span class="s3">= </span><span class="s1">str</span><span class="s3">.</span><span class="s1">lastIndexOf</span><span class="s3">(</span><span class="s2">&quot;</span><span class="s4">\n</span><span class="s2">&quot;</span><span class="s3">, </span><span class="s1">i </span><span class="s3">- </span><span class="s7">1</span><span class="s3">)) !== -</span><span class="s7">1</span><span class="s3">)</span>
+						<span class="s4">this</span><span class="s3">.</span><span class="s1">line</span><span class="s3">++;</span>
+				<span class="s3">}</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s4">let </span><span class="s1">i </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_input</span><span class="s3">.</span><span class="s1">lastIndexOf</span><span class="s3">(</span><span class="s2">&quot;</span><span class="s4">\n</span><span class="s2">&quot;</span><span class="s3">, </span><span class="s4">this</span><span class="s3">.</span><span class="s1">pos</span><span class="s3">);</span>
+				<span class="s4">while </span><span class="s3">(</span><span class="s1">i </span><span class="s3">&gt;= </span><span class="s1">pos</span><span class="s3">) {</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">line</span><span class="s3">--;</span>
+					<span class="s1">i </span><span class="s3">= </span><span class="s1">i </span><span class="s3">&gt; </span><span class="s7">0 </span><span class="s3">? </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_input</span><span class="s3">.</span><span class="s1">lastIndexOf</span><span class="s3">(</span><span class="s2">&quot;</span><span class="s4">\n</span><span class="s2">&quot;</span><span class="s3">, </span><span class="s1">i </span><span class="s3">- </span><span class="s7">1</span><span class="s3">) : -</span><span class="s7">1</span><span class="s3">;</span>
+				<span class="s3">}</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">column </span><span class="s3">= </span><span class="s1">pos </span><span class="s3">- </span><span class="s1">i</span><span class="s3">;</span>
+			<span class="s3">}</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">pos </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+		<span class="s3">}</span>
+		<span class="s4">return this</span><span class="s3">;</span>
+	<span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s4">const </span><span class="s1">CSS_MODE_TOP_LEVEL </span><span class="s3">= </span><span class="s7">0</span><span class="s3">;</span>
+<span class="s4">const </span><span class="s1">CSS_MODE_IN_BLOCK </span><span class="s3">= </span><span class="s7">1</span><span class="s3">;</span>
+<span class="s4">const </span><span class="s1">CSS_MODE_IN_AT_IMPORT </span><span class="s3">= </span><span class="s7">2</span><span class="s3">;</span>
+<span class="s4">const </span><span class="s1">CSS_MODE_AT_IMPORT_INVALID </span><span class="s3">= </span><span class="s7">3</span><span class="s3">;</span>
+<span class="s4">const </span><span class="s1">CSS_MODE_AT_NAMESPACE_INVALID </span><span class="s3">= </span><span class="s7">4</span><span class="s3">;</span>
+
+<span class="s4">class </span><span class="s1">CssParser </span><span class="s4">extends </span><span class="s1">Parser </span><span class="s3">{</span>
+	<span class="s1">constructor</span><span class="s3">({ </span><span class="s1">allowModeSwitch </span><span class="s3">= </span><span class="s4">true</span><span class="s3">, </span><span class="s1">defaultMode </span><span class="s3">= </span><span class="s2">&quot;global&quot; </span><span class="s3">} = {}) {</span>
+		<span class="s4">super</span><span class="s3">();</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">allowModeSwitch </span><span class="s3">= </span><span class="s1">allowModeSwitch</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">defaultMode </span><span class="s3">= </span><span class="s1">defaultMode</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ParserState} state parser state</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} message warning message</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{LocConverter} locConverter location converter</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{number} start start offset</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{number} end end offset</span>
+	 <span class="s5">*/</span>
+	<span class="s1">_emitWarning</span><span class="s3">(</span><span class="s1">state</span><span class="s3">, </span><span class="s1">message</span><span class="s3">, </span><span class="s1">locConverter</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">sl</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">sc </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">start</span><span class="s3">);</span>
+		<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">el</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">ec </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">end</span><span class="s3">);</span>
+
+		<span class="s1">state</span><span class="s3">.</span><span class="s1">current</span><span class="s3">.</span><span class="s1">addWarning</span><span class="s3">(</span>
+			<span class="s4">new </span><span class="s1">ModuleDependencyWarning</span><span class="s3">(</span><span class="s1">state</span><span class="s3">.</span><span class="s1">module</span><span class="s3">, </span><span class="s4">new </span><span class="s1">WebpackError</span><span class="s3">(</span><span class="s1">message</span><span class="s3">), {</span>
+				<span class="s1">start</span><span class="s3">: { </span><span class="s1">line</span><span class="s3">: </span><span class="s1">sl</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">sc </span><span class="s3">},</span>
+				<span class="s1">end</span><span class="s3">: { </span><span class="s1">line</span><span class="s3">: </span><span class="s1">el</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">ec </span><span class="s3">}</span>
+			<span class="s3">})</span>
+		<span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string | Buffer | PreparsedAst} source the source to parse</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ParserState} state the parser state</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{ParserState} the parser state</span>
+	 <span class="s5">*/</span>
+	<span class="s1">parse</span><span class="s3">(</span><span class="s1">source</span><span class="s3">, </span><span class="s1">state</span><span class="s3">) {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">Buffer</span><span class="s3">.</span><span class="s1">isBuffer</span><span class="s3">(</span><span class="s1">source</span><span class="s3">)) {</span>
+			<span class="s1">source </span><span class="s3">= </span><span class="s1">source</span><span class="s3">.</span><span class="s1">toString</span><span class="s3">(</span><span class="s2">&quot;utf-8&quot;</span><span class="s3">);</span>
+		<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">source </span><span class="s3">=== </span><span class="s2">&quot;object&quot;</span><span class="s3">) {</span>
+			<span class="s4">throw new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">&quot;webpackAst is unexpected for the CssParser&quot;</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">source</span><span class="s3">[</span><span class="s7">0</span><span class="s3">] === </span><span class="s2">&quot;</span><span class="s4">\ufeff</span><span class="s2">&quot;</span><span class="s3">) {</span>
+			<span class="s1">source </span><span class="s3">= </span><span class="s1">source</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s7">1</span><span class="s3">);</span>
+		<span class="s3">}</span>
+
+		<span class="s4">const </span><span class="s1">module </span><span class="s3">= </span><span class="s1">state</span><span class="s3">.</span><span class="s1">module</span><span class="s3">;</span>
+
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{string | undefined} */</span>
+		<span class="s4">let </span><span class="s1">oldDefaultMode</span><span class="s3">;</span>
+
+		<span class="s4">if </span><span class="s3">(</span>
+			<span class="s1">module</span><span class="s3">.</span><span class="s1">type </span><span class="s3">=== </span><span class="s1">CSS_MODULE_TYPE_AUTO </span><span class="s3">&amp;&amp;</span>
+			<span class="s1">IS_MODULES</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span>
+				<span class="s1">parseResource</span><span class="s3">(</span><span class="s1">module</span><span class="s3">.</span><span class="s1">matchResource </span><span class="s3">|| </span><span class="s1">module</span><span class="s3">.</span><span class="s1">resource</span><span class="s3">).</span><span class="s1">path</span>
+			<span class="s3">)</span>
+		<span class="s3">) {</span>
+			<span class="s1">oldDefaultMode </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">defaultMode</span><span class="s3">;</span>
+
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">defaultMode </span><span class="s3">= </span><span class="s2">&quot;local&quot;</span><span class="s3">;</span>
+		<span class="s3">}</span>
+
+		<span class="s4">const </span><span class="s1">locConverter </span><span class="s3">= </span><span class="s4">new </span><span class="s1">LocConverter</span><span class="s3">(</span><span class="s1">source</span><span class="s3">);</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Set&lt;string&gt;}*/</span>
+		<span class="s4">const </span><span class="s1">declaredCssVariables </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">();</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{number} */</span>
+		<span class="s4">let </span><span class="s1">scope </span><span class="s3">= </span><span class="s1">CSS_MODE_TOP_LEVEL</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{number} */</span>
+		<span class="s4">let </span><span class="s1">blockNestingLevel </span><span class="s3">= </span><span class="s7">0</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{boolean} */</span>
+		<span class="s4">let </span><span class="s1">allowImportAtRule </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{&quot;local&quot; | &quot;global&quot; | undefined} */</span>
+		<span class="s4">let </span><span class="s1">modeData </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{[number, number] | undefined} */</span>
+		<span class="s4">let </span><span class="s1">lastIdentifier </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">[string, number, number][] */</span>
+		<span class="s4">let </span><span class="s1">balanced </span><span class="s3">= [];</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{undefined | { start: number, url?: string, urlStart?: number, urlEnd?: number, layer?: string, layerStart?: number, layerEnd?: number, supports?: string, supportsStart?: number, supportsEnd?: number, inSupports?:boolean, media?: string  }} */</span>
+		<span class="s4">let </span><span class="s1">importData </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{boolean} */</span>
+		<span class="s4">let </span><span class="s1">inAnimationProperty </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{boolean} */</span>
+		<span class="s4">let </span><span class="s1">isNextRulePrelude </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+
+		<span class="s5">/**</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} input input</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{number} pos position</span>
+		 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} true, when next is nested syntax</span>
+		 <span class="s5">*/</span>
+		<span class="s4">const </span><span class="s1">isNextNestedSyntax </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">) =&gt; {</span>
+			<span class="s1">pos </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatWhitespaceAndComments</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">input</span><span class="s3">[</span><span class="s1">pos</span><span class="s3">] === </span><span class="s2">&quot;}&quot;</span><span class="s3">) {</span>
+				<span class="s4">return false</span><span class="s3">;</span>
+			<span class="s3">}</span>
+
+			<span class="s0">// According spec only identifier can be used as a property name</span>
+			<span class="s4">const </span><span class="s1">isIdentifier </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">isIdentStartCodePoint</span><span class="s3">(</span>
+				<span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">)</span>
+			<span class="s3">);</span>
+
+			<span class="s4">return </span><span class="s3">!</span><span class="s1">isIdentifier</span><span class="s3">;</span>
+		<span class="s3">};</span>
+		<span class="s5">/**</span>
+		 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} true, when in local scope</span>
+		 <span class="s5">*/</span>
+		<span class="s4">const </span><span class="s1">isLocalMode </span><span class="s3">= () =&gt;</span>
+			<span class="s1">modeData </span><span class="s3">=== </span><span class="s2">&quot;local&quot; </span><span class="s3">||</span>
+			<span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">defaultMode </span><span class="s3">=== </span><span class="s2">&quot;local&quot; </span><span class="s3">&amp;&amp; </span><span class="s1">modeData </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">);</span>
+		<span class="s5">/**</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} chars characters</span>
+		 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{(input: string, pos: number) =&gt; number} function to eat characters</span>
+		 <span class="s5">*/</span>
+		<span class="s4">const </span><span class="s1">eatUntil </span><span class="s3">= </span><span class="s1">chars </span><span class="s3">=&gt; {</span>
+			<span class="s4">const </span><span class="s1">charCodes </span><span class="s3">= </span><span class="s1">Array</span><span class="s3">.</span><span class="s1">from</span><span class="s3">({ </span><span class="s1">length</span><span class="s3">: </span><span class="s1">chars</span><span class="s3">.</span><span class="s1">length </span><span class="s3">}, (</span><span class="s1">_</span><span class="s3">, </span><span class="s1">i</span><span class="s3">) =&gt;</span>
+				<span class="s1">chars</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">i</span><span class="s3">)</span>
+			<span class="s3">);</span>
+			<span class="s4">const </span><span class="s1">arr </span><span class="s3">= </span><span class="s1">Array</span><span class="s3">.</span><span class="s1">from</span><span class="s3">(</span>
+				<span class="s3">{ </span><span class="s1">length</span><span class="s3">: </span><span class="s1">charCodes</span><span class="s3">.</span><span class="s1">reduce</span><span class="s3">((</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">) =&gt; </span><span class="s1">Math</span><span class="s3">.</span><span class="s1">max</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">), </span><span class="s7">0</span><span class="s3">) + </span><span class="s7">1 </span><span class="s3">},</span>
+				<span class="s3">() =&gt; </span><span class="s4">false</span>
+			<span class="s3">);</span>
+			<span class="s1">charCodes</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=&gt; (</span><span class="s1">arr</span><span class="s3">[</span><span class="s1">cc</span><span class="s3">] = </span><span class="s4">true</span><span class="s3">));</span>
+			<span class="s4">return </span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">) =&gt; {</span>
+				<span class="s4">for </span><span class="s3">(;;) {</span>
+					<span class="s4">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">&lt; </span><span class="s1">arr</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&amp;&amp; </span><span class="s1">arr</span><span class="s3">[</span><span class="s1">cc</span><span class="s3">]) {</span>
+						<span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+					<span class="s3">}</span>
+					<span class="s1">pos</span><span class="s3">++;</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s3">}</span>
+			<span class="s3">};</span>
+		<span class="s3">};</span>
+		<span class="s5">/**</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} input input</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{number} pos start position</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{(input: string, pos: number) =&gt; number} eater eater</span>
+		 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{[number,string]} new position and text</span>
+		 <span class="s5">*/</span>
+		<span class="s4">const </span><span class="s1">eatText </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">eater</span><span class="s3">) =&gt; {</span>
+			<span class="s4">let </span><span class="s1">text </span><span class="s3">= </span><span class="s2">&quot;&quot;</span><span class="s3">;</span>
+			<span class="s4">for </span><span class="s3">(;;) {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">) === </span><span class="s1">CC_SLASH</span><span class="s3">) {</span>
+					<span class="s4">const </span><span class="s1">newPos </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatComments</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">!== </span><span class="s1">newPos</span><span class="s3">) {</span>
+						<span class="s1">pos </span><span class="s3">= </span><span class="s1">newPos</span><span class="s3">;</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">break</span><span class="s3">;</span>
+					<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+						<span class="s1">text </span><span class="s3">+= </span><span class="s2">&quot;/&quot;</span><span class="s3">;</span>
+						<span class="s1">pos</span><span class="s3">++;</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">break</span><span class="s3">;</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+				<span class="s4">const </span><span class="s1">newPos </span><span class="s3">= </span><span class="s1">eater</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">!== </span><span class="s1">newPos</span><span class="s3">) {</span>
+					<span class="s1">text </span><span class="s3">+= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">, </span><span class="s1">newPos</span><span class="s3">);</span>
+					<span class="s1">pos </span><span class="s3">= </span><span class="s1">newPos</span><span class="s3">;</span>
+				<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+					<span class="s4">break</span><span class="s3">;</span>
+				<span class="s3">}</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">break</span><span class="s3">;</span>
+			<span class="s3">}</span>
+			<span class="s4">return </span><span class="s3">[</span><span class="s1">pos</span><span class="s3">, </span><span class="s1">text</span><span class="s3">.</span><span class="s1">trimEnd</span><span class="s3">()];</span>
+		<span class="s3">};</span>
+		<span class="s4">const </span><span class="s1">eatExportName </span><span class="s3">= </span><span class="s1">eatUntil</span><span class="s3">(</span><span class="s2">&quot;:};/&quot;</span><span class="s3">);</span>
+		<span class="s4">const </span><span class="s1">eatExportValue </span><span class="s3">= </span><span class="s1">eatUntil</span><span class="s3">(</span><span class="s2">&quot;};/&quot;</span><span class="s3">);</span>
+		<span class="s5">/**</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} input input</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{number} pos start position</span>
+		 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{number} position after parse</span>
+		 <span class="s5">*/</span>
+		<span class="s4">const </span><span class="s1">parseExports </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">) =&gt; {</span>
+			<span class="s1">pos </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatWhitespaceAndComments</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+			<span class="s4">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">!== </span><span class="s1">CC_LEFT_CURLY</span><span class="s3">) {</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">_emitWarning</span><span class="s3">(</span>
+					<span class="s1">state</span><span class="s3">,</span>
+					<span class="s2">`Unexpected '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">input</span><span class="s3">[</span><span class="s1">pos</span><span class="s3">]}</span><span class="s2">' at </span><span class="s1">$</span><span class="s3">{</span><span class="s1">pos</span><span class="s3">} </span><span class="s2">during parsing of ':export' (expected '{')`</span><span class="s3">,</span>
+					<span class="s1">locConverter</span><span class="s3">,</span>
+					<span class="s1">pos</span><span class="s3">,</span>
+					<span class="s1">pos</span>
+				<span class="s3">);</span>
+				<span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+			<span class="s3">}</span>
+			<span class="s1">pos</span><span class="s3">++;</span>
+			<span class="s1">pos </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatWhitespaceAndComments</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+			<span class="s4">for </span><span class="s3">(;;) {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">) === </span><span class="s1">CC_RIGHT_CURLY</span><span class="s3">) </span><span class="s4">break</span><span class="s3">;</span>
+				<span class="s1">pos </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatWhitespaceAndComments</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s4">let </span><span class="s1">start </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s4">let </span><span class="s1">name</span><span class="s3">;</span>
+				<span class="s3">[</span><span class="s1">pos</span><span class="s3">, </span><span class="s1">name</span><span class="s3">] = </span><span class="s1">eatText</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">eatExportName</span><span class="s3">);</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">) !== </span><span class="s1">CC_COLON</span><span class="s3">) {</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">_emitWarning</span><span class="s3">(</span>
+						<span class="s1">state</span><span class="s3">,</span>
+						<span class="s2">`Unexpected '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">input</span><span class="s3">[</span><span class="s1">pos</span><span class="s3">]}</span><span class="s2">' at </span><span class="s1">$</span><span class="s3">{</span><span class="s1">pos</span><span class="s3">} </span><span class="s2">during parsing of export name in ':export' (expected ':')`</span><span class="s3">,</span>
+						<span class="s1">locConverter</span><span class="s3">,</span>
+						<span class="s1">start</span><span class="s3">,</span>
+						<span class="s1">pos</span>
+					<span class="s3">);</span>
+					<span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s3">}</span>
+				<span class="s1">pos</span><span class="s3">++;</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s1">pos </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatWhitespaceAndComments</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s4">let </span><span class="s1">value</span><span class="s3">;</span>
+				<span class="s3">[</span><span class="s1">pos</span><span class="s3">, </span><span class="s1">value</span><span class="s3">] = </span><span class="s1">eatText</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">eatExportValue</span><span class="s3">);</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s4">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_SEMICOLON</span><span class="s3">) {</span>
+					<span class="s1">pos</span><span class="s3">++;</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+					<span class="s1">pos </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatWhitespaceAndComments</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">!== </span><span class="s1">CC_RIGHT_CURLY</span><span class="s3">) {</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">_emitWarning</span><span class="s3">(</span>
+						<span class="s1">state</span><span class="s3">,</span>
+						<span class="s2">`Unexpected '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">input</span><span class="s3">[</span><span class="s1">pos</span><span class="s3">]}</span><span class="s2">' at </span><span class="s1">$</span><span class="s3">{</span><span class="s1">pos</span><span class="s3">} </span><span class="s2">during parsing of export value in ':export' (expected ';' or '}')`</span><span class="s3">,</span>
+						<span class="s1">locConverter</span><span class="s3">,</span>
+						<span class="s1">start</span><span class="s3">,</span>
+						<span class="s1">pos</span>
+					<span class="s3">);</span>
+					<span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s3">}</span>
+				<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">CssExportDependency</span><span class="s3">(</span><span class="s1">name</span><span class="s3">, </span><span class="s1">value</span><span class="s3">);</span>
+				<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">sl</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">sc </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">start</span><span class="s3">);</span>
+				<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">el</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">ec </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+				<span class="s1">dep</span><span class="s3">.</span><span class="s1">setLoc</span><span class="s3">(</span><span class="s1">sl</span><span class="s3">, </span><span class="s1">sc</span><span class="s3">, </span><span class="s1">el</span><span class="s3">, </span><span class="s1">ec</span><span class="s3">);</span>
+				<span class="s1">module</span><span class="s3">.</span><span class="s1">addDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+			<span class="s3">}</span>
+			<span class="s1">pos</span><span class="s3">++;</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+			<span class="s1">pos </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatWhiteLine</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+			<span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+		<span class="s3">};</span>
+		<span class="s4">const </span><span class="s1">eatPropertyName </span><span class="s3">= </span><span class="s1">eatUntil</span><span class="s3">(</span><span class="s2">&quot;:{};&quot;</span><span class="s3">);</span>
+		<span class="s5">/**</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} input input</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{number} pos name start position</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{number} end name end position</span>
+		 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{number} position after handling</span>
+		 <span class="s5">*/</span>
+		<span class="s4">const </span><span class="s1">processLocalDeclaration </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) =&gt; {</span>
+			<span class="s1">modeData </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+			<span class="s1">pos </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatWhitespaceAndComments</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+			<span class="s4">const </span><span class="s1">propertyNameStart </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+			<span class="s4">const </span><span class="s3">[</span><span class="s1">propertyNameEnd</span><span class="s3">, </span><span class="s1">propertyName</span><span class="s3">] = </span><span class="s1">eatText</span><span class="s3">(</span>
+				<span class="s1">input</span><span class="s3">,</span>
+				<span class="s1">pos</span><span class="s3">,</span>
+				<span class="s1">eatPropertyName</span>
+			<span class="s3">);</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">propertyNameEnd</span><span class="s3">) !== </span><span class="s1">CC_COLON</span><span class="s3">) </span><span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s1">pos </span><span class="s3">= </span><span class="s1">propertyNameEnd </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">;</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">propertyName</span><span class="s3">.</span><span class="s1">startsWith</span><span class="s3">(</span><span class="s2">&quot;--&quot;</span><span class="s3">)) {</span>
+				<span class="s0">// CSS Variable</span>
+				<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">sl</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">sc </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">propertyNameStart</span><span class="s3">);</span>
+				<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">el</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">ec </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">propertyNameEnd</span><span class="s3">);</span>
+				<span class="s4">const </span><span class="s1">name </span><span class="s3">= </span><span class="s1">propertyName</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s7">2</span><span class="s3">);</span>
+				<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">CssLocalIdentifierDependency</span><span class="s3">(</span>
+					<span class="s1">name</span><span class="s3">,</span>
+					<span class="s3">[</span><span class="s1">propertyNameStart</span><span class="s3">, </span><span class="s1">propertyNameEnd</span><span class="s3">],</span>
+					<span class="s2">&quot;--&quot;</span>
+				<span class="s3">);</span>
+				<span class="s1">dep</span><span class="s3">.</span><span class="s1">setLoc</span><span class="s3">(</span><span class="s1">sl</span><span class="s3">, </span><span class="s1">sc</span><span class="s3">, </span><span class="s1">el</span><span class="s3">, </span><span class="s1">ec</span><span class="s3">);</span>
+				<span class="s1">module</span><span class="s3">.</span><span class="s1">addDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+				<span class="s1">declaredCssVariables</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">name</span><span class="s3">);</span>
+			<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span>
+				<span class="s3">!</span><span class="s1">propertyName</span><span class="s3">.</span><span class="s1">startsWith</span><span class="s3">(</span><span class="s2">&quot;--&quot;</span><span class="s3">) &amp;&amp;</span>
+				<span class="s1">OPTIONALLY_VENDOR_PREFIXED_ANIMATION_PROPERTY</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">propertyName</span><span class="s3">)</span>
+			<span class="s3">) {</span>
+				<span class="s1">inAnimationProperty </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+			<span class="s3">}</span>
+			<span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+		<span class="s3">};</span>
+		<span class="s5">/**</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} input input</span>
+		 <span class="s5">*/</span>
+		<span class="s4">const </span><span class="s1">processDeclarationValueDone </span><span class="s3">= </span><span class="s1">input </span><span class="s3">=&gt; {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">inAnimationProperty </span><span class="s3">&amp;&amp; </span><span class="s1">lastIdentifier</span><span class="s3">) {</span>
+				<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">sl</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">sc </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">lastIdentifier</span><span class="s3">[</span><span class="s7">0</span><span class="s3">]);</span>
+				<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">el</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">ec </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">lastIdentifier</span><span class="s3">[</span><span class="s7">1</span><span class="s3">]);</span>
+				<span class="s4">const </span><span class="s1">name </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">lastIdentifier</span><span class="s3">[</span><span class="s7">0</span><span class="s3">], </span><span class="s1">lastIdentifier</span><span class="s3">[</span><span class="s7">1</span><span class="s3">]);</span>
+				<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">CssSelfLocalIdentifierDependency</span><span class="s3">(</span><span class="s1">name</span><span class="s3">, </span><span class="s1">lastIdentifier</span><span class="s3">);</span>
+				<span class="s1">dep</span><span class="s3">.</span><span class="s1">setLoc</span><span class="s3">(</span><span class="s1">sl</span><span class="s3">, </span><span class="s1">sc</span><span class="s3">, </span><span class="s1">el</span><span class="s3">, </span><span class="s1">ec</span><span class="s3">);</span>
+				<span class="s1">module</span><span class="s3">.</span><span class="s1">addDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+				<span class="s1">lastIdentifier </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+			<span class="s3">}</span>
+		<span class="s3">};</span>
+		<span class="s4">const </span><span class="s1">eatKeyframes </span><span class="s3">= </span><span class="s1">eatUntil</span><span class="s3">(</span><span class="s2">&quot;{};/&quot;</span><span class="s3">);</span>
+		<span class="s4">const </span><span class="s1">eatNameInVar </span><span class="s3">= </span><span class="s1">eatUntil</span><span class="s3">(</span><span class="s2">&quot;,)};/&quot;</span><span class="s3">);</span>
+		<span class="s1">walkCssTokens</span><span class="s3">(</span><span class="s1">source</span><span class="s3">, {</span>
+			<span class="s1">isSelector</span><span class="s3">: () =&gt; {</span>
+				<span class="s4">return </span><span class="s1">isNextRulePrelude</span><span class="s3">;</span>
+			<span class="s3">},</span>
+			<span class="s1">url</span><span class="s3">: (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">, </span><span class="s1">contentStart</span><span class="s3">, </span><span class="s1">contentEnd</span><span class="s3">) =&gt; {</span>
+				<span class="s4">let </span><span class="s1">value </span><span class="s3">= </span><span class="s1">normalizeUrl</span><span class="s3">(</span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">contentStart</span><span class="s3">, </span><span class="s1">contentEnd</span><span class="s3">), </span><span class="s4">false</span><span class="s3">);</span>
+
+				<span class="s4">switch </span><span class="s3">(</span><span class="s1">scope</span><span class="s3">) {</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_IN_AT_IMPORT</span><span class="s3">: {</span>
+						<span class="s0">// Do not parse URLs in `supports(...)`</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">importData</span><span class="s3">.</span><span class="s1">inSupports</span><span class="s3">) {</span>
+							<span class="s4">break</span><span class="s3">;</span>
+						<span class="s3">}</span>
+
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">importData</span><span class="s3">.</span><span class="s1">url</span><span class="s3">) {</span>
+							<span class="s4">this</span><span class="s3">.</span><span class="s1">_emitWarning</span><span class="s3">(</span>
+								<span class="s1">state</span><span class="s3">,</span>
+								<span class="s2">`Duplicate of 'url(...)' in '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span>
+									<span class="s1">importData</span><span class="s3">.</span><span class="s1">start</span><span class="s3">,</span>
+									<span class="s1">end</span>
+								<span class="s3">)}</span><span class="s2">'`</span><span class="s3">,</span>
+								<span class="s1">locConverter</span><span class="s3">,</span>
+								<span class="s1">start</span><span class="s3">,</span>
+								<span class="s1">end</span>
+							<span class="s3">);</span>
+
+							<span class="s4">break</span><span class="s3">;</span>
+						<span class="s3">}</span>
+
+						<span class="s1">importData</span><span class="s3">.</span><span class="s1">url </span><span class="s3">= </span><span class="s1">value</span><span class="s3">;</span>
+						<span class="s1">importData</span><span class="s3">.</span><span class="s1">urlStart </span><span class="s3">= </span><span class="s1">start</span><span class="s3">;</span>
+						<span class="s1">importData</span><span class="s3">.</span><span class="s1">urlEnd </span><span class="s3">= </span><span class="s1">end</span><span class="s3">;</span>
+						<span class="s4">break</span><span class="s3">;</span>
+					<span class="s3">}</span>
+					<span class="s0">// Do not parse URLs in import between rules</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_AT_NAMESPACE_INVALID</span><span class="s3">:</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_AT_IMPORT_INVALID</span><span class="s3">: {</span>
+						<span class="s4">break</span><span class="s3">;</span>
+					<span class="s3">}</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_IN_BLOCK</span><span class="s3">: {</span>
+						<span class="s0">// Ignore `url()`, `url('')` and `url(&quot;&quot;)`, they are valid by spec</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">value</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s7">0</span><span class="s3">) {</span>
+							<span class="s4">break</span><span class="s3">;</span>
+						<span class="s3">}</span>
+
+						<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">CssUrlDependency</span><span class="s3">(</span><span class="s1">value</span><span class="s3">, [</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">], </span><span class="s2">&quot;url&quot;</span><span class="s3">);</span>
+						<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">sl</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">sc </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">start</span><span class="s3">);</span>
+						<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">el</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">ec </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">end</span><span class="s3">);</span>
+						<span class="s1">dep</span><span class="s3">.</span><span class="s1">setLoc</span><span class="s3">(</span><span class="s1">sl</span><span class="s3">, </span><span class="s1">sc</span><span class="s3">, </span><span class="s1">el</span><span class="s3">, </span><span class="s1">ec</span><span class="s3">);</span>
+						<span class="s1">module</span><span class="s3">.</span><span class="s1">addDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+						<span class="s1">module</span><span class="s3">.</span><span class="s1">addCodeGenerationDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+						<span class="s4">break</span><span class="s3">;</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+				<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s3">},</span>
+			<span class="s1">string</span><span class="s3">: (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) =&gt; {</span>
+				<span class="s4">switch </span><span class="s3">(</span><span class="s1">scope</span><span class="s3">) {</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_IN_AT_IMPORT</span><span class="s3">: {</span>
+						<span class="s4">const </span><span class="s1">insideURLFunction </span><span class="s3">=</span>
+							<span class="s1">balanced</span><span class="s3">[</span><span class="s1">balanced</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s7">1</span><span class="s3">] &amp;&amp;</span>
+							<span class="s1">balanced</span><span class="s3">[</span><span class="s1">balanced</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s7">1</span><span class="s3">][</span><span class="s7">0</span><span class="s3">] === </span><span class="s2">&quot;url&quot;</span><span class="s3">;</span>
+
+						<span class="s0">// Do not parse URLs in `supports(...)` and other strings if we already have a URL</span>
+						<span class="s4">if </span><span class="s3">(</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">inSupports </span><span class="s3">||</span>
+							<span class="s3">(!</span><span class="s1">insideURLFunction </span><span class="s3">&amp;&amp; </span><span class="s1">importData</span><span class="s3">.</span><span class="s1">url</span><span class="s3">)</span>
+						<span class="s3">) {</span>
+							<span class="s4">break</span><span class="s3">;</span>
+						<span class="s3">}</span>
+
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">insideURLFunction </span><span class="s3">&amp;&amp; </span><span class="s1">importData</span><span class="s3">.</span><span class="s1">url</span><span class="s3">) {</span>
+							<span class="s4">this</span><span class="s3">.</span><span class="s1">_emitWarning</span><span class="s3">(</span>
+								<span class="s1">state</span><span class="s3">,</span>
+								<span class="s2">`Duplicate of 'url(...)' in '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span>
+									<span class="s1">importData</span><span class="s3">.</span><span class="s1">start</span><span class="s3">,</span>
+									<span class="s1">end</span>
+								<span class="s3">)}</span><span class="s2">'`</span><span class="s3">,</span>
+								<span class="s1">locConverter</span><span class="s3">,</span>
+								<span class="s1">start</span><span class="s3">,</span>
+								<span class="s1">end</span>
+							<span class="s3">);</span>
+
+							<span class="s4">break</span><span class="s3">;</span>
+						<span class="s3">}</span>
+
+						<span class="s1">importData</span><span class="s3">.</span><span class="s1">url </span><span class="s3">= </span><span class="s1">normalizeUrl</span><span class="s3">(</span>
+							<span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">start </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">, </span><span class="s1">end </span><span class="s3">- </span><span class="s7">1</span><span class="s3">),</span>
+							<span class="s4">true</span>
+						<span class="s3">);</span>
+
+						<span class="s4">if </span><span class="s3">(!</span><span class="s1">insideURLFunction</span><span class="s3">) {</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">urlStart </span><span class="s3">= </span><span class="s1">start</span><span class="s3">;</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">urlEnd </span><span class="s3">= </span><span class="s1">end</span><span class="s3">;</span>
+						<span class="s3">}</span>
+
+						<span class="s4">break</span><span class="s3">;</span>
+					<span class="s3">}</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_IN_BLOCK</span><span class="s3">: {</span>
+						<span class="s0">// TODO move escaped parsing to tokenizer</span>
+						<span class="s4">const </span><span class="s1">last </span><span class="s3">= </span><span class="s1">balanced</span><span class="s3">[</span><span class="s1">balanced</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s7">1</span><span class="s3">];</span>
+
+						<span class="s4">if </span><span class="s3">(</span>
+							<span class="s1">last </span><span class="s3">&amp;&amp;</span>
+							<span class="s3">(</span><span class="s1">last</span><span class="s3">[</span><span class="s7">0</span><span class="s3">].</span><span class="s1">replace</span><span class="s3">(</span><span class="s8">/\\/g</span><span class="s3">, </span><span class="s2">&quot;&quot;</span><span class="s3">).</span><span class="s1">toLowerCase</span><span class="s3">() === </span><span class="s2">&quot;url&quot; </span><span class="s3">||</span>
+								<span class="s1">IMAGE_SET_FUNCTION</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">last</span><span class="s3">[</span><span class="s7">0</span><span class="s3">].</span><span class="s1">replace</span><span class="s3">(</span><span class="s8">/\\/g</span><span class="s3">, </span><span class="s2">&quot;&quot;</span><span class="s3">)))</span>
+						<span class="s3">) {</span>
+							<span class="s4">let </span><span class="s1">value </span><span class="s3">= </span><span class="s1">normalizeUrl</span><span class="s3">(</span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">start </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">, </span><span class="s1">end </span><span class="s3">- </span><span class="s7">1</span><span class="s3">), </span><span class="s4">true</span><span class="s3">);</span>
+
+							<span class="s0">// Ignore `url()`, `url('')` and `url(&quot;&quot;)`, they are valid by spec</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">value</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s7">0</span><span class="s3">) {</span>
+								<span class="s4">break</span><span class="s3">;</span>
+							<span class="s3">}</span>
+
+							<span class="s4">const </span><span class="s1">isUrl </span><span class="s3">= </span><span class="s1">last</span><span class="s3">[</span><span class="s7">0</span><span class="s3">].</span><span class="s1">replace</span><span class="s3">(</span><span class="s8">/\\/g</span><span class="s3">, </span><span class="s2">&quot;&quot;</span><span class="s3">).</span><span class="s1">toLowerCase</span><span class="s3">() === </span><span class="s2">&quot;url&quot;</span><span class="s3">;</span>
+							<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">CssUrlDependency</span><span class="s3">(</span>
+								<span class="s1">value</span><span class="s3">,</span>
+								<span class="s3">[</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">],</span>
+								<span class="s1">isUrl </span><span class="s3">? </span><span class="s2">&quot;string&quot; </span><span class="s3">: </span><span class="s2">&quot;url&quot;</span>
+							<span class="s3">);</span>
+							<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">sl</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">sc </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">start</span><span class="s3">);</span>
+							<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">el</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">ec </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">end</span><span class="s3">);</span>
+							<span class="s1">dep</span><span class="s3">.</span><span class="s1">setLoc</span><span class="s3">(</span><span class="s1">sl</span><span class="s3">, </span><span class="s1">sc</span><span class="s3">, </span><span class="s1">el</span><span class="s3">, </span><span class="s1">ec</span><span class="s3">);</span>
+							<span class="s1">module</span><span class="s3">.</span><span class="s1">addDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+							<span class="s1">module</span><span class="s3">.</span><span class="s1">addCodeGenerationDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+						<span class="s3">}</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+				<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s3">},</span>
+			<span class="s1">atKeyword</span><span class="s3">: (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) =&gt; {</span>
+				<span class="s4">const </span><span class="s1">name </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">).</span><span class="s1">toLowerCase</span><span class="s3">();</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;@namespace&quot;</span><span class="s3">) {</span>
+					<span class="s1">scope </span><span class="s3">= </span><span class="s1">CSS_MODE_AT_NAMESPACE_INVALID</span><span class="s3">;</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">_emitWarning</span><span class="s3">(</span>
+						<span class="s1">state</span><span class="s3">,</span>
+						<span class="s2">&quot;'@namespace' is not supported in bundled CSS&quot;</span><span class="s3">,</span>
+						<span class="s1">locConverter</span><span class="s3">,</span>
+						<span class="s1">start</span><span class="s3">,</span>
+						<span class="s1">end</span>
+					<span class="s3">);</span>
+					<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+				<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;@import&quot;</span><span class="s3">) {</span>
+					<span class="s4">if </span><span class="s3">(!</span><span class="s1">allowImportAtRule</span><span class="s3">) {</span>
+						<span class="s1">scope </span><span class="s3">= </span><span class="s1">CSS_MODE_AT_IMPORT_INVALID</span><span class="s3">;</span>
+						<span class="s4">this</span><span class="s3">.</span><span class="s1">_emitWarning</span><span class="s3">(</span>
+							<span class="s1">state</span><span class="s3">,</span>
+							<span class="s2">&quot;Any '@import' rules must precede all other rules&quot;</span><span class="s3">,</span>
+							<span class="s1">locConverter</span><span class="s3">,</span>
+							<span class="s1">start</span><span class="s3">,</span>
+							<span class="s1">end</span>
+						<span class="s3">);</span>
+						<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+					<span class="s3">}</span>
+
+					<span class="s1">scope </span><span class="s3">= </span><span class="s1">CSS_MODE_IN_AT_IMPORT</span><span class="s3">;</span>
+					<span class="s1">importData </span><span class="s3">= { </span><span class="s1">start </span><span class="s3">};</span>
+				<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">allowModeSwitch </span><span class="s3">&amp;&amp;</span>
+					<span class="s1">OPTIONALLY_VENDOR_PREFIXED_KEYFRAMES_AT_RULE</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)</span>
+				<span class="s3">) {</span>
+					<span class="s4">let </span><span class="s1">pos </span><span class="s3">= </span><span class="s1">end</span><span class="s3">;</span>
+					<span class="s1">pos </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatWhitespaceAndComments</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+					<span class="s4">const </span><span class="s3">[</span><span class="s1">newPos</span><span class="s3">, </span><span class="s1">name</span><span class="s3">] = </span><span class="s1">eatText</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">eatKeyframes</span><span class="s3">);</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">newPos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">return </span><span class="s1">newPos</span><span class="s3">;</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">newPos</span><span class="s3">) !== </span><span class="s1">CC_LEFT_CURLY</span><span class="s3">) {</span>
+						<span class="s4">this</span><span class="s3">.</span><span class="s1">_emitWarning</span><span class="s3">(</span>
+							<span class="s1">state</span><span class="s3">,</span>
+							<span class="s2">`Unexpected '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">input</span><span class="s3">[</span><span class="s1">newPos</span><span class="s3">]}</span><span class="s2">' at </span><span class="s1">$</span><span class="s3">{</span><span class="s1">newPos</span><span class="s3">} </span><span class="s2">during parsing of @keyframes (expected '{')`</span><span class="s3">,</span>
+							<span class="s1">locConverter</span><span class="s3">,</span>
+							<span class="s1">start</span><span class="s3">,</span>
+							<span class="s1">end</span>
+						<span class="s3">);</span>
+
+						<span class="s4">return </span><span class="s1">newPos</span><span class="s3">;</span>
+					<span class="s3">}</span>
+					<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">sl</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">sc </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+					<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">el</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">ec </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">newPos</span><span class="s3">);</span>
+					<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">CssLocalIdentifierDependency</span><span class="s3">(</span><span class="s1">name</span><span class="s3">, [</span><span class="s1">pos</span><span class="s3">, </span><span class="s1">newPos</span><span class="s3">]);</span>
+					<span class="s1">dep</span><span class="s3">.</span><span class="s1">setLoc</span><span class="s3">(</span><span class="s1">sl</span><span class="s3">, </span><span class="s1">sc</span><span class="s3">, </span><span class="s1">el</span><span class="s3">, </span><span class="s1">ec</span><span class="s3">);</span>
+					<span class="s1">module</span><span class="s3">.</span><span class="s1">addDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+					<span class="s1">pos </span><span class="s3">= </span><span class="s1">newPos</span><span class="s3">;</span>
+					<span class="s4">return </span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">;</span>
+				<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">allowModeSwitch </span><span class="s3">&amp;&amp; </span><span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;@property&quot;</span><span class="s3">) {</span>
+					<span class="s4">let </span><span class="s1">pos </span><span class="s3">= </span><span class="s1">end</span><span class="s3">;</span>
+					<span class="s1">pos </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatWhitespaceAndComments</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+					<span class="s4">const </span><span class="s1">propertyNameStart </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+					<span class="s4">const </span><span class="s3">[</span><span class="s1">propertyNameEnd</span><span class="s3">, </span><span class="s1">propertyName</span><span class="s3">] = </span><span class="s1">eatText</span><span class="s3">(</span>
+						<span class="s1">input</span><span class="s3">,</span>
+						<span class="s1">pos</span><span class="s3">,</span>
+						<span class="s1">eatKeyframes</span>
+					<span class="s3">);</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">propertyNameEnd </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">return </span><span class="s1">propertyNameEnd</span><span class="s3">;</span>
+					<span class="s4">if </span><span class="s3">(!</span><span class="s1">propertyName</span><span class="s3">.</span><span class="s1">startsWith</span><span class="s3">(</span><span class="s2">&quot;--&quot;</span><span class="s3">)) </span><span class="s4">return </span><span class="s1">propertyNameEnd</span><span class="s3">;</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">propertyNameEnd</span><span class="s3">) !== </span><span class="s1">CC_LEFT_CURLY</span><span class="s3">) {</span>
+						<span class="s4">this</span><span class="s3">.</span><span class="s1">_emitWarning</span><span class="s3">(</span>
+							<span class="s1">state</span><span class="s3">,</span>
+							<span class="s2">`Unexpected '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">input</span><span class="s3">[</span><span class="s1">propertyNameEnd</span><span class="s3">]}</span><span class="s2">' at </span><span class="s1">$</span><span class="s3">{</span><span class="s1">propertyNameEnd</span><span class="s3">} </span><span class="s2">during parsing of @property (expected '{')`</span><span class="s3">,</span>
+							<span class="s1">locConverter</span><span class="s3">,</span>
+							<span class="s1">start</span><span class="s3">,</span>
+							<span class="s1">end</span>
+						<span class="s3">);</span>
+
+						<span class="s4">return </span><span class="s1">propertyNameEnd</span><span class="s3">;</span>
+					<span class="s3">}</span>
+					<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">sl</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">sc </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+					<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">el</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">ec </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">propertyNameEnd</span><span class="s3">);</span>
+					<span class="s4">const </span><span class="s1">name </span><span class="s3">= </span><span class="s1">propertyName</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s7">2</span><span class="s3">);</span>
+					<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">CssLocalIdentifierDependency</span><span class="s3">(</span>
+						<span class="s1">name</span><span class="s3">,</span>
+						<span class="s3">[</span><span class="s1">propertyNameStart</span><span class="s3">, </span><span class="s1">propertyNameEnd</span><span class="s3">],</span>
+						<span class="s2">&quot;--&quot;</span>
+					<span class="s3">);</span>
+					<span class="s1">dep</span><span class="s3">.</span><span class="s1">setLoc</span><span class="s3">(</span><span class="s1">sl</span><span class="s3">, </span><span class="s1">sc</span><span class="s3">, </span><span class="s1">el</span><span class="s3">, </span><span class="s1">ec</span><span class="s3">);</span>
+					<span class="s1">module</span><span class="s3">.</span><span class="s1">addDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+					<span class="s1">declaredCssVariables</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">name</span><span class="s3">);</span>
+					<span class="s1">pos </span><span class="s3">= </span><span class="s1">propertyNameEnd</span><span class="s3">;</span>
+					<span class="s4">return </span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">;</span>
+				<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span>
+					<span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;@media&quot; </span><span class="s3">||</span>
+					<span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;@supports&quot; </span><span class="s3">||</span>
+					<span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;@layer&quot; </span><span class="s3">||</span>
+					<span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;@container&quot;</span>
+				<span class="s3">) {</span>
+					<span class="s1">modeData </span><span class="s3">= </span><span class="s1">isLocalMode</span><span class="s3">() ? </span><span class="s2">&quot;local&quot; </span><span class="s3">: </span><span class="s2">&quot;global&quot;</span><span class="s3">;</span>
+					<span class="s1">isNextRulePrelude </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+					<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+				<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">allowModeSwitch</span><span class="s3">) {</span>
+					<span class="s1">modeData </span><span class="s3">= </span><span class="s2">&quot;global&quot;</span><span class="s3">;</span>
+					<span class="s1">isNextRulePrelude </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+				<span class="s3">}</span>
+				<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s3">},</span>
+			<span class="s1">semicolon</span><span class="s3">: (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) =&gt; {</span>
+				<span class="s4">switch </span><span class="s3">(</span><span class="s1">scope</span><span class="s3">) {</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_IN_AT_IMPORT</span><span class="s3">: {</span>
+						<span class="s4">const </span><span class="s3">{ </span><span class="s1">start </span><span class="s3">} = </span><span class="s1">importData</span><span class="s3">;</span>
+
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">importData</span><span class="s3">.</span><span class="s1">url </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+							<span class="s4">this</span><span class="s3">.</span><span class="s1">_emitWarning</span><span class="s3">(</span>
+								<span class="s1">state</span><span class="s3">,</span>
+								<span class="s2">`Expected URL in '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">)}</span><span class="s2">'`</span><span class="s3">,</span>
+								<span class="s1">locConverter</span><span class="s3">,</span>
+								<span class="s1">start</span><span class="s3">,</span>
+								<span class="s1">end</span>
+							<span class="s3">);</span>
+							<span class="s1">importData </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+							<span class="s1">scope </span><span class="s3">= </span><span class="s1">CSS_MODE_TOP_LEVEL</span><span class="s3">;</span>
+							<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+						<span class="s3">}</span>
+						<span class="s4">if </span><span class="s3">(</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">urlStart </span><span class="s3">&gt; </span><span class="s1">importData</span><span class="s3">.</span><span class="s1">layerStart </span><span class="s3">||</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">urlStart </span><span class="s3">&gt; </span><span class="s1">importData</span><span class="s3">.</span><span class="s1">supportsStart</span>
+						<span class="s3">) {</span>
+							<span class="s4">this</span><span class="s3">.</span><span class="s1">_emitWarning</span><span class="s3">(</span>
+								<span class="s1">state</span><span class="s3">,</span>
+								<span class="s2">`An URL in '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span>
+									<span class="s1">start</span><span class="s3">,</span>
+									<span class="s1">end</span>
+								<span class="s3">)}</span><span class="s2">' should be before 'layer(...)' or 'supports(...)'`</span><span class="s3">,</span>
+								<span class="s1">locConverter</span><span class="s3">,</span>
+								<span class="s1">start</span><span class="s3">,</span>
+								<span class="s1">end</span>
+							<span class="s3">);</span>
+							<span class="s1">importData </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+							<span class="s1">scope </span><span class="s3">= </span><span class="s1">CSS_MODE_TOP_LEVEL</span><span class="s3">;</span>
+							<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+						<span class="s3">}</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">importData</span><span class="s3">.</span><span class="s1">layerStart </span><span class="s3">&gt; </span><span class="s1">importData</span><span class="s3">.</span><span class="s1">supportsStart</span><span class="s3">) {</span>
+							<span class="s4">this</span><span class="s3">.</span><span class="s1">_emitWarning</span><span class="s3">(</span>
+								<span class="s1">state</span><span class="s3">,</span>
+								<span class="s2">`The 'layer(...)' in '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span>
+									<span class="s1">start</span><span class="s3">,</span>
+									<span class="s1">end</span>
+								<span class="s3">)}</span><span class="s2">' should be before 'supports(...)'`</span><span class="s3">,</span>
+								<span class="s1">locConverter</span><span class="s3">,</span>
+								<span class="s1">start</span><span class="s3">,</span>
+								<span class="s1">end</span>
+							<span class="s3">);</span>
+							<span class="s1">importData </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+							<span class="s1">scope </span><span class="s3">= </span><span class="s1">CSS_MODE_TOP_LEVEL</span><span class="s3">;</span>
+							<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+						<span class="s3">}</span>
+
+						<span class="s4">const </span><span class="s1">semicolonPos </span><span class="s3">= </span><span class="s1">end</span><span class="s3">;</span>
+						<span class="s1">end </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatWhiteLine</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">end </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">);</span>
+						<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">sl</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">sc </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">start</span><span class="s3">);</span>
+						<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">el</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">ec </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">end</span><span class="s3">);</span>
+						<span class="s4">const </span><span class="s1">lastEnd </span><span class="s3">=</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">supportsEnd </span><span class="s3">||</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">layerEnd </span><span class="s3">||</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">urlEnd </span><span class="s3">||</span>
+							<span class="s1">start</span><span class="s3">;</span>
+						<span class="s4">const </span><span class="s1">pos </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatWhitespaceAndComments</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">lastEnd</span><span class="s3">);</span>
+						<span class="s0">// Prevent to consider comments as a part of media query</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">!== </span><span class="s1">semicolonPos </span><span class="s3">- </span><span class="s7">1</span><span class="s3">) {</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">media </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">lastEnd</span><span class="s3">, </span><span class="s1">semicolonPos </span><span class="s3">- </span><span class="s7">1</span><span class="s3">).</span><span class="s1">trim</span><span class="s3">();</span>
+						<span class="s3">}</span>
+
+						<span class="s4">const </span><span class="s1">url </span><span class="s3">= </span><span class="s1">importData</span><span class="s3">.</span><span class="s1">url</span><span class="s3">.</span><span class="s1">trim</span><span class="s3">();</span>
+
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">url</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s7">0</span><span class="s3">) {</span>
+							<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">ConstDependency</span><span class="s3">(</span><span class="s2">&quot;&quot;</span><span class="s3">, [</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">]);</span>
+							<span class="s1">module</span><span class="s3">.</span><span class="s1">addPresentationalDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+							<span class="s1">dep</span><span class="s3">.</span><span class="s1">setLoc</span><span class="s3">(</span><span class="s1">sl</span><span class="s3">, </span><span class="s1">sc</span><span class="s3">, </span><span class="s1">el</span><span class="s3">, </span><span class="s1">ec</span><span class="s3">);</span>
+						<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+							<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">CssImportDependency</span><span class="s3">(</span>
+								<span class="s1">url</span><span class="s3">,</span>
+								<span class="s3">[</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">],</span>
+								<span class="s1">importData</span><span class="s3">.</span><span class="s1">layer</span><span class="s3">,</span>
+								<span class="s1">importData</span><span class="s3">.</span><span class="s1">supports</span><span class="s3">,</span>
+								<span class="s1">importData</span><span class="s3">.</span><span class="s1">media </span><span class="s3">&amp;&amp; </span><span class="s1">importData</span><span class="s3">.</span><span class="s1">media</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s7">0</span>
+									<span class="s3">? </span><span class="s1">importData</span><span class="s3">.</span><span class="s1">media</span>
+									<span class="s3">: </span><span class="s1">undefined</span>
+							<span class="s3">);</span>
+							<span class="s1">dep</span><span class="s3">.</span><span class="s1">setLoc</span><span class="s3">(</span><span class="s1">sl</span><span class="s3">, </span><span class="s1">sc</span><span class="s3">, </span><span class="s1">el</span><span class="s3">, </span><span class="s1">ec</span><span class="s3">);</span>
+							<span class="s1">module</span><span class="s3">.</span><span class="s1">addDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+						<span class="s3">}</span>
+
+						<span class="s1">importData </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+						<span class="s1">scope </span><span class="s3">= </span><span class="s1">CSS_MODE_TOP_LEVEL</span><span class="s3">;</span>
+
+						<span class="s4">break</span><span class="s3">;</span>
+					<span class="s3">}</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_AT_IMPORT_INVALID</span><span class="s3">:</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_AT_NAMESPACE_INVALID</span><span class="s3">: {</span>
+						<span class="s1">scope </span><span class="s3">= </span><span class="s1">CSS_MODE_TOP_LEVEL</span><span class="s3">;</span>
+
+						<span class="s4">break</span><span class="s3">;</span>
+					<span class="s3">}</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_IN_BLOCK</span><span class="s3">: {</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">allowModeSwitch</span><span class="s3">) {</span>
+							<span class="s1">processDeclarationValueDone</span><span class="s3">(</span><span class="s1">input</span><span class="s3">);</span>
+							<span class="s1">inAnimationProperty </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+							<span class="s1">isNextRulePrelude </span><span class="s3">= </span><span class="s1">isNextNestedSyntax</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">end</span><span class="s3">);</span>
+						<span class="s3">}</span>
+						<span class="s4">break</span><span class="s3">;</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+				<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s3">},</span>
+			<span class="s1">leftCurlyBracket</span><span class="s3">: (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) =&gt; {</span>
+				<span class="s4">switch </span><span class="s3">(</span><span class="s1">scope</span><span class="s3">) {</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_TOP_LEVEL</span><span class="s3">: {</span>
+						<span class="s1">allowImportAtRule </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+						<span class="s1">scope </span><span class="s3">= </span><span class="s1">CSS_MODE_IN_BLOCK</span><span class="s3">;</span>
+						<span class="s1">blockNestingLevel </span><span class="s3">= </span><span class="s7">1</span><span class="s3">;</span>
+
+						<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">allowModeSwitch</span><span class="s3">) {</span>
+							<span class="s1">isNextRulePrelude </span><span class="s3">= </span><span class="s1">isNextNestedSyntax</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">end</span><span class="s3">);</span>
+						<span class="s3">}</span>
+
+						<span class="s4">break</span><span class="s3">;</span>
+					<span class="s3">}</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_IN_BLOCK</span><span class="s3">: {</span>
+						<span class="s1">blockNestingLevel</span><span class="s3">++;</span>
+
+						<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">allowModeSwitch</span><span class="s3">) {</span>
+							<span class="s1">isNextRulePrelude </span><span class="s3">= </span><span class="s1">isNextNestedSyntax</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">end</span><span class="s3">);</span>
+						<span class="s3">}</span>
+						<span class="s4">break</span><span class="s3">;</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+				<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s3">},</span>
+			<span class="s1">rightCurlyBracket</span><span class="s3">: (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) =&gt; {</span>
+				<span class="s4">switch </span><span class="s3">(</span><span class="s1">scope</span><span class="s3">) {</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_IN_BLOCK</span><span class="s3">: {</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">isLocalMode</span><span class="s3">()) {</span>
+							<span class="s1">processDeclarationValueDone</span><span class="s3">(</span><span class="s1">input</span><span class="s3">);</span>
+							<span class="s1">inAnimationProperty </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+						<span class="s3">}</span>
+						<span class="s4">if </span><span class="s3">(--</span><span class="s1">blockNestingLevel </span><span class="s3">=== </span><span class="s7">0</span><span class="s3">) {</span>
+							<span class="s1">scope </span><span class="s3">= </span><span class="s1">CSS_MODE_TOP_LEVEL</span><span class="s3">;</span>
+
+							<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">allowModeSwitch</span><span class="s3">) {</span>
+								<span class="s1">isNextRulePrelude </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+								<span class="s1">modeData </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+							<span class="s3">}</span>
+						<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">allowModeSwitch</span><span class="s3">) {</span>
+							<span class="s1">isNextRulePrelude </span><span class="s3">= </span><span class="s1">isNextNestedSyntax</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">end</span><span class="s3">);</span>
+						<span class="s3">}</span>
+						<span class="s4">break</span><span class="s3">;</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+				<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s3">},</span>
+			<span class="s1">identifier</span><span class="s3">: (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) =&gt; {</span>
+				<span class="s4">switch </span><span class="s3">(</span><span class="s1">scope</span><span class="s3">) {</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_IN_BLOCK</span><span class="s3">: {</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">isLocalMode</span><span class="s3">()) {</span>
+							<span class="s0">// Handle only top level values and not inside functions</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">inAnimationProperty </span><span class="s3">&amp;&amp; </span><span class="s1">balanced</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s7">0</span><span class="s3">) {</span>
+								<span class="s1">lastIdentifier </span><span class="s3">= [</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">];</span>
+							<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+								<span class="s4">return </span><span class="s1">processLocalDeclaration</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">);</span>
+							<span class="s3">}</span>
+						<span class="s3">}</span>
+						<span class="s4">break</span><span class="s3">;</span>
+					<span class="s3">}</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_IN_AT_IMPORT</span><span class="s3">: {</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">).</span><span class="s1">toLowerCase</span><span class="s3">() === </span><span class="s2">&quot;layer&quot;</span><span class="s3">) {</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">layer </span><span class="s3">= </span><span class="s2">&quot;&quot;</span><span class="s3">;</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">layerStart </span><span class="s3">= </span><span class="s1">start</span><span class="s3">;</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">layerEnd </span><span class="s3">= </span><span class="s1">end</span><span class="s3">;</span>
+						<span class="s3">}</span>
+						<span class="s4">break</span><span class="s3">;</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+				<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s3">},</span>
+			<span class="s4">class</span><span class="s3">: (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) =&gt; {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">isLocalMode</span><span class="s3">()) {</span>
+					<span class="s4">const </span><span class="s1">name </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">start </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">, </span><span class="s1">end</span><span class="s3">);</span>
+					<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">CssLocalIdentifierDependency</span><span class="s3">(</span><span class="s1">name</span><span class="s3">, [</span><span class="s1">start </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">, </span><span class="s1">end</span><span class="s3">]);</span>
+					<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">sl</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">sc </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">start</span><span class="s3">);</span>
+					<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">el</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">ec </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">end</span><span class="s3">);</span>
+					<span class="s1">dep</span><span class="s3">.</span><span class="s1">setLoc</span><span class="s3">(</span><span class="s1">sl</span><span class="s3">, </span><span class="s1">sc</span><span class="s3">, </span><span class="s1">el</span><span class="s3">, </span><span class="s1">ec</span><span class="s3">);</span>
+					<span class="s1">module</span><span class="s3">.</span><span class="s1">addDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+				<span class="s3">}</span>
+
+				<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s3">},</span>
+			<span class="s1">id</span><span class="s3">: (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) =&gt; {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">isLocalMode</span><span class="s3">()) {</span>
+					<span class="s4">const </span><span class="s1">name </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">start </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">, </span><span class="s1">end</span><span class="s3">);</span>
+					<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">CssLocalIdentifierDependency</span><span class="s3">(</span><span class="s1">name</span><span class="s3">, [</span><span class="s1">start </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">, </span><span class="s1">end</span><span class="s3">]);</span>
+					<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">sl</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">sc </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">start</span><span class="s3">);</span>
+					<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">el</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">ec </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">end</span><span class="s3">);</span>
+					<span class="s1">dep</span><span class="s3">.</span><span class="s1">setLoc</span><span class="s3">(</span><span class="s1">sl</span><span class="s3">, </span><span class="s1">sc</span><span class="s3">, </span><span class="s1">el</span><span class="s3">, </span><span class="s1">ec</span><span class="s3">);</span>
+					<span class="s1">module</span><span class="s3">.</span><span class="s1">addDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+				<span class="s3">}</span>
+				<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s3">},</span>
+			<span class="s4">function</span><span class="s3">: (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) =&gt; {</span>
+				<span class="s4">let </span><span class="s1">name </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end </span><span class="s3">- </span><span class="s7">1</span><span class="s3">);</span>
+
+				<span class="s1">balanced</span><span class="s3">.</span><span class="s1">push</span><span class="s3">([</span><span class="s1">name</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">]);</span>
+
+				<span class="s4">if </span><span class="s3">(</span>
+					<span class="s1">scope </span><span class="s3">=== </span><span class="s1">CSS_MODE_IN_AT_IMPORT </span><span class="s3">&amp;&amp;</span>
+					<span class="s1">name</span><span class="s3">.</span><span class="s1">toLowerCase</span><span class="s3">() === </span><span class="s2">&quot;supports&quot;</span>
+				<span class="s3">) {</span>
+					<span class="s1">importData</span><span class="s3">.</span><span class="s1">inSupports </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+				<span class="s3">}</span>
+
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">isLocalMode</span><span class="s3">()) {</span>
+					<span class="s1">name </span><span class="s3">= </span><span class="s1">name</span><span class="s3">.</span><span class="s1">toLowerCase</span><span class="s3">();</span>
+
+					<span class="s0">// Don't rename animation name when we have `var()` function</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">inAnimationProperty </span><span class="s3">&amp;&amp; </span><span class="s1">balanced</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s7">1</span><span class="s3">) {</span>
+						<span class="s1">lastIdentifier </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+					<span class="s3">}</span>
+
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;var&quot;</span><span class="s3">) {</span>
+						<span class="s4">let </span><span class="s1">pos </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatWhitespaceAndComments</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">end</span><span class="s3">);</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+						<span class="s4">const </span><span class="s3">[</span><span class="s1">newPos</span><span class="s3">, </span><span class="s1">name</span><span class="s3">] = </span><span class="s1">eatText</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">eatNameInVar</span><span class="s3">);</span>
+						<span class="s4">if </span><span class="s3">(!</span><span class="s1">name</span><span class="s3">.</span><span class="s1">startsWith</span><span class="s3">(</span><span class="s2">&quot;--&quot;</span><span class="s3">)) </span><span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+						<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">sl</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">sc </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+						<span class="s4">const </span><span class="s3">{ </span><span class="s1">line</span><span class="s3">: </span><span class="s1">el</span><span class="s3">, </span><span class="s1">column</span><span class="s3">: </span><span class="s1">ec </span><span class="s3">} = </span><span class="s1">locConverter</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">newPos</span><span class="s3">);</span>
+						<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">CssSelfLocalIdentifierDependency</span><span class="s3">(</span>
+							<span class="s1">name</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s7">2</span><span class="s3">),</span>
+							<span class="s3">[</span><span class="s1">pos</span><span class="s3">, </span><span class="s1">newPos</span><span class="s3">],</span>
+							<span class="s2">&quot;--&quot;</span><span class="s3">,</span>
+							<span class="s1">declaredCssVariables</span>
+						<span class="s3">);</span>
+						<span class="s1">dep</span><span class="s3">.</span><span class="s1">setLoc</span><span class="s3">(</span><span class="s1">sl</span><span class="s3">, </span><span class="s1">sc</span><span class="s3">, </span><span class="s1">el</span><span class="s3">, </span><span class="s1">ec</span><span class="s3">);</span>
+						<span class="s1">module</span><span class="s3">.</span><span class="s1">addDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+						<span class="s4">return </span><span class="s1">newPos</span><span class="s3">;</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+
+				<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s3">},</span>
+			<span class="s1">leftParenthesis</span><span class="s3">: (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) =&gt; {</span>
+				<span class="s1">balanced</span><span class="s3">.</span><span class="s1">push</span><span class="s3">([</span><span class="s2">&quot;(&quot;</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">]);</span>
+
+				<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s3">},</span>
+			<span class="s1">rightParenthesis</span><span class="s3">: (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) =&gt; {</span>
+				<span class="s4">const </span><span class="s1">last </span><span class="s3">= </span><span class="s1">balanced</span><span class="s3">[</span><span class="s1">balanced</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s7">1</span><span class="s3">];</span>
+				<span class="s4">const </span><span class="s1">popped </span><span class="s3">= </span><span class="s1">balanced</span><span class="s3">.</span><span class="s1">pop</span><span class="s3">();</span>
+
+				<span class="s4">if </span><span class="s3">(</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">allowModeSwitch </span><span class="s3">&amp;&amp;</span>
+					<span class="s1">popped </span><span class="s3">&amp;&amp;</span>
+					<span class="s3">(</span><span class="s1">popped</span><span class="s3">[</span><span class="s7">0</span><span class="s3">] === </span><span class="s2">&quot;:local&quot; </span><span class="s3">|| </span><span class="s1">popped</span><span class="s3">[</span><span class="s7">0</span><span class="s3">] === </span><span class="s2">&quot;:global&quot;</span><span class="s3">)</span>
+				<span class="s3">) {</span>
+					<span class="s1">modeData </span><span class="s3">= </span><span class="s1">balanced</span><span class="s3">[</span><span class="s1">balanced</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s7">1</span><span class="s3">]</span>
+						<span class="s3">? </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{&quot;local&quot; | &quot;global&quot;} */</span>
+						  <span class="s3">(</span><span class="s1">balanced</span><span class="s3">[</span><span class="s1">balanced</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s7">1</span><span class="s3">][</span><span class="s7">0</span><span class="s3">])</span>
+						<span class="s3">: </span><span class="s1">undefined</span><span class="s3">;</span>
+					<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">ConstDependency</span><span class="s3">(</span><span class="s2">&quot;&quot;</span><span class="s3">, [</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">]);</span>
+					<span class="s1">module</span><span class="s3">.</span><span class="s1">addPresentationalDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+
+					<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+				<span class="s3">}</span>
+
+				<span class="s4">switch </span><span class="s3">(</span><span class="s1">scope</span><span class="s3">) {</span>
+					<span class="s4">case </span><span class="s1">CSS_MODE_IN_AT_IMPORT</span><span class="s3">: {</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">last </span><span class="s3">&amp;&amp; </span><span class="s1">last</span><span class="s3">[</span><span class="s7">0</span><span class="s3">] === </span><span class="s2">&quot;url&quot; </span><span class="s3">&amp;&amp; !</span><span class="s1">importData</span><span class="s3">.</span><span class="s1">inSupports</span><span class="s3">) {</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">urlStart </span><span class="s3">= </span><span class="s1">last</span><span class="s3">[</span><span class="s7">1</span><span class="s3">];</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">urlEnd </span><span class="s3">= </span><span class="s1">end</span><span class="s3">;</span>
+						<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span>
+							<span class="s1">last </span><span class="s3">&amp;&amp;</span>
+							<span class="s1">last</span><span class="s3">[</span><span class="s7">0</span><span class="s3">].</span><span class="s1">toLowerCase</span><span class="s3">() === </span><span class="s2">&quot;layer&quot; </span><span class="s3">&amp;&amp;</span>
+							<span class="s3">!</span><span class="s1">importData</span><span class="s3">.</span><span class="s1">inSupports</span>
+						<span class="s3">) {</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">layer </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">last</span><span class="s3">[</span><span class="s7">2</span><span class="s3">], </span><span class="s1">end </span><span class="s3">- </span><span class="s7">1</span><span class="s3">).</span><span class="s1">trim</span><span class="s3">();</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">layerStart </span><span class="s3">= </span><span class="s1">last</span><span class="s3">[</span><span class="s7">1</span><span class="s3">];</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">layerEnd </span><span class="s3">= </span><span class="s1">end</span><span class="s3">;</span>
+						<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">last </span><span class="s3">&amp;&amp; </span><span class="s1">last</span><span class="s3">[</span><span class="s7">0</span><span class="s3">].</span><span class="s1">toLowerCase</span><span class="s3">() === </span><span class="s2">&quot;supports&quot;</span><span class="s3">) {</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">supports </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">last</span><span class="s3">[</span><span class="s7">2</span><span class="s3">], </span><span class="s1">end </span><span class="s3">- </span><span class="s7">1</span><span class="s3">).</span><span class="s1">trim</span><span class="s3">();</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">supportsStart </span><span class="s3">= </span><span class="s1">last</span><span class="s3">[</span><span class="s7">1</span><span class="s3">];</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">supportsEnd </span><span class="s3">= </span><span class="s1">end</span><span class="s3">;</span>
+							<span class="s1">importData</span><span class="s3">.</span><span class="s1">inSupports </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+						<span class="s3">}</span>
+						<span class="s4">break</span><span class="s3">;</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+
+				<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s3">},</span>
+			<span class="s1">pseudoClass</span><span class="s3">: (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) =&gt; {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">allowModeSwitch</span><span class="s3">) {</span>
+					<span class="s4">const </span><span class="s1">name </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">).</span><span class="s1">toLowerCase</span><span class="s3">();</span>
+
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;:global&quot;</span><span class="s3">) {</span>
+						<span class="s1">modeData </span><span class="s3">= </span><span class="s2">&quot;global&quot;</span><span class="s3">;</span>
+						<span class="s0">// Eat extra whitespace and comments</span>
+						<span class="s1">end </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatWhitespace</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">end</span><span class="s3">);</span>
+						<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">ConstDependency</span><span class="s3">(</span><span class="s2">&quot;&quot;</span><span class="s3">, [</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">]);</span>
+						<span class="s1">module</span><span class="s3">.</span><span class="s1">addPresentationalDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+						<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+					<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;:local&quot;</span><span class="s3">) {</span>
+						<span class="s1">modeData </span><span class="s3">= </span><span class="s2">&quot;local&quot;</span><span class="s3">;</span>
+						<span class="s0">// Eat extra whitespace and comments</span>
+						<span class="s1">end </span><span class="s3">= </span><span class="s1">walkCssTokens</span><span class="s3">.</span><span class="s1">eatWhitespace</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">end</span><span class="s3">);</span>
+						<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">ConstDependency</span><span class="s3">(</span><span class="s2">&quot;&quot;</span><span class="s3">, [</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">]);</span>
+						<span class="s1">module</span><span class="s3">.</span><span class="s1">addPresentationalDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+						<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+					<span class="s3">}</span>
+
+					<span class="s4">switch </span><span class="s3">(</span><span class="s1">scope</span><span class="s3">) {</span>
+						<span class="s4">case </span><span class="s1">CSS_MODE_TOP_LEVEL</span><span class="s3">: {</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;:export&quot;</span><span class="s3">) {</span>
+								<span class="s4">const </span><span class="s1">pos </span><span class="s3">= </span><span class="s1">parseExports</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">end</span><span class="s3">);</span>
+								<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">ConstDependency</span><span class="s3">(</span><span class="s2">&quot;&quot;</span><span class="s3">, [</span><span class="s1">start</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">]);</span>
+								<span class="s1">module</span><span class="s3">.</span><span class="s1">addPresentationalDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+								<span class="s4">return </span><span class="s1">pos</span><span class="s3">;</span>
+							<span class="s3">}</span>
+							<span class="s4">break</span><span class="s3">;</span>
+						<span class="s3">}</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+
+				<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s3">},</span>
+			<span class="s1">pseudoFunction</span><span class="s3">: (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) =&gt; {</span>
+				<span class="s4">let </span><span class="s1">name </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end </span><span class="s3">- </span><span class="s7">1</span><span class="s3">);</span>
+
+				<span class="s1">balanced</span><span class="s3">.</span><span class="s1">push</span><span class="s3">([</span><span class="s1">name</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">]);</span>
+
+				<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">allowModeSwitch</span><span class="s3">) {</span>
+					<span class="s1">name </span><span class="s3">= </span><span class="s1">name</span><span class="s3">.</span><span class="s1">toLowerCase</span><span class="s3">();</span>
+
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;:global&quot;</span><span class="s3">) {</span>
+						<span class="s1">modeData </span><span class="s3">= </span><span class="s2">&quot;global&quot;</span><span class="s3">;</span>
+						<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">ConstDependency</span><span class="s3">(</span><span class="s2">&quot;&quot;</span><span class="s3">, [</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">]);</span>
+						<span class="s1">module</span><span class="s3">.</span><span class="s1">addPresentationalDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+					<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;:local&quot;</span><span class="s3">) {</span>
+						<span class="s1">modeData </span><span class="s3">= </span><span class="s2">&quot;local&quot;</span><span class="s3">;</span>
+						<span class="s4">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s4">new </span><span class="s1">ConstDependency</span><span class="s3">(</span><span class="s2">&quot;&quot;</span><span class="s3">, [</span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">]);</span>
+						<span class="s1">module</span><span class="s3">.</span><span class="s1">addPresentationalDependency</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">);</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+
+				<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s3">},</span>
+			<span class="s1">comma</span><span class="s3">: (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">end</span><span class="s3">) =&gt; {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">allowModeSwitch</span><span class="s3">) {</span>
+					<span class="s0">// Reset stack for `:global .class :local .class-other` selector after</span>
+					<span class="s1">modeData </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+
+					<span class="s4">switch </span><span class="s3">(</span><span class="s1">scope</span><span class="s3">) {</span>
+						<span class="s4">case </span><span class="s1">CSS_MODE_IN_BLOCK</span><span class="s3">: {</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">isLocalMode</span><span class="s3">()) {</span>
+								<span class="s1">processDeclarationValueDone</span><span class="s3">(</span><span class="s1">input</span><span class="s3">);</span>
+							<span class="s3">}</span>
+
+							<span class="s4">break</span><span class="s3">;</span>
+						<span class="s3">}</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+				<span class="s4">return </span><span class="s1">end</span><span class="s3">;</span>
+			<span class="s3">}</span>
+		<span class="s3">});</span>
+
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">oldDefaultMode</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">defaultMode </span><span class="s3">= </span><span class="s1">oldDefaultMode</span><span class="s3">;</span>
+		<span class="s3">}</span>
+
+		<span class="s1">module</span><span class="s3">.</span><span class="s1">buildInfo</span><span class="s3">.</span><span class="s1">strict </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+		<span class="s1">module</span><span class="s3">.</span><span class="s1">buildMeta</span><span class="s3">.</span><span class="s1">exportsType </span><span class="s3">= </span><span class="s2">&quot;namespace&quot;</span><span class="s3">;</span>
+		<span class="s1">module</span><span class="s3">.</span><span class="s1">addDependency</span><span class="s3">(</span><span class="s4">new </span><span class="s1">StaticExportsDependency</span><span class="s3">([], </span><span class="s4">true</span><span class="s3">));</span>
+		<span class="s4">return </span><span class="s1">state</span><span class="s3">;</span>
+	<span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">CssParser</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

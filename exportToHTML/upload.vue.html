@@ -1,0 +1,233 @@
+<html>
+<head>
+<title>upload.vue</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #d5b778;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #bababa;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+upload.vue</font>
+</center></td></tr></table>
+<pre><span class="s0">&lt;script&gt;</span>
+<span class="s2">import </span><span class="s1">ajax from </span><span class="s3">'./ajax'</span><span class="s1">;</span>
+<span class="s2">import </span><span class="s1">UploadDragger from </span><span class="s3">'./upload-dragger.vue'</span><span class="s1">;</span>
+
+<span class="s2">export default </span><span class="s1">{</span>
+  <span class="s1">inject: [</span><span class="s3">'uploader'</span><span class="s1">],</span>
+  <span class="s1">components: {</span>
+    <span class="s1">UploadDragger</span>
+  <span class="s1">},</span>
+  <span class="s1">props: {</span>
+    <span class="s1">type: String,</span>
+    <span class="s1">action: {</span>
+      <span class="s1">type: String,</span>
+      <span class="s1">required: </span><span class="s2">true</span>
+    <span class="s1">},</span>
+    <span class="s1">name: {</span>
+      <span class="s1">type: String,</span>
+      <span class="s2">default</span><span class="s1">: </span><span class="s3">'file'</span>
+    <span class="s1">},</span>
+    <span class="s1">data: Object,</span>
+    <span class="s1">headers: Object,</span>
+    <span class="s1">withCredentials: Boolean,</span>
+    <span class="s1">multiple: Boolean,</span>
+    <span class="s1">accept: String,</span>
+    <span class="s1">onStart: Function,</span>
+    <span class="s1">onProgress: Function,</span>
+    <span class="s1">onSuccess: Function,</span>
+    <span class="s1">onError: Function,</span>
+    <span class="s1">beforeUpload: Function,</span>
+    <span class="s1">drag: Boolean,</span>
+    <span class="s1">onPreview: {</span>
+      <span class="s1">type: Function,</span>
+      <span class="s2">default</span><span class="s1">: </span><span class="s2">function</span><span class="s1">() {}</span>
+    <span class="s1">},</span>
+    <span class="s1">onRemove: {</span>
+      <span class="s1">type: Function,</span>
+      <span class="s2">default</span><span class="s1">: </span><span class="s2">function</span><span class="s1">() {}</span>
+    <span class="s1">},</span>
+    <span class="s1">fileList: Array,</span>
+    <span class="s1">autoUpload: Boolean,</span>
+    <span class="s1">listType: String,</span>
+    <span class="s1">httpRequest: {</span>
+      <span class="s1">type: Function,</span>
+      <span class="s2">default</span><span class="s1">: ajax</span>
+    <span class="s1">},</span>
+    <span class="s1">disabled: Boolean,</span>
+    <span class="s1">limit: Number,</span>
+    <span class="s1">onExceed: Function</span>
+  <span class="s1">},</span>
+
+  <span class="s1">data() {</span>
+    <span class="s2">return </span><span class="s1">{</span>
+      <span class="s1">mouseover: </span><span class="s2">false</span><span class="s1">,</span>
+      <span class="s1">reqs: {}</span>
+    <span class="s1">};</span>
+  <span class="s1">},</span>
+
+  <span class="s1">methods: {</span>
+    <span class="s1">isImage(str) {</span>
+      <span class="s2">return </span><span class="s1">str.indexOf(</span><span class="s3">'image'</span><span class="s1">) !== -</span><span class="s4">1</span><span class="s1">;</span>
+    <span class="s1">},</span>
+    <span class="s1">handleChange(ev) {</span>
+      <span class="s2">const </span><span class="s1">files = ev.target.files;</span>
+
+      <span class="s2">if </span><span class="s1">(!files) </span><span class="s2">return</span><span class="s1">;</span>
+      <span class="s2">this</span><span class="s1">.uploadFiles(files);</span>
+    <span class="s1">},</span>
+    <span class="s1">uploadFiles(files) {</span>
+      <span class="s2">if </span><span class="s1">(</span><span class="s2">this</span><span class="s1">.limit &amp;&amp; </span><span class="s2">this</span><span class="s1">.fileList.length + files.length &gt; </span><span class="s2">this</span><span class="s1">.limit) {</span>
+        <span class="s2">this</span><span class="s1">.onExceed &amp;&amp; </span><span class="s2">this</span><span class="s1">.onExceed(files, </span><span class="s2">this</span><span class="s1">.fileList);</span>
+        <span class="s2">return</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s2">let </span><span class="s1">postFiles = Array.prototype.slice.call(files);</span>
+      <span class="s2">if </span><span class="s1">(!</span><span class="s2">this</span><span class="s1">.multiple) { postFiles = postFiles.slice(</span><span class="s4">0</span><span class="s1">, </span><span class="s4">1</span><span class="s1">); }</span>
+
+      <span class="s2">if </span><span class="s1">(postFiles.length === </span><span class="s4">0</span><span class="s1">) { </span><span class="s2">return</span><span class="s1">; }</span>
+
+      <span class="s1">postFiles.forEach(rawFile =&gt; {</span>
+        <span class="s2">this</span><span class="s1">.onStart(rawFile);</span>
+        <span class="s2">if </span><span class="s1">(</span><span class="s2">this</span><span class="s1">.autoUpload) </span><span class="s2">this</span><span class="s1">.upload(rawFile);</span>
+      <span class="s1">});</span>
+    <span class="s1">},</span>
+    <span class="s1">upload(rawFile) {</span>
+      <span class="s2">this</span><span class="s1">.$refs.input.value = </span><span class="s2">null</span><span class="s1">;</span>
+
+      <span class="s2">if </span><span class="s1">(!</span><span class="s2">this</span><span class="s1">.beforeUpload) {</span>
+        <span class="s2">return this</span><span class="s1">.post(rawFile);</span>
+      <span class="s1">}</span>
+
+      <span class="s2">const </span><span class="s1">before = </span><span class="s2">this</span><span class="s1">.beforeUpload(rawFile);</span>
+      <span class="s2">if </span><span class="s1">(before &amp;&amp; before.then) {</span>
+        <span class="s1">before.then(processedFile =&gt; {</span>
+          <span class="s2">const </span><span class="s1">fileType = Object.prototype.toString.call(processedFile);</span>
+
+          <span class="s2">if </span><span class="s1">(fileType === </span><span class="s3">'[object File]' </span><span class="s1">|| fileType === </span><span class="s3">'[object Blob]'</span><span class="s1">) {</span>
+            <span class="s2">if </span><span class="s1">(fileType === </span><span class="s3">'[object Blob]'</span><span class="s1">) {</span>
+              <span class="s1">processedFile = </span><span class="s2">new </span><span class="s1">File([processedFile], rawFile.name, {</span>
+                <span class="s1">type: rawFile.type</span>
+              <span class="s1">});</span>
+            <span class="s1">}</span>
+            <span class="s2">for </span><span class="s1">(</span><span class="s2">const </span><span class="s1">p </span><span class="s2">in </span><span class="s1">rawFile) {</span>
+              <span class="s2">if </span><span class="s1">(rawFile.hasOwnProperty(p)) {</span>
+                <span class="s1">processedFile[p] = rawFile[p];</span>
+              <span class="s1">}</span>
+            <span class="s1">}</span>
+            <span class="s2">this</span><span class="s1">.post(processedFile);</span>
+          <span class="s1">} </span><span class="s2">else </span><span class="s1">{</span>
+            <span class="s2">this</span><span class="s1">.post(rawFile);</span>
+          <span class="s1">}</span>
+        <span class="s1">}, () =&gt; {</span>
+          <span class="s2">this</span><span class="s1">.onRemove(</span><span class="s2">null</span><span class="s1">, rawFile);</span>
+        <span class="s1">});</span>
+      <span class="s1">} </span><span class="s2">else if </span><span class="s1">(before !== </span><span class="s2">false</span><span class="s1">) {</span>
+        <span class="s2">this</span><span class="s1">.post(rawFile);</span>
+      <span class="s1">} </span><span class="s2">else </span><span class="s1">{</span>
+        <span class="s2">this</span><span class="s1">.onRemove(</span><span class="s2">null</span><span class="s1">, rawFile);</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">abort(file) {</span>
+      <span class="s2">const </span><span class="s1">{ reqs } = </span><span class="s2">this</span><span class="s1">;</span>
+      <span class="s2">if </span><span class="s1">(file) {</span>
+        <span class="s2">let </span><span class="s1">uid = file;</span>
+        <span class="s2">if </span><span class="s1">(file.uid) uid = file.uid;</span>
+        <span class="s2">if </span><span class="s1">(reqs[uid]) {</span>
+          <span class="s1">reqs[uid].abort();</span>
+        <span class="s1">}</span>
+      <span class="s1">} </span><span class="s2">else </span><span class="s1">{</span>
+        <span class="s1">Object.keys(reqs).forEach((uid) =&gt; {</span>
+          <span class="s2">if </span><span class="s1">(reqs[uid]) reqs[uid].abort();</span>
+          <span class="s2">delete </span><span class="s1">reqs[uid];</span>
+        <span class="s1">});</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">post(rawFile) {</span>
+      <span class="s2">const </span><span class="s1">{ uid } = rawFile;</span>
+      <span class="s2">const </span><span class="s1">options = {</span>
+        <span class="s1">headers: </span><span class="s2">this</span><span class="s1">.headers,</span>
+        <span class="s1">withCredentials: </span><span class="s2">this</span><span class="s1">.withCredentials,</span>
+        <span class="s1">file: rawFile,</span>
+        <span class="s1">data: </span><span class="s2">this</span><span class="s1">.data,</span>
+        <span class="s1">filename: </span><span class="s2">this</span><span class="s1">.name,</span>
+        <span class="s1">action: </span><span class="s2">this</span><span class="s1">.action,</span>
+        <span class="s1">onProgress: e =&gt; {</span>
+          <span class="s2">this</span><span class="s1">.onProgress(e, rawFile);</span>
+        <span class="s1">},</span>
+        <span class="s1">onSuccess: res =&gt; {</span>
+          <span class="s2">this</span><span class="s1">.onSuccess(res, rawFile);</span>
+          <span class="s2">delete this</span><span class="s1">.reqs[uid];</span>
+        <span class="s1">},</span>
+        <span class="s1">onError: err =&gt; {</span>
+          <span class="s2">this</span><span class="s1">.onError(err, rawFile);</span>
+          <span class="s2">delete this</span><span class="s1">.reqs[uid];</span>
+        <span class="s1">}</span>
+      <span class="s1">};</span>
+      <span class="s2">const </span><span class="s1">req = </span><span class="s2">this</span><span class="s1">.httpRequest(options);</span>
+      <span class="s2">this</span><span class="s1">.reqs[uid] = req;</span>
+      <span class="s2">if </span><span class="s1">(req &amp;&amp; req.then) {</span>
+        <span class="s1">req.then(options.onSuccess, options.onError);</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">handleClick() {</span>
+      <span class="s2">if </span><span class="s1">(!</span><span class="s2">this</span><span class="s1">.disabled) {</span>
+        <span class="s2">this</span><span class="s1">.$refs.input.value = </span><span class="s2">null</span><span class="s1">;</span>
+        <span class="s2">this</span><span class="s1">.$refs.input.click();</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">handleKeydown(e) {</span>
+      <span class="s2">if </span><span class="s1">(e.target !== e.currentTarget) </span><span class="s2">return</span><span class="s1">;</span>
+      <span class="s2">if </span><span class="s1">(e.keyCode === </span><span class="s4">13 </span><span class="s1">|| e.keyCode === </span><span class="s4">32</span><span class="s1">) {</span>
+        <span class="s2">this</span><span class="s1">.handleClick();</span>
+      <span class="s1">}</span>
+    <span class="s1">}</span>
+  <span class="s1">},</span>
+
+  <span class="s1">render(h) {</span>
+    <span class="s2">let </span><span class="s1">{</span>
+      <span class="s1">handleClick,</span>
+      <span class="s1">drag,</span>
+      <span class="s1">name,</span>
+      <span class="s1">handleChange,</span>
+      <span class="s1">multiple,</span>
+      <span class="s1">accept,</span>
+      <span class="s1">listType,</span>
+      <span class="s1">uploadFiles,</span>
+      <span class="s1">disabled,</span>
+      <span class="s1">handleKeydown</span>
+    <span class="s1">} = </span><span class="s2">this</span><span class="s1">;</span>
+    <span class="s2">const </span><span class="s1">data = {</span>
+      <span class="s2">class</span><span class="s1">: {</span>
+        <span class="s3">'el-upload'</span><span class="s1">: </span><span class="s2">true</span>
+      <span class="s1">},</span>
+      <span class="s1">on: {</span>
+        <span class="s1">click: handleClick,</span>
+        <span class="s1">keydown: handleKeydown</span>
+      <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s1">data.class[</span><span class="s3">`el-upload--</span><span class="s1">${listType}</span><span class="s3">`</span><span class="s1">] = </span><span class="s2">true</span><span class="s1">;</span>
+    <span class="s2">return </span><span class="s1">(</span>
+      <span class="s0">&lt;div </span><span class="s1">{...data} </span><span class="s5">tabindex</span><span class="s3">=&quot;0&quot; </span><span class="s0">&gt;</span>
+        <span class="s1">{</span>
+          <span class="s1">drag</span>
+            <span class="s1">? </span><span class="s0">&lt;upload-dragger </span><span class="s5">disabled</span><span class="s3">=</span><span class="s1">{disabled} </span><span class="s5">on-file</span><span class="s3">=</span><span class="s1">{uploadFiles}</span><span class="s0">&gt;</span><span class="s1">{</span><span class="s2">this</span><span class="s1">.$slots.default}</span><span class="s0">&lt;/upload-dragger&gt;</span>
+            <span class="s1">: </span><span class="s2">this</span><span class="s1">.$slots.default</span>
+        <span class="s1">}</span>
+        <span class="s0">&lt;input </span><span class="s5">class</span><span class="s3">=&quot;el-upload__input&quot; </span><span class="s5">type</span><span class="s3">=&quot;file&quot; </span><span class="s5">ref</span><span class="s3">=&quot;input&quot; </span><span class="s5">name</span><span class="s3">=</span><span class="s1">{name} </span><span class="s5">on-change</span><span class="s3">=</span><span class="s1">{handleChange} </span><span class="s5">multiple</span><span class="s3">=</span><span class="s1">{multiple} </span><span class="s5">accept</span><span class="s3">=</span><span class="s1">{accept}</span><span class="s0">&gt;&lt;/input&gt;</span>
+      <span class="s0">&lt;/div&gt;</span>
+    <span class="s1">);</span>
+  <span class="s1">}</span>
+<span class="s1">};</span>
+<span class="s0">&lt;/script&gt;</span>
+</pre>
+</body>
+</html>

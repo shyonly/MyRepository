@@ -1,0 +1,253 @@
+<html>
+<head>
+<title>stringify-info.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+stringify-info.js</font>
+</center></td></tr></table>
+<pre><span class="s0">const </span><span class="s2">{</span>
+    <span class="s1">normalizeReplacer</span><span class="s2">,</span>
+    <span class="s1">normalizeSpace</span><span class="s2">,</span>
+    <span class="s1">replaceValue</span><span class="s2">,</span>
+    <span class="s1">getTypeNative</span><span class="s2">,</span>
+    <span class="s1">getTypeAsync</span><span class="s2">,</span>
+    <span class="s1">isLeadingSurrogate</span><span class="s2">,</span>
+    <span class="s1">isTrailingSurrogate</span><span class="s2">,</span>
+    <span class="s1">escapableCharCodeSubstitution</span><span class="s2">,</span>
+    <span class="s1">type</span><span class="s2">: {</span>
+        <span class="s1">PRIMITIVE</span><span class="s2">,</span>
+        <span class="s1">OBJECT</span><span class="s2">,</span>
+        <span class="s1">ARRAY</span><span class="s2">,</span>
+        <span class="s1">PROMISE</span><span class="s2">,</span>
+        <span class="s1">STRING_STREAM</span><span class="s2">,</span>
+        <span class="s1">OBJECT_STREAM</span>
+    <span class="s2">}</span>
+<span class="s2">} = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./utils'</span><span class="s2">);</span>
+<span class="s0">const </span><span class="s1">charLength2048 </span><span class="s2">= </span><span class="s1">Array</span><span class="s2">.</span><span class="s1">from</span><span class="s2">({ </span><span class="s1">length</span><span class="s2">: </span><span class="s4">2048 </span><span class="s2">}).</span><span class="s1">map</span><span class="s2">((</span><span class="s1">_</span><span class="s2">, </span><span class="s1">code</span><span class="s2">) =&gt; {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">escapableCharCodeSubstitution</span><span class="s2">.</span><span class="s1">hasOwnProperty</span><span class="s2">(</span><span class="s1">code</span><span class="s2">)) {</span>
+        <span class="s0">return </span><span class="s4">2</span><span class="s2">; </span><span class="s5">// \X</span>
+    <span class="s2">}</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">code </span><span class="s2">&lt; </span><span class="s4">0x20</span><span class="s2">) {</span>
+        <span class="s0">return </span><span class="s4">6</span><span class="s2">; </span><span class="s5">// \uXXXX</span>
+    <span class="s2">}</span>
+
+    <span class="s0">return </span><span class="s1">code </span><span class="s2">&lt; </span><span class="s4">128 </span><span class="s2">? </span><span class="s4">1 </span><span class="s2">: </span><span class="s4">2</span><span class="s2">; </span><span class="s5">// UTF8 bytes</span>
+<span class="s2">});</span>
+
+<span class="s0">function </span><span class="s1">stringLength</span><span class="s2">(</span><span class="s1">str</span><span class="s2">) {</span>
+    <span class="s0">let </span><span class="s1">len </span><span class="s2">= </span><span class="s4">0</span><span class="s2">;</span>
+    <span class="s0">let </span><span class="s1">prevLeadingSurrogate </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+
+    <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s4">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">str</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+        <span class="s0">const </span><span class="s1">code </span><span class="s2">= </span><span class="s1">str</span><span class="s2">.</span><span class="s1">charCodeAt</span><span class="s2">(</span><span class="s1">i</span><span class="s2">);</span>
+
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">code </span><span class="s2">&lt; </span><span class="s4">2048</span><span class="s2">) {</span>
+            <span class="s1">len </span><span class="s2">+= </span><span class="s1">charLength2048</span><span class="s2">[</span><span class="s1">code</span><span class="s2">];</span>
+        <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isLeadingSurrogate</span><span class="s2">(</span><span class="s1">code</span><span class="s2">)) {</span>
+            <span class="s1">len </span><span class="s2">+= </span><span class="s4">6</span><span class="s2">; </span><span class="s5">// \uXXXX since no pair with trailing surrogate yet</span>
+            <span class="s1">prevLeadingSurrogate </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+            <span class="s0">continue</span><span class="s2">;</span>
+        <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isTrailingSurrogate</span><span class="s2">(</span><span class="s1">code</span><span class="s2">)) {</span>
+            <span class="s1">len </span><span class="s2">= </span><span class="s1">prevLeadingSurrogate</span>
+                <span class="s2">? </span><span class="s1">len </span><span class="s2">- </span><span class="s4">2  </span><span class="s5">// surrogate pair (4 bytes), since we calculate prev leading surrogate as 6 bytes, substruct 2 bytes</span>
+                <span class="s2">: </span><span class="s1">len </span><span class="s2">+ </span><span class="s4">6</span><span class="s2">; </span><span class="s5">// \uXXXX</span>
+        <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+            <span class="s1">len </span><span class="s2">+= </span><span class="s4">3</span><span class="s2">; </span><span class="s5">// code &gt;= 2048 is 3 bytes length for UTF8</span>
+        <span class="s2">}</span>
+
+        <span class="s1">prevLeadingSurrogate </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+    <span class="s2">}</span>
+
+    <span class="s0">return </span><span class="s1">len </span><span class="s2">+ </span><span class="s4">2</span><span class="s2">; </span><span class="s5">// +2 for quotes</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">primitiveLength</span><span class="s2">(</span><span class="s1">value</span><span class="s2">) {</span>
+    <span class="s0">switch </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">value</span><span class="s2">) {</span>
+        <span class="s0">case </span><span class="s3">'string'</span><span class="s2">:</span>
+            <span class="s0">return </span><span class="s1">stringLength</span><span class="s2">(</span><span class="s1">value</span><span class="s2">);</span>
+
+        <span class="s0">case </span><span class="s3">'number'</span><span class="s2">:</span>
+            <span class="s0">return </span><span class="s1">Number</span><span class="s2">.</span><span class="s1">isFinite</span><span class="s2">(</span><span class="s1">value</span><span class="s2">) ? </span><span class="s1">String</span><span class="s2">(</span><span class="s1">value</span><span class="s2">).</span><span class="s1">length </span><span class="s2">: </span><span class="s4">4 </span><span class="s5">/* null */</span><span class="s2">;</span>
+
+        <span class="s0">case </span><span class="s3">'boolean'</span><span class="s2">:</span>
+            <span class="s0">return </span><span class="s1">value </span><span class="s2">? </span><span class="s4">4 </span><span class="s5">/* true */ </span><span class="s2">: </span><span class="s4">5 </span><span class="s5">/* false */</span><span class="s2">;</span>
+
+        <span class="s0">case </span><span class="s3">'undefined'</span><span class="s2">:</span>
+        <span class="s0">case </span><span class="s3">'object'</span><span class="s2">:</span>
+            <span class="s0">return </span><span class="s4">4</span><span class="s2">; </span><span class="s5">/* null */</span>
+
+        <span class="s0">default</span><span class="s2">:</span>
+            <span class="s0">return </span><span class="s4">0</span><span class="s2">;</span>
+    <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">spaceLength</span><span class="s2">(</span><span class="s1">space</span><span class="s2">) {</span>
+    <span class="s1">space </span><span class="s2">= </span><span class="s1">normalizeSpace</span><span class="s2">(</span><span class="s1">space</span><span class="s2">);</span>
+    <span class="s0">return typeof </span><span class="s1">space </span><span class="s2">=== </span><span class="s3">'string' </span><span class="s2">? </span><span class="s1">space</span><span class="s2">.</span><span class="s1">length </span><span class="s2">: </span><span class="s4">0</span><span class="s2">;</span>
+<span class="s2">}</span>
+
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= </span><span class="s0">function </span><span class="s1">jsonStringifyInfo</span><span class="s2">(</span><span class="s1">value</span><span class="s2">, </span><span class="s1">replacer</span><span class="s2">, </span><span class="s1">space</span><span class="s2">, </span><span class="s1">options</span><span class="s2">) {</span>
+    <span class="s0">function </span><span class="s1">walk</span><span class="s2">(</span><span class="s1">holder</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">value</span><span class="s2">) {</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">stop</span><span class="s2">) {</span>
+            <span class="s0">return</span><span class="s2">;</span>
+        <span class="s2">}</span>
+
+        <span class="s1">value </span><span class="s2">= </span><span class="s1">replaceValue</span><span class="s2">(</span><span class="s1">holder</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">value</span><span class="s2">, </span><span class="s1">replacer</span><span class="s2">);</span>
+
+        <span class="s0">let </span><span class="s1">type </span><span class="s2">= </span><span class="s1">getType</span><span class="s2">(</span><span class="s1">value</span><span class="s2">);</span>
+
+        <span class="s5">// check for circular structure</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">type </span><span class="s2">!== </span><span class="s1">PRIMITIVE </span><span class="s2">&amp;&amp; </span><span class="s1">stack</span><span class="s2">.</span><span class="s1">has</span><span class="s2">(</span><span class="s1">value</span><span class="s2">)) {</span>
+            <span class="s1">circular</span><span class="s2">.</span><span class="s1">add</span><span class="s2">(</span><span class="s1">value</span><span class="s2">);</span>
+            <span class="s1">length </span><span class="s2">+= </span><span class="s4">4</span><span class="s2">; </span><span class="s5">// treat as null</span>
+
+            <span class="s0">if </span><span class="s2">(!</span><span class="s1">options</span><span class="s2">.</span><span class="s1">continueOnCircular</span><span class="s2">) {</span>
+                <span class="s1">stop </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+            <span class="s2">}</span>
+
+            <span class="s0">return</span><span class="s2">;</span>
+        <span class="s2">}</span>
+
+        <span class="s0">switch </span><span class="s2">(</span><span class="s1">type</span><span class="s2">) {</span>
+            <span class="s0">case </span><span class="s1">PRIMITIVE</span><span class="s2">:</span>
+                <span class="s0">if </span><span class="s2">(</span><span class="s1">value </span><span class="s2">!== </span><span class="s1">undefined </span><span class="s2">|| </span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">holder</span><span class="s2">)) {</span>
+                    <span class="s1">length </span><span class="s2">+= </span><span class="s1">primitiveLength</span><span class="s2">(</span><span class="s1">value</span><span class="s2">);</span>
+                <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">holder </span><span class="s2">=== </span><span class="s1">root</span><span class="s2">) {</span>
+                    <span class="s1">length </span><span class="s2">+= </span><span class="s4">9</span><span class="s2">; </span><span class="s5">// FIXME: that's the length of undefined, should we normalize behaviour to convert it to null?</span>
+                <span class="s2">}</span>
+                <span class="s0">break</span><span class="s2">;</span>
+
+            <span class="s0">case </span><span class="s1">OBJECT</span><span class="s2">: {</span>
+                <span class="s0">if </span><span class="s2">(</span><span class="s1">visited</span><span class="s2">.</span><span class="s1">has</span><span class="s2">(</span><span class="s1">value</span><span class="s2">)) {</span>
+                    <span class="s1">duplicate</span><span class="s2">.</span><span class="s1">add</span><span class="s2">(</span><span class="s1">value</span><span class="s2">);</span>
+                    <span class="s1">length </span><span class="s2">+= </span><span class="s1">visited</span><span class="s2">.</span><span class="s1">get</span><span class="s2">(</span><span class="s1">value</span><span class="s2">);</span>
+                    <span class="s0">break</span><span class="s2">;</span>
+                <span class="s2">}</span>
+
+                <span class="s0">const </span><span class="s1">valueLength </span><span class="s2">= </span><span class="s1">length</span><span class="s2">;</span>
+                <span class="s0">let </span><span class="s1">entries </span><span class="s2">= </span><span class="s4">0</span><span class="s2">;</span>
+
+                <span class="s1">length </span><span class="s2">+= </span><span class="s4">2</span><span class="s2">; </span><span class="s5">// {}</span>
+
+                <span class="s1">stack</span><span class="s2">.</span><span class="s1">add</span><span class="s2">(</span><span class="s1">value</span><span class="s2">);</span>
+
+                <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">value</span><span class="s2">) {</span>
+                    <span class="s0">if </span><span class="s2">(</span><span class="s1">hasOwnProperty</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s1">value</span><span class="s2">, </span><span class="s1">key</span><span class="s2">) &amp;&amp; (</span><span class="s1">allowlist </span><span class="s2">=== </span><span class="s0">null </span><span class="s2">|| </span><span class="s1">allowlist</span><span class="s2">.</span><span class="s1">has</span><span class="s2">(</span><span class="s1">key</span><span class="s2">))) {</span>
+                        <span class="s0">const </span><span class="s1">prevLength </span><span class="s2">= </span><span class="s1">length</span><span class="s2">;</span>
+                        <span class="s1">walk</span><span class="s2">(</span><span class="s1">value</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">value</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]);</span>
+
+                        <span class="s0">if </span><span class="s2">(</span><span class="s1">prevLength </span><span class="s2">!== </span><span class="s1">length</span><span class="s2">) {</span>
+                            <span class="s5">// value is printed</span>
+                            <span class="s1">length </span><span class="s2">+= </span><span class="s1">stringLength</span><span class="s2">(</span><span class="s1">key</span><span class="s2">) + </span><span class="s4">1</span><span class="s2">; </span><span class="s5">// &quot;key&quot;:</span>
+                            <span class="s1">entries</span><span class="s2">++;</span>
+                        <span class="s2">}</span>
+                    <span class="s2">}</span>
+                <span class="s2">}</span>
+
+                <span class="s0">if </span><span class="s2">(</span><span class="s1">entries </span><span class="s2">&gt; </span><span class="s4">1</span><span class="s2">) {</span>
+                    <span class="s1">length </span><span class="s2">+= </span><span class="s1">entries </span><span class="s2">- </span><span class="s4">1</span><span class="s2">; </span><span class="s5">// commas</span>
+                <span class="s2">}</span>
+
+                <span class="s1">stack</span><span class="s2">.</span><span class="s1">delete</span><span class="s2">(</span><span class="s1">value</span><span class="s2">);</span>
+
+                <span class="s0">if </span><span class="s2">(</span><span class="s1">space </span><span class="s2">&gt; </span><span class="s4">0 </span><span class="s2">&amp;&amp; </span><span class="s1">entries </span><span class="s2">&gt; </span><span class="s4">0</span><span class="s2">) {</span>
+                    <span class="s1">length </span><span class="s2">+= (</span><span class="s4">1 </span><span class="s2">+ (</span><span class="s1">stack</span><span class="s2">.</span><span class="s1">size </span><span class="s2">+ </span><span class="s4">1</span><span class="s2">) * </span><span class="s1">space </span><span class="s2">+ </span><span class="s4">1</span><span class="s2">) * </span><span class="s1">entries</span><span class="s2">; </span><span class="s5">// for each key-value: \n{space}</span>
+                    <span class="s1">length </span><span class="s2">+= </span><span class="s4">1 </span><span class="s2">+ </span><span class="s1">stack</span><span class="s2">.</span><span class="s1">size </span><span class="s2">* </span><span class="s1">space</span><span class="s2">; </span><span class="s5">// for }</span>
+                <span class="s2">}</span>
+
+                <span class="s1">visited</span><span class="s2">.</span><span class="s1">set</span><span class="s2">(</span><span class="s1">value</span><span class="s2">, </span><span class="s1">length </span><span class="s2">- </span><span class="s1">valueLength</span><span class="s2">);</span>
+
+                <span class="s0">break</span><span class="s2">;</span>
+            <span class="s2">}</span>
+
+            <span class="s0">case </span><span class="s1">ARRAY</span><span class="s2">: {</span>
+                <span class="s0">if </span><span class="s2">(</span><span class="s1">visited</span><span class="s2">.</span><span class="s1">has</span><span class="s2">(</span><span class="s1">value</span><span class="s2">)) {</span>
+                    <span class="s1">duplicate</span><span class="s2">.</span><span class="s1">add</span><span class="s2">(</span><span class="s1">value</span><span class="s2">);</span>
+                    <span class="s1">length </span><span class="s2">+= </span><span class="s1">visited</span><span class="s2">.</span><span class="s1">get</span><span class="s2">(</span><span class="s1">value</span><span class="s2">);</span>
+                    <span class="s0">break</span><span class="s2">;</span>
+                <span class="s2">}</span>
+
+                <span class="s0">const </span><span class="s1">valueLength </span><span class="s2">= </span><span class="s1">length</span><span class="s2">;</span>
+
+                <span class="s1">length </span><span class="s2">+= </span><span class="s4">2</span><span class="s2">; </span><span class="s5">// []</span>
+
+                <span class="s1">stack</span><span class="s2">.</span><span class="s1">add</span><span class="s2">(</span><span class="s1">value</span><span class="s2">);</span>
+
+                <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s4">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">value</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+                    <span class="s1">walk</span><span class="s2">(</span><span class="s1">value</span><span class="s2">, </span><span class="s1">i</span><span class="s2">, </span><span class="s1">value</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]);</span>
+                <span class="s2">}</span>
+
+                <span class="s0">if </span><span class="s2">(</span><span class="s1">value</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s4">1</span><span class="s2">) {</span>
+                    <span class="s1">length </span><span class="s2">+= </span><span class="s1">value</span><span class="s2">.</span><span class="s1">length </span><span class="s2">- </span><span class="s4">1</span><span class="s2">; </span><span class="s5">// commas</span>
+                <span class="s2">}</span>
+
+                <span class="s1">stack</span><span class="s2">.</span><span class="s1">delete</span><span class="s2">(</span><span class="s1">value</span><span class="s2">);</span>
+
+                <span class="s0">if </span><span class="s2">(</span><span class="s1">space </span><span class="s2">&gt; </span><span class="s4">0 </span><span class="s2">&amp;&amp; </span><span class="s1">value</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s4">0</span><span class="s2">) {</span>
+                    <span class="s1">length </span><span class="s2">+= (</span><span class="s4">1 </span><span class="s2">+ (</span><span class="s1">stack</span><span class="s2">.</span><span class="s1">size </span><span class="s2">+ </span><span class="s4">1</span><span class="s2">) * </span><span class="s1">space</span><span class="s2">) * </span><span class="s1">value</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s5">// for each element: \n{space}</span>
+                    <span class="s1">length </span><span class="s2">+= </span><span class="s4">1 </span><span class="s2">+ </span><span class="s1">stack</span><span class="s2">.</span><span class="s1">size </span><span class="s2">* </span><span class="s1">space</span><span class="s2">; </span><span class="s5">// for ]</span>
+                <span class="s2">}</span>
+
+                <span class="s1">visited</span><span class="s2">.</span><span class="s1">set</span><span class="s2">(</span><span class="s1">value</span><span class="s2">, </span><span class="s1">length </span><span class="s2">- </span><span class="s1">valueLength</span><span class="s2">);</span>
+
+                <span class="s0">break</span><span class="s2">;</span>
+            <span class="s2">}</span>
+
+            <span class="s0">case </span><span class="s1">PROMISE</span><span class="s2">:</span>
+            <span class="s0">case </span><span class="s1">STRING_STREAM</span><span class="s2">:</span>
+                <span class="s1">async</span><span class="s2">.</span><span class="s1">add</span><span class="s2">(</span><span class="s1">value</span><span class="s2">);</span>
+                <span class="s0">break</span><span class="s2">;</span>
+
+            <span class="s0">case </span><span class="s1">OBJECT_STREAM</span><span class="s2">:</span>
+                <span class="s1">length </span><span class="s2">+= </span><span class="s4">2</span><span class="s2">; </span><span class="s5">// []</span>
+                <span class="s1">async</span><span class="s2">.</span><span class="s1">add</span><span class="s2">(</span><span class="s1">value</span><span class="s2">);</span>
+                <span class="s0">break</span><span class="s2">;</span>
+        <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s0">let </span><span class="s1">allowlist </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+    <span class="s1">replacer </span><span class="s2">= </span><span class="s1">normalizeReplacer</span><span class="s2">(</span><span class="s1">replacer</span><span class="s2">);</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">replacer</span><span class="s2">)) {</span>
+        <span class="s1">allowlist </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Set</span><span class="s2">(</span><span class="s1">replacer</span><span class="s2">);</span>
+        <span class="s1">replacer </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+    <span class="s2">}</span>
+
+    <span class="s1">space </span><span class="s2">= </span><span class="s1">spaceLength</span><span class="s2">(</span><span class="s1">space</span><span class="s2">);</span>
+    <span class="s1">options </span><span class="s2">= </span><span class="s1">options </span><span class="s2">|| {};</span>
+
+    <span class="s0">const </span><span class="s1">visited </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Map</span><span class="s2">();</span>
+    <span class="s0">const </span><span class="s1">stack </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Set</span><span class="s2">();</span>
+    <span class="s0">const </span><span class="s1">duplicate </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Set</span><span class="s2">();</span>
+    <span class="s0">const </span><span class="s1">circular </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Set</span><span class="s2">();</span>
+    <span class="s0">const </span><span class="s1">async </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Set</span><span class="s2">();</span>
+    <span class="s0">const </span><span class="s1">getType </span><span class="s2">= </span><span class="s1">options</span><span class="s2">.</span><span class="s1">async </span><span class="s2">? </span><span class="s1">getTypeAsync </span><span class="s2">: </span><span class="s1">getTypeNative</span><span class="s2">;</span>
+    <span class="s0">const </span><span class="s1">root </span><span class="s2">= { </span><span class="s3">''</span><span class="s2">: </span><span class="s1">value </span><span class="s2">};</span>
+    <span class="s0">let </span><span class="s1">stop </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+    <span class="s0">let </span><span class="s1">length </span><span class="s2">= </span><span class="s4">0</span><span class="s2">;</span>
+
+    <span class="s1">walk</span><span class="s2">(</span><span class="s1">root</span><span class="s2">, </span><span class="s3">''</span><span class="s2">, </span><span class="s1">value</span><span class="s2">);</span>
+
+    <span class="s0">return </span><span class="s2">{</span>
+        <span class="s1">minLength</span><span class="s2">: </span><span class="s1">isNaN</span><span class="s2">(</span><span class="s1">length</span><span class="s2">) ? </span><span class="s1">Infinity </span><span class="s2">: </span><span class="s1">length</span><span class="s2">,</span>
+        <span class="s1">circular</span><span class="s2">: [</span><span class="s1">...circular</span><span class="s2">],</span>
+        <span class="s1">duplicate</span><span class="s2">: [</span><span class="s1">...duplicate</span><span class="s2">],</span>
+        <span class="s1">async</span><span class="s2">: [</span><span class="s1">...async</span><span class="s2">]</span>
+    <span class="s2">};</span>
+<span class="s2">};</span>
+</pre>
+</body>
+</html>

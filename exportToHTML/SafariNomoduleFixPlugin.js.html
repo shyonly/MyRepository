@@ -1,0 +1,93 @@
+<html>
+<head>
+<title>SafariNomoduleFixPlugin.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+SafariNomoduleFixPlugin.js</font>
+</center></td></tr></table>
+<pre><span class="s0">// https://gist.github.com/samthor/64b114e4a4f539915a95b91ffd340acc</span>
+<span class="s2">const </span><span class="s1">safariFix </span><span class="s3">= </span><span class="s4">`!function(){var e=document,t=e.createElement(&quot;script&quot;);if(!(&quot;noModule&quot;in t)&amp;&amp;&quot;onbeforeload&quot;in t){var n=!1;e.addEventListener(&quot;beforeload&quot;,function(e){if(e.target===t)n=!0;else if(!e.target.hasAttribute(&quot;nomodule&quot;)||!n)return;e.preventDefault()},!0),t.type=&quot;module&quot;,t.src=&quot;.&quot;,e.head.appendChild(t),t.remove()}}();`</span>
+
+<span class="s2">const </span><span class="s1">path </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'path'</span><span class="s3">)</span>
+<span class="s2">const </span><span class="s1">HtmlWebpackPlugin </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'html-webpack-plugin'</span><span class="s3">)</span>
+<span class="s2">const </span><span class="s3">{ </span><span class="s1">semver </span><span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'@vue/cli-shared-utils'</span><span class="s3">)</span>
+<span class="s2">const </span><span class="s3">{ </span><span class="s1">projectModuleTargets </span><span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'../util/targets'</span><span class="s3">)</span>
+
+<span class="s2">const </span><span class="s1">minSafariVersion </span><span class="s3">= </span><span class="s1">projectModuleTargets</span><span class="s3">.</span><span class="s1">safari</span>
+<span class="s2">const </span><span class="s1">minIOSVersion </span><span class="s3">= </span><span class="s1">projectModuleTargets</span><span class="s3">.</span><span class="s1">ios</span>
+<span class="s2">const </span><span class="s1">supportsSafari10 </span><span class="s3">=</span>
+  <span class="s3">(</span><span class="s1">minSafariVersion </span><span class="s3">&amp;&amp; </span><span class="s1">semver</span><span class="s3">.</span><span class="s1">lt</span><span class="s3">(</span><span class="s1">semver</span><span class="s3">.</span><span class="s1">coerce</span><span class="s3">(</span><span class="s1">minSafariVersion</span><span class="s3">), </span><span class="s4">'11.0.0'</span><span class="s3">)) ||</span>
+  <span class="s3">(</span><span class="s1">minIOSVersion </span><span class="s3">&amp;&amp; </span><span class="s1">semver</span><span class="s3">.</span><span class="s1">lt</span><span class="s3">(</span><span class="s1">semver</span><span class="s3">.</span><span class="s1">coerce</span><span class="s3">(</span><span class="s1">minIOSVersion</span><span class="s3">), </span><span class="s4">'11.0.0'</span><span class="s3">))</span>
+<span class="s2">const </span><span class="s1">needsSafariFix </span><span class="s3">= </span><span class="s1">supportsSafari10</span>
+
+<span class="s2">class </span><span class="s1">SafariNomoduleFixPlugin </span><span class="s3">{</span>
+  <span class="s1">constructor </span><span class="s3">({ </span><span class="s1">unsafeInline</span><span class="s3">, </span><span class="s1">jsDirectory </span><span class="s3">}) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">unsafeInline </span><span class="s3">= </span><span class="s1">unsafeInline</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">jsDirectory </span><span class="s3">= </span><span class="s1">jsDirectory</span>
+  <span class="s3">}</span>
+
+  <span class="s1">apply </span><span class="s3">(</span><span class="s1">compiler</span><span class="s3">) {</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">needsSafariFix</span><span class="s3">) {</span>
+      <span class="s2">return</span>
+    <span class="s3">}</span>
+    <span class="s2">const </span><span class="s3">{ </span><span class="s1">RawSource </span><span class="s3">} = </span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">webpack</span>
+      <span class="s3">? </span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">webpack</span><span class="s3">.</span><span class="s1">sources</span>
+      <span class="s3">: </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'webpack-sources'</span><span class="s3">)</span>
+
+    <span class="s2">const </span><span class="s1">ID </span><span class="s3">= </span><span class="s4">'SafariNomoduleFixPlugin'</span>
+    <span class="s1">compiler</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">compilation</span><span class="s3">.</span><span class="s1">tap</span><span class="s3">(</span><span class="s1">ID</span><span class="s3">, </span><span class="s1">compilation </span><span class="s3">=&gt; {</span>
+      <span class="s1">HtmlWebpackPlugin</span><span class="s3">.</span><span class="s1">getHooks</span><span class="s3">(</span><span class="s1">compilation</span><span class="s3">).</span><span class="s1">alterAssetTagGroups</span><span class="s3">.</span><span class="s1">tap</span><span class="s3">(</span><span class="s1">ID</span><span class="s3">, </span><span class="s1">data </span><span class="s3">=&gt; {</span>
+        <span class="s2">let </span><span class="s1">scriptTag</span>
+
+        <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">unsafeInline</span><span class="s3">) {</span>
+          <span class="s0">// inject inline Safari 10 nomodule fix</span>
+          <span class="s1">scriptTag </span><span class="s3">= {</span>
+            <span class="s1">tagName</span><span class="s3">: </span><span class="s4">'script'</span><span class="s3">,</span>
+            <span class="s1">closeTag</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+            <span class="s1">innerHTML</span><span class="s3">: </span><span class="s1">safariFix</span>
+          <span class="s3">}</span>
+        <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+          <span class="s0">// inject the fix as an external script</span>
+          <span class="s2">const </span><span class="s1">safariFixPath </span><span class="s3">= </span><span class="s1">path</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">jsDirectory</span><span class="s3">, </span><span class="s4">'safari-nomodule-fix.js'</span><span class="s3">)</span>
+          <span class="s2">const </span><span class="s1">fullSafariFixPath </span><span class="s3">= </span><span class="s1">path</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">compilation</span><span class="s3">.</span><span class="s1">options</span><span class="s3">.</span><span class="s1">output</span><span class="s3">.</span><span class="s1">publicPath</span><span class="s3">, </span><span class="s1">safariFixPath</span><span class="s3">)</span>
+          <span class="s1">compilation</span><span class="s3">.</span><span class="s1">assets</span><span class="s3">[</span><span class="s1">safariFixPath</span><span class="s3">] = </span><span class="s2">new </span><span class="s1">RawSource</span><span class="s3">(</span><span class="s1">safariFix</span><span class="s3">)</span>
+          <span class="s1">scriptTag </span><span class="s3">= {</span>
+            <span class="s1">tagName</span><span class="s3">: </span><span class="s4">'script'</span><span class="s3">,</span>
+            <span class="s1">closeTag</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+            <span class="s1">attributes</span><span class="s3">: {</span>
+              <span class="s1">src</span><span class="s3">: </span><span class="s1">fullSafariFixPath</span>
+            <span class="s3">}</span>
+          <span class="s3">}</span>
+        <span class="s3">}</span>
+
+        <span class="s2">let </span><span class="s1">tags </span><span class="s3">= </span><span class="s1">data</span><span class="s3">.</span><span class="s1">bodyTags</span>
+        <span class="s2">if </span><span class="s3">(</span><span class="s1">data</span><span class="s3">.</span><span class="s1">plugin</span><span class="s3">.</span><span class="s1">options</span><span class="s3">.</span><span class="s1">scriptLoading </span><span class="s3">=== </span><span class="s4">'defer'</span><span class="s3">) {</span>
+          <span class="s1">tags </span><span class="s3">= </span><span class="s1">data</span><span class="s3">.</span><span class="s1">headTags</span>
+        <span class="s3">}</span>
+
+        <span class="s0">// insert just before the first actual script tag,</span>
+        <span class="s0">// and after all other tags such as `meta`</span>
+        <span class="s2">const </span><span class="s1">firstScriptIndex </span><span class="s3">= </span><span class="s1">tags</span><span class="s3">.</span><span class="s1">findIndex</span><span class="s3">(</span><span class="s1">tag </span><span class="s3">=&gt; </span><span class="s1">tag</span><span class="s3">.</span><span class="s1">tagName </span><span class="s3">=== </span><span class="s4">'script'</span><span class="s3">)</span>
+        <span class="s1">tags</span><span class="s3">.</span><span class="s1">splice</span><span class="s3">(</span><span class="s1">firstScriptIndex</span><span class="s3">, </span><span class="s5">0</span><span class="s3">, </span><span class="s1">scriptTag</span><span class="s3">)</span>
+      <span class="s3">})</span>
+    <span class="s3">})</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">SafariNomoduleFixPlugin</span><span class="s3">.</span><span class="s1">safariFix </span><span class="s3">= </span><span class="s1">safariFix</span>
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">SafariNomoduleFixPlugin</span>
+</pre>
+</body>
+</html>

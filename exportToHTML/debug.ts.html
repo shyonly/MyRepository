@@ -1,0 +1,128 @@
+<html>
+<head>
+<title>debug.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #7a7e85;}
+.s5 { color: #42c3d4;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+debug.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">config from </span><span class="s2">'../config'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">noop</span><span class="s3">, </span><span class="s1">isArray</span><span class="s3">, </span><span class="s1">isFunction </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'shared/util'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s3">{ </span><span class="s1">Component </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'types/component'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">currentInstance </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'v3/currentInstance'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">getComponentName </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'../vdom/create-component'</span>
+
+<span class="s0">export let </span><span class="s1">warn</span><span class="s3">: (</span><span class="s1">msg</span><span class="s3">: </span><span class="s1">string</span><span class="s3">, </span><span class="s1">vm</span><span class="s3">?: </span><span class="s1">Component </span><span class="s3">| </span><span class="s0">null</span><span class="s3">) =&gt; </span><span class="s0">void </span><span class="s3">= </span><span class="s1">noop</span>
+<span class="s0">export let </span><span class="s1">tip </span><span class="s3">= </span><span class="s1">noop</span>
+<span class="s0">export let </span><span class="s1">generateComponentTrace</span><span class="s3">: (</span><span class="s1">vm</span><span class="s3">: </span><span class="s1">Component</span><span class="s3">) =&gt; </span><span class="s1">string </span><span class="s4">// work around flow check</span>
+<span class="s0">export let </span><span class="s1">formatComponentName</span><span class="s3">: (</span><span class="s1">vm</span><span class="s3">: </span><span class="s1">Component</span><span class="s3">, </span><span class="s1">includeFile</span><span class="s3">?: </span><span class="s0">false</span><span class="s3">) =&gt; </span><span class="s1">string</span>
+
+<span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__</span><span class="s3">) {</span>
+  <span class="s0">const </span><span class="s1">hasConsole </span><span class="s3">= </span><span class="s0">typeof </span><span class="s1">console </span><span class="s3">!== </span><span class="s2">'undefined'</span>
+  <span class="s0">const </span><span class="s1">classifyRE </span><span class="s3">= </span><span class="s5">/(?:^|[-_])(\w)/g</span>
+  <span class="s0">const </span><span class="s1">classify </span><span class="s3">= </span><span class="s1">str </span><span class="s3">=&gt;</span>
+    <span class="s1">str</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s1">classifyRE</span><span class="s3">, </span><span class="s1">c </span><span class="s3">=&gt; </span><span class="s1">c</span><span class="s3">.</span><span class="s1">toUpperCase</span><span class="s3">()).</span><span class="s1">replace</span><span class="s3">(</span><span class="s5">/[-_]/g</span><span class="s3">, </span><span class="s2">''</span><span class="s3">)</span>
+
+  <span class="s1">warn </span><span class="s3">= (</span><span class="s1">msg</span><span class="s3">, </span><span class="s1">vm </span><span class="s3">= </span><span class="s1">currentInstance</span><span class="s3">) =&gt; {</span>
+    <span class="s0">const </span><span class="s1">trace </span><span class="s3">= </span><span class="s1">vm </span><span class="s3">? </span><span class="s1">generateComponentTrace</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">) : </span><span class="s2">''</span>
+
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">config</span><span class="s3">.</span><span class="s1">warnHandler</span><span class="s3">) {</span>
+      <span class="s1">config</span><span class="s3">.</span><span class="s1">warnHandler</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s0">null</span><span class="s3">, </span><span class="s1">msg</span><span class="s3">, </span><span class="s1">vm</span><span class="s3">, </span><span class="s1">trace</span><span class="s3">)</span>
+    <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s1">hasConsole </span><span class="s3">&amp;&amp; !</span><span class="s1">config</span><span class="s3">.</span><span class="s1">silent</span><span class="s3">) {</span>
+      <span class="s1">console</span><span class="s3">.</span><span class="s1">error</span><span class="s3">(</span><span class="s2">`[Vue warn]: </span><span class="s1">$</span><span class="s3">{</span><span class="s1">msg</span><span class="s3">}</span><span class="s1">$</span><span class="s3">{</span><span class="s1">trace</span><span class="s3">}</span><span class="s2">`</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">tip </span><span class="s3">= (</span><span class="s1">msg</span><span class="s3">, </span><span class="s1">vm</span><span class="s3">) =&gt; {</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">hasConsole </span><span class="s3">&amp;&amp; !</span><span class="s1">config</span><span class="s3">.</span><span class="s1">silent</span><span class="s3">) {</span>
+      <span class="s1">console</span><span class="s3">.</span><span class="s1">warn</span><span class="s3">(</span><span class="s2">`[Vue tip]: </span><span class="s1">$</span><span class="s3">{</span><span class="s1">msg</span><span class="s3">}</span><span class="s2">` </span><span class="s3">+ (</span><span class="s1">vm </span><span class="s3">? </span><span class="s1">generateComponentTrace</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">) : </span><span class="s2">''</span><span class="s3">))</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">formatComponentName </span><span class="s3">= (</span><span class="s1">vm</span><span class="s3">, </span><span class="s1">includeFile</span><span class="s3">) =&gt; {</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$root </span><span class="s3">=== </span><span class="s1">vm</span><span class="s3">) {</span>
+      <span class="s0">return </span><span class="s2">'&lt;Root&gt;'</span>
+    <span class="s3">}</span>
+    <span class="s0">const </span><span class="s1">options </span><span class="s3">=</span>
+      <span class="s1">isFunction</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">) &amp;&amp; (</span><span class="s1">vm </span><span class="s3">as </span><span class="s1">any</span><span class="s3">).</span><span class="s1">cid </span><span class="s3">!= </span><span class="s0">null</span>
+        <span class="s3">? (</span><span class="s1">vm </span><span class="s3">as </span><span class="s1">any</span><span class="s3">).</span><span class="s1">options</span>
+        <span class="s3">: </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_isVue</span>
+        <span class="s3">? </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$options </span><span class="s3">|| (</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">constructor </span><span class="s3">as </span><span class="s1">any</span><span class="s3">).</span><span class="s1">options</span>
+        <span class="s3">: </span><span class="s1">vm</span>
+    <span class="s0">let </span><span class="s1">name </span><span class="s3">= </span><span class="s1">getComponentName</span><span class="s3">(</span><span class="s1">options</span><span class="s3">)</span>
+    <span class="s0">const </span><span class="s1">file </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">__file</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">name </span><span class="s3">&amp;&amp; </span><span class="s1">file</span><span class="s3">) {</span>
+      <span class="s0">const </span><span class="s1">match </span><span class="s3">= </span><span class="s1">file</span><span class="s3">.</span><span class="s1">match</span><span class="s3">(</span><span class="s5">/([^/\\]+)\.vue$/</span><span class="s3">)</span>
+      <span class="s1">name </span><span class="s3">= </span><span class="s1">match </span><span class="s3">&amp;&amp; </span><span class="s1">match</span><span class="s3">[</span><span class="s6">1</span><span class="s3">]</span>
+    <span class="s3">}</span>
+
+    <span class="s0">return </span><span class="s3">(</span>
+      <span class="s3">(</span><span class="s1">name </span><span class="s3">? </span><span class="s2">`&lt;</span><span class="s1">$</span><span class="s3">{</span><span class="s1">classify</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)}</span><span class="s2">&gt;` </span><span class="s3">: </span><span class="s2">`&lt;Anonymous&gt;`</span><span class="s3">) +</span>
+      <span class="s3">(</span><span class="s1">file </span><span class="s3">&amp;&amp; </span><span class="s1">includeFile </span><span class="s3">!== </span><span class="s0">false </span><span class="s3">? </span><span class="s2">` at </span><span class="s1">$</span><span class="s3">{</span><span class="s1">file</span><span class="s3">}</span><span class="s2">` </span><span class="s3">: </span><span class="s2">''</span><span class="s3">)</span>
+    <span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s0">const </span><span class="s1">repeat </span><span class="s3">= (</span><span class="s1">str</span><span class="s3">, </span><span class="s1">n</span><span class="s3">) =&gt; {</span>
+    <span class="s0">let </span><span class="s1">res </span><span class="s3">= </span><span class="s2">''</span>
+    <span class="s0">while </span><span class="s3">(</span><span class="s1">n</span><span class="s3">) {</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">n </span><span class="s3">% </span><span class="s6">2 </span><span class="s3">=== </span><span class="s6">1</span><span class="s3">) </span><span class="s1">res </span><span class="s3">+= </span><span class="s1">str</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">n </span><span class="s3">&gt; </span><span class="s6">1</span><span class="s3">) </span><span class="s1">str </span><span class="s3">+= </span><span class="s1">str</span>
+      <span class="s1">n </span><span class="s3">&gt;&gt;= </span><span class="s6">1</span>
+    <span class="s3">}</span>
+    <span class="s0">return </span><span class="s1">res</span>
+  <span class="s3">}</span>
+
+  <span class="s1">generateComponentTrace </span><span class="s3">= (</span><span class="s1">vm</span><span class="s3">: </span><span class="s1">Component </span><span class="s3">| </span><span class="s1">undefined</span><span class="s3">) =&gt; {</span>
+    <span class="s0">if </span><span class="s3">((</span><span class="s1">vm </span><span class="s3">as </span><span class="s1">any</span><span class="s3">).</span><span class="s1">_isVue </span><span class="s3">&amp;&amp; </span><span class="s1">vm</span><span class="s3">!.</span><span class="s1">$parent</span><span class="s3">) {</span>
+      <span class="s0">const </span><span class="s1">tree</span><span class="s3">: </span><span class="s1">any</span><span class="s3">[] = []</span>
+      <span class="s0">let </span><span class="s1">currentRecursiveSequence </span><span class="s3">= </span><span class="s6">0</span>
+      <span class="s0">while </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">) {</span>
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">tree</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s6">0</span><span class="s3">) {</span>
+          <span class="s0">const </span><span class="s1">last </span><span class="s3">= </span><span class="s1">tree</span><span class="s3">[</span><span class="s1">tree</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s6">1</span><span class="s3">]</span>
+          <span class="s0">if </span><span class="s3">(</span><span class="s1">last</span><span class="s3">.</span><span class="s1">constructor </span><span class="s3">=== </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">constructor</span><span class="s3">) {</span>
+            <span class="s1">currentRecursiveSequence</span><span class="s3">++</span>
+            <span class="s1">vm </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">!</span>
+            <span class="s0">continue</span>
+          <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s1">currentRecursiveSequence </span><span class="s3">&gt; </span><span class="s6">0</span><span class="s3">) {</span>
+            <span class="s1">tree</span><span class="s3">[</span><span class="s1">tree</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s6">1</span><span class="s3">] = [</span><span class="s1">last</span><span class="s3">, </span><span class="s1">currentRecursiveSequence</span><span class="s3">]</span>
+            <span class="s1">currentRecursiveSequence </span><span class="s3">= </span><span class="s6">0</span>
+          <span class="s3">}</span>
+        <span class="s3">}</span>
+        <span class="s1">tree</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">)</span>
+        <span class="s1">vm </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">!</span>
+      <span class="s3">}</span>
+      <span class="s0">return </span><span class="s3">(</span>
+        <span class="s2">'</span><span class="s0">\n\n</span><span class="s2">found in</span><span class="s0">\n\n</span><span class="s2">' </span><span class="s3">+</span>
+        <span class="s1">tree</span>
+          <span class="s3">.</span><span class="s1">map</span><span class="s3">(</span>
+            <span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s1">i</span><span class="s3">) =&gt;</span>
+              <span class="s2">`</span><span class="s1">$</span><span class="s3">{</span><span class="s1">i </span><span class="s3">=== </span><span class="s6">0 </span><span class="s3">? </span><span class="s2">'---&gt; ' </span><span class="s3">: </span><span class="s1">repeat</span><span class="s3">(</span><span class="s2">' '</span><span class="s3">, </span><span class="s6">5 </span><span class="s3">+ </span><span class="s1">i </span><span class="s3">* </span><span class="s6">2</span><span class="s3">)}</span><span class="s1">$</span><span class="s3">{</span>
+                <span class="s1">isArray</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">)</span>
+                  <span class="s3">? </span><span class="s2">`</span><span class="s1">$</span><span class="s3">{</span><span class="s1">formatComponentName</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">[</span><span class="s6">0</span><span class="s3">])}</span><span class="s2">... (</span><span class="s1">$</span><span class="s3">{</span>
+                      <span class="s1">vm</span><span class="s3">[</span><span class="s6">1</span><span class="s3">]</span>
+                    <span class="s3">} </span><span class="s2">recursive calls)`</span>
+                  <span class="s3">: </span><span class="s1">formatComponentName</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">)</span>
+              <span class="s3">}</span><span class="s2">`</span>
+          <span class="s3">)</span>
+          <span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s2">'</span><span class="s0">\n</span><span class="s2">'</span><span class="s3">)</span>
+      <span class="s3">)</span>
+    <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+      <span class="s0">return </span><span class="s2">`</span><span class="s0">\n\n</span><span class="s2">(found in </span><span class="s1">$</span><span class="s3">{</span><span class="s1">formatComponentName</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">!)}</span><span class="s2">)`</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

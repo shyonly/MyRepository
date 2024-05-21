@@ -1,0 +1,933 @@
+<html>
+<head>
+<title>Tokenizer.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+.s6 { color: #5f826b; font-style: italic;}
+.s7 { color: #67a37c; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+Tokenizer.js</font>
+</center></td></tr></table>
+<pre><span class="s0">&quot;use strict&quot;</span><span class="s1">;</span>
+<span class="s3">var </span><span class="s2">__importDefault </span><span class="s1">= (</span><span class="s3">this </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">__importDefault</span><span class="s1">) || </span><span class="s3">function </span><span class="s1">(</span><span class="s2">mod</span><span class="s1">) {</span>
+    <span class="s3">return </span><span class="s1">(</span><span class="s2">mod </span><span class="s1">&amp;&amp; </span><span class="s2">mod</span><span class="s1">.</span><span class="s2">__esModule</span><span class="s1">) ? </span><span class="s2">mod </span><span class="s1">: { </span><span class="s0">&quot;default&quot;</span><span class="s1">: </span><span class="s2">mod </span><span class="s1">};</span>
+<span class="s1">};</span>
+<span class="s2">Object</span><span class="s1">.</span><span class="s2">defineProperty</span><span class="s1">(</span><span class="s2">exports</span><span class="s1">, </span><span class="s0">&quot;__esModule&quot;</span><span class="s1">, { </span><span class="s2">value</span><span class="s1">: </span><span class="s3">true </span><span class="s1">});</span>
+<span class="s3">var </span><span class="s2">decode_codepoint_1 </span><span class="s1">= </span><span class="s2">__importDefault</span><span class="s1">(</span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;entities/lib/decode_codepoint&quot;</span><span class="s1">));</span>
+<span class="s3">var </span><span class="s2">entities_json_1 </span><span class="s1">= </span><span class="s2">__importDefault</span><span class="s1">(</span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;entities/lib/maps/entities.json&quot;</span><span class="s1">));</span>
+<span class="s3">var </span><span class="s2">legacy_json_1 </span><span class="s1">= </span><span class="s2">__importDefault</span><span class="s1">(</span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;entities/lib/maps/legacy.json&quot;</span><span class="s1">));</span>
+<span class="s3">var </span><span class="s2">xml_json_1 </span><span class="s1">= </span><span class="s2">__importDefault</span><span class="s1">(</span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;entities/lib/maps/xml.json&quot;</span><span class="s1">));</span>
+<span class="s3">function </span><span class="s2">whitespace</span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+    <span class="s3">return </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot; &quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;</span><span class="s3">\n</span><span class="s0">&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;</span><span class="s3">\t</span><span class="s0">&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;</span><span class="s3">\f</span><span class="s0">&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;</span><span class="s3">\r</span><span class="s0">&quot;</span><span class="s1">;</span>
+<span class="s1">}</span>
+<span class="s3">function </span><span class="s2">isASCIIAlpha</span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+    <span class="s3">return </span><span class="s1">(</span><span class="s2">c </span><span class="s1">&gt;= </span><span class="s0">&quot;a&quot; </span><span class="s1">&amp;&amp; </span><span class="s2">c </span><span class="s1">&lt;= </span><span class="s0">&quot;z&quot;</span><span class="s1">) || (</span><span class="s2">c </span><span class="s1">&gt;= </span><span class="s0">&quot;A&quot; </span><span class="s1">&amp;&amp; </span><span class="s2">c </span><span class="s1">&lt;= </span><span class="s0">&quot;Z&quot;</span><span class="s1">);</span>
+<span class="s1">}</span>
+<span class="s3">function </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s2">upper</span><span class="s1">, </span><span class="s2">SUCCESS</span><span class="s1">, </span><span class="s2">FAILURE</span><span class="s1">) {</span>
+    <span class="s3">var </span><span class="s2">lower </span><span class="s1">= </span><span class="s2">upper</span><span class="s1">.</span><span class="s2">toLowerCase</span><span class="s1">();</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">upper </span><span class="s1">=== </span><span class="s2">lower</span><span class="s1">) {</span>
+        <span class="s3">return function </span><span class="s1">(</span><span class="s2">t</span><span class="s1">, </span><span class="s2">c</span><span class="s1">) {</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s2">lower</span><span class="s1">) {</span>
+                <span class="s2">t</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">SUCCESS</span><span class="s1">;</span>
+            <span class="s1">}</span>
+            <span class="s3">else </span><span class="s1">{</span>
+                <span class="s2">t</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">FAILURE</span><span class="s1">;</span>
+                <span class="s2">t</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--;</span>
+            <span class="s1">}</span>
+        <span class="s1">};</span>
+    <span class="s1">}</span>
+    <span class="s3">return function </span><span class="s1">(</span><span class="s2">t</span><span class="s1">, </span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s2">lower </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s2">upper</span><span class="s1">) {</span>
+            <span class="s2">t</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">SUCCESS</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else </span><span class="s1">{</span>
+            <span class="s2">t</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">FAILURE</span><span class="s1">;</span>
+            <span class="s2">t</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+<span class="s1">}</span>
+<span class="s3">function </span><span class="s2">consumeSpecialNameChar</span><span class="s1">(</span><span class="s2">upper</span><span class="s1">, </span><span class="s2">NEXT_STATE</span><span class="s1">) {</span>
+    <span class="s3">var </span><span class="s2">lower </span><span class="s1">= </span><span class="s2">upper</span><span class="s1">.</span><span class="s2">toLowerCase</span><span class="s1">();</span>
+    <span class="s3">return function </span><span class="s1">(</span><span class="s2">t</span><span class="s1">, </span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s2">lower </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s2">upper</span><span class="s1">) {</span>
+            <span class="s2">t</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">NEXT_STATE</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else </span><span class="s1">{</span>
+            <span class="s2">t</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">3 </span><span class="s5">/* InTagName */</span><span class="s1">;</span>
+            <span class="s2">t</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--; </span><span class="s5">// Consume the token again</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+<span class="s1">}</span>
+<span class="s3">var </span><span class="s2">stateBeforeCdata1 </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;C&quot;</span><span class="s1">, </span><span class="s4">24 </span><span class="s5">/* BeforeCdata2 */</span><span class="s1">, </span><span class="s4">16 </span><span class="s5">/* InDeclaration */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeCdata2 </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;D&quot;</span><span class="s1">, </span><span class="s4">25 </span><span class="s5">/* BeforeCdata3 */</span><span class="s1">, </span><span class="s4">16 </span><span class="s5">/* InDeclaration */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeCdata3 </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;A&quot;</span><span class="s1">, </span><span class="s4">26 </span><span class="s5">/* BeforeCdata4 */</span><span class="s1">, </span><span class="s4">16 </span><span class="s5">/* InDeclaration */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeCdata4 </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;T&quot;</span><span class="s1">, </span><span class="s4">27 </span><span class="s5">/* BeforeCdata5 */</span><span class="s1">, </span><span class="s4">16 </span><span class="s5">/* InDeclaration */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeCdata5 </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;A&quot;</span><span class="s1">, </span><span class="s4">28 </span><span class="s5">/* BeforeCdata6 */</span><span class="s1">, </span><span class="s4">16 </span><span class="s5">/* InDeclaration */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeScript1 </span><span class="s1">= </span><span class="s2">consumeSpecialNameChar</span><span class="s1">(</span><span class="s0">&quot;R&quot;</span><span class="s1">, </span><span class="s4">35 </span><span class="s5">/* BeforeScript2 */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeScript2 </span><span class="s1">= </span><span class="s2">consumeSpecialNameChar</span><span class="s1">(</span><span class="s0">&quot;I&quot;</span><span class="s1">, </span><span class="s4">36 </span><span class="s5">/* BeforeScript3 */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeScript3 </span><span class="s1">= </span><span class="s2">consumeSpecialNameChar</span><span class="s1">(</span><span class="s0">&quot;P&quot;</span><span class="s1">, </span><span class="s4">37 </span><span class="s5">/* BeforeScript4 */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeScript4 </span><span class="s1">= </span><span class="s2">consumeSpecialNameChar</span><span class="s1">(</span><span class="s0">&quot;T&quot;</span><span class="s1">, </span><span class="s4">38 </span><span class="s5">/* BeforeScript5 */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateAfterScript1 </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;R&quot;</span><span class="s1">, </span><span class="s4">40 </span><span class="s5">/* AfterScript2 */</span><span class="s1">, </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateAfterScript2 </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;I&quot;</span><span class="s1">, </span><span class="s4">41 </span><span class="s5">/* AfterScript3 */</span><span class="s1">, </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateAfterScript3 </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;P&quot;</span><span class="s1">, </span><span class="s4">42 </span><span class="s5">/* AfterScript4 */</span><span class="s1">, </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateAfterScript4 </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;T&quot;</span><span class="s1">, </span><span class="s4">43 </span><span class="s5">/* AfterScript5 */</span><span class="s1">, </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeStyle1 </span><span class="s1">= </span><span class="s2">consumeSpecialNameChar</span><span class="s1">(</span><span class="s0">&quot;Y&quot;</span><span class="s1">, </span><span class="s4">45 </span><span class="s5">/* BeforeStyle2 */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeStyle2 </span><span class="s1">= </span><span class="s2">consumeSpecialNameChar</span><span class="s1">(</span><span class="s0">&quot;L&quot;</span><span class="s1">, </span><span class="s4">46 </span><span class="s5">/* BeforeStyle3 */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeStyle3 </span><span class="s1">= </span><span class="s2">consumeSpecialNameChar</span><span class="s1">(</span><span class="s0">&quot;E&quot;</span><span class="s1">, </span><span class="s4">47 </span><span class="s5">/* BeforeStyle4 */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateAfterStyle1 </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;Y&quot;</span><span class="s1">, </span><span class="s4">49 </span><span class="s5">/* AfterStyle2 */</span><span class="s1">, </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateAfterStyle2 </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;L&quot;</span><span class="s1">, </span><span class="s4">50 </span><span class="s5">/* AfterStyle3 */</span><span class="s1">, </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateAfterStyle3 </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;E&quot;</span><span class="s1">, </span><span class="s4">51 </span><span class="s5">/* AfterStyle4 */</span><span class="s1">, </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeSpecialT </span><span class="s1">= </span><span class="s2">consumeSpecialNameChar</span><span class="s1">(</span><span class="s0">&quot;I&quot;</span><span class="s1">, </span><span class="s4">54 </span><span class="s5">/* BeforeTitle1 */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeTitle1 </span><span class="s1">= </span><span class="s2">consumeSpecialNameChar</span><span class="s1">(</span><span class="s0">&quot;T&quot;</span><span class="s1">, </span><span class="s4">55 </span><span class="s5">/* BeforeTitle2 */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeTitle2 </span><span class="s1">= </span><span class="s2">consumeSpecialNameChar</span><span class="s1">(</span><span class="s0">&quot;L&quot;</span><span class="s1">, </span><span class="s4">56 </span><span class="s5">/* BeforeTitle3 */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeTitle3 </span><span class="s1">= </span><span class="s2">consumeSpecialNameChar</span><span class="s1">(</span><span class="s0">&quot;E&quot;</span><span class="s1">, </span><span class="s4">57 </span><span class="s5">/* BeforeTitle4 */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateAfterSpecialTEnd </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;I&quot;</span><span class="s1">, </span><span class="s4">58 </span><span class="s5">/* AfterTitle1 */</span><span class="s1">, </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateAfterTitle1 </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;T&quot;</span><span class="s1">, </span><span class="s4">59 </span><span class="s5">/* AfterTitle2 */</span><span class="s1">, </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateAfterTitle2 </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;L&quot;</span><span class="s1">, </span><span class="s4">60 </span><span class="s5">/* AfterTitle3 */</span><span class="s1">, </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateAfterTitle3 </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;E&quot;</span><span class="s1">, </span><span class="s4">61 </span><span class="s5">/* AfterTitle4 */</span><span class="s1">, </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeEntity </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;#&quot;</span><span class="s1">, </span><span class="s4">63 </span><span class="s5">/* BeforeNumericEntity */</span><span class="s1">, </span><span class="s4">64 </span><span class="s5">/* InNamedEntity */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">stateBeforeNumericEntity </span><span class="s1">= </span><span class="s2">ifElseState</span><span class="s1">(</span><span class="s0">&quot;X&quot;</span><span class="s1">, </span><span class="s4">66 </span><span class="s5">/* InHexEntity */</span><span class="s1">, </span><span class="s4">65 </span><span class="s5">/* InNumericEntity */</span><span class="s1">);</span>
+<span class="s3">var </span><span class="s2">Tokenizer </span><span class="s1">= </span><span class="s6">/** </span><span class="s7">@class </span><span class="s6">*/ </span><span class="s1">(</span><span class="s3">function </span><span class="s1">() {</span>
+    <span class="s3">function </span><span class="s2">Tokenizer</span><span class="s1">(</span><span class="s2">options</span><span class="s1">, </span><span class="s2">cbs</span><span class="s1">) {</span>
+        <span class="s3">var </span><span class="s2">_a</span><span class="s1">;</span>
+        <span class="s6">/** The current state the tokenizer is in. */</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+        <span class="s6">/** The read buffer. */</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">buffer </span><span class="s1">= </span><span class="s0">&quot;&quot;</span><span class="s1">;</span>
+        <span class="s6">/** The beginning of the section that is currently being read. */</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s4">0</span><span class="s1">;</span>
+        <span class="s6">/** The index within the buffer that we are currently looking at. */</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">= </span><span class="s4">0</span><span class="s1">;</span>
+        <span class="s6">/**</span>
+         <span class="s6">* Data that has already been processed will be removed from the buffer occasionally.</span>
+         <span class="s6">* `_bufferOffset` keeps track of how many characters have been removed, to make sure position information is accurate.</span>
+         <span class="s6">*/</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">bufferOffset </span><span class="s1">= </span><span class="s4">0</span><span class="s1">;</span>
+        <span class="s6">/** Some behavior, eg. when decoding entities, is done while we are in another state. This keeps track of the other state type. */</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">baseState </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+        <span class="s6">/** For special parsing behavior inside of script and style tags. */</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">special </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* None */</span><span class="s1">;</span>
+        <span class="s6">/** Indicates whether the tokenizer has been paused. */</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">running </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+        <span class="s6">/** Indicates whether the tokenizer has finished running / `.end` has been called. */</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">ended </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs </span><span class="s1">= </span><span class="s2">cbs</span><span class="s1">;</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">xmlMode </span><span class="s1">= !!(</span><span class="s2">options </span><span class="s1">=== </span><span class="s3">null </span><span class="s1">|| </span><span class="s2">options </span><span class="s1">=== </span><span class="s3">void </span><span class="s4">0 </span><span class="s1">? </span><span class="s3">void </span><span class="s4">0 </span><span class="s1">: </span><span class="s2">options</span><span class="s1">.</span><span class="s2">xmlMode</span><span class="s1">);</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">decodeEntities </span><span class="s1">= (</span><span class="s2">_a </span><span class="s1">= </span><span class="s2">options </span><span class="s1">=== </span><span class="s3">null </span><span class="s1">|| </span><span class="s2">options </span><span class="s1">=== </span><span class="s3">void </span><span class="s4">0 </span><span class="s1">? </span><span class="s3">void </span><span class="s4">0 </span><span class="s1">: </span><span class="s2">options</span><span class="s1">.</span><span class="s2">decodeEntities</span><span class="s1">) !== </span><span class="s3">null </span><span class="s1">&amp;&amp; </span><span class="s2">_a </span><span class="s1">!== </span><span class="s3">void </span><span class="s4">0 </span><span class="s1">? </span><span class="s2">_a </span><span class="s1">: </span><span class="s3">true</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">reset </span><span class="s1">= </span><span class="s3">function </span><span class="s1">() {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">buffer </span><span class="s1">= </span><span class="s0">&quot;&quot;</span><span class="s1">;</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s4">0</span><span class="s1">;</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">= </span><span class="s4">0</span><span class="s1">;</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">bufferOffset </span><span class="s1">= </span><span class="s4">0</span><span class="s1">;</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">baseState </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">special </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* None */</span><span class="s1">;</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">running </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">ended </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">write </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">chunk</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">ended</span><span class="s1">)</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">onerror</span><span class="s1">(</span><span class="s2">Error</span><span class="s1">(</span><span class="s0">&quot;.write() after done!&quot;</span><span class="s1">));</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">buffer </span><span class="s1">+= </span><span class="s2">chunk</span><span class="s1">;</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">parse</span><span class="s1">();</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">end </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">chunk</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">ended</span><span class="s1">)</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">onerror</span><span class="s1">(</span><span class="s2">Error</span><span class="s1">(</span><span class="s0">&quot;.end() after done!&quot;</span><span class="s1">));</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">chunk</span><span class="s1">)</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">write</span><span class="s1">(</span><span class="s2">chunk</span><span class="s1">);</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">ended </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">running</span><span class="s1">)</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">finish</span><span class="s1">();</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">pause </span><span class="s1">= </span><span class="s3">function </span><span class="s1">() {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">running </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">resume </span><span class="s1">= </span><span class="s3">function </span><span class="s1">() {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">running </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">&lt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">.</span><span class="s2">length</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">parse</span><span class="s1">();</span>
+        <span class="s1">}</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">ended</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">finish</span><span class="s1">();</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s6">/**</span>
+     <span class="s6">* The current index within all of the written data.</span>
+     <span class="s6">*/</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">getAbsoluteIndex </span><span class="s1">= </span><span class="s3">function </span><span class="s1">() {</span>
+        <span class="s3">return this</span><span class="s1">.</span><span class="s2">bufferOffset </span><span class="s1">+ </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateText </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&lt;&quot;</span><span class="s1">) {</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">&gt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">ontext</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">getSection</span><span class="s1">());</span>
+            <span class="s1">}</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">2 </span><span class="s5">/* BeforeTagName */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">decodeEntities </span><span class="s1">&amp;&amp;</span>
+            <span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&amp;&quot; </span><span class="s1">&amp;&amp;</span>
+            <span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">special </span><span class="s1">=== </span><span class="s4">1 </span><span class="s5">/* None */ </span><span class="s1">|| </span><span class="s3">this</span><span class="s1">.</span><span class="s2">special </span><span class="s1">=== </span><span class="s4">4 </span><span class="s5">/* Title */</span><span class="s1">)) {</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">&gt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">ontext</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">getSection</span><span class="s1">());</span>
+            <span class="s1">}</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">baseState </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">62 </span><span class="s5">/* BeforeEntity */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s6">/**</span>
+     <span class="s6">* HTML only allows ASCII alpha characters (a-z and A-Z) at the beginning of a tag name.</span>
+     <span class="s6">*</span>
+     <span class="s6">* XML allows a lot more characters here (@see https://www.w3.org/TR/REC-xml/#NT-NameStartChar).</span>
+     <span class="s6">* We allow anything that wouldn't end the tag.</span>
+     <span class="s6">*/</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">isTagStartChar </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">return </span><span class="s1">(</span><span class="s2">isASCIIAlpha</span><span class="s1">(</span><span class="s2">c</span><span class="s1">) ||</span>
+            <span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">xmlMode </span><span class="s1">&amp;&amp; !</span><span class="s2">whitespace</span><span class="s1">(</span><span class="s2">c</span><span class="s1">) &amp;&amp; </span><span class="s2">c </span><span class="s1">!== </span><span class="s0">&quot;/&quot; </span><span class="s1">&amp;&amp; </span><span class="s2">c </span><span class="s1">!== </span><span class="s0">&quot;&gt;&quot;</span><span class="s1">));</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateBeforeTagName </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;/&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">5 </span><span class="s5">/* BeforeClosingTagName */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&lt;&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">ontext</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">getSection</span><span class="s1">());</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot; </span><span class="s1">||</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">special </span><span class="s1">!== </span><span class="s4">1 </span><span class="s5">/* None */ </span><span class="s1">||</span>
+            <span class="s2">whitespace</span><span class="s1">(</span><span class="s2">c</span><span class="s1">)) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;!&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">15 </span><span class="s5">/* BeforeDeclaration */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;?&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">17 </span><span class="s5">/* InProcessingInstruction */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">isTagStartChar</span><span class="s1">(</span><span class="s2">c</span><span class="s1">)) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else </span><span class="s1">{</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=</span>
+                <span class="s1">!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">xmlMode </span><span class="s1">&amp;&amp; (</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;s&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;S&quot;</span><span class="s1">)</span>
+                    <span class="s1">? </span><span class="s4">32 </span><span class="s5">/* BeforeSpecialS */</span>
+                    <span class="s1">: !</span><span class="s3">this</span><span class="s1">.</span><span class="s2">xmlMode </span><span class="s1">&amp;&amp; (</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;t&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;T&quot;</span><span class="s1">)</span>
+                        <span class="s1">? </span><span class="s4">52 </span><span class="s5">/* BeforeSpecialT */</span>
+                        <span class="s1">: </span><span class="s4">3 </span><span class="s5">/* InTagName */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateInTagName </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;/&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot; </span><span class="s1">|| </span><span class="s2">whitespace</span><span class="s1">(</span><span class="s2">c</span><span class="s1">)) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">emitToken</span><span class="s1">(</span><span class="s0">&quot;onopentagname&quot;</span><span class="s1">);</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">8 </span><span class="s5">/* BeforeAttributeName */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateBeforeClosingTagName </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">whitespace</span><span class="s1">(</span><span class="s2">c</span><span class="s1">)) {</span>
+            <span class="s5">// Ignore</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">special </span><span class="s1">!== </span><span class="s4">1 </span><span class="s5">/* None */</span><span class="s1">) {</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">special </span><span class="s1">!== </span><span class="s4">4 </span><span class="s5">/* Title */ </span><span class="s1">&amp;&amp; (</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;s&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;S&quot;</span><span class="s1">)) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">33 </span><span class="s5">/* BeforeSpecialSEnd */</span><span class="s1">;</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">special </span><span class="s1">=== </span><span class="s4">4 </span><span class="s5">/* Title */ </span><span class="s1">&amp;&amp;</span>
+                <span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;t&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;T&quot;</span><span class="s1">)) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">53 </span><span class="s5">/* BeforeSpecialTEnd */</span><span class="s1">;</span>
+            <span class="s1">}</span>
+            <span class="s3">else </span><span class="s1">{</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--;</span>
+            <span class="s1">}</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">isTagStartChar</span><span class="s1">(</span><span class="s2">c</span><span class="s1">)) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">20 </span><span class="s5">/* InSpecialComment */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else </span><span class="s1">{</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">6 </span><span class="s5">/* InClosingTagName */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateInClosingTagName </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot; </span><span class="s1">|| </span><span class="s2">whitespace</span><span class="s1">(</span><span class="s2">c</span><span class="s1">)) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">emitToken</span><span class="s1">(</span><span class="s0">&quot;onclosetag&quot;</span><span class="s1">);</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">7 </span><span class="s5">/* AfterClosingTagName */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateAfterClosingTagName </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s5">// Skip everything until &quot;&gt;&quot;</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateBeforeAttributeName </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">onopentagend</span><span class="s1">();</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;/&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">4 </span><span class="s5">/* InSelfClosingTag */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(!</span><span class="s2">whitespace</span><span class="s1">(</span><span class="s2">c</span><span class="s1">)) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">9 </span><span class="s5">/* InAttributeName */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateInSelfClosingTag </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">onselfclosingtag</span><span class="s1">();</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">special </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* None */</span><span class="s1">; </span><span class="s5">// Reset special state, in case of self-closing special tags</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(!</span><span class="s2">whitespace</span><span class="s1">(</span><span class="s2">c</span><span class="s1">)) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">8 </span><span class="s5">/* BeforeAttributeName */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateInAttributeName </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;=&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;/&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot; </span><span class="s1">|| </span><span class="s2">whitespace</span><span class="s1">(</span><span class="s2">c</span><span class="s1">)) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">onattribname</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">getSection</span><span class="s1">());</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= -</span><span class="s4">1</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">10 </span><span class="s5">/* AfterAttributeName */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateAfterAttributeName </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;=&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">11 </span><span class="s5">/* BeforeAttributeValue */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;/&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">onattribend</span><span class="s1">(</span><span class="s2">undefined</span><span class="s1">);</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">8 </span><span class="s5">/* BeforeAttributeName */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(!</span><span class="s2">whitespace</span><span class="s1">(</span><span class="s2">c</span><span class="s1">)) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">onattribend</span><span class="s1">(</span><span class="s2">undefined</span><span class="s1">);</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">9 </span><span class="s5">/* InAttributeName */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateBeforeAttributeValue </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">'&quot;'</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">12 </span><span class="s5">/* InAttributeValueDq */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;'&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">13 </span><span class="s5">/* InAttributeValueSq */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(!</span><span class="s2">whitespace</span><span class="s1">(</span><span class="s2">c</span><span class="s1">)) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">14 </span><span class="s5">/* InAttributeValueNq */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--; </span><span class="s5">// Reconsume token</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">handleInAttributeValue </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">, </span><span class="s2">quote</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s2">quote</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">emitToken</span><span class="s1">(</span><span class="s0">&quot;onattribdata&quot;</span><span class="s1">);</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">onattribend</span><span class="s1">(</span><span class="s2">quote</span><span class="s1">);</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">8 </span><span class="s5">/* BeforeAttributeName */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">decodeEntities </span><span class="s1">&amp;&amp; </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&amp;&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">emitToken</span><span class="s1">(</span><span class="s0">&quot;onattribdata&quot;</span><span class="s1">);</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">baseState </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">62 </span><span class="s5">/* BeforeEntity */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateInAttributeValueDoubleQuotes </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">handleInAttributeValue</span><span class="s1">(</span><span class="s2">c</span><span class="s1">, </span><span class="s0">'&quot;'</span><span class="s1">);</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateInAttributeValueSingleQuotes </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">handleInAttributeValue</span><span class="s1">(</span><span class="s2">c</span><span class="s1">, </span><span class="s0">&quot;'&quot;</span><span class="s1">);</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateInAttributeValueNoQuotes </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">whitespace</span><span class="s1">(</span><span class="s2">c</span><span class="s1">) || </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">emitToken</span><span class="s1">(</span><span class="s0">&quot;onattribdata&quot;</span><span class="s1">);</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">onattribend</span><span class="s1">(</span><span class="s3">null</span><span class="s1">);</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">8 </span><span class="s5">/* BeforeAttributeName */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">decodeEntities </span><span class="s1">&amp;&amp; </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&amp;&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">emitToken</span><span class="s1">(</span><span class="s0">&quot;onattribdata&quot;</span><span class="s1">);</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">baseState </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">62 </span><span class="s5">/* BeforeEntity */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateBeforeDeclaration </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=</span>
+            <span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;[&quot;</span>
+                <span class="s1">? </span><span class="s4">23 </span><span class="s5">/* BeforeCdata1 */</span>
+                <span class="s1">: </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;-&quot;</span>
+                    <span class="s1">? </span><span class="s4">18 </span><span class="s5">/* BeforeComment */</span>
+                    <span class="s1">: </span><span class="s4">16 </span><span class="s5">/* InDeclaration */</span><span class="s1">;</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateInDeclaration </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">ondeclaration</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">getSection</span><span class="s1">());</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateInProcessingInstruction </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">onprocessinginstruction</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">getSection</span><span class="s1">());</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateBeforeComment </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;-&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">19 </span><span class="s5">/* InComment */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else </span><span class="s1">{</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">16 </span><span class="s5">/* InDeclaration */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateInComment </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;-&quot;</span><span class="s1">)</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">21 </span><span class="s5">/* AfterComment1 */</span><span class="s1">;</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateInSpecialComment </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">oncomment</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">.</span><span class="s2">substring</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">));</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateAfterComment1 </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;-&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">22 </span><span class="s5">/* AfterComment2 */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else </span><span class="s1">{</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">19 </span><span class="s5">/* InComment */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateAfterComment2 </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot;</span><span class="s1">) {</span>
+            <span class="s5">// Remove 2 trailing chars</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">oncomment</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">.</span><span class="s2">substring</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">- </span><span class="s4">2</span><span class="s1">));</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">!== </span><span class="s0">&quot;-&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">19 </span><span class="s5">/* InComment */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s5">// Else: stay in AFTER_COMMENT_2 (`---&gt;`)</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateBeforeCdata6 </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;[&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">29 </span><span class="s5">/* InCdata */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else </span><span class="s1">{</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">16 </span><span class="s5">/* InDeclaration */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateInCdata </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;]&quot;</span><span class="s1">)</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">30 </span><span class="s5">/* AfterCdata1 */</span><span class="s1">;</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateAfterCdata1 </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;]&quot;</span><span class="s1">)</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">31 </span><span class="s5">/* AfterCdata2 */</span><span class="s1">;</span>
+        <span class="s3">else</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">29 </span><span class="s5">/* InCdata */</span><span class="s1">;</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateAfterCdata2 </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot;</span><span class="s1">) {</span>
+            <span class="s5">// Remove 2 trailing chars</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">oncdata</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">.</span><span class="s2">substring</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">- </span><span class="s4">2</span><span class="s1">));</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">!== </span><span class="s0">&quot;]&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">29 </span><span class="s5">/* InCdata */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s5">// Else: stay in AFTER_CDATA_2 (`]]]&gt;`)</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateBeforeSpecialS </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;c&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;C&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">34 </span><span class="s5">/* BeforeScript1 */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;t&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;T&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">44 </span><span class="s5">/* BeforeStyle1 */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else </span><span class="s1">{</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">3 </span><span class="s5">/* InTagName */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--; </span><span class="s5">// Consume the token again</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateBeforeSpecialSEnd </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">special </span><span class="s1">=== </span><span class="s4">2 </span><span class="s5">/* Script */ </span><span class="s1">&amp;&amp; (</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;c&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;C&quot;</span><span class="s1">)) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">39 </span><span class="s5">/* AfterScript1 */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">special </span><span class="s1">=== </span><span class="s4">3 </span><span class="s5">/* Style */ </span><span class="s1">&amp;&amp; (</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;t&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;T&quot;</span><span class="s1">)) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">48 </span><span class="s5">/* AfterStyle1 */</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateBeforeSpecialLast </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">, </span><span class="s2">special</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;/&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot; </span><span class="s1">|| </span><span class="s2">whitespace</span><span class="s1">(</span><span class="s2">c</span><span class="s1">)) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">special </span><span class="s1">= </span><span class="s2">special</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">3 </span><span class="s5">/* InTagName */</span><span class="s1">;</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--; </span><span class="s5">// Consume the token again</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateAfterSpecialLast </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">, </span><span class="s2">sectionStartOffset</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;&gt;&quot; </span><span class="s1">|| </span><span class="s2">whitespace</span><span class="s1">(</span><span class="s2">c</span><span class="s1">)) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">special </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* None */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">6 </span><span class="s5">/* InClosingTagName */</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">- </span><span class="s2">sectionStartOffset</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--; </span><span class="s5">// Reconsume the token</span>
+        <span class="s1">}</span>
+        <span class="s3">else</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">;</span>
+    <span class="s1">};</span>
+    <span class="s5">// For entities terminated with a semicolon</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">parseFixedEntity </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">map</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">map </span><span class="s1">=== </span><span class="s3">void </span><span class="s4">0</span><span class="s1">) { </span><span class="s2">map </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">xmlMode </span><span class="s1">? </span><span class="s2">xml_json_1</span><span class="s1">.</span><span class="s2">default </span><span class="s1">: </span><span class="s2">entities_json_1</span><span class="s1">.</span><span class="s2">default</span><span class="s1">; }</span>
+        <span class="s5">// Offset = 1</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">+ </span><span class="s4">1 </span><span class="s1">&lt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">) {</span>
+            <span class="s3">var </span><span class="s2">entity </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">.</span><span class="s2">substring</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">);</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s2">Object</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">hasOwnProperty</span><span class="s1">.</span><span class="s2">call</span><span class="s1">(</span><span class="s2">map</span><span class="s1">, </span><span class="s2">entity</span><span class="s1">)) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">emitPartial</span><span class="s1">(</span><span class="s2">map</span><span class="s1">[</span><span class="s2">entity</span><span class="s1">]);</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+            <span class="s1">}</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s5">// Parses legacy entities (without trailing semicolon)</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">parseLegacyEntity </span><span class="s1">= </span><span class="s3">function </span><span class="s1">() {</span>
+        <span class="s3">var </span><span class="s2">start </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+        <span class="s5">// The max length of legacy entities is 6</span>
+        <span class="s3">var </span><span class="s2">limit </span><span class="s1">= </span><span class="s2">Math</span><span class="s1">.</span><span class="s2">min</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">- </span><span class="s2">start</span><span class="s1">, </span><span class="s4">6</span><span class="s1">);</span>
+        <span class="s3">while </span><span class="s1">(</span><span class="s2">limit </span><span class="s1">&gt;= </span><span class="s4">2</span><span class="s1">) {</span>
+            <span class="s5">// The min length of legacy entities is 2</span>
+            <span class="s3">var </span><span class="s2">entity </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">.</span><span class="s2">substr</span><span class="s1">(</span><span class="s2">start</span><span class="s1">, </span><span class="s2">limit</span><span class="s1">);</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s2">Object</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">hasOwnProperty</span><span class="s1">.</span><span class="s2">call</span><span class="s1">(</span><span class="s2">legacy_json_1</span><span class="s1">.</span><span class="s2">default</span><span class="s1">, </span><span class="s2">entity</span><span class="s1">)) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">emitPartial</span><span class="s1">(</span><span class="s2">legacy_json_1</span><span class="s1">.</span><span class="s2">default</span><span class="s1">[</span><span class="s2">entity</span><span class="s1">]);</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">+= </span><span class="s2">limit </span><span class="s1">+ </span><span class="s4">1</span><span class="s1">;</span>
+                <span class="s3">return</span><span class="s1">;</span>
+            <span class="s1">}</span>
+            <span class="s2">limit</span><span class="s1">--;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateInNamedEntity </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;;&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">parseFixedEntity</span><span class="s1">();</span>
+            <span class="s5">// Retry as legacy entity if entity wasn't parsed</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">baseState </span><span class="s1">=== </span><span class="s4">1 </span><span class="s5">/* Text */ </span><span class="s1">&amp;&amp;</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">+ </span><span class="s4">1 </span><span class="s1">&lt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">&amp;&amp;</span>
+                <span class="s1">!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">xmlMode</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">parseLegacyEntity</span><span class="s1">();</span>
+            <span class="s1">}</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">baseState</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">((</span><span class="s2">c </span><span class="s1">&lt; </span><span class="s0">&quot;0&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">&gt; </span><span class="s0">&quot;9&quot;</span><span class="s1">) &amp;&amp; !</span><span class="s2">isASCIIAlpha</span><span class="s1">(</span><span class="s2">c</span><span class="s1">)) {</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">xmlMode </span><span class="s1">|| </span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">+ </span><span class="s4">1 </span><span class="s1">=== </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">) {</span>
+                <span class="s5">// Ignore</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">baseState </span><span class="s1">!== </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">) {</span>
+                <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">!== </span><span class="s0">&quot;=&quot;</span><span class="s1">) {</span>
+                    <span class="s5">// Parse as legacy entity, without allowing additional characters.</span>
+                    <span class="s3">this</span><span class="s1">.</span><span class="s2">parseFixedEntity</span><span class="s1">(</span><span class="s2">legacy_json_1</span><span class="s1">.</span><span class="s2">default</span><span class="s1">);</span>
+                <span class="s1">}</span>
+            <span class="s1">}</span>
+            <span class="s3">else </span><span class="s1">{</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">parseLegacyEntity</span><span class="s1">();</span>
+            <span class="s1">}</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">baseState</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">decodeNumericEntity </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">offset</span><span class="s1">, </span><span class="s2">base</span><span class="s1">, </span><span class="s2">strict</span><span class="s1">) {</span>
+        <span class="s3">var </span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">+ </span><span class="s2">offset</span><span class="s1">;</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">sectionStart </span><span class="s1">!== </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">) {</span>
+            <span class="s5">// Parse entity</span>
+            <span class="s3">var </span><span class="s2">entity </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">.</span><span class="s2">substring</span><span class="s1">(</span><span class="s2">sectionStart</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">);</span>
+            <span class="s3">var </span><span class="s2">parsed </span><span class="s1">= </span><span class="s2">parseInt</span><span class="s1">(</span><span class="s2">entity</span><span class="s1">, </span><span class="s2">base</span><span class="s1">);</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">emitPartial</span><span class="s1">(</span><span class="s2">decode_codepoint_1</span><span class="s1">.</span><span class="s2">default</span><span class="s1">(</span><span class="s2">parsed</span><span class="s1">));</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s2">strict </span><span class="s1">? </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">+ </span><span class="s4">1 </span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">baseState</span><span class="s1">;</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateInNumericEntity </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;;&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">decodeNumericEntity</span><span class="s1">(</span><span class="s4">2</span><span class="s1">, </span><span class="s4">10</span><span class="s1">, </span><span class="s3">true</span><span class="s1">);</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">&lt; </span><span class="s0">&quot;0&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">&gt; </span><span class="s0">&quot;9&quot;</span><span class="s1">) {</span>
+            <span class="s3">if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">xmlMode</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">decodeNumericEntity</span><span class="s1">(</span><span class="s4">2</span><span class="s1">, </span><span class="s4">10</span><span class="s1">, </span><span class="s3">false</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else </span><span class="s1">{</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">baseState</span><span class="s1">;</span>
+            <span class="s1">}</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">stateInHexEntity </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">c </span><span class="s1">=== </span><span class="s0">&quot;;&quot;</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">decodeNumericEntity</span><span class="s1">(</span><span class="s4">3</span><span class="s1">, </span><span class="s4">16</span><span class="s1">, </span><span class="s3">true</span><span class="s1">);</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">((</span><span class="s2">c </span><span class="s1">&lt; </span><span class="s0">&quot;a&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">&gt; </span><span class="s0">&quot;f&quot;</span><span class="s1">) &amp;&amp;</span>
+            <span class="s1">(</span><span class="s2">c </span><span class="s1">&lt; </span><span class="s0">&quot;A&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">&gt; </span><span class="s0">&quot;F&quot;</span><span class="s1">) &amp;&amp;</span>
+            <span class="s1">(</span><span class="s2">c </span><span class="s1">&lt; </span><span class="s0">&quot;0&quot; </span><span class="s1">|| </span><span class="s2">c </span><span class="s1">&gt; </span><span class="s0">&quot;9&quot;</span><span class="s1">)) {</span>
+            <span class="s3">if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">xmlMode</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">decodeNumericEntity</span><span class="s1">(</span><span class="s4">3</span><span class="s1">, </span><span class="s4">16</span><span class="s1">, </span><span class="s3">false</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else </span><span class="s1">{</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">baseState</span><span class="s1">;</span>
+            <span class="s1">}</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">--;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">cleanup </span><span class="s1">= </span><span class="s3">function </span><span class="s1">() {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">&lt; </span><span class="s4">0</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">buffer </span><span class="s1">= </span><span class="s0">&quot;&quot;</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">bufferOffset </span><span class="s1">+= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">= </span><span class="s4">0</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">running</span><span class="s1">) {</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">) {</span>
+                <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">!== </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">) {</span>
+                    <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">ontext</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">.</span><span class="s2">substr</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart</span><span class="s1">));</span>
+                <span class="s1">}</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">buffer </span><span class="s1">= </span><span class="s0">&quot;&quot;</span><span class="s1">;</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">bufferOffset </span><span class="s1">+= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">= </span><span class="s4">0</span><span class="s1">;</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">=== </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">) {</span>
+                <span class="s5">// The section just started</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">buffer </span><span class="s1">= </span><span class="s0">&quot;&quot;</span><span class="s1">;</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">bufferOffset </span><span class="s1">+= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">;</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">= </span><span class="s4">0</span><span class="s1">;</span>
+            <span class="s1">}</span>
+            <span class="s3">else </span><span class="s1">{</span>
+                <span class="s5">// Remove everything unnecessary</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">buffer </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">.</span><span class="s2">substr</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart</span><span class="s1">);</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">-= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart</span><span class="s1">;</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">bufferOffset </span><span class="s1">+= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart</span><span class="s1">;</span>
+            <span class="s1">}</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= </span><span class="s4">0</span><span class="s1">;</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s6">/**</span>
+     <span class="s6">* Iterates through the buffer, calling the function corresponding to the current state.</span>
+     <span class="s6">*</span>
+     <span class="s6">* States that are more likely to be hit are higher up, as a performance improvement.</span>
+     <span class="s6">*/</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">parse </span><span class="s1">= </span><span class="s3">function </span><span class="s1">() {</span>
+        <span class="s3">while </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index </span><span class="s1">&lt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">.</span><span class="s2">length </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">running</span><span class="s1">) {</span>
+            <span class="s3">var </span><span class="s2">c </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">.</span><span class="s2">charAt</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">);</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateText</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">12 </span><span class="s5">/* InAttributeValueDq */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateInAttributeValueDoubleQuotes</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">9 </span><span class="s5">/* InAttributeName */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateInAttributeName</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">19 </span><span class="s5">/* InComment */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateInComment</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">20 </span><span class="s5">/* InSpecialComment */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateInSpecialComment</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">8 </span><span class="s5">/* BeforeAttributeName */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateBeforeAttributeName</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">3 </span><span class="s5">/* InTagName */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateInTagName</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">6 </span><span class="s5">/* InClosingTagName */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateInClosingTagName</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">2 </span><span class="s5">/* BeforeTagName */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateBeforeTagName</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">10 </span><span class="s5">/* AfterAttributeName */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateAfterAttributeName</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">13 </span><span class="s5">/* InAttributeValueSq */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateInAttributeValueSingleQuotes</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">11 </span><span class="s5">/* BeforeAttributeValue */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateBeforeAttributeValue</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">5 </span><span class="s5">/* BeforeClosingTagName */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateBeforeClosingTagName</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">7 </span><span class="s5">/* AfterClosingTagName */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateAfterClosingTagName</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">32 </span><span class="s5">/* BeforeSpecialS */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateBeforeSpecialS</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">21 </span><span class="s5">/* AfterComment1 */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateAfterComment1</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">14 </span><span class="s5">/* InAttributeValueNq */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateInAttributeValueNoQuotes</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">4 </span><span class="s5">/* InSelfClosingTag */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateInSelfClosingTag</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">16 </span><span class="s5">/* InDeclaration */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateInDeclaration</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">15 </span><span class="s5">/* BeforeDeclaration */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateBeforeDeclaration</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">22 </span><span class="s5">/* AfterComment2 */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateAfterComment2</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">18 </span><span class="s5">/* BeforeComment */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateBeforeComment</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">33 </span><span class="s5">/* BeforeSpecialSEnd */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateBeforeSpecialSEnd</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">53 </span><span class="s5">/* BeforeSpecialTEnd */</span><span class="s1">) {</span>
+                <span class="s2">stateAfterSpecialTEnd</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">39 </span><span class="s5">/* AfterScript1 */</span><span class="s1">) {</span>
+                <span class="s2">stateAfterScript1</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">40 </span><span class="s5">/* AfterScript2 */</span><span class="s1">) {</span>
+                <span class="s2">stateAfterScript2</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">41 </span><span class="s5">/* AfterScript3 */</span><span class="s1">) {</span>
+                <span class="s2">stateAfterScript3</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">34 </span><span class="s5">/* BeforeScript1 */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeScript1</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">35 </span><span class="s5">/* BeforeScript2 */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeScript2</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">36 </span><span class="s5">/* BeforeScript3 */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeScript3</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">37 </span><span class="s5">/* BeforeScript4 */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeScript4</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">38 </span><span class="s5">/* BeforeScript5 */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateBeforeSpecialLast</span><span class="s1">(</span><span class="s2">c</span><span class="s1">, </span><span class="s4">2 </span><span class="s5">/* Script */</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">42 </span><span class="s5">/* AfterScript4 */</span><span class="s1">) {</span>
+                <span class="s2">stateAfterScript4</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">43 </span><span class="s5">/* AfterScript5 */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateAfterSpecialLast</span><span class="s1">(</span><span class="s2">c</span><span class="s1">, </span><span class="s4">6</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">44 </span><span class="s5">/* BeforeStyle1 */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeStyle1</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">29 </span><span class="s5">/* InCdata */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateInCdata</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">45 </span><span class="s5">/* BeforeStyle2 */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeStyle2</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">46 </span><span class="s5">/* BeforeStyle3 */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeStyle3</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">47 </span><span class="s5">/* BeforeStyle4 */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateBeforeSpecialLast</span><span class="s1">(</span><span class="s2">c</span><span class="s1">, </span><span class="s4">3 </span><span class="s5">/* Style */</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">48 </span><span class="s5">/* AfterStyle1 */</span><span class="s1">) {</span>
+                <span class="s2">stateAfterStyle1</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">49 </span><span class="s5">/* AfterStyle2 */</span><span class="s1">) {</span>
+                <span class="s2">stateAfterStyle2</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">50 </span><span class="s5">/* AfterStyle3 */</span><span class="s1">) {</span>
+                <span class="s2">stateAfterStyle3</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">51 </span><span class="s5">/* AfterStyle4 */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateAfterSpecialLast</span><span class="s1">(</span><span class="s2">c</span><span class="s1">, </span><span class="s4">5</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">52 </span><span class="s5">/* BeforeSpecialT */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeSpecialT</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">54 </span><span class="s5">/* BeforeTitle1 */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeTitle1</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">55 </span><span class="s5">/* BeforeTitle2 */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeTitle2</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">56 </span><span class="s5">/* BeforeTitle3 */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeTitle3</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">57 </span><span class="s5">/* BeforeTitle4 */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateBeforeSpecialLast</span><span class="s1">(</span><span class="s2">c</span><span class="s1">, </span><span class="s4">4 </span><span class="s5">/* Title */</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">58 </span><span class="s5">/* AfterTitle1 */</span><span class="s1">) {</span>
+                <span class="s2">stateAfterTitle1</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">59 </span><span class="s5">/* AfterTitle2 */</span><span class="s1">) {</span>
+                <span class="s2">stateAfterTitle2</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">60 </span><span class="s5">/* AfterTitle3 */</span><span class="s1">) {</span>
+                <span class="s2">stateAfterTitle3</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">61 </span><span class="s5">/* AfterTitle4 */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateAfterSpecialLast</span><span class="s1">(</span><span class="s2">c</span><span class="s1">, </span><span class="s4">5</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">17 </span><span class="s5">/* InProcessingInstruction */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateInProcessingInstruction</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">64 </span><span class="s5">/* InNamedEntity */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateInNamedEntity</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">23 </span><span class="s5">/* BeforeCdata1 */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeCdata1</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">62 </span><span class="s5">/* BeforeEntity */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeEntity</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">24 </span><span class="s5">/* BeforeCdata2 */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeCdata2</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">25 </span><span class="s5">/* BeforeCdata3 */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeCdata3</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">30 </span><span class="s5">/* AfterCdata1 */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateAfterCdata1</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">31 </span><span class="s5">/* AfterCdata2 */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateAfterCdata2</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">26 </span><span class="s5">/* BeforeCdata4 */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeCdata4</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">27 </span><span class="s5">/* BeforeCdata5 */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeCdata5</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">28 </span><span class="s5">/* BeforeCdata6 */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateBeforeCdata6</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">66 </span><span class="s5">/* InHexEntity */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateInHexEntity</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">65 </span><span class="s5">/* InNumericEntity */</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">stateInNumericEntity</span><span class="s1">(</span><span class="s2">c</span><span class="s1">);</span>
+                <span class="s5">// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition</span>
+            <span class="s1">}</span>
+            <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">63 </span><span class="s5">/* BeforeNumericEntity */</span><span class="s1">) {</span>
+                <span class="s2">stateBeforeNumericEntity</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">c</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">else </span><span class="s1">{</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">onerror</span><span class="s1">(</span><span class="s2">Error</span><span class="s1">(</span><span class="s0">&quot;unknown _state&quot;</span><span class="s1">), </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state</span><span class="s1">);</span>
+            <span class="s1">}</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">++;</span>
+        <span class="s1">}</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">cleanup</span><span class="s1">();</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">finish </span><span class="s1">= </span><span class="s3">function </span><span class="s1">() {</span>
+        <span class="s5">// If there is remaining data, emit it in a reasonable way</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">&lt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">handleTrailingData</span><span class="s1">();</span>
+        <span class="s1">}</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">onend</span><span class="s1">();</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">handleTrailingData </span><span class="s1">= </span><span class="s3">function </span><span class="s1">() {</span>
+        <span class="s3">var </span><span class="s2">data </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">.</span><span class="s2">substr</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart</span><span class="s1">);</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">29 </span><span class="s5">/* InCdata */ </span><span class="s1">||</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">30 </span><span class="s5">/* AfterCdata1 */ </span><span class="s1">||</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">31 </span><span class="s5">/* AfterCdata2 */</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">oncdata</span><span class="s1">(</span><span class="s2">data</span><span class="s1">);</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">19 </span><span class="s5">/* InComment */ </span><span class="s1">||</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">21 </span><span class="s5">/* AfterComment1 */ </span><span class="s1">||</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">22 </span><span class="s5">/* AfterComment2 */</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">oncomment</span><span class="s1">(</span><span class="s2">data</span><span class="s1">);</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">64 </span><span class="s5">/* InNamedEntity */ </span><span class="s1">&amp;&amp; !</span><span class="s3">this</span><span class="s1">.</span><span class="s2">xmlMode</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">parseLegacyEntity</span><span class="s1">();</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">&lt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">baseState</span><span class="s1">;</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">handleTrailingData</span><span class="s1">();</span>
+            <span class="s1">}</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">65 </span><span class="s5">/* InNumericEntity */ </span><span class="s1">&amp;&amp; !</span><span class="s3">this</span><span class="s1">.</span><span class="s2">xmlMode</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">decodeNumericEntity</span><span class="s1">(</span><span class="s4">2</span><span class="s1">, </span><span class="s4">10</span><span class="s1">, </span><span class="s3">false</span><span class="s1">);</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">&lt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">baseState</span><span class="s1">;</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">handleTrailingData</span><span class="s1">();</span>
+            <span class="s1">}</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">=== </span><span class="s4">66 </span><span class="s5">/* InHexEntity */ </span><span class="s1">&amp;&amp; !</span><span class="s3">this</span><span class="s1">.</span><span class="s2">xmlMode</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">decodeNumericEntity</span><span class="s1">(</span><span class="s4">3</span><span class="s1">, </span><span class="s4">16</span><span class="s1">, </span><span class="s3">false</span><span class="s1">);</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">&lt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">) {</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">baseState</span><span class="s1">;</span>
+                <span class="s3">this</span><span class="s1">.</span><span class="s2">handleTrailingData</span><span class="s1">();</span>
+            <span class="s1">}</span>
+        <span class="s1">}</span>
+        <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">!== </span><span class="s4">3 </span><span class="s5">/* InTagName */ </span><span class="s1">&amp;&amp;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">!== </span><span class="s4">8 </span><span class="s5">/* BeforeAttributeName */ </span><span class="s1">&amp;&amp;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">!== </span><span class="s4">11 </span><span class="s5">/* BeforeAttributeValue */ </span><span class="s1">&amp;&amp;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">!== </span><span class="s4">10 </span><span class="s5">/* AfterAttributeName */ </span><span class="s1">&amp;&amp;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">!== </span><span class="s4">9 </span><span class="s5">/* InAttributeName */ </span><span class="s1">&amp;&amp;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">!== </span><span class="s4">13 </span><span class="s5">/* InAttributeValueSq */ </span><span class="s1">&amp;&amp;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">!== </span><span class="s4">12 </span><span class="s5">/* InAttributeValueDq */ </span><span class="s1">&amp;&amp;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">!== </span><span class="s4">14 </span><span class="s5">/* InAttributeValueNq */ </span><span class="s1">&amp;&amp;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">!== </span><span class="s4">6 </span><span class="s5">/* InClosingTagName */</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">ontext</span><span class="s1">(</span><span class="s2">data</span><span class="s1">);</span>
+        <span class="s1">}</span>
+        <span class="s5">/* 
+         * Else, ignore remaining data 
+         * TODO add a way to remove current tag 
+         */</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">getSection </span><span class="s1">= </span><span class="s3">function </span><span class="s1">() {</span>
+        <span class="s3">return this</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">.</span><span class="s2">substring</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_index</span><span class="s1">);</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">emitToken </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">name</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">[</span><span class="s2">name</span><span class="s1">](</span><span class="s3">this</span><span class="s1">.</span><span class="s2">getSection</span><span class="s1">());</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">sectionStart </span><span class="s1">= -</span><span class="s4">1</span><span class="s1">;</span>
+    <span class="s1">};</span>
+    <span class="s2">Tokenizer</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">emitPartial </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">value</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">baseState </span><span class="s1">!== </span><span class="s4">1 </span><span class="s5">/* Text */</span><span class="s1">) {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">onattribdata</span><span class="s1">(</span><span class="s2">value</span><span class="s1">); </span><span class="s5">// TODO implement the new event</span>
+        <span class="s1">}</span>
+        <span class="s3">else </span><span class="s1">{</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">cbs</span><span class="s1">.</span><span class="s2">ontext</span><span class="s1">(</span><span class="s2">value</span><span class="s1">);</span>
+        <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s3">return </span><span class="s2">Tokenizer</span><span class="s1">;</span>
+<span class="s1">}());</span>
+<span class="s2">exports</span><span class="s1">.</span><span class="s2">default </span><span class="s1">= </span><span class="s2">Tokenizer</span><span class="s1">;</span>
+</pre>
+</body>
+</html>

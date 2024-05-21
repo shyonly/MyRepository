@@ -1,0 +1,102 @@
+<html>
+<head>
+<title>Gruntfile.ls</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #bcbec4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+Gruntfile.ls</font>
+</center></td></tr></table>
+<pre><span class="s0">require! &lt;[./build fs ./config]&gt;</span>
+<span class="s0">module.exports = (grunt)-&gt;</span>
+  <span class="s0">grunt.loadNpmTasks \grunt-contrib-clean</span>
+  <span class="s0">grunt.loadNpmTasks \grunt-contrib-copy</span>
+  <span class="s0">grunt.loadNpmTasks \grunt-contrib-uglify</span>
+  <span class="s0">grunt.loadNpmTasks \grunt-contrib-watch</span>
+  <span class="s0">grunt.loadNpmTasks \grunt-livescript</span>
+  <span class="s0">grunt.loadNpmTasks \grunt-karma</span>
+  <span class="s0">grunt.initConfig do</span>
+    <span class="s0">pkg: grunt.file.readJSON './package.json'</span>
+    <span class="s0">uglify: build:</span>
+      <span class="s0">files: '&lt;%=grunt.option(&quot;path&quot;)%&gt;.min.js': '&lt;%=grunt.option(&quot;path&quot;)%&gt;.js'</span>
+      <span class="s0">options:</span>
+        <span class="s0">mangle: {+keep_fnames}</span>
+        <span class="s0">compress: {+keep_fnames, +pure_getters}</span>
+        <span class="s0">output: {max_line_len: 32000}</span>
+        <span class="s0">ie8: on</span>
+        <span class="s0">sourceMap: on</span>
+        <span class="s0">banner: config.banner</span>
+    <span class="s0">livescript: src: files:</span>
+      <span class="s0">'./tests/helpers.js': './tests/helpers/*'</span>
+      <span class="s0">'./tests/tests.js': './tests/tests/*'</span>
+      <span class="s0">'./tests/library.js': './tests/library/*'</span>
+      <span class="s0">'./tests/es.js': './tests/tests/es*'</span>
+      <span class="s0">'./tests/experimental.js': './tests/experimental/*'</span>
+      <span class="s0">'./build/index.js': './build/build.ls*'</span>
+    <span class="s0">clean: &lt;[./library]&gt;</span>
+    <span class="s0">copy: lib: files:</span>
+      <span class="s0">* expand: on</span>
+        <span class="s0">cwd: './'</span>
+        <span class="s0">src: &lt;[es5/** es6/** es7/** stage/** web/** core/** fn/** index.js shim.js]&gt;</span>
+        <span class="s0">dest: './library/'</span>
+      <span class="s0">* expand: on</span>
+        <span class="s0">cwd: './'</span>
+        <span class="s0">src: &lt;[modules/*]&gt;</span>
+        <span class="s0">dest: './library/'</span>
+        <span class="s0">filter: \isFile</span>
+      <span class="s0">* expand: on</span>
+        <span class="s0">cwd: './modules/library/'</span>
+        <span class="s0">src: '*'</span>
+        <span class="s0">dest: './library/modules/'</span>
+    <span class="s0">watch:</span>
+      <span class="s0">core:</span>
+        <span class="s0">files: './modules/*'</span>
+        <span class="s0">tasks: \default</span>
+      <span class="s0">tests:</span>
+        <span class="s0">files: './tests/tests/*'</span>
+        <span class="s0">tasks: \livescript</span>
+    <span class="s0">karma:</span>
+      <span class="s0">'options':</span>
+        <span class="s0">configFile: './tests/karma.conf.js'</span>
+        <span class="s0">browsers: &lt;[PhantomJS]&gt;</span>
+        <span class="s0">singleRun: on</span>
+      <span class="s0">'default': {}</span>
+      <span class="s0">'library': files: &lt;[client/library.js tests/helpers.js tests/library.js]&gt;map -&gt; src: it</span>
+  <span class="s0">grunt.registerTask \build (options)-&gt;</span>
+    <span class="s0">done = @async!</span>
+    <span class="s0">build {</span>
+      <span class="s0">modules:   (options || 'es5,es6,es7,js,web,core')split \,</span>
+      <span class="s0">blacklist: (grunt.option(\blacklist) || '')split \,</span>
+      <span class="s0">library:   grunt.option(\library) in &lt;[yes on true]&gt;</span>
+      <span class="s0">umd:       grunt.option(\umd) not in &lt;[no off false]&gt;</span>
+    <span class="s0">}</span>
+    <span class="s0">.then !-&gt;</span>
+      <span class="s0">grunt.option(\path) || grunt.option(\path, './custom')</span>
+      <span class="s0">fs.writeFile grunt.option(\path) + '.js', it, done</span>
+    <span class="s0">.catch !-&gt;</span>
+      <span class="s0">console.error it</span>
+      <span class="s0">process.exit 1</span>
+  <span class="s0">grunt.registerTask \client -&gt;</span>
+    <span class="s0">grunt.option \library ''</span>
+    <span class="s0">grunt.option \path './client/core'</span>
+    <span class="s0">grunt.task.run &lt;[build:es5,es6,es7,js,web,core uglify]&gt;</span>
+  <span class="s0">grunt.registerTask \library -&gt;</span>
+    <span class="s0">grunt.option \library 'true'</span>
+    <span class="s0">grunt.option \path './client/library'</span>
+    <span class="s0">grunt.task.run &lt;[build:es5,es6,es7,js,web,core uglify]&gt;</span>
+  <span class="s0">grunt.registerTask \shim -&gt;</span>
+    <span class="s0">grunt.option \library ''</span>
+    <span class="s0">grunt.option \path './client/shim'</span>
+    <span class="s0">grunt.task.run &lt;[build:es5,es6,es7,js,web uglify]&gt;</span>
+  <span class="s0">grunt.registerTask \e -&gt;</span>
+    <span class="s0">grunt.option \library ''&gt;</span>
+    <span class="s0">grunt.option \path './client/core'</span>
+    <span class="s0">grunt.task.run &lt;[build:es5,es6,es7,js,web,core,exp uglify]&gt;</span>
+  <span class="s0">grunt.registerTask \default &lt;[clean copy client library shim]&gt;</span></pre>
+</body>
+</html>

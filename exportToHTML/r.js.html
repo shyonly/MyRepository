@@ -1,0 +1,256 @@
+<html>
+<head>
+<title>r.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #67a37c; font-style: italic;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #bcbec4;}
+.s5 { color: #6aab73;}
+.s6 { color: #7a7e85;}
+.s7 { color: #42c3d4;}
+.s8 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+r.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">{string} value</span>
+ <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{RegExp}</span>
+ <span class="s0">* */</span>
+
+<span class="s0">/**</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">{RegExp | string } re</span>
+ <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{string}</span>
+ <span class="s0">*/</span>
+<span class="s3">function </span><span class="s2">source</span><span class="s4">(</span><span class="s2">re</span><span class="s4">) {</span>
+  <span class="s3">if </span><span class="s4">(!</span><span class="s2">re</span><span class="s4">) </span><span class="s3">return null</span><span class="s4">;</span>
+  <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">re </span><span class="s4">=== </span><span class="s5">&quot;string&quot;</span><span class="s4">) </span><span class="s3">return </span><span class="s2">re</span><span class="s4">;</span>
+
+  <span class="s3">return </span><span class="s2">re</span><span class="s4">.</span><span class="s2">source</span><span class="s4">;</span>
+<span class="s4">}</span>
+
+<span class="s0">/**</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">{RegExp | string } re</span>
+ <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{string}</span>
+ <span class="s0">*/</span>
+<span class="s3">function </span><span class="s2">lookahead</span><span class="s4">(</span><span class="s2">re</span><span class="s4">) {</span>
+  <span class="s3">return </span><span class="s2">concat</span><span class="s4">(</span><span class="s5">'(?='</span><span class="s4">, </span><span class="s2">re</span><span class="s4">, </span><span class="s5">')'</span><span class="s4">);</span>
+<span class="s4">}</span>
+
+<span class="s0">/**</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">{...(RegExp | string) } args</span>
+ <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{string}</span>
+ <span class="s0">*/</span>
+<span class="s3">function </span><span class="s2">concat</span><span class="s4">(</span><span class="s2">...args</span><span class="s4">) {</span>
+  <span class="s3">const </span><span class="s2">joined </span><span class="s4">= </span><span class="s2">args</span><span class="s4">.</span><span class="s2">map</span><span class="s4">((</span><span class="s2">x</span><span class="s4">) =&gt; </span><span class="s2">source</span><span class="s4">(</span><span class="s2">x</span><span class="s4">)).</span><span class="s2">join</span><span class="s4">(</span><span class="s5">&quot;&quot;</span><span class="s4">);</span>
+  <span class="s3">return </span><span class="s2">joined</span><span class="s4">;</span>
+<span class="s4">}</span>
+
+<span class="s6">/* 
+Language: R 
+Description: R is a free software environment for statistical computing and graphics. 
+Author: Joe Cheng &lt;joe@rstudio.org&gt; 
+Contributors: Konrad Rudolph &lt;konrad.rudolph@gmail.com&gt; 
+Website: https://www.r-project.org 
+Category: common,scientific 
+*/</span>
+
+<span class="s0">/** </span><span class="s1">@type </span><span class="s0">LanguageFn */</span>
+<span class="s3">function </span><span class="s2">r</span><span class="s4">(</span><span class="s2">hljs</span><span class="s4">) {</span>
+  <span class="s6">// Identifiers in R cannot start with `_`, but they can start with `.` if it</span>
+  <span class="s6">// is not immediately followed by a digit.</span>
+  <span class="s6">// R also supports quoted identifiers, which are near-arbitrary sequences</span>
+  <span class="s6">// delimited by backticks (`…`), which may contain escape sequences. These are</span>
+  <span class="s6">// handled in a separate mode. See `test/markup/r/names.txt` for examples.</span>
+  <span class="s6">// FIXME: Support Unicode identifiers.</span>
+  <span class="s3">const </span><span class="s2">IDENT_RE </span><span class="s4">= </span><span class="s7">/(?:(?:[a-zA-Z]|\.[._a-zA-Z])[._a-zA-Z0-9]*)|\.(?!\d)/</span><span class="s4">;</span>
+  <span class="s3">const </span><span class="s2">SIMPLE_IDENT </span><span class="s4">= </span><span class="s7">/[a-zA-Z][a-zA-Z_0-9]*/</span><span class="s4">;</span>
+
+  <span class="s3">return </span><span class="s4">{</span>
+    <span class="s2">name</span><span class="s4">: </span><span class="s5">'R'</span><span class="s4">,</span>
+
+    <span class="s6">// only in Haskell, not R</span>
+    <span class="s2">illegal</span><span class="s4">: </span><span class="s7">/-&gt;/</span><span class="s4">,</span>
+    <span class="s2">keywords</span><span class="s4">: {</span>
+      <span class="s2">$pattern</span><span class="s4">: </span><span class="s2">IDENT_RE</span><span class="s4">,</span>
+      <span class="s2">keyword</span><span class="s4">:</span>
+        <span class="s5">'function if in break next repeat else for while'</span><span class="s4">,</span>
+      <span class="s2">literal</span><span class="s4">:</span>
+        <span class="s5">'NULL NA TRUE FALSE Inf NaN NA_integer_|10 NA_real_|10 ' </span><span class="s4">+</span>
+        <span class="s5">'NA_character_|10 NA_complex_|10'</span><span class="s4">,</span>
+      <span class="s2">built_in</span><span class="s4">:</span>
+        <span class="s6">// Builtin constants</span>
+        <span class="s5">'LETTERS letters month.abb month.name pi T F ' </span><span class="s4">+</span>
+        <span class="s6">// Primitive functions</span>
+        <span class="s6">// These are all the functions in `base` that are implemented as a</span>
+        <span class="s6">// `.Primitive`, minus those functions that are also keywords.</span>
+        <span class="s5">'abs acos acosh all any anyNA Arg as.call as.character ' </span><span class="s4">+</span>
+        <span class="s5">'as.complex as.double as.environment as.integer as.logical ' </span><span class="s4">+</span>
+        <span class="s5">'as.null.default as.numeric as.raw asin asinh atan atanh attr ' </span><span class="s4">+</span>
+        <span class="s5">'attributes baseenv browser c call ceiling class Conj cos cosh ' </span><span class="s4">+</span>
+        <span class="s5">'cospi cummax cummin cumprod cumsum digamma dim dimnames ' </span><span class="s4">+</span>
+        <span class="s5">'emptyenv exp expression floor forceAndCall gamma gc.time ' </span><span class="s4">+</span>
+        <span class="s5">'globalenv Im interactive invisible is.array is.atomic is.call ' </span><span class="s4">+</span>
+        <span class="s5">'is.character is.complex is.double is.environment is.expression ' </span><span class="s4">+</span>
+        <span class="s5">'is.finite is.function is.infinite is.integer is.language ' </span><span class="s4">+</span>
+        <span class="s5">'is.list is.logical is.matrix is.na is.name is.nan is.null ' </span><span class="s4">+</span>
+        <span class="s5">'is.numeric is.object is.pairlist is.raw is.recursive is.single ' </span><span class="s4">+</span>
+        <span class="s5">'is.symbol lazyLoadDBfetch length lgamma list log max min ' </span><span class="s4">+</span>
+        <span class="s5">'missing Mod names nargs nzchar oldClass on.exit pos.to.env ' </span><span class="s4">+</span>
+        <span class="s5">'proc.time prod quote range Re rep retracemem return round ' </span><span class="s4">+</span>
+        <span class="s5">'seq_along seq_len seq.int sign signif sin sinh sinpi sqrt ' </span><span class="s4">+</span>
+        <span class="s5">'standardGeneric substitute sum switch tan tanh tanpi tracemem ' </span><span class="s4">+</span>
+        <span class="s5">'trigamma trunc unclass untracemem UseMethod xtfrm'</span><span class="s4">,</span>
+    <span class="s4">},</span>
+    <span class="s2">compilerExtensions</span><span class="s4">: [</span>
+      <span class="s6">// allow beforeMatch to act as a &quot;qualifier&quot; for the match</span>
+      <span class="s6">// the full match begin must be [beforeMatch][begin]</span>
+      <span class="s4">(</span><span class="s2">mode</span><span class="s4">, </span><span class="s2">parent</span><span class="s4">) =&gt; {</span>
+        <span class="s3">if </span><span class="s4">(!</span><span class="s2">mode</span><span class="s4">.</span><span class="s2">beforeMatch</span><span class="s4">) </span><span class="s3">return</span><span class="s4">;</span>
+        <span class="s6">// starts conflicts with endsParent which we need to make sure the child</span>
+        <span class="s6">// rule is not matched multiple times</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">mode</span><span class="s4">.</span><span class="s2">starts</span><span class="s4">) </span><span class="s3">throw new </span><span class="s2">Error</span><span class="s4">(</span><span class="s5">&quot;beforeMatch cannot be used with starts&quot;</span><span class="s4">);</span>
+
+        <span class="s3">const </span><span class="s2">originalMode </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">({}, </span><span class="s2">mode</span><span class="s4">);</span>
+        <span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">mode</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">((</span><span class="s2">key</span><span class="s4">) =&gt; { </span><span class="s3">delete </span><span class="s2">mode</span><span class="s4">[</span><span class="s2">key</span><span class="s4">]; });</span>
+
+        <span class="s2">mode</span><span class="s4">.</span><span class="s2">begin </span><span class="s4">= </span><span class="s2">concat</span><span class="s4">(</span><span class="s2">originalMode</span><span class="s4">.</span><span class="s2">beforeMatch</span><span class="s4">, </span><span class="s2">lookahead</span><span class="s4">(</span><span class="s2">originalMode</span><span class="s4">.</span><span class="s2">begin</span><span class="s4">));</span>
+        <span class="s2">mode</span><span class="s4">.</span><span class="s2">starts </span><span class="s4">= {</span>
+          <span class="s2">relevance</span><span class="s4">: </span><span class="s8">0</span><span class="s4">,</span>
+          <span class="s2">contains</span><span class="s4">: [</span>
+            <span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">(</span><span class="s2">originalMode</span><span class="s4">, { </span><span class="s2">endsParent</span><span class="s4">: </span><span class="s3">true </span><span class="s4">})</span>
+          <span class="s4">]</span>
+        <span class="s4">};</span>
+        <span class="s2">mode</span><span class="s4">.</span><span class="s2">relevance </span><span class="s4">= </span><span class="s8">0</span><span class="s4">;</span>
+
+        <span class="s3">delete </span><span class="s2">originalMode</span><span class="s4">.</span><span class="s2">beforeMatch</span><span class="s4">;</span>
+      <span class="s4">}</span>
+    <span class="s4">],</span>
+    <span class="s2">contains</span><span class="s4">: [</span>
+      <span class="s6">// Roxygen comments</span>
+      <span class="s2">hljs</span><span class="s4">.</span><span class="s2">COMMENT</span><span class="s4">(</span>
+        <span class="s7">/#'/</span><span class="s4">,</span>
+        <span class="s7">/$/</span><span class="s4">,</span>
+        <span class="s4">{</span>
+          <span class="s2">contains</span><span class="s4">: [</span>
+            <span class="s4">{</span>
+              <span class="s6">// Handle `@examples` separately to cause all subsequent code</span>
+              <span class="s6">// until the next `@`-tag on its own line to be kept as-is,</span>
+              <span class="s6">// preventing highlighting. This code is example R code, so nested</span>
+              <span class="s6">// doctags shouldn’t be treated as such. See</span>
+              <span class="s6">// `test/markup/r/roxygen.txt` for an example.</span>
+              <span class="s2">className</span><span class="s4">: </span><span class="s5">'doctag'</span><span class="s4">,</span>
+              <span class="s2">begin</span><span class="s4">: </span><span class="s5">'@examples'</span><span class="s4">,</span>
+              <span class="s2">starts</span><span class="s4">: {</span>
+                <span class="s2">contains</span><span class="s4">: [</span>
+                  <span class="s4">{ </span><span class="s2">begin</span><span class="s4">: </span><span class="s7">/\n/ </span><span class="s4">},</span>
+                  <span class="s4">{</span>
+                    <span class="s2">begin</span><span class="s4">: </span><span class="s7">/#'\s*(?=@[a-zA-Z]+)/</span><span class="s4">,</span>
+                    <span class="s2">endsParent</span><span class="s4">: </span><span class="s3">true</span><span class="s4">,</span>
+                  <span class="s4">},</span>
+                  <span class="s4">{</span>
+                    <span class="s2">begin</span><span class="s4">: </span><span class="s7">/#'/</span><span class="s4">,</span>
+                    <span class="s2">end</span><span class="s4">: </span><span class="s7">/$/</span><span class="s4">,</span>
+                    <span class="s2">excludeBegin</span><span class="s4">: </span><span class="s3">true</span><span class="s4">,</span>
+                  <span class="s4">}</span>
+                <span class="s4">]</span>
+              <span class="s4">}</span>
+            <span class="s4">},</span>
+            <span class="s4">{</span>
+              <span class="s6">// Handle `@param` to highlight the parameter name following</span>
+              <span class="s6">// after.</span>
+              <span class="s2">className</span><span class="s4">: </span><span class="s5">'doctag'</span><span class="s4">,</span>
+              <span class="s2">begin</span><span class="s4">: </span><span class="s5">'@param'</span><span class="s4">,</span>
+              <span class="s2">end</span><span class="s4">: </span><span class="s7">/$/</span><span class="s4">,</span>
+              <span class="s2">contains</span><span class="s4">: [</span>
+                <span class="s4">{</span>
+                  <span class="s2">className</span><span class="s4">: </span><span class="s5">'variable'</span><span class="s4">,</span>
+                  <span class="s2">variants</span><span class="s4">: [</span>
+                    <span class="s4">{ </span><span class="s2">begin</span><span class="s4">: </span><span class="s2">IDENT_RE </span><span class="s4">},</span>
+                    <span class="s4">{ </span><span class="s2">begin</span><span class="s4">: </span><span class="s7">/`(?:\\.|[^`\\])+`/ </span><span class="s4">}</span>
+                  <span class="s4">],</span>
+                  <span class="s2">endsParent</span><span class="s4">: </span><span class="s3">true</span>
+                <span class="s4">}</span>
+              <span class="s4">]</span>
+            <span class="s4">},</span>
+            <span class="s4">{</span>
+              <span class="s2">className</span><span class="s4">: </span><span class="s5">'doctag'</span><span class="s4">,</span>
+              <span class="s2">begin</span><span class="s4">: </span><span class="s7">/@[a-zA-Z]+/</span>
+            <span class="s4">},</span>
+            <span class="s4">{</span>
+              <span class="s2">className</span><span class="s4">: </span><span class="s5">'meta-keyword'</span><span class="s4">,</span>
+              <span class="s2">begin</span><span class="s4">: </span><span class="s7">/\\[a-zA-Z]+/</span><span class="s4">,</span>
+            <span class="s4">}</span>
+          <span class="s4">]</span>
+        <span class="s4">}</span>
+      <span class="s4">),</span>
+
+      <span class="s2">hljs</span><span class="s4">.</span><span class="s2">HASH_COMMENT_MODE</span><span class="s4">,</span>
+
+      <span class="s4">{</span>
+        <span class="s2">className</span><span class="s4">: </span><span class="s5">'string'</span><span class="s4">,</span>
+        <span class="s2">contains</span><span class="s4">: [</span><span class="s2">hljs</span><span class="s4">.</span><span class="s2">BACKSLASH_ESCAPE</span><span class="s4">],</span>
+        <span class="s2">variants</span><span class="s4">: [</span>
+          <span class="s2">hljs</span><span class="s4">.</span><span class="s2">END_SAME_AS_BEGIN</span><span class="s4">({ </span><span class="s2">begin</span><span class="s4">: </span><span class="s7">/[rR]&quot;(-*)\(/</span><span class="s4">, </span><span class="s2">end</span><span class="s4">: </span><span class="s7">/\)(-*)&quot;/ </span><span class="s4">}),</span>
+          <span class="s2">hljs</span><span class="s4">.</span><span class="s2">END_SAME_AS_BEGIN</span><span class="s4">({ </span><span class="s2">begin</span><span class="s4">: </span><span class="s7">/[rR]&quot;(-*)\{/</span><span class="s4">, </span><span class="s2">end</span><span class="s4">: </span><span class="s7">/\}(-*)&quot;/ </span><span class="s4">}),</span>
+          <span class="s2">hljs</span><span class="s4">.</span><span class="s2">END_SAME_AS_BEGIN</span><span class="s4">({ </span><span class="s2">begin</span><span class="s4">: </span><span class="s7">/[rR]&quot;(-*)\[/</span><span class="s4">, </span><span class="s2">end</span><span class="s4">: </span><span class="s7">/\](-*)&quot;/ </span><span class="s4">}),</span>
+          <span class="s2">hljs</span><span class="s4">.</span><span class="s2">END_SAME_AS_BEGIN</span><span class="s4">({ </span><span class="s2">begin</span><span class="s4">: </span><span class="s7">/[rR]'(-*)\(/</span><span class="s4">, </span><span class="s2">end</span><span class="s4">: </span><span class="s7">/\)(-*)'/ </span><span class="s4">}),</span>
+          <span class="s2">hljs</span><span class="s4">.</span><span class="s2">END_SAME_AS_BEGIN</span><span class="s4">({ </span><span class="s2">begin</span><span class="s4">: </span><span class="s7">/[rR]'(-*)\{/</span><span class="s4">, </span><span class="s2">end</span><span class="s4">: </span><span class="s7">/\}(-*)'/ </span><span class="s4">}),</span>
+          <span class="s2">hljs</span><span class="s4">.</span><span class="s2">END_SAME_AS_BEGIN</span><span class="s4">({ </span><span class="s2">begin</span><span class="s4">: </span><span class="s7">/[rR]'(-*)\[/</span><span class="s4">, </span><span class="s2">end</span><span class="s4">: </span><span class="s7">/\](-*)'/ </span><span class="s4">}),</span>
+          <span class="s4">{</span><span class="s2">begin</span><span class="s4">: </span><span class="s5">'&quot;'</span><span class="s4">, </span><span class="s2">end</span><span class="s4">: </span><span class="s5">'&quot;'</span><span class="s4">, </span><span class="s2">relevance</span><span class="s4">: </span><span class="s8">0</span><span class="s4">},</span>
+          <span class="s4">{</span><span class="s2">begin</span><span class="s4">: </span><span class="s5">&quot;'&quot;</span><span class="s4">, </span><span class="s2">end</span><span class="s4">: </span><span class="s5">&quot;'&quot;</span><span class="s4">, </span><span class="s2">relevance</span><span class="s4">: </span><span class="s8">0</span><span class="s4">}</span>
+        <span class="s4">],</span>
+      <span class="s4">},</span>
+      <span class="s4">{</span>
+        <span class="s2">className</span><span class="s4">: </span><span class="s5">'number'</span><span class="s4">,</span>
+        <span class="s2">relevance</span><span class="s4">: </span><span class="s8">0</span><span class="s4">,</span>
+        <span class="s2">beforeMatch</span><span class="s4">: </span><span class="s7">/([^a-zA-Z0-9._])/</span><span class="s4">, </span><span class="s6">// not part of an identifier</span>
+        <span class="s2">variants</span><span class="s4">: [</span>
+          <span class="s6">// TODO: replace with negative look-behind when available</span>
+          <span class="s6">// { begin: /(?&lt;![a-zA-Z0-9._])0[xX][0-9a-fA-F]+\.[0-9a-fA-F]*[pP][+-]?\d+i?/ },</span>
+          <span class="s6">// { begin: /(?&lt;![a-zA-Z0-9._])0[xX][0-9a-fA-F]+([pP][+-]?\d+)?[Li]?/ },</span>
+          <span class="s6">// { begin: /(?&lt;![a-zA-Z0-9._])(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?[Li]?/ }</span>
+          <span class="s4">{</span>
+            <span class="s6">// Special case: only hexadecimal binary powers can contain fractions.</span>
+            <span class="s2">match</span><span class="s4">: </span><span class="s7">/0[xX][0-9a-fA-F]+\.[0-9a-fA-F]*[pP][+-]?\d+i?/</span><span class="s4">,</span>
+          <span class="s4">},</span>
+          <span class="s4">{</span>
+            <span class="s2">match</span><span class="s4">: </span><span class="s7">/0[xX][0-9a-fA-F]+([pP][+-]?\d+)?[Li]?/</span>
+          <span class="s4">},</span>
+          <span class="s4">{</span>
+            <span class="s2">match</span><span class="s4">: </span><span class="s7">/(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?[Li]?/</span><span class="s4">,</span>
+          <span class="s4">}</span>
+        <span class="s4">],</span>
+      <span class="s4">},</span>
+      <span class="s4">{</span>
+        <span class="s6">// infix operator</span>
+        <span class="s2">begin</span><span class="s4">: </span><span class="s5">'%'</span><span class="s4">,</span>
+        <span class="s2">end</span><span class="s4">: </span><span class="s5">'%'</span>
+      <span class="s4">},</span>
+      <span class="s6">// relevance boost for assignment</span>
+      <span class="s4">{</span>
+        <span class="s2">begin</span><span class="s4">: </span><span class="s2">concat</span><span class="s4">(</span><span class="s2">SIMPLE_IDENT</span><span class="s4">, </span><span class="s5">&quot;</span><span class="s3">\\</span><span class="s5">s+&lt;-</span><span class="s3">\\</span><span class="s5">s+&quot;</span><span class="s4">)</span>
+      <span class="s4">},</span>
+      <span class="s4">{</span>
+        <span class="s6">// escaped identifier</span>
+        <span class="s2">begin</span><span class="s4">: </span><span class="s5">'`'</span><span class="s4">,</span>
+        <span class="s2">end</span><span class="s4">: </span><span class="s5">'`'</span><span class="s4">,</span>
+        <span class="s2">contains</span><span class="s4">: [</span>
+          <span class="s4">{ </span><span class="s2">begin</span><span class="s4">: </span><span class="s7">/\\./ </span><span class="s4">}</span>
+        <span class="s4">]</span>
+      <span class="s4">}</span>
+    <span class="s4">]</span>
+  <span class="s4">};</span>
+<span class="s4">}</span>
+
+<span class="s2">module</span><span class="s4">.</span><span class="s2">exports </span><span class="s4">= </span><span class="s2">r</span><span class="s4">;</span>
+</pre>
+</body>
+</html>

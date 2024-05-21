@@ -1,0 +1,259 @@
+<html>
+<head>
+<title>hotModuleReplacement.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #7a7e85;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #cf8e6d;}
+.s7 { color: #2aacb8;}
+.s8 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+hotModuleReplacement.js</font>
+</center></td></tr></table>
+<pre><span class="s0">&quot;use strict&quot;</span><span class="s1">;</span>
+
+<span class="s3">/* eslint-env browser */</span>
+<span class="s3">/* 
+  eslint-disable 
+  no-console, 
+  func-names 
+*/</span>
+
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{any} TODO */</span>
+
+<span class="s6">var </span><span class="s2">normalizeUrl </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./normalize-url&quot;</span><span class="s1">);</span>
+<span class="s6">var </span><span class="s2">srcByModuleId </span><span class="s1">= </span><span class="s2">Object</span><span class="s1">.</span><span class="s2">create</span><span class="s1">(</span><span class="s6">null</span><span class="s1">);</span>
+<span class="s6">var </span><span class="s2">noDocument </span><span class="s1">= </span><span class="s6">typeof </span><span class="s2">document </span><span class="s1">=== </span><span class="s0">&quot;undefined&quot;</span><span class="s1">;</span>
+<span class="s6">var </span><span class="s2">forEach </span><span class="s1">= </span><span class="s2">Array</span><span class="s1">.</span><span class="s2">prototype</span><span class="s1">.</span><span class="s2">forEach</span><span class="s1">;</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{function} fn</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} time</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{(function(): void)|*}</span>
+ <span class="s4">*/</span>
+<span class="s6">function </span><span class="s2">debounce</span><span class="s1">(</span><span class="s2">fn</span><span class="s1">, </span><span class="s2">time</span><span class="s1">) {</span>
+  <span class="s6">var </span><span class="s2">timeout </span><span class="s1">= </span><span class="s7">0</span><span class="s1">;</span>
+  <span class="s6">return function </span><span class="s1">() {</span>
+    <span class="s3">// @ts-ignore</span>
+    <span class="s6">var </span><span class="s2">self </span><span class="s1">= </span><span class="s6">this</span><span class="s1">;</span>
+    <span class="s3">// eslint-disable-next-line prefer-rest-params</span>
+    <span class="s6">var </span><span class="s2">args </span><span class="s1">= </span><span class="s2">arguments</span><span class="s1">;</span>
+    <span class="s6">var </span><span class="s2">functionCall </span><span class="s1">= </span><span class="s6">function </span><span class="s2">functionCall</span><span class="s1">() {</span>
+      <span class="s6">return </span><span class="s2">fn</span><span class="s1">.</span><span class="s2">apply</span><span class="s1">(</span><span class="s2">self</span><span class="s1">, </span><span class="s2">args</span><span class="s1">);</span>
+    <span class="s1">};</span>
+    <span class="s2">clearTimeout</span><span class="s1">(</span><span class="s2">timeout</span><span class="s1">);</span>
+
+    <span class="s3">// @ts-ignore</span>
+    <span class="s2">timeout </span><span class="s1">= </span><span class="s2">setTimeout</span><span class="s1">(</span><span class="s2">functionCall</span><span class="s1">, </span><span class="s2">time</span><span class="s1">);</span>
+  <span class="s1">};</span>
+<span class="s1">}</span>
+<span class="s6">function </span><span class="s2">noop</span><span class="s1">() {}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{TODO} moduleId</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{TODO}</span>
+ <span class="s4">*/</span>
+<span class="s6">function </span><span class="s2">getCurrentScriptUrl</span><span class="s1">(</span><span class="s2">moduleId</span><span class="s1">) {</span>
+  <span class="s6">var </span><span class="s2">src </span><span class="s1">= </span><span class="s2">srcByModuleId</span><span class="s1">[</span><span class="s2">moduleId</span><span class="s1">];</span>
+  <span class="s6">if </span><span class="s1">(!</span><span class="s2">src</span><span class="s1">) {</span>
+    <span class="s6">if </span><span class="s1">(</span><span class="s2">document</span><span class="s1">.</span><span class="s2">currentScript</span><span class="s1">) {</span>
+      <span class="s2">src </span><span class="s1">= </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{HTMLScriptElement} */</span><span class="s2">document</span><span class="s1">.</span><span class="s2">currentScript</span><span class="s1">.</span><span class="s2">src</span><span class="s1">;</span>
+    <span class="s1">} </span><span class="s6">else </span><span class="s1">{</span>
+      <span class="s6">var </span><span class="s2">scripts </span><span class="s1">= </span><span class="s2">document</span><span class="s1">.</span><span class="s2">getElementsByTagName</span><span class="s1">(</span><span class="s0">&quot;script&quot;</span><span class="s1">);</span>
+      <span class="s6">var </span><span class="s2">lastScriptTag </span><span class="s1">= </span><span class="s2">scripts</span><span class="s1">[</span><span class="s2">scripts</span><span class="s1">.</span><span class="s2">length </span><span class="s1">- </span><span class="s7">1</span><span class="s1">];</span>
+      <span class="s6">if </span><span class="s1">(</span><span class="s2">lastScriptTag</span><span class="s1">) {</span>
+        <span class="s2">src </span><span class="s1">= </span><span class="s2">lastScriptTag</span><span class="s1">.</span><span class="s2">src</span><span class="s1">;</span>
+      <span class="s1">}</span>
+    <span class="s1">}</span>
+    <span class="s2">srcByModuleId</span><span class="s1">[</span><span class="s2">moduleId</span><span class="s1">] = </span><span class="s2">src</span><span class="s1">;</span>
+  <span class="s1">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} fileMap</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{null | string[]}</span>
+   <span class="s4">*/</span>
+  <span class="s6">return function </span><span class="s1">(</span><span class="s2">fileMap</span><span class="s1">) {</span>
+    <span class="s6">if </span><span class="s1">(!</span><span class="s2">src</span><span class="s1">) {</span>
+      <span class="s6">return null</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s6">var </span><span class="s2">splitResult </span><span class="s1">= </span><span class="s2">src</span><span class="s1">.</span><span class="s2">split</span><span class="s1">(</span><span class="s8">/([^\\/]+)\.js$/</span><span class="s1">);</span>
+    <span class="s6">var </span><span class="s2">filename </span><span class="s1">= </span><span class="s2">splitResult </span><span class="s1">&amp;&amp; </span><span class="s2">splitResult</span><span class="s1">[</span><span class="s7">1</span><span class="s1">];</span>
+    <span class="s6">if </span><span class="s1">(!</span><span class="s2">filename</span><span class="s1">) {</span>
+      <span class="s6">return </span><span class="s1">[</span><span class="s2">src</span><span class="s1">.</span><span class="s2">replace</span><span class="s1">(</span><span class="s0">&quot;.js&quot;</span><span class="s1">, </span><span class="s0">&quot;.css&quot;</span><span class="s1">)];</span>
+    <span class="s1">}</span>
+    <span class="s6">if </span><span class="s1">(!</span><span class="s2">fileMap</span><span class="s1">) {</span>
+      <span class="s6">return </span><span class="s1">[</span><span class="s2">src</span><span class="s1">.</span><span class="s2">replace</span><span class="s1">(</span><span class="s0">&quot;.js&quot;</span><span class="s1">, </span><span class="s0">&quot;.css&quot;</span><span class="s1">)];</span>
+    <span class="s1">}</span>
+    <span class="s6">return </span><span class="s2">fileMap</span><span class="s1">.</span><span class="s2">split</span><span class="s1">(</span><span class="s0">&quot;,&quot;</span><span class="s1">).</span><span class="s2">map</span><span class="s1">(</span><span class="s6">function </span><span class="s1">(</span><span class="s2">mapRule</span><span class="s1">) {</span>
+      <span class="s6">var </span><span class="s2">reg </span><span class="s1">= </span><span class="s6">new </span><span class="s2">RegExp</span><span class="s1">(</span><span class="s0">&quot;&quot;</span><span class="s1">.</span><span class="s2">concat</span><span class="s1">(</span><span class="s2">filename</span><span class="s1">, </span><span class="s0">&quot;</span><span class="s6">\\</span><span class="s0">.js$&quot;</span><span class="s1">), </span><span class="s0">&quot;g&quot;</span><span class="s1">);</span>
+      <span class="s6">return </span><span class="s2">normalizeUrl</span><span class="s1">(</span><span class="s2">src</span><span class="s1">.</span><span class="s2">replace</span><span class="s1">(</span><span class="s2">reg</span><span class="s1">, </span><span class="s0">&quot;&quot;</span><span class="s1">.</span><span class="s2">concat</span><span class="s1">(</span><span class="s2">mapRule</span><span class="s1">.</span><span class="s2">replace</span><span class="s1">(</span><span class="s8">/{fileName}/g</span><span class="s1">, </span><span class="s2">filename</span><span class="s1">), </span><span class="s0">&quot;.css&quot;</span><span class="s1">)));</span>
+    <span class="s1">});</span>
+  <span class="s1">};</span>
+<span class="s1">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{TODO} el</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} [url]</span>
+ <span class="s4">*/</span>
+<span class="s6">function </span><span class="s2">updateCss</span><span class="s1">(</span><span class="s2">el</span><span class="s1">, </span><span class="s2">url</span><span class="s1">) {</span>
+  <span class="s6">if </span><span class="s1">(!</span><span class="s2">url</span><span class="s1">) {</span>
+    <span class="s6">if </span><span class="s1">(!</span><span class="s2">el</span><span class="s1">.</span><span class="s2">href</span><span class="s1">) {</span>
+      <span class="s6">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s3">// eslint-disable-next-line</span>
+    <span class="s2">url </span><span class="s1">= </span><span class="s2">el</span><span class="s1">.</span><span class="s2">href</span><span class="s1">.</span><span class="s2">split</span><span class="s1">(</span><span class="s0">&quot;?&quot;</span><span class="s1">)[</span><span class="s7">0</span><span class="s1">];</span>
+  <span class="s1">}</span>
+  <span class="s6">if </span><span class="s1">(!</span><span class="s2">isUrlRequest</span><span class="s1">( </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{string} */</span><span class="s2">url</span><span class="s1">)) {</span>
+    <span class="s6">return</span><span class="s1">;</span>
+  <span class="s1">}</span>
+  <span class="s6">if </span><span class="s1">(</span><span class="s2">el</span><span class="s1">.</span><span class="s2">isLoaded </span><span class="s1">=== </span><span class="s6">false</span><span class="s1">) {</span>
+    <span class="s3">// We seem to be about to replace a css link that hasn't loaded yet.</span>
+    <span class="s3">// We're probably changing the same file more than once.</span>
+    <span class="s6">return</span><span class="s1">;</span>
+  <span class="s1">}</span>
+  <span class="s6">if </span><span class="s1">(!</span><span class="s2">url </span><span class="s1">|| !(</span><span class="s2">url</span><span class="s1">.</span><span class="s2">indexOf</span><span class="s1">(</span><span class="s0">&quot;.css&quot;</span><span class="s1">) &gt; -</span><span class="s7">1</span><span class="s1">)) {</span>
+    <span class="s6">return</span><span class="s1">;</span>
+  <span class="s1">}</span>
+
+  <span class="s3">// eslint-disable-next-line no-param-reassign</span>
+  <span class="s2">el</span><span class="s1">.</span><span class="s2">visited </span><span class="s1">= </span><span class="s6">true</span><span class="s1">;</span>
+  <span class="s6">var </span><span class="s2">newEl </span><span class="s1">= </span><span class="s2">el</span><span class="s1">.</span><span class="s2">cloneNode</span><span class="s1">();</span>
+  <span class="s2">newEl</span><span class="s1">.</span><span class="s2">isLoaded </span><span class="s1">= </span><span class="s6">false</span><span class="s1">;</span>
+  <span class="s2">newEl</span><span class="s1">.</span><span class="s2">addEventListener</span><span class="s1">(</span><span class="s0">&quot;load&quot;</span><span class="s1">, </span><span class="s6">function </span><span class="s1">() {</span>
+    <span class="s6">if </span><span class="s1">(</span><span class="s2">newEl</span><span class="s1">.</span><span class="s2">isLoaded</span><span class="s1">) {</span>
+      <span class="s6">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s2">newEl</span><span class="s1">.</span><span class="s2">isLoaded </span><span class="s1">= </span><span class="s6">true</span><span class="s1">;</span>
+    <span class="s2">el</span><span class="s1">.</span><span class="s2">parentNode</span><span class="s1">.</span><span class="s2">removeChild</span><span class="s1">(</span><span class="s2">el</span><span class="s1">);</span>
+  <span class="s1">});</span>
+  <span class="s2">newEl</span><span class="s1">.</span><span class="s2">addEventListener</span><span class="s1">(</span><span class="s0">&quot;error&quot;</span><span class="s1">, </span><span class="s6">function </span><span class="s1">() {</span>
+    <span class="s6">if </span><span class="s1">(</span><span class="s2">newEl</span><span class="s1">.</span><span class="s2">isLoaded</span><span class="s1">) {</span>
+      <span class="s6">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s2">newEl</span><span class="s1">.</span><span class="s2">isLoaded </span><span class="s1">= </span><span class="s6">true</span><span class="s1">;</span>
+    <span class="s2">el</span><span class="s1">.</span><span class="s2">parentNode</span><span class="s1">.</span><span class="s2">removeChild</span><span class="s1">(</span><span class="s2">el</span><span class="s1">);</span>
+  <span class="s1">});</span>
+  <span class="s2">newEl</span><span class="s1">.</span><span class="s2">href </span><span class="s1">= </span><span class="s0">&quot;&quot;</span><span class="s1">.</span><span class="s2">concat</span><span class="s1">(</span><span class="s2">url</span><span class="s1">, </span><span class="s0">&quot;?&quot;</span><span class="s1">).</span><span class="s2">concat</span><span class="s1">(</span><span class="s2">Date</span><span class="s1">.</span><span class="s2">now</span><span class="s1">());</span>
+  <span class="s6">if </span><span class="s1">(</span><span class="s2">el</span><span class="s1">.</span><span class="s2">nextSibling</span><span class="s1">) {</span>
+    <span class="s2">el</span><span class="s1">.</span><span class="s2">parentNode</span><span class="s1">.</span><span class="s2">insertBefore</span><span class="s1">(</span><span class="s2">newEl</span><span class="s1">, </span><span class="s2">el</span><span class="s1">.</span><span class="s2">nextSibling</span><span class="s1">);</span>
+  <span class="s1">} </span><span class="s6">else </span><span class="s1">{</span>
+    <span class="s2">el</span><span class="s1">.</span><span class="s2">parentNode</span><span class="s1">.</span><span class="s2">appendChild</span><span class="s1">(</span><span class="s2">newEl</span><span class="s1">);</span>
+  <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} href</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{TODO} src</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{TODO}</span>
+ <span class="s4">*/</span>
+<span class="s6">function </span><span class="s2">getReloadUrl</span><span class="s1">(</span><span class="s2">href</span><span class="s1">, </span><span class="s2">src</span><span class="s1">) {</span>
+  <span class="s6">var </span><span class="s2">ret</span><span class="s1">;</span>
+
+  <span class="s3">// eslint-disable-next-line no-param-reassign</span>
+  <span class="s2">href </span><span class="s1">= </span><span class="s2">normalizeUrl</span><span class="s1">(</span><span class="s2">href</span><span class="s1">);</span>
+  <span class="s2">src</span><span class="s1">.</span><span class="s2">some</span><span class="s1">(</span>
+  <span class="s4">/**</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} url</span>
+   <span class="s4">*/</span>
+  <span class="s3">// eslint-disable-next-line array-callback-return</span>
+  <span class="s6">function </span><span class="s1">(</span><span class="s2">url</span><span class="s1">) {</span>
+    <span class="s6">if </span><span class="s1">(</span><span class="s2">href</span><span class="s1">.</span><span class="s2">indexOf</span><span class="s1">(</span><span class="s2">src</span><span class="s1">) &gt; -</span><span class="s7">1</span><span class="s1">) {</span>
+      <span class="s2">ret </span><span class="s1">= </span><span class="s2">url</span><span class="s1">;</span>
+    <span class="s1">}</span>
+  <span class="s1">});</span>
+  <span class="s6">return </span><span class="s2">ret</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} [src]</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{boolean}</span>
+ <span class="s4">*/</span>
+<span class="s6">function </span><span class="s2">reloadStyle</span><span class="s1">(</span><span class="s2">src</span><span class="s1">) {</span>
+  <span class="s6">if </span><span class="s1">(!</span><span class="s2">src</span><span class="s1">) {</span>
+    <span class="s6">return false</span><span class="s1">;</span>
+  <span class="s1">}</span>
+  <span class="s6">var </span><span class="s2">elements </span><span class="s1">= </span><span class="s2">document</span><span class="s1">.</span><span class="s2">querySelectorAll</span><span class="s1">(</span><span class="s0">&quot;link&quot;</span><span class="s1">);</span>
+  <span class="s6">var </span><span class="s2">loaded </span><span class="s1">= </span><span class="s6">false</span><span class="s1">;</span>
+  <span class="s2">forEach</span><span class="s1">.</span><span class="s2">call</span><span class="s1">(</span><span class="s2">elements</span><span class="s1">, </span><span class="s6">function </span><span class="s1">(</span><span class="s2">el</span><span class="s1">) {</span>
+    <span class="s6">if </span><span class="s1">(!</span><span class="s2">el</span><span class="s1">.</span><span class="s2">href</span><span class="s1">) {</span>
+      <span class="s6">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s6">var </span><span class="s2">url </span><span class="s1">= </span><span class="s2">getReloadUrl</span><span class="s1">(</span><span class="s2">el</span><span class="s1">.</span><span class="s2">href</span><span class="s1">, </span><span class="s2">src</span><span class="s1">);</span>
+    <span class="s6">if </span><span class="s1">(!</span><span class="s2">isUrlRequest</span><span class="s1">(</span><span class="s2">url</span><span class="s1">)) {</span>
+      <span class="s6">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s6">if </span><span class="s1">(</span><span class="s2">el</span><span class="s1">.</span><span class="s2">visited </span><span class="s1">=== </span><span class="s6">true</span><span class="s1">) {</span>
+      <span class="s6">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s6">if </span><span class="s1">(</span><span class="s2">url</span><span class="s1">) {</span>
+      <span class="s2">updateCss</span><span class="s1">(</span><span class="s2">el</span><span class="s1">, </span><span class="s2">url</span><span class="s1">);</span>
+      <span class="s2">loaded </span><span class="s1">= </span><span class="s6">true</span><span class="s1">;</span>
+    <span class="s1">}</span>
+  <span class="s1">});</span>
+  <span class="s6">return </span><span class="s2">loaded</span><span class="s1">;</span>
+<span class="s1">}</span>
+<span class="s6">function </span><span class="s2">reloadAll</span><span class="s1">() {</span>
+  <span class="s6">var </span><span class="s2">elements </span><span class="s1">= </span><span class="s2">document</span><span class="s1">.</span><span class="s2">querySelectorAll</span><span class="s1">(</span><span class="s0">&quot;link&quot;</span><span class="s1">);</span>
+  <span class="s2">forEach</span><span class="s1">.</span><span class="s2">call</span><span class="s1">(</span><span class="s2">elements</span><span class="s1">, </span><span class="s6">function </span><span class="s1">(</span><span class="s2">el</span><span class="s1">) {</span>
+    <span class="s6">if </span><span class="s1">(</span><span class="s2">el</span><span class="s1">.</span><span class="s2">visited </span><span class="s1">=== </span><span class="s6">true</span><span class="s1">) {</span>
+      <span class="s6">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s2">updateCss</span><span class="s1">(</span><span class="s2">el</span><span class="s1">);</span>
+  <span class="s1">});</span>
+<span class="s1">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} url</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{boolean}</span>
+ <span class="s4">*/</span>
+<span class="s6">function </span><span class="s2">isUrlRequest</span><span class="s1">(</span><span class="s2">url</span><span class="s1">) {</span>
+  <span class="s3">// An URL is not an request if</span>
+
+  <span class="s3">// It is not http or https</span>
+  <span class="s6">if </span><span class="s1">(!</span><span class="s8">/^[a-zA-Z][a-zA-Z\d+\-.]*:/</span><span class="s1">.</span><span class="s2">test</span><span class="s1">(</span><span class="s2">url</span><span class="s1">)) {</span>
+    <span class="s6">return false</span><span class="s1">;</span>
+  <span class="s1">}</span>
+  <span class="s6">return true</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{TODO} moduleId</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{TODO} options</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{TODO}</span>
+ <span class="s4">*/</span>
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= </span><span class="s6">function </span><span class="s1">(</span><span class="s2">moduleId</span><span class="s1">, </span><span class="s2">options</span><span class="s1">) {</span>
+  <span class="s6">if </span><span class="s1">(</span><span class="s2">noDocument</span><span class="s1">) {</span>
+    <span class="s2">console</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">&quot;no window.document found, will not HMR CSS&quot;</span><span class="s1">);</span>
+    <span class="s6">return </span><span class="s2">noop</span><span class="s1">;</span>
+  <span class="s1">}</span>
+  <span class="s6">var </span><span class="s2">getScriptSrc </span><span class="s1">= </span><span class="s2">getCurrentScriptUrl</span><span class="s1">(</span><span class="s2">moduleId</span><span class="s1">);</span>
+  <span class="s6">function </span><span class="s2">update</span><span class="s1">() {</span>
+    <span class="s6">var </span><span class="s2">src </span><span class="s1">= </span><span class="s2">getScriptSrc</span><span class="s1">(</span><span class="s2">options</span><span class="s1">.</span><span class="s2">filename</span><span class="s1">);</span>
+    <span class="s6">var </span><span class="s2">reloaded </span><span class="s1">= </span><span class="s2">reloadStyle</span><span class="s1">(</span><span class="s2">src</span><span class="s1">);</span>
+    <span class="s6">if </span><span class="s1">(</span><span class="s2">options</span><span class="s1">.</span><span class="s2">locals</span><span class="s1">) {</span>
+      <span class="s2">console</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">&quot;[HMR] Detected local css modules. Reload all css&quot;</span><span class="s1">);</span>
+      <span class="s2">reloadAll</span><span class="s1">();</span>
+      <span class="s6">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s6">if </span><span class="s1">(</span><span class="s2">reloaded</span><span class="s1">) {</span>
+      <span class="s2">console</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">&quot;[HMR] css reload %s&quot;</span><span class="s1">, </span><span class="s2">src</span><span class="s1">.</span><span class="s2">join</span><span class="s1">(</span><span class="s0">&quot; &quot;</span><span class="s1">));</span>
+    <span class="s1">} </span><span class="s6">else </span><span class="s1">{</span>
+      <span class="s2">console</span><span class="s1">.</span><span class="s2">log</span><span class="s1">(</span><span class="s0">&quot;[HMR] Reload all css&quot;</span><span class="s1">);</span>
+      <span class="s2">reloadAll</span><span class="s1">();</span>
+    <span class="s1">}</span>
+  <span class="s1">}</span>
+  <span class="s6">return </span><span class="s2">debounce</span><span class="s1">(</span><span class="s2">update</span><span class="s1">, </span><span class="s7">50</span><span class="s1">);</span>
+<span class="s1">};</span></pre>
+</body>
+</html>

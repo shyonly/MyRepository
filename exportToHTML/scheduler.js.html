@@ -1,0 +1,238 @@
+<html>
+<head>
+<title>scheduler.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+scheduler.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span>
+
+<span class="s2">var </span><span class="s1">transport </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'../../../spdy-transport'</span><span class="s3">)</span>
+<span class="s2">var </span><span class="s1">utils </span><span class="s3">= </span><span class="s1">transport</span><span class="s3">.</span><span class="s1">utils</span>
+
+<span class="s2">var </span><span class="s1">assert </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'assert'</span><span class="s3">)</span>
+<span class="s2">var </span><span class="s1">util </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'util'</span><span class="s3">)</span>
+<span class="s2">var </span><span class="s1">debug </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'debug'</span><span class="s3">)(</span><span class="s0">'spdy:scheduler'</span><span class="s3">)</span>
+<span class="s2">var </span><span class="s1">Readable </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'readable-stream'</span><span class="s3">).</span><span class="s1">Readable</span>
+
+<span class="s4">/* 
+ * We create following structure in `pending`: 
+ * [ [ id = 0 ], [ id = 1 ], [ id = 2 ], [ id = 0 ] ] 
+ *     chunks      chunks      chunks      chunks 
+ *     chunks                  chunks 
+ *     chunks 
+ * 
+ * Then on the `.tick()` pass we pick one chunks from each item and remove the 
+ * item if it is empty: 
+ * 
+ * [ [ id = 0 ], [ id = 2 ] ] 
+ *     chunks      chunks 
+ *     chunks 
+ * 
+ * Writing out: chunks for 0, chunks for 1, chunks for 2, chunks for 0 
+ * 
+ * This way data is interleaved between the different streams. 
+ */</span>
+
+<span class="s2">function </span><span class="s1">Scheduler </span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+  <span class="s1">Readable</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s2">this</span><span class="s3">)</span>
+
+  <span class="s4">// Pretty big window by default</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">window </span><span class="s3">= </span><span class="s5">0.25</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">options </span><span class="s3">&amp;&amp; </span><span class="s1">options</span><span class="s3">.</span><span class="s1">window</span><span class="s3">) { </span><span class="s2">this</span><span class="s3">.</span><span class="s1">window </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">window </span><span class="s3">}</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">sync </span><span class="s3">= []</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">list </span><span class="s3">= []</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">count </span><span class="s3">= </span><span class="s5">0</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">pendingTick </span><span class="s3">= </span><span class="s2">false</span>
+<span class="s3">}</span>
+<span class="s1">util</span><span class="s3">.</span><span class="s1">inherits</span><span class="s3">(</span><span class="s1">Scheduler</span><span class="s3">, </span><span class="s1">Readable</span><span class="s3">)</span>
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">Scheduler</span>
+
+<span class="s4">// Just for testing, really</span>
+<span class="s1">Scheduler</span><span class="s3">.</span><span class="s1">create </span><span class="s3">= </span><span class="s2">function </span><span class="s1">create </span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+  <span class="s2">return new </span><span class="s1">Scheduler</span><span class="s3">(</span><span class="s1">options</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">insertCompare </span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">) {</span>
+  <span class="s2">return </span><span class="s1">a</span><span class="s3">.</span><span class="s1">priority </span><span class="s3">=== </span><span class="s1">b</span><span class="s3">.</span><span class="s1">priority</span>
+    <span class="s3">? </span><span class="s1">a</span><span class="s3">.</span><span class="s1">stream </span><span class="s3">- </span><span class="s1">b</span><span class="s3">.</span><span class="s1">stream</span>
+    <span class="s3">: </span><span class="s1">b</span><span class="s3">.</span><span class="s1">priority </span><span class="s3">- </span><span class="s1">a</span><span class="s3">.</span><span class="s1">priority</span>
+<span class="s3">}</span>
+
+<span class="s1">Scheduler</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">schedule </span><span class="s3">= </span><span class="s2">function </span><span class="s1">schedule </span><span class="s3">(</span><span class="s1">data</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">priority </span><span class="s3">= </span><span class="s1">data</span><span class="s3">.</span><span class="s1">priority</span>
+  <span class="s2">var </span><span class="s1">stream </span><span class="s3">= </span><span class="s1">data</span><span class="s3">.</span><span class="s1">stream</span>
+  <span class="s2">var </span><span class="s1">chunks </span><span class="s3">= </span><span class="s1">data</span><span class="s3">.</span><span class="s1">chunks</span>
+
+  <span class="s4">// Synchronous frames should not be interleaved</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">priority </span><span class="s3">=== </span><span class="s2">false</span><span class="s3">) {</span>
+    <span class="s1">debug</span><span class="s3">(</span><span class="s0">'queue sync'</span><span class="s3">, </span><span class="s1">chunks</span><span class="s3">)</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">sync</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">data</span><span class="s3">)</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">count </span><span class="s3">+= </span><span class="s1">chunks</span><span class="s3">.</span><span class="s1">length</span>
+
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_read</span><span class="s3">()</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+
+  <span class="s1">debug</span><span class="s3">(</span><span class="s0">'queue async priority=%d stream=%d'</span><span class="s3">, </span><span class="s1">priority</span><span class="s3">, </span><span class="s1">stream</span><span class="s3">, </span><span class="s1">chunks</span><span class="s3">)</span>
+  <span class="s2">var </span><span class="s1">item </span><span class="s3">= </span><span class="s2">new </span><span class="s1">SchedulerItem</span><span class="s3">(</span><span class="s1">stream</span><span class="s3">, </span><span class="s1">priority</span><span class="s3">)</span>
+  <span class="s2">var </span><span class="s1">index </span><span class="s3">= </span><span class="s1">utils</span><span class="s3">.</span><span class="s1">binaryLookup</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">list</span><span class="s3">, </span><span class="s1">item</span><span class="s3">, </span><span class="s1">insertCompare</span><span class="s3">)</span>
+
+  <span class="s4">// Push new item</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">index </span><span class="s3">&gt;= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">list</span><span class="s3">.</span><span class="s1">length </span><span class="s3">|| </span><span class="s1">insertCompare</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">list</span><span class="s3">[</span><span class="s1">index</span><span class="s3">], </span><span class="s1">item</span><span class="s3">) !== </span><span class="s5">0</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">list</span><span class="s3">.</span><span class="s1">splice</span><span class="s3">(</span><span class="s1">index</span><span class="s3">, </span><span class="s5">0</span><span class="s3">, </span><span class="s1">item</span><span class="s3">)</span>
+  <span class="s3">} </span><span class="s2">else </span><span class="s3">{ </span><span class="s4">// Coalesce</span>
+    <span class="s1">item </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">list</span><span class="s3">[</span><span class="s1">index</span><span class="s3">]</span>
+  <span class="s3">}</span>
+
+  <span class="s1">item</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">data</span><span class="s3">)</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">count </span><span class="s3">+= </span><span class="s1">chunks</span><span class="s3">.</span><span class="s1">length</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_read</span><span class="s3">()</span>
+<span class="s3">}</span>
+
+<span class="s1">Scheduler</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_read </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_read </span><span class="s3">() {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">count </span><span class="s3">=== </span><span class="s5">0</span><span class="s3">) {</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">pendingTick</span><span class="s3">) {</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">pendingTick </span><span class="s3">= </span><span class="s2">true</span>
+
+  <span class="s2">var </span><span class="s1">self </span><span class="s3">= </span><span class="s2">this</span>
+  <span class="s1">process</span><span class="s3">.</span><span class="s1">nextTick</span><span class="s3">(</span><span class="s2">function </span><span class="s3">() {</span>
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">pendingTick </span><span class="s3">= </span><span class="s2">false</span>
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">tick</span><span class="s3">()</span>
+  <span class="s3">})</span>
+<span class="s3">}</span>
+
+<span class="s1">Scheduler</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">tick </span><span class="s3">= </span><span class="s2">function </span><span class="s1">tick </span><span class="s3">() {</span>
+  <span class="s4">// No luck for async frames</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s2">this</span><span class="s3">.</span><span class="s1">tickSync</span><span class="s3">()) { </span><span class="s2">return false </span><span class="s3">}</span>
+
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">tickAsync</span><span class="s3">()</span>
+<span class="s3">}</span>
+
+<span class="s1">Scheduler</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">tickSync </span><span class="s3">= </span><span class="s2">function </span><span class="s1">tickSync </span><span class="s3">() {</span>
+  <span class="s4">// Empty sync queue first</span>
+  <span class="s2">var </span><span class="s1">sync </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">sync</span>
+  <span class="s2">var </span><span class="s1">res </span><span class="s3">= </span><span class="s2">true</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">sync </span><span class="s3">= []</span>
+  <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">sync</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+    <span class="s2">var </span><span class="s1">item </span><span class="s3">= </span><span class="s1">sync</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+    <span class="s1">debug</span><span class="s3">(</span><span class="s0">'tick sync pending=%d'</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">count</span><span class="s3">, </span><span class="s1">item</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">)</span>
+    <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">j </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">j </span><span class="s3">&lt; </span><span class="s1">item</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">j</span><span class="s3">++) {</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">count</span><span class="s3">--</span>
+      <span class="s4">// TODO: handle stream backoff properly</span>
+      <span class="s2">try </span><span class="s3">{</span>
+        <span class="s1">res </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">item</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">[</span><span class="s1">j</span><span class="s3">])</span>
+      <span class="s3">} </span><span class="s2">catch </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+        <span class="s2">this</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s1">err</span><span class="s3">)</span>
+        <span class="s2">return false</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+    <span class="s1">debug</span><span class="s3">(</span><span class="s0">'after tick sync pending=%d'</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">count</span><span class="s3">)</span>
+
+    <span class="s4">// TODO(indutny): figure out the way to invoke callback on actual write</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">item</span><span class="s3">.</span><span class="s1">callback</span><span class="s3">) {</span>
+      <span class="s1">item</span><span class="s3">.</span><span class="s1">callback</span><span class="s3">(</span><span class="s2">null</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+  <span class="s2">return </span><span class="s1">res</span>
+<span class="s3">}</span>
+
+<span class="s1">Scheduler</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">tickAsync </span><span class="s3">= </span><span class="s2">function </span><span class="s1">tickAsync </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">res </span><span class="s3">= </span><span class="s2">true</span>
+  <span class="s2">var </span><span class="s1">list </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">list</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">list</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s5">0</span><span class="s3">) {</span>
+    <span class="s2">return </span><span class="s1">res</span>
+  <span class="s3">}</span>
+
+  <span class="s2">var </span><span class="s1">startPriority </span><span class="s3">= </span><span class="s1">list</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">priority</span>
+  <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">index </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">list</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s5">0</span><span class="s3">; </span><span class="s1">index</span><span class="s3">++) {</span>
+    <span class="s4">// Loop index</span>
+    <span class="s1">index </span><span class="s3">%= </span><span class="s1">list</span><span class="s3">.</span><span class="s1">length</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">startPriority </span><span class="s3">- </span><span class="s1">list</span><span class="s3">[</span><span class="s1">index</span><span class="s3">].</span><span class="s1">priority </span><span class="s3">&gt; </span><span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">) { </span><span class="s1">index </span><span class="s3">= </span><span class="s5">0 </span><span class="s3">}</span>
+    <span class="s1">debug</span><span class="s3">(</span><span class="s0">'tick async index=%d start=%d'</span><span class="s3">, </span><span class="s1">index</span><span class="s3">, </span><span class="s1">startPriority</span><span class="s3">)</span>
+
+    <span class="s2">var </span><span class="s1">current </span><span class="s3">= </span><span class="s1">list</span><span class="s3">[</span><span class="s1">index</span><span class="s3">]</span>
+    <span class="s2">var </span><span class="s1">item </span><span class="s3">= </span><span class="s1">current</span><span class="s3">.</span><span class="s1">shift</span><span class="s3">()</span>
+
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">current</span><span class="s3">.</span><span class="s1">isEmpty</span><span class="s3">()) {</span>
+      <span class="s1">list</span><span class="s3">.</span><span class="s1">splice</span><span class="s3">(</span><span class="s1">index</span><span class="s3">, </span><span class="s5">1</span><span class="s3">)</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">index </span><span class="s3">=== </span><span class="s5">0 </span><span class="s3">&amp;&amp; </span><span class="s1">list</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s5">0</span><span class="s3">) {</span>
+        <span class="s1">startPriority </span><span class="s3">= </span><span class="s1">list</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">priority</span>
+      <span class="s3">}</span>
+      <span class="s1">index</span><span class="s3">--</span>
+    <span class="s3">}</span>
+
+    <span class="s1">debug</span><span class="s3">(</span><span class="s0">'tick async pending=%d'</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">count</span><span class="s3">, </span><span class="s1">item</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">)</span>
+    <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">item</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">count</span><span class="s3">--</span>
+      <span class="s4">// TODO: handle stream backoff properly</span>
+      <span class="s2">try </span><span class="s3">{</span>
+        <span class="s1">res </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">item</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">[</span><span class="s1">i</span><span class="s3">])</span>
+      <span class="s3">} </span><span class="s2">catch </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+        <span class="s2">this</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s1">err</span><span class="s3">)</span>
+        <span class="s2">return false</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+    <span class="s1">debug</span><span class="s3">(</span><span class="s0">'after tick pending=%d'</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">count</span><span class="s3">)</span>
+
+    <span class="s4">// TODO(indutny): figure out the way to invoke callback on actual write</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">item</span><span class="s3">.</span><span class="s1">callback</span><span class="s3">) {</span>
+      <span class="s1">item</span><span class="s3">.</span><span class="s1">callback</span><span class="s3">(</span><span class="s2">null</span><span class="s3">)</span>
+    <span class="s3">}</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">res</span><span class="s3">) { </span><span class="s2">break </span><span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s2">return </span><span class="s1">res</span>
+<span class="s3">}</span>
+
+<span class="s1">Scheduler</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">dump </span><span class="s3">= </span><span class="s2">function </span><span class="s1">dump </span><span class="s3">() {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">tickSync</span><span class="s3">()</span>
+
+  <span class="s4">// Write everything out</span>
+  <span class="s2">while </span><span class="s3">(!</span><span class="s2">this</span><span class="s3">.</span><span class="s1">tickAsync</span><span class="s3">()) {</span>
+    <span class="s4">// Intentional no-op</span>
+  <span class="s3">}</span>
+  <span class="s1">assert</span><span class="s3">.</span><span class="s1">strictEqual</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">count</span><span class="s3">, </span><span class="s5">0</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">SchedulerItem </span><span class="s3">(</span><span class="s1">stream</span><span class="s3">, </span><span class="s1">priority</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">stream </span><span class="s3">= </span><span class="s1">stream</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">priority </span><span class="s3">= </span><span class="s1">priority</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">queue </span><span class="s3">= []</span>
+<span class="s3">}</span>
+
+<span class="s1">SchedulerItem</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">push </span><span class="s3">= </span><span class="s2">function </span><span class="s1">push </span><span class="s3">(</span><span class="s1">chunks</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">queue</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">chunks</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">SchedulerItem</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">shift </span><span class="s3">= </span><span class="s2">function </span><span class="s1">shift </span><span class="s3">() {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">queue</span><span class="s3">.</span><span class="s1">shift</span><span class="s3">()</span>
+<span class="s3">}</span>
+
+<span class="s1">SchedulerItem</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">isEmpty </span><span class="s3">= </span><span class="s2">function </span><span class="s1">isEmpty </span><span class="s3">() {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">queue</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s5">0</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

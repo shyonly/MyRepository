@@ -1,0 +1,267 @@
+<html>
+<head>
+<title>composables.mjs</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #2aacb8;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+composables.mjs</font>
+</center></td></tr></table>
+<pre><span class="s0">/*! 
+  * vue-router v3.6.5 
+  * (c) 2022 Evan You 
+  * @license MIT 
+  */</span>
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">getCurrentInstance</span><span class="s3">, </span><span class="s1">effectScope</span><span class="s3">, </span><span class="s1">shallowReactive</span><span class="s3">, </span><span class="s1">onUnmounted</span><span class="s3">, </span><span class="s1">computed</span><span class="s3">, </span><span class="s1">unref </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'vue'</span><span class="s3">;</span>
+
+<span class="s0">// dev only warn if no current instance</span>
+
+<span class="s2">function </span><span class="s1">throwNoCurrentInstance </span><span class="s3">(</span><span class="s1">method</span><span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">getCurrentInstance</span><span class="s3">()) {</span>
+    <span class="s2">throw new </span><span class="s1">Error</span><span class="s3">(</span>
+      <span class="s3">(</span><span class="s4">&quot;[vue-router]: Missing current instance. &quot; </span><span class="s3">+ </span><span class="s1">method </span><span class="s3">+ </span><span class="s4">&quot;() must be called inside &lt;script setup&gt; or setup().&quot;</span><span class="s3">)</span>
+    <span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">useRouter </span><span class="s3">() {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">process</span><span class="s3">.</span><span class="s1">env</span><span class="s3">.</span><span class="s1">NODE_ENV </span><span class="s3">!== </span><span class="s4">'production'</span><span class="s3">) {</span>
+    <span class="s1">throwNoCurrentInstance</span><span class="s3">(</span><span class="s4">'useRouter'</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s2">return </span><span class="s1">getCurrentInstance</span><span class="s3">().</span><span class="s1">proxy</span><span class="s3">.</span><span class="s1">$root</span><span class="s3">.</span><span class="s1">$router</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">useRoute </span><span class="s3">() {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">process</span><span class="s3">.</span><span class="s1">env</span><span class="s3">.</span><span class="s1">NODE_ENV </span><span class="s3">!== </span><span class="s4">'production'</span><span class="s3">) {</span>
+    <span class="s1">throwNoCurrentInstance</span><span class="s3">(</span><span class="s4">'useRoute'</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s2">var </span><span class="s1">root </span><span class="s3">= </span><span class="s1">getCurrentInstance</span><span class="s3">().</span><span class="s1">proxy</span><span class="s3">.</span><span class="s1">$root</span><span class="s3">;</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">root</span><span class="s3">.</span><span class="s1">_$route</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">route </span><span class="s3">= </span><span class="s1">effectScope</span><span class="s3">(</span><span class="s2">true</span><span class="s3">).</span><span class="s1">run</span><span class="s3">(</span><span class="s2">function </span><span class="s3">() { </span><span class="s2">return </span><span class="s1">shallowReactive</span><span class="s3">(</span><span class="s1">Object</span><span class="s3">.</span><span class="s1">assign</span><span class="s3">({}, </span><span class="s1">root</span><span class="s3">.</span><span class="s1">$router</span><span class="s3">.</span><span class="s1">currentRoute</span><span class="s3">)); }</span>
+    <span class="s3">);</span>
+    <span class="s1">root</span><span class="s3">.</span><span class="s1">_$route </span><span class="s3">= </span><span class="s1">route</span><span class="s3">;</span>
+
+    <span class="s1">root</span><span class="s3">.</span><span class="s1">$router</span><span class="s3">.</span><span class="s1">afterEach</span><span class="s3">(</span><span class="s2">function </span><span class="s3">(</span><span class="s1">to</span><span class="s3">) {</span>
+      <span class="s1">Object</span><span class="s3">.</span><span class="s1">assign</span><span class="s3">(</span><span class="s1">route</span><span class="s3">, </span><span class="s1">to</span><span class="s3">);</span>
+    <span class="s3">});</span>
+  <span class="s3">}</span>
+
+  <span class="s2">return </span><span class="s1">root</span><span class="s3">.</span><span class="s1">_$route</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">onBeforeRouteUpdate </span><span class="s3">(</span><span class="s1">guard</span><span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">process</span><span class="s3">.</span><span class="s1">env</span><span class="s3">.</span><span class="s1">NODE_ENV </span><span class="s3">!== </span><span class="s4">'production'</span><span class="s3">) {</span>
+    <span class="s1">throwNoCurrentInstance</span><span class="s3">(</span><span class="s4">'onBeforeRouteUpdate'</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s2">return </span><span class="s1">useFilteredGuard</span><span class="s3">(</span><span class="s1">guard</span><span class="s3">, </span><span class="s1">isUpdateNavigation</span><span class="s3">)</span>
+<span class="s3">}</span>
+<span class="s2">function </span><span class="s1">isUpdateNavigation </span><span class="s3">(</span><span class="s1">to</span><span class="s3">, </span><span class="s1">from</span><span class="s3">, </span><span class="s1">depth</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">toMatched </span><span class="s3">= </span><span class="s1">to</span><span class="s3">.</span><span class="s1">matched</span><span class="s3">;</span>
+  <span class="s2">var </span><span class="s1">fromMatched </span><span class="s3">= </span><span class="s1">from</span><span class="s3">.</span><span class="s1">matched</span><span class="s3">;</span>
+  <span class="s2">return </span><span class="s3">(</span>
+    <span class="s1">toMatched</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt;= </span><span class="s1">depth </span><span class="s3">&amp;&amp;</span>
+    <span class="s1">toMatched</span>
+      <span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s5">0</span><span class="s3">, </span><span class="s1">depth </span><span class="s3">+ </span><span class="s5">1</span><span class="s3">)</span>
+      <span class="s3">.</span><span class="s1">every</span><span class="s3">(</span><span class="s2">function </span><span class="s3">(</span><span class="s1">record</span><span class="s3">, </span><span class="s1">i</span><span class="s3">) { </span><span class="s2">return </span><span class="s1">record </span><span class="s3">=== </span><span class="s1">fromMatched</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]; })</span>
+  <span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">isLeaveNavigation </span><span class="s3">(</span><span class="s1">to</span><span class="s3">, </span><span class="s1">from</span><span class="s3">, </span><span class="s1">depth</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">toMatched </span><span class="s3">= </span><span class="s1">to</span><span class="s3">.</span><span class="s1">matched</span><span class="s3">;</span>
+  <span class="s2">var </span><span class="s1">fromMatched </span><span class="s3">= </span><span class="s1">from</span><span class="s3">.</span><span class="s1">matched</span><span class="s3">;</span>
+  <span class="s2">return </span><span class="s1">toMatched</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&lt; </span><span class="s1">depth </span><span class="s3">|| </span><span class="s1">toMatched</span><span class="s3">[</span><span class="s1">depth</span><span class="s3">] !== </span><span class="s1">fromMatched</span><span class="s3">[</span><span class="s1">depth</span><span class="s3">]</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">onBeforeRouteLeave </span><span class="s3">(</span><span class="s1">guard</span><span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">process</span><span class="s3">.</span><span class="s1">env</span><span class="s3">.</span><span class="s1">NODE_ENV </span><span class="s3">!== </span><span class="s4">'production'</span><span class="s3">) {</span>
+    <span class="s1">throwNoCurrentInstance</span><span class="s3">(</span><span class="s4">'onBeforeRouteLeave'</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s2">return </span><span class="s1">useFilteredGuard</span><span class="s3">(</span><span class="s1">guard</span><span class="s3">, </span><span class="s1">isLeaveNavigation</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s2">var </span><span class="s1">noop </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {};</span>
+<span class="s2">function </span><span class="s1">useFilteredGuard </span><span class="s3">(</span><span class="s1">guard</span><span class="s3">, </span><span class="s1">fn</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">instance </span><span class="s3">= </span><span class="s1">getCurrentInstance</span><span class="s3">();</span>
+  <span class="s2">var </span><span class="s1">router </span><span class="s3">= </span><span class="s1">useRouter</span><span class="s3">();</span>
+
+  <span class="s2">var </span><span class="s1">target </span><span class="s3">= </span><span class="s1">instance</span><span class="s3">.</span><span class="s1">proxy</span><span class="s3">;</span>
+  <span class="s0">// find the nearest RouterView to know the depth</span>
+  <span class="s2">while </span><span class="s3">(</span>
+    <span class="s1">target </span><span class="s3">&amp;&amp;</span>
+    <span class="s1">target</span><span class="s3">.</span><span class="s1">$vnode </span><span class="s3">&amp;&amp;</span>
+    <span class="s1">target</span><span class="s3">.</span><span class="s1">$vnode</span><span class="s3">.</span><span class="s1">data </span><span class="s3">&amp;&amp;</span>
+    <span class="s1">target</span><span class="s3">.</span><span class="s1">$vnode</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">routerViewDepth </span><span class="s3">== </span><span class="s2">null</span>
+  <span class="s3">) {</span>
+    <span class="s1">target </span><span class="s3">= </span><span class="s1">target</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s2">var </span><span class="s1">depth </span><span class="s3">=</span>
+    <span class="s1">target </span><span class="s3">&amp;&amp; </span><span class="s1">target</span><span class="s3">.</span><span class="s1">$vnode </span><span class="s3">&amp;&amp; </span><span class="s1">target</span><span class="s3">.</span><span class="s1">$vnode</span><span class="s3">.</span><span class="s1">data</span>
+      <span class="s3">? </span><span class="s1">target</span><span class="s3">.</span><span class="s1">$vnode</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">routerViewDepth</span>
+      <span class="s3">: </span><span class="s2">null</span><span class="s3">;</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">depth </span><span class="s3">!= </span><span class="s2">null</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">removeGuard </span><span class="s3">= </span><span class="s1">router</span><span class="s3">.</span><span class="s1">beforeEach</span><span class="s3">(</span><span class="s2">function </span><span class="s3">(</span><span class="s1">to</span><span class="s3">, </span><span class="s1">from</span><span class="s3">, </span><span class="s1">next</span><span class="s3">) {</span>
+      <span class="s2">return </span><span class="s1">fn</span><span class="s3">(</span><span class="s1">to</span><span class="s3">, </span><span class="s1">from</span><span class="s3">, </span><span class="s1">depth</span><span class="s3">) ? </span><span class="s1">guard</span><span class="s3">(</span><span class="s1">to</span><span class="s3">, </span><span class="s1">from</span><span class="s3">, </span><span class="s1">next</span><span class="s3">) : </span><span class="s1">next</span><span class="s3">()</span>
+    <span class="s3">});</span>
+
+    <span class="s1">onUnmounted</span><span class="s3">(</span><span class="s1">removeGuard</span><span class="s3">);</span>
+    <span class="s2">return </span><span class="s1">removeGuard</span>
+  <span class="s3">}</span>
+
+  <span class="s2">return </span><span class="s1">noop</span>
+<span class="s3">}</span>
+
+<span class="s0">/*  */</span>
+
+<span class="s2">function </span><span class="s1">guardEvent </span><span class="s3">(</span><span class="s1">e</span><span class="s3">) {</span>
+  <span class="s0">// don't redirect with control keys</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">e</span><span class="s3">.</span><span class="s1">metaKey </span><span class="s3">|| </span><span class="s1">e</span><span class="s3">.</span><span class="s1">altKey </span><span class="s3">|| </span><span class="s1">e</span><span class="s3">.</span><span class="s1">ctrlKey </span><span class="s3">|| </span><span class="s1">e</span><span class="s3">.</span><span class="s1">shiftKey</span><span class="s3">) { </span><span class="s2">return </span><span class="s3">}</span>
+  <span class="s0">// don't redirect when preventDefault called</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">e</span><span class="s3">.</span><span class="s1">defaultPrevented</span><span class="s3">) { </span><span class="s2">return </span><span class="s3">}</span>
+  <span class="s0">// don't redirect on right click</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">e</span><span class="s3">.</span><span class="s1">button </span><span class="s3">!== </span><span class="s1">undefined </span><span class="s3">&amp;&amp; </span><span class="s1">e</span><span class="s3">.</span><span class="s1">button </span><span class="s3">!== </span><span class="s5">0</span><span class="s3">) { </span><span class="s2">return </span><span class="s3">}</span>
+  <span class="s0">// don't redirect if `target=&quot;_blank&quot;`</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">e</span><span class="s3">.</span><span class="s1">currentTarget </span><span class="s3">&amp;&amp; </span><span class="s1">e</span><span class="s3">.</span><span class="s1">currentTarget</span><span class="s3">.</span><span class="s1">getAttribute</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">target </span><span class="s3">= </span><span class="s1">e</span><span class="s3">.</span><span class="s1">currentTarget</span><span class="s3">.</span><span class="s1">getAttribute</span><span class="s3">(</span><span class="s4">'target'</span><span class="s3">);</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s6">/\b_blank\b/i</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">target</span><span class="s3">)) { </span><span class="s2">return </span><span class="s3">}</span>
+  <span class="s3">}</span>
+  <span class="s0">// this may be a Weex event which doesn't have this method</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">e</span><span class="s3">.</span><span class="s1">preventDefault</span><span class="s3">) {</span>
+    <span class="s1">e</span><span class="s3">.</span><span class="s1">preventDefault</span><span class="s3">();</span>
+  <span class="s3">}</span>
+  <span class="s2">return true</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">includesParams </span><span class="s3">(</span><span class="s1">outer</span><span class="s3">, </span><span class="s1">inner</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">loop </span><span class="s3">= </span><span class="s2">function </span><span class="s3">( </span><span class="s1">key </span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">innerValue </span><span class="s3">= </span><span class="s1">inner</span><span class="s3">[</span><span class="s1">key</span><span class="s3">];</span>
+    <span class="s2">var </span><span class="s1">outerValue </span><span class="s3">= </span><span class="s1">outer</span><span class="s3">[</span><span class="s1">key</span><span class="s3">];</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s2">typeof </span><span class="s1">innerValue </span><span class="s3">=== </span><span class="s4">'string'</span><span class="s3">) {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">innerValue </span><span class="s3">!== </span><span class="s1">outerValue</span><span class="s3">) { </span><span class="s2">return </span><span class="s3">{ </span><span class="s1">v</span><span class="s3">: </span><span class="s2">false </span><span class="s3">} }</span>
+    <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+      <span class="s2">if </span><span class="s3">(</span>
+        <span class="s3">!</span><span class="s1">Array</span><span class="s3">.</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">outerValue</span><span class="s3">) ||</span>
+        <span class="s1">outerValue</span><span class="s3">.</span><span class="s1">length </span><span class="s3">!== </span><span class="s1">innerValue</span><span class="s3">.</span><span class="s1">length </span><span class="s3">||</span>
+        <span class="s1">innerValue</span><span class="s3">.</span><span class="s1">some</span><span class="s3">(</span><span class="s2">function </span><span class="s3">(</span><span class="s1">value</span><span class="s3">, </span><span class="s1">i</span><span class="s3">) { </span><span class="s2">return </span><span class="s1">value </span><span class="s3">!== </span><span class="s1">outerValue</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]; })</span>
+      <span class="s3">) {</span>
+        <span class="s2">return </span><span class="s3">{ </span><span class="s1">v</span><span class="s3">: </span><span class="s2">false </span><span class="s3">}</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">};</span>
+
+  <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">key </span><span class="s2">in </span><span class="s1">inner</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">returned </span><span class="s3">= </span><span class="s1">loop</span><span class="s3">( </span><span class="s1">key </span><span class="s3">);</span>
+
+    <span class="s2">if </span><span class="s3">( </span><span class="s1">returned </span><span class="s3">) </span><span class="s2">return </span><span class="s1">returned</span><span class="s3">.</span><span class="s1">v</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s2">return true</span>
+<span class="s3">}</span>
+
+<span class="s0">// helpers from vue router 4</span>
+
+<span class="s2">function </span><span class="s1">isSameRouteLocationParamsValue </span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">) {</span>
+  <span class="s2">return </span><span class="s1">Array</span><span class="s3">.</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">a</span><span class="s3">)</span>
+    <span class="s3">? </span><span class="s1">isEquivalentArray</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">)</span>
+    <span class="s3">: </span><span class="s1">Array</span><span class="s3">.</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">b</span><span class="s3">)</span>
+      <span class="s3">? </span><span class="s1">isEquivalentArray</span><span class="s3">(</span><span class="s1">b</span><span class="s3">, </span><span class="s1">a</span><span class="s3">)</span>
+      <span class="s3">: </span><span class="s1">a </span><span class="s3">=== </span><span class="s1">b</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">isEquivalentArray </span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">) {</span>
+  <span class="s2">return </span><span class="s1">Array</span><span class="s3">.</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">b</span><span class="s3">)</span>
+    <span class="s3">? </span><span class="s1">a</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s1">b</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&amp;&amp; </span><span class="s1">a</span><span class="s3">.</span><span class="s1">every</span><span class="s3">(</span><span class="s2">function </span><span class="s3">(</span><span class="s1">value</span><span class="s3">, </span><span class="s1">i</span><span class="s3">) { </span><span class="s2">return </span><span class="s1">value </span><span class="s3">=== </span><span class="s1">b</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]; })</span>
+    <span class="s3">: </span><span class="s1">a</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s5">1 </span><span class="s3">&amp;&amp; </span><span class="s1">a</span><span class="s3">[</span><span class="s5">0</span><span class="s3">] === </span><span class="s1">b</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">isSameRouteLocationParams </span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">Object</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">(</span><span class="s1">a</span><span class="s3">).</span><span class="s1">length </span><span class="s3">!== </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">(</span><span class="s1">b</span><span class="s3">).</span><span class="s1">length</span><span class="s3">) { </span><span class="s2">return false </span><span class="s3">}</span>
+
+  <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">key </span><span class="s2">in </span><span class="s1">a</span><span class="s3">) {</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">isSameRouteLocationParamsValue</span><span class="s3">(</span><span class="s1">a</span><span class="s3">[</span><span class="s1">key</span><span class="s3">], </span><span class="s1">b</span><span class="s3">[</span><span class="s1">key</span><span class="s3">])) { </span><span class="s2">return false </span><span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s2">return true</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">useLink </span><span class="s3">(</span><span class="s1">props</span><span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">process</span><span class="s3">.</span><span class="s1">env</span><span class="s3">.</span><span class="s1">NODE_ENV </span><span class="s3">!== </span><span class="s4">'production'</span><span class="s3">) {</span>
+    <span class="s1">throwNoCurrentInstance</span><span class="s3">(</span><span class="s4">'useLink'</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s2">var </span><span class="s1">router </span><span class="s3">= </span><span class="s1">useRouter</span><span class="s3">();</span>
+  <span class="s2">var </span><span class="s1">currentRoute </span><span class="s3">= </span><span class="s1">useRoute</span><span class="s3">();</span>
+
+  <span class="s2">var </span><span class="s1">resolvedRoute </span><span class="s3">= </span><span class="s1">computed</span><span class="s3">(</span><span class="s2">function </span><span class="s3">() { </span><span class="s2">return </span><span class="s1">router</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s1">unref</span><span class="s3">(</span><span class="s1">props</span><span class="s3">.</span><span class="s1">to</span><span class="s3">), </span><span class="s1">currentRoute</span><span class="s3">); });</span>
+
+  <span class="s2">var </span><span class="s1">activeRecordIndex </span><span class="s3">= </span><span class="s1">computed</span><span class="s3">(</span><span class="s2">function </span><span class="s3">() {</span>
+    <span class="s2">var </span><span class="s1">route </span><span class="s3">= </span><span class="s1">resolvedRoute</span><span class="s3">.</span><span class="s1">value</span><span class="s3">.</span><span class="s1">route</span><span class="s3">;</span>
+    <span class="s2">var </span><span class="s1">matched </span><span class="s3">= </span><span class="s1">route</span><span class="s3">.</span><span class="s1">matched</span><span class="s3">;</span>
+    <span class="s2">var </span><span class="s1">length </span><span class="s3">= </span><span class="s1">matched</span><span class="s3">.</span><span class="s1">length</span><span class="s3">;</span>
+    <span class="s2">var </span><span class="s1">routeMatched </span><span class="s3">= </span><span class="s1">matched</span><span class="s3">[</span><span class="s1">length </span><span class="s3">- </span><span class="s5">1</span><span class="s3">];</span>
+    <span class="s2">var </span><span class="s1">currentMatched </span><span class="s3">= </span><span class="s1">currentRoute</span><span class="s3">.</span><span class="s1">matched</span><span class="s3">;</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">routeMatched </span><span class="s3">|| !</span><span class="s1">currentMatched</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) { </span><span class="s2">return </span><span class="s3">-</span><span class="s5">1 </span><span class="s3">}</span>
+    <span class="s2">var </span><span class="s1">index </span><span class="s3">= </span><span class="s1">currentMatched</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s1">routeMatched</span><span class="s3">);</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">index </span><span class="s3">&gt; -</span><span class="s5">1</span><span class="s3">) { </span><span class="s2">return </span><span class="s1">index </span><span class="s3">}</span>
+    <span class="s0">// possible parent record</span>
+    <span class="s2">var </span><span class="s1">parentRecord </span><span class="s3">= </span><span class="s1">currentMatched</span><span class="s3">[</span><span class="s1">currentMatched</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s5">2</span><span class="s3">];</span>
+
+    <span class="s2">return </span><span class="s3">(</span>
+      <span class="s0">// we are dealing with nested routes</span>
+      <span class="s1">length </span><span class="s3">&gt; </span><span class="s5">1 </span><span class="s3">&amp;&amp;</span>
+        <span class="s0">// if the parent and matched route have the same path, this link is</span>
+        <span class="s0">// referring to the empty child. Or we currently are on a different</span>
+        <span class="s0">// child of the same parent</span>
+        <span class="s1">parentRecord </span><span class="s3">&amp;&amp; </span><span class="s1">parentRecord </span><span class="s3">=== </span><span class="s1">routeMatched</span><span class="s3">.</span><span class="s1">parent</span>
+    <span class="s3">)</span>
+  <span class="s3">});</span>
+
+  <span class="s2">var </span><span class="s1">isActive </span><span class="s3">= </span><span class="s1">computed</span><span class="s3">(</span>
+    <span class="s2">function </span><span class="s3">() { </span><span class="s2">return </span><span class="s1">activeRecordIndex</span><span class="s3">.</span><span class="s1">value </span><span class="s3">&gt; -</span><span class="s5">1 </span><span class="s3">&amp;&amp;</span>
+      <span class="s1">includesParams</span><span class="s3">(</span><span class="s1">currentRoute</span><span class="s3">.</span><span class="s1">params</span><span class="s3">, </span><span class="s1">resolvedRoute</span><span class="s3">.</span><span class="s1">value</span><span class="s3">.</span><span class="s1">route</span><span class="s3">.</span><span class="s1">params</span><span class="s3">); }</span>
+  <span class="s3">);</span>
+  <span class="s2">var </span><span class="s1">isExactActive </span><span class="s3">= </span><span class="s1">computed</span><span class="s3">(</span>
+    <span class="s2">function </span><span class="s3">() { </span><span class="s2">return </span><span class="s1">activeRecordIndex</span><span class="s3">.</span><span class="s1">value </span><span class="s3">&gt; -</span><span class="s5">1 </span><span class="s3">&amp;&amp;</span>
+      <span class="s1">activeRecordIndex</span><span class="s3">.</span><span class="s1">value </span><span class="s3">=== </span><span class="s1">currentRoute</span><span class="s3">.</span><span class="s1">matched</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s5">1 </span><span class="s3">&amp;&amp;</span>
+      <span class="s1">isSameRouteLocationParams</span><span class="s3">(</span><span class="s1">currentRoute</span><span class="s3">.</span><span class="s1">params</span><span class="s3">, </span><span class="s1">resolvedRoute</span><span class="s3">.</span><span class="s1">value</span><span class="s3">.</span><span class="s1">route</span><span class="s3">.</span><span class="s1">params</span><span class="s3">); }</span>
+  <span class="s3">);</span>
+
+  <span class="s2">var </span><span class="s1">navigate </span><span class="s3">= </span><span class="s2">function </span><span class="s3">(</span><span class="s1">e</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">href </span><span class="s3">= </span><span class="s1">resolvedRoute</span><span class="s3">.</span><span class="s1">value</span><span class="s3">.</span><span class="s1">route</span><span class="s3">;</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">guardEvent</span><span class="s3">(</span><span class="s1">e</span><span class="s3">)) {</span>
+      <span class="s2">return </span><span class="s1">props</span><span class="s3">.</span><span class="s1">replace</span>
+        <span class="s3">? </span><span class="s1">router</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s1">href</span><span class="s3">)</span>
+        <span class="s3">: </span><span class="s1">router</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">href</span><span class="s3">)</span>
+    <span class="s3">}</span>
+    <span class="s2">return </span><span class="s1">Promise</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">()</span>
+  <span class="s3">};</span>
+
+  <span class="s2">return </span><span class="s3">{</span>
+    <span class="s1">href</span><span class="s3">: </span><span class="s1">computed</span><span class="s3">(</span><span class="s2">function </span><span class="s3">() { </span><span class="s2">return </span><span class="s1">resolvedRoute</span><span class="s3">.</span><span class="s1">value</span><span class="s3">.</span><span class="s1">href</span><span class="s3">; }),</span>
+    <span class="s1">route</span><span class="s3">: </span><span class="s1">computed</span><span class="s3">(</span><span class="s2">function </span><span class="s3">() { </span><span class="s2">return </span><span class="s1">resolvedRoute</span><span class="s3">.</span><span class="s1">value</span><span class="s3">.</span><span class="s1">route</span><span class="s3">; }),</span>
+    <span class="s1">isExactActive</span><span class="s3">: </span><span class="s1">isExactActive</span><span class="s3">,</span>
+    <span class="s1">isActive</span><span class="s3">: </span><span class="s1">isActive</span><span class="s3">,</span>
+    <span class="s1">navigate</span><span class="s3">: </span><span class="s1">navigate</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s2">export </span><span class="s3">{ </span><span class="s1">isSameRouteLocationParams</span><span class="s3">, </span><span class="s1">onBeforeRouteLeave</span><span class="s3">, </span><span class="s1">onBeforeRouteUpdate</span><span class="s3">, </span><span class="s1">useLink</span><span class="s3">, </span><span class="s1">useRoute</span><span class="s3">, </span><span class="s1">useRouter </span><span class="s3">};</span>
+</pre>
+</body>
+</html>

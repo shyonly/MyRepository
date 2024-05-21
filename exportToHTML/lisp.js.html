@@ -1,0 +1,134 @@
+<html>
+<head>
+<title>lisp.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #2aacb8;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+lisp.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+Language: Lisp 
+Description: Generic lisp syntax 
+Author: Vasily Polovnyov &lt;vast@whiteants.net&gt; 
+Category: lisp 
+*/</span>
+
+<span class="s2">function </span><span class="s1">lisp</span><span class="s3">(</span><span class="s1">hljs</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">LISP_IDENT_RE </span><span class="s3">= </span><span class="s4">'[a-zA-Z_</span><span class="s2">\\</span><span class="s4">-+</span><span class="s2">\\</span><span class="s4">*</span><span class="s2">\\</span><span class="s4">/&lt;=&gt;&amp;#][a-zA-Z0-9_</span><span class="s2">\\</span><span class="s4">-+*</span><span class="s2">\\</span><span class="s4">/&lt;=&gt;&amp;#!]*'</span><span class="s3">;</span>
+  <span class="s2">var </span><span class="s1">MEC_RE </span><span class="s3">= </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">|[^]*?</span><span class="s2">\\</span><span class="s4">|'</span><span class="s3">;</span>
+  <span class="s2">var </span><span class="s1">LISP_SIMPLE_NUMBER_RE </span><span class="s3">= </span><span class="s4">'(-|</span><span class="s2">\\</span><span class="s4">+)?</span><span class="s2">\\</span><span class="s4">d+(</span><span class="s2">\\</span><span class="s4">.</span><span class="s2">\\</span><span class="s4">d+|</span><span class="s2">\\</span><span class="s4">/</span><span class="s2">\\</span><span class="s4">d+)?((d|e|f|l|s|D|E|F|L|S)(</span><span class="s2">\\</span><span class="s4">+|-)?</span><span class="s2">\\</span><span class="s4">d+)?'</span><span class="s3">;</span>
+  <span class="s2">var </span><span class="s1">LITERAL </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'literal'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">b(t{1}|nil)</span><span class="s2">\\</span><span class="s4">b'</span>
+  <span class="s3">};</span>
+  <span class="s2">var </span><span class="s1">NUMBER </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'number'</span><span class="s3">,</span>
+    <span class="s1">variants</span><span class="s3">: [</span>
+      <span class="s3">{</span><span class="s1">begin</span><span class="s3">: </span><span class="s1">LISP_SIMPLE_NUMBER_RE</span><span class="s3">, </span><span class="s1">relevance</span><span class="s3">: </span><span class="s5">0</span><span class="s3">},</span>
+      <span class="s3">{</span><span class="s1">begin</span><span class="s3">: </span><span class="s4">'#(b|B)[0-1]+(/[0-1]+)?'</span><span class="s3">},</span>
+      <span class="s3">{</span><span class="s1">begin</span><span class="s3">: </span><span class="s4">'#(o|O)[0-7]+(/[0-7]+)?'</span><span class="s3">},</span>
+      <span class="s3">{</span><span class="s1">begin</span><span class="s3">: </span><span class="s4">'#(x|X)[0-9a-fA-F]+(/[0-9a-fA-F]+)?'</span><span class="s3">},</span>
+      <span class="s3">{</span><span class="s1">begin</span><span class="s3">: </span><span class="s4">'#(c|C)</span><span class="s2">\\</span><span class="s4">(' </span><span class="s3">+ </span><span class="s1">LISP_SIMPLE_NUMBER_RE </span><span class="s3">+ </span><span class="s4">' +' </span><span class="s3">+ </span><span class="s1">LISP_SIMPLE_NUMBER_RE</span><span class="s3">, </span><span class="s1">end</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">)'</span><span class="s3">}</span>
+    <span class="s3">]</span>
+  <span class="s3">};</span>
+  <span class="s2">var </span><span class="s1">STRING </span><span class="s3">= </span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">inherit</span><span class="s3">(</span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">QUOTE_STRING_MODE</span><span class="s3">, {</span><span class="s1">illegal</span><span class="s3">: </span><span class="s2">null</span><span class="s3">});</span>
+  <span class="s2">var </span><span class="s1">COMMENT </span><span class="s3">= </span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">COMMENT</span><span class="s3">(</span>
+    <span class="s4">';'</span><span class="s3">, </span><span class="s4">'$'</span><span class="s3">,</span>
+    <span class="s3">{</span>
+      <span class="s1">relevance</span><span class="s3">: </span><span class="s5">0</span>
+    <span class="s3">}</span>
+  <span class="s3">);</span>
+  <span class="s2">var </span><span class="s1">VARIABLE </span><span class="s3">= {</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">*'</span><span class="s3">, </span><span class="s1">end</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">*'</span>
+  <span class="s3">};</span>
+  <span class="s2">var </span><span class="s1">KEYWORD </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'symbol'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s4">'[:&amp;]' </span><span class="s3">+ </span><span class="s1">LISP_IDENT_RE</span>
+  <span class="s3">};</span>
+  <span class="s2">var </span><span class="s1">IDENT </span><span class="s3">= {</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s1">LISP_IDENT_RE</span><span class="s3">,</span>
+    <span class="s1">relevance</span><span class="s3">: </span><span class="s5">0</span>
+  <span class="s3">};</span>
+  <span class="s2">var </span><span class="s1">MEC </span><span class="s3">= {</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s1">MEC_RE</span>
+  <span class="s3">};</span>
+  <span class="s2">var </span><span class="s1">QUOTED_LIST </span><span class="s3">= {</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">('</span><span class="s3">, </span><span class="s1">end</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">)'</span><span class="s3">,</span>
+    <span class="s1">contains</span><span class="s3">: [</span><span class="s4">'self'</span><span class="s3">, </span><span class="s1">LITERAL</span><span class="s3">, </span><span class="s1">STRING</span><span class="s3">, </span><span class="s1">NUMBER</span><span class="s3">, </span><span class="s1">IDENT</span><span class="s3">]</span>
+  <span class="s3">};</span>
+  <span class="s2">var </span><span class="s1">QUOTED </span><span class="s3">= {</span>
+    <span class="s1">contains</span><span class="s3">: [</span><span class="s1">NUMBER</span><span class="s3">, </span><span class="s1">STRING</span><span class="s3">, </span><span class="s1">VARIABLE</span><span class="s3">, </span><span class="s1">KEYWORD</span><span class="s3">, </span><span class="s1">QUOTED_LIST</span><span class="s3">, </span><span class="s1">IDENT</span><span class="s3">],</span>
+    <span class="s1">variants</span><span class="s3">: [</span>
+      <span class="s3">{</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s4">'[</span><span class="s2">\'</span><span class="s4">`]</span><span class="s2">\\</span><span class="s4">('</span><span class="s3">, </span><span class="s1">end</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">)'</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">(quote '</span><span class="s3">, </span><span class="s1">end</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">)'</span><span class="s3">,</span>
+        <span class="s1">keywords</span><span class="s3">: {</span><span class="s1">name</span><span class="s3">: </span><span class="s4">'quote'</span><span class="s3">}</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\'</span><span class="s4">' </span><span class="s3">+ </span><span class="s1">MEC_RE</span>
+      <span class="s3">}</span>
+    <span class="s3">]</span>
+  <span class="s3">};</span>
+  <span class="s2">var </span><span class="s1">QUOTED_ATOM </span><span class="s3">= {</span>
+    <span class="s1">variants</span><span class="s3">: [</span>
+      <span class="s3">{</span><span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\'</span><span class="s4">' </span><span class="s3">+ </span><span class="s1">LISP_IDENT_RE</span><span class="s3">},</span>
+      <span class="s3">{</span><span class="s1">begin</span><span class="s3">: </span><span class="s4">'#</span><span class="s2">\'</span><span class="s4">' </span><span class="s3">+ </span><span class="s1">LISP_IDENT_RE </span><span class="s3">+ </span><span class="s4">'(::' </span><span class="s3">+ </span><span class="s1">LISP_IDENT_RE </span><span class="s3">+ </span><span class="s4">')*'</span><span class="s3">}</span>
+    <span class="s3">]</span>
+  <span class="s3">};</span>
+  <span class="s2">var </span><span class="s1">LIST </span><span class="s3">= {</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">(</span><span class="s2">\\</span><span class="s4">s*'</span><span class="s3">, </span><span class="s1">end</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">)'</span>
+  <span class="s3">};</span>
+  <span class="s2">var </span><span class="s1">BODY </span><span class="s3">= {</span>
+    <span class="s1">endsWithParent</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+    <span class="s1">relevance</span><span class="s3">: </span><span class="s5">0</span>
+  <span class="s3">};</span>
+  <span class="s1">LIST</span><span class="s3">.</span><span class="s1">contains </span><span class="s3">= [</span>
+    <span class="s3">{</span>
+      <span class="s1">className</span><span class="s3">: </span><span class="s4">'name'</span><span class="s3">,</span>
+      <span class="s1">variants</span><span class="s3">: [</span>
+        <span class="s3">{</span>
+          <span class="s1">begin</span><span class="s3">: </span><span class="s1">LISP_IDENT_RE</span><span class="s3">,</span>
+          <span class="s1">relevance</span><span class="s3">: </span><span class="s5">0</span><span class="s3">,</span>
+        <span class="s3">},</span>
+        <span class="s3">{</span><span class="s1">begin</span><span class="s3">: </span><span class="s1">MEC_RE</span><span class="s3">}</span>
+      <span class="s3">]</span>
+    <span class="s3">},</span>
+    <span class="s1">BODY</span>
+  <span class="s3">];</span>
+  <span class="s1">BODY</span><span class="s3">.</span><span class="s1">contains </span><span class="s3">= [</span><span class="s1">QUOTED</span><span class="s3">, </span><span class="s1">QUOTED_ATOM</span><span class="s3">, </span><span class="s1">LIST</span><span class="s3">, </span><span class="s1">LITERAL</span><span class="s3">, </span><span class="s1">NUMBER</span><span class="s3">, </span><span class="s1">STRING</span><span class="s3">, </span><span class="s1">COMMENT</span><span class="s3">, </span><span class="s1">VARIABLE</span><span class="s3">, </span><span class="s1">KEYWORD</span><span class="s3">, </span><span class="s1">MEC</span><span class="s3">, </span><span class="s1">IDENT</span><span class="s3">];</span>
+
+  <span class="s2">return </span><span class="s3">{</span>
+    <span class="s1">name</span><span class="s3">: </span><span class="s4">'Lisp'</span><span class="s3">,</span>
+    <span class="s1">illegal</span><span class="s3">: </span><span class="s6">/\S/</span><span class="s3">,</span>
+    <span class="s1">contains</span><span class="s3">: [</span>
+      <span class="s1">NUMBER</span><span class="s3">,</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">SHEBANG</span><span class="s3">(),</span>
+      <span class="s1">LITERAL</span><span class="s3">,</span>
+      <span class="s1">STRING</span><span class="s3">,</span>
+      <span class="s1">COMMENT</span><span class="s3">,</span>
+      <span class="s1">QUOTED</span><span class="s3">,</span>
+      <span class="s1">QUOTED_ATOM</span><span class="s3">,</span>
+      <span class="s1">LIST</span><span class="s3">,</span>
+      <span class="s1">IDENT</span>
+    <span class="s3">]</span>
+  <span class="s3">};</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">lisp</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

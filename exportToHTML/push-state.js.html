@@ -1,0 +1,68 @@
+<html>
+<head>
+<title>push-state.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+push-state.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* @flow */</span>
+
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">inBrowser </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'./dom'</span>
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">saveScrollPosition </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'./scroll'</span>
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">genStateKey</span><span class="s3">, </span><span class="s1">setStateKey</span><span class="s3">, </span><span class="s1">getStateKey </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'./state-key'</span>
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">extend </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'./misc'</span>
+
+<span class="s2">export const </span><span class="s1">supportsPushState </span><span class="s3">=</span>
+  <span class="s1">inBrowser </span><span class="s3">&amp;&amp;</span>
+  <span class="s3">(</span><span class="s2">function </span><span class="s3">() {</span>
+    <span class="s2">const </span><span class="s1">ua </span><span class="s3">= </span><span class="s1">window</span><span class="s3">.</span><span class="s1">navigator</span><span class="s3">.</span><span class="s1">userAgent</span>
+
+    <span class="s2">if </span><span class="s3">(</span>
+      <span class="s3">(</span><span class="s1">ua</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s4">'Android 2.'</span><span class="s3">) !== -</span><span class="s5">1 </span><span class="s3">|| </span><span class="s1">ua</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s4">'Android 4.0'</span><span class="s3">) !== -</span><span class="s5">1</span><span class="s3">) &amp;&amp;</span>
+      <span class="s1">ua</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s4">'Mobile Safari'</span><span class="s3">) !== -</span><span class="s5">1 </span><span class="s3">&amp;&amp;</span>
+      <span class="s1">ua</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s4">'Chrome'</span><span class="s3">) === -</span><span class="s5">1 </span><span class="s3">&amp;&amp;</span>
+      <span class="s1">ua</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s4">'Windows Phone'</span><span class="s3">) === -</span><span class="s5">1</span>
+    <span class="s3">) {</span>
+      <span class="s2">return false</span>
+    <span class="s3">}</span>
+
+    <span class="s2">return </span><span class="s1">window</span><span class="s3">.</span><span class="s1">history </span><span class="s3">&amp;&amp; </span><span class="s2">typeof </span><span class="s1">window</span><span class="s3">.</span><span class="s1">history</span><span class="s3">.</span><span class="s1">pushState </span><span class="s3">=== </span><span class="s4">'function'</span>
+  <span class="s3">})()</span>
+
+<span class="s2">export function </span><span class="s1">pushState </span><span class="s3">(</span><span class="s1">url</span><span class="s3">?: </span><span class="s1">string</span><span class="s3">, </span><span class="s1">replace</span><span class="s3">?: </span><span class="s1">boolean</span><span class="s3">) {</span>
+  <span class="s1">saveScrollPosition</span><span class="s3">()</span>
+  <span class="s0">// try...catch the pushState call to get around Safari</span>
+  <span class="s0">// DOM Exception 18 where it limits to 100 pushState calls</span>
+  <span class="s2">const </span><span class="s1">history </span><span class="s3">= </span><span class="s1">window</span><span class="s3">.</span><span class="s1">history</span>
+  <span class="s2">try </span><span class="s3">{</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">replace</span><span class="s3">) {</span>
+      <span class="s0">// preserve existing history state as it could be overriden by the user</span>
+      <span class="s2">const </span><span class="s1">stateCopy </span><span class="s3">= </span><span class="s1">extend</span><span class="s3">({}, </span><span class="s1">history</span><span class="s3">.</span><span class="s1">state</span><span class="s3">)</span>
+      <span class="s1">stateCopy</span><span class="s3">.</span><span class="s1">key </span><span class="s3">= </span><span class="s1">getStateKey</span><span class="s3">()</span>
+      <span class="s1">history</span><span class="s3">.</span><span class="s1">replaceState</span><span class="s3">(</span><span class="s1">stateCopy</span><span class="s3">, </span><span class="s4">''</span><span class="s3">, </span><span class="s1">url</span><span class="s3">)</span>
+    <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+      <span class="s1">history</span><span class="s3">.</span><span class="s1">pushState</span><span class="s3">({ </span><span class="s1">key</span><span class="s3">: </span><span class="s1">setStateKey</span><span class="s3">(</span><span class="s1">genStateKey</span><span class="s3">()) }, </span><span class="s4">''</span><span class="s3">, </span><span class="s1">url</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">} </span><span class="s2">catch </span><span class="s3">(</span><span class="s1">e</span><span class="s3">) {</span>
+    <span class="s1">window</span><span class="s3">.</span><span class="s1">location</span><span class="s3">[</span><span class="s1">replace </span><span class="s3">? </span><span class="s4">'replace' </span><span class="s3">: </span><span class="s4">'assign'</span><span class="s3">](</span><span class="s1">url</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s2">export function </span><span class="s1">replaceState </span><span class="s3">(</span><span class="s1">url</span><span class="s3">?: </span><span class="s1">string</span><span class="s3">) {</span>
+  <span class="s1">pushState</span><span class="s3">(</span><span class="s1">url</span><span class="s3">, </span><span class="s2">true</span><span class="s3">)</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

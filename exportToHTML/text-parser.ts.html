@@ -1,0 +1,75 @@
+<html>
+<head>
+<title>text-parser.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #42c3d4;}
+.s5 { color: #2aacb8;}
+.s6 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+text-parser.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">cached </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'shared/util'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">parseFilters </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./filter-parser'</span>
+
+<span class="s0">const </span><span class="s1">defaultTagRE </span><span class="s2">= </span><span class="s4">/\{\{((?:.|\r?\n)+?)\}\}/g</span>
+<span class="s0">const </span><span class="s1">regexEscapeRE </span><span class="s2">= </span><span class="s4">/[-.*+?^${}()|[\]\/\\]/g</span>
+
+<span class="s0">const </span><span class="s1">buildRegex </span><span class="s2">= </span><span class="s1">cached</span><span class="s2">(</span><span class="s1">delimiters </span><span class="s2">=&gt; {</span>
+  <span class="s0">const </span><span class="s1">open </span><span class="s2">= </span><span class="s1">delimiters</span><span class="s2">[</span><span class="s5">0</span><span class="s2">].</span><span class="s1">replace</span><span class="s2">(</span><span class="s1">regexEscapeRE</span><span class="s2">, </span><span class="s3">'</span><span class="s0">\\</span><span class="s3">$&amp;'</span><span class="s2">)</span>
+  <span class="s0">const </span><span class="s1">close </span><span class="s2">= </span><span class="s1">delimiters</span><span class="s2">[</span><span class="s5">1</span><span class="s2">].</span><span class="s1">replace</span><span class="s2">(</span><span class="s1">regexEscapeRE</span><span class="s2">, </span><span class="s3">'</span><span class="s0">\\</span><span class="s3">$&amp;'</span><span class="s2">)</span>
+  <span class="s0">return new </span><span class="s1">RegExp</span><span class="s2">(</span><span class="s1">open </span><span class="s2">+ </span><span class="s3">'((?:.|</span><span class="s0">\\</span><span class="s3">n)+?)' </span><span class="s2">+ </span><span class="s1">close</span><span class="s2">, </span><span class="s3">'g'</span><span class="s2">)</span>
+<span class="s2">})</span>
+
+<span class="s1">type TextParseResult </span><span class="s2">= {</span>
+  <span class="s1">expression</span><span class="s2">: </span><span class="s1">string</span>
+  <span class="s1">tokens</span><span class="s2">: </span><span class="s1">Array</span><span class="s2">&lt;</span><span class="s1">string </span><span class="s2">| { </span><span class="s3">'@binding'</span><span class="s2">: </span><span class="s1">string </span><span class="s2">}&gt;</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">parseText</span><span class="s2">(</span>
+  <span class="s1">text</span><span class="s2">: </span><span class="s1">string</span><span class="s2">,</span>
+  <span class="s1">delimiters</span><span class="s2">?: [</span><span class="s1">string</span><span class="s2">, </span><span class="s1">string</span><span class="s2">]</span>
+<span class="s2">): </span><span class="s1">TextParseResult </span><span class="s2">| </span><span class="s0">void </span><span class="s2">{</span>
+  <span class="s6">//@ts-expect-error</span>
+  <span class="s0">const </span><span class="s1">tagRE </span><span class="s2">= </span><span class="s1">delimiters </span><span class="s2">? </span><span class="s1">buildRegex</span><span class="s2">(</span><span class="s1">delimiters</span><span class="s2">) : </span><span class="s1">defaultTagRE</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">tagRE</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">text</span><span class="s2">)) {</span>
+    <span class="s0">return</span>
+  <span class="s2">}</span>
+  <span class="s0">const </span><span class="s1">tokens</span><span class="s2">: </span><span class="s1">string</span><span class="s2">[] = []</span>
+  <span class="s0">const </span><span class="s1">rawTokens</span><span class="s2">: </span><span class="s1">any</span><span class="s2">[] = []</span>
+  <span class="s0">let </span><span class="s1">lastIndex </span><span class="s2">= (</span><span class="s1">tagRE</span><span class="s2">.</span><span class="s1">lastIndex </span><span class="s2">= </span><span class="s5">0</span><span class="s2">)</span>
+  <span class="s0">let </span><span class="s1">match</span><span class="s2">, </span><span class="s1">index</span><span class="s2">, </span><span class="s1">tokenValue</span>
+  <span class="s0">while </span><span class="s2">((</span><span class="s1">match </span><span class="s2">= </span><span class="s1">tagRE</span><span class="s2">.</span><span class="s1">exec</span><span class="s2">(</span><span class="s1">text</span><span class="s2">))) {</span>
+    <span class="s1">index </span><span class="s2">= </span><span class="s1">match</span><span class="s2">.</span><span class="s1">index</span>
+    <span class="s6">// push text token</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">index </span><span class="s2">&gt; </span><span class="s1">lastIndex</span><span class="s2">) {</span>
+      <span class="s1">rawTokens</span><span class="s2">.</span><span class="s1">push</span><span class="s2">((</span><span class="s1">tokenValue </span><span class="s2">= </span><span class="s1">text</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s1">lastIndex</span><span class="s2">, </span><span class="s1">index</span><span class="s2">)))</span>
+      <span class="s1">tokens</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">stringify</span><span class="s2">(</span><span class="s1">tokenValue</span><span class="s2">))</span>
+    <span class="s2">}</span>
+    <span class="s6">// tag token</span>
+    <span class="s0">const </span><span class="s1">exp </span><span class="s2">= </span><span class="s1">parseFilters</span><span class="s2">(</span><span class="s1">match</span><span class="s2">[</span><span class="s5">1</span><span class="s2">].</span><span class="s1">trim</span><span class="s2">())</span>
+    <span class="s1">tokens</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s3">`_s(</span><span class="s1">$</span><span class="s2">{</span><span class="s1">exp</span><span class="s2">}</span><span class="s3">)`</span><span class="s2">)</span>
+    <span class="s1">rawTokens</span><span class="s2">.</span><span class="s1">push</span><span class="s2">({ </span><span class="s3">'@binding'</span><span class="s2">: </span><span class="s1">exp </span><span class="s2">})</span>
+    <span class="s1">lastIndex </span><span class="s2">= </span><span class="s1">index </span><span class="s2">+ </span><span class="s1">match</span><span class="s2">[</span><span class="s5">0</span><span class="s2">].</span><span class="s1">length</span>
+  <span class="s2">}</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">lastIndex </span><span class="s2">&lt; </span><span class="s1">text</span><span class="s2">.</span><span class="s1">length</span><span class="s2">) {</span>
+    <span class="s1">rawTokens</span><span class="s2">.</span><span class="s1">push</span><span class="s2">((</span><span class="s1">tokenValue </span><span class="s2">= </span><span class="s1">text</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s1">lastIndex</span><span class="s2">)))</span>
+    <span class="s1">tokens</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">stringify</span><span class="s2">(</span><span class="s1">tokenValue</span><span class="s2">))</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s2">{</span>
+    <span class="s1">expression</span><span class="s2">: </span><span class="s1">tokens</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s3">'+'</span><span class="s2">),</span>
+    <span class="s1">tokens</span><span class="s2">: </span><span class="s1">rawTokens</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,441 @@
+<html>
+<head>
+<title>fixer.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+fixer.js</font>
+</center></td></tr></table>
+<pre><span class="s0">var </span><span class="s1">semver </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">&quot;semver&quot;</span><span class="s2">)</span>
+<span class="s0">var </span><span class="s1">validateLicense </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'validate-npm-package-license'</span><span class="s2">);</span>
+<span class="s0">var </span><span class="s1">hostedGitInfo </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">&quot;hosted-git-info&quot;</span><span class="s2">)</span>
+<span class="s0">var </span><span class="s1">isBuiltinModule </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">&quot;resolve&quot;</span><span class="s2">).</span><span class="s1">isCore</span>
+<span class="s0">var </span><span class="s1">depTypes </span><span class="s2">= [</span><span class="s3">&quot;dependencies&quot;</span><span class="s2">,</span><span class="s3">&quot;devDependencies&quot;</span><span class="s2">,</span><span class="s3">&quot;optionalDependencies&quot;</span><span class="s2">]</span>
+<span class="s0">var </span><span class="s1">extractDescription </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">&quot;./extract_description&quot;</span><span class="s2">)</span>
+<span class="s0">var </span><span class="s1">url </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">&quot;url&quot;</span><span class="s2">)</span>
+<span class="s0">var </span><span class="s1">typos </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">&quot;./typos.json&quot;</span><span class="s2">)</span>
+
+<span class="s0">var </span><span class="s1">fixer </span><span class="s2">= </span><span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= {</span>
+  <span class="s4">// default warning function</span>
+  <span class="s1">warn</span><span class="s2">: </span><span class="s0">function</span><span class="s2">() {},</span>
+
+  <span class="s1">fixRepositoryField</span><span class="s2">: </span><span class="s0">function</span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">repositories</span><span class="s2">) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;repositories&quot;</span><span class="s2">);</span>
+      <span class="s1">data</span><span class="s2">.</span><span class="s1">repository </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">repositories</span><span class="s2">[</span><span class="s5">0</span><span class="s2">]</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">.</span><span class="s1">repository</span><span class="s2">) </span><span class="s0">return this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;missingRepository&quot;</span><span class="s2">)</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">data</span><span class="s2">.</span><span class="s1">repository </span><span class="s2">=== </span><span class="s3">&quot;string&quot;</span><span class="s2">) {</span>
+      <span class="s1">data</span><span class="s2">.</span><span class="s1">repository </span><span class="s2">= {</span>
+        <span class="s1">type</span><span class="s2">: </span><span class="s3">&quot;git&quot;</span><span class="s2">,</span>
+        <span class="s1">url</span><span class="s2">: </span><span class="s1">data</span><span class="s2">.</span><span class="s1">repository</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+    <span class="s0">var </span><span class="s1">r </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">repository</span><span class="s2">.</span><span class="s1">url </span><span class="s2">|| </span><span class="s3">&quot;&quot;</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">r</span><span class="s2">) {</span>
+      <span class="s0">var </span><span class="s1">hosted </span><span class="s2">= </span><span class="s1">hostedGitInfo</span><span class="s2">.</span><span class="s1">fromUrl</span><span class="s2">(</span><span class="s1">r</span><span class="s2">)</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">hosted</span><span class="s2">) {</span>
+        <span class="s1">r </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">repository</span><span class="s2">.</span><span class="s1">url</span>
+          <span class="s2">= </span><span class="s1">hosted</span><span class="s2">.</span><span class="s1">getDefaultRepresentation</span><span class="s2">() == </span><span class="s3">&quot;shortcut&quot; </span><span class="s2">? </span><span class="s1">hosted</span><span class="s2">.</span><span class="s1">https</span><span class="s2">() : </span><span class="s1">hosted</span><span class="s2">.</span><span class="s1">toString</span><span class="s2">()</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">r</span><span class="s2">.</span><span class="s1">match</span><span class="s2">(</span><span class="s6">/github.com\/[^\/]+\/[^\/]+\.git\.git$/</span><span class="s2">)) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;brokenGitUrl&quot;</span><span class="s2">, </span><span class="s1">r</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+<span class="s2">, </span><span class="s1">fixTypos</span><span class="s2">: </span><span class="s0">function</span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+    <span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">typos</span><span class="s2">.</span><span class="s1">topLevel</span><span class="s2">).</span><span class="s1">forEach</span><span class="s2">(</span><span class="s0">function </span><span class="s2">(</span><span class="s1">d</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">hasOwnProperty</span><span class="s2">(</span><span class="s1">d</span><span class="s2">)) {</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;typo&quot;</span><span class="s2">, </span><span class="s1">d</span><span class="s2">, </span><span class="s1">typos</span><span class="s2">.</span><span class="s1">topLevel</span><span class="s2">[</span><span class="s1">d</span><span class="s2">])</span>
+      <span class="s2">}</span>
+    <span class="s2">}, </span><span class="s0">this</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+<span class="s2">, </span><span class="s1">fixScriptsField</span><span class="s2">: </span><span class="s0">function</span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">.</span><span class="s1">scripts</span><span class="s2">) </span><span class="s0">return</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">data</span><span class="s2">.</span><span class="s1">scripts </span><span class="s2">!== </span><span class="s3">&quot;object&quot;</span><span class="s2">) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;nonObjectScripts&quot;</span><span class="s2">)</span>
+      <span class="s0">delete </span><span class="s1">data</span><span class="s2">.</span><span class="s1">scripts</span>
+      <span class="s0">return</span>
+    <span class="s2">}</span>
+    <span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">scripts</span><span class="s2">).</span><span class="s1">forEach</span><span class="s2">(</span><span class="s0">function </span><span class="s2">(</span><span class="s1">k</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">data</span><span class="s2">.</span><span class="s1">scripts</span><span class="s2">[</span><span class="s1">k</span><span class="s2">] !== </span><span class="s3">&quot;string&quot;</span><span class="s2">) {</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;nonStringScript&quot;</span><span class="s2">)</span>
+        <span class="s0">delete </span><span class="s1">data</span><span class="s2">.</span><span class="s1">scripts</span><span class="s2">[</span><span class="s1">k</span><span class="s2">]</span>
+      <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">typos</span><span class="s2">.</span><span class="s1">script</span><span class="s2">[</span><span class="s1">k</span><span class="s2">] &amp;&amp; !</span><span class="s1">data</span><span class="s2">.</span><span class="s1">scripts</span><span class="s2">[</span><span class="s1">typos</span><span class="s2">.</span><span class="s1">script</span><span class="s2">[</span><span class="s1">k</span><span class="s2">]]) {</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;typo&quot;</span><span class="s2">, </span><span class="s1">k</span><span class="s2">, </span><span class="s1">typos</span><span class="s2">.</span><span class="s1">script</span><span class="s2">[</span><span class="s1">k</span><span class="s2">], </span><span class="s3">&quot;scripts&quot;</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}, </span><span class="s0">this</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+<span class="s2">, </span><span class="s1">fixFilesField</span><span class="s2">: </span><span class="s0">function</span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+    <span class="s0">var </span><span class="s1">files </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">files</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">files </span><span class="s2">&amp;&amp; !</span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">files</span><span class="s2">)) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;nonArrayFiles&quot;</span><span class="s2">)</span>
+      <span class="s0">delete </span><span class="s1">data</span><span class="s2">.</span><span class="s1">files</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">files</span><span class="s2">) {</span>
+      <span class="s1">data</span><span class="s2">.</span><span class="s1">files </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">files</span><span class="s2">.</span><span class="s1">filter</span><span class="s2">(</span><span class="s0">function</span><span class="s2">(</span><span class="s1">file</span><span class="s2">) {</span>
+        <span class="s0">if </span><span class="s2">(!</span><span class="s1">file </span><span class="s2">|| </span><span class="s0">typeof </span><span class="s1">file </span><span class="s2">!== </span><span class="s3">&quot;string&quot;</span><span class="s2">) {</span>
+          <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;invalidFilename&quot;</span><span class="s2">, </span><span class="s1">file</span><span class="s2">)</span>
+          <span class="s0">return false</span>
+        <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+          <span class="s0">return true</span>
+        <span class="s2">}</span>
+      <span class="s2">}, </span><span class="s0">this</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+<span class="s2">, </span><span class="s1">fixBinField</span><span class="s2">: </span><span class="s0">function</span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">.</span><span class="s1">bin</span><span class="s2">) </span><span class="s0">return</span><span class="s2">;</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">data</span><span class="s2">.</span><span class="s1">bin </span><span class="s2">=== </span><span class="s3">&quot;string&quot;</span><span class="s2">) {</span>
+      <span class="s0">var </span><span class="s1">b </span><span class="s2">= {}</span>
+      <span class="s0">var </span><span class="s1">match</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">match </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">name</span><span class="s2">.</span><span class="s1">match</span><span class="s2">(</span><span class="s6">/^@[^/]+[/](.*)$/</span><span class="s2">)) {</span>
+        <span class="s1">b</span><span class="s2">[</span><span class="s1">match</span><span class="s2">[</span><span class="s5">1</span><span class="s2">]] = </span><span class="s1">data</span><span class="s2">.</span><span class="s1">bin</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s1">b</span><span class="s2">[</span><span class="s1">data</span><span class="s2">.</span><span class="s1">name</span><span class="s2">] = </span><span class="s1">data</span><span class="s2">.</span><span class="s1">bin</span>
+      <span class="s2">}</span>
+      <span class="s1">data</span><span class="s2">.</span><span class="s1">bin </span><span class="s2">= </span><span class="s1">b</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+<span class="s2">, </span><span class="s1">fixManField</span><span class="s2">: </span><span class="s0">function</span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">.</span><span class="s1">man</span><span class="s2">) </span><span class="s0">return</span><span class="s2">;</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">data</span><span class="s2">.</span><span class="s1">man </span><span class="s2">=== </span><span class="s3">&quot;string&quot;</span><span class="s2">) {</span>
+      <span class="s1">data</span><span class="s2">.</span><span class="s1">man </span><span class="s2">= [ </span><span class="s1">data</span><span class="s2">.</span><span class="s1">man </span><span class="s2">]</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">, </span><span class="s1">fixBundleDependenciesField</span><span class="s2">: </span><span class="s0">function</span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+    <span class="s0">var </span><span class="s1">bdd </span><span class="s2">= </span><span class="s3">&quot;bundledDependencies&quot;</span>
+    <span class="s0">var </span><span class="s1">bd </span><span class="s2">= </span><span class="s3">&quot;bundleDependencies&quot;</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">data</span><span class="s2">[</span><span class="s1">bdd</span><span class="s2">] &amp;&amp; !</span><span class="s1">data</span><span class="s2">[</span><span class="s1">bd</span><span class="s2">]) {</span>
+      <span class="s1">data</span><span class="s2">[</span><span class="s1">bd</span><span class="s2">] = </span><span class="s1">data</span><span class="s2">[</span><span class="s1">bdd</span><span class="s2">]</span>
+      <span class="s0">delete </span><span class="s1">data</span><span class="s2">[</span><span class="s1">bdd</span><span class="s2">]</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">data</span><span class="s2">[</span><span class="s1">bd</span><span class="s2">] &amp;&amp; !</span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">data</span><span class="s2">[</span><span class="s1">bd</span><span class="s2">])) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;nonArrayBundleDependencies&quot;</span><span class="s2">)</span>
+      <span class="s0">delete </span><span class="s1">data</span><span class="s2">[</span><span class="s1">bd</span><span class="s2">]</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">data</span><span class="s2">[</span><span class="s1">bd</span><span class="s2">]) {</span>
+      <span class="s1">data</span><span class="s2">[</span><span class="s1">bd</span><span class="s2">] = </span><span class="s1">data</span><span class="s2">[</span><span class="s1">bd</span><span class="s2">].</span><span class="s1">filter</span><span class="s2">(</span><span class="s0">function</span><span class="s2">(</span><span class="s1">bd</span><span class="s2">) {</span>
+        <span class="s0">if </span><span class="s2">(!</span><span class="s1">bd </span><span class="s2">|| </span><span class="s0">typeof </span><span class="s1">bd </span><span class="s2">!== </span><span class="s3">'string'</span><span class="s2">) {</span>
+          <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;nonStringBundleDependency&quot;</span><span class="s2">, </span><span class="s1">bd</span><span class="s2">)</span>
+          <span class="s0">return false</span>
+        <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+          <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">.</span><span class="s1">dependencies</span><span class="s2">) {</span>
+            <span class="s1">data</span><span class="s2">.</span><span class="s1">dependencies </span><span class="s2">= {}</span>
+          <span class="s2">}</span>
+          <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">.</span><span class="s1">dependencies</span><span class="s2">.</span><span class="s1">hasOwnProperty</span><span class="s2">(</span><span class="s1">bd</span><span class="s2">)) {</span>
+            <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;nonDependencyBundleDependency&quot;</span><span class="s2">, </span><span class="s1">bd</span><span class="s2">)</span>
+            <span class="s1">data</span><span class="s2">.</span><span class="s1">dependencies</span><span class="s2">[</span><span class="s1">bd</span><span class="s2">] = </span><span class="s3">&quot;*&quot;</span>
+          <span class="s2">}</span>
+          <span class="s0">return true</span>
+        <span class="s2">}</span>
+      <span class="s2">}, </span><span class="s0">this</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+<span class="s2">, </span><span class="s1">fixDependencies</span><span class="s2">: </span><span class="s0">function</span><span class="s2">(</span><span class="s1">data</span><span class="s2">, </span><span class="s1">strict</span><span class="s2">) {</span>
+    <span class="s0">var </span><span class="s1">loose </span><span class="s2">= !</span><span class="s1">strict</span>
+    <span class="s1">objectifyDeps</span><span class="s2">(</span><span class="s1">data</span><span class="s2">, </span><span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">)</span>
+    <span class="s1">addOptionalDepsToDeps</span><span class="s2">(</span><span class="s1">data</span><span class="s2">, </span><span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">)</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">fixBundleDependenciesField</span><span class="s2">(</span><span class="s1">data</span><span class="s2">)</span>
+
+    <span class="s2">;[</span><span class="s3">'dependencies'</span><span class="s2">,</span><span class="s3">'devDependencies'</span><span class="s2">].</span><span class="s1">forEach</span><span class="s2">(</span><span class="s0">function</span><span class="s2">(</span><span class="s1">deps</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(!(</span><span class="s1">deps </span><span class="s0">in </span><span class="s1">data</span><span class="s2">)) </span><span class="s0">return</span>
+      <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">[</span><span class="s1">deps</span><span class="s2">] || </span><span class="s0">typeof </span><span class="s1">data</span><span class="s2">[</span><span class="s1">deps</span><span class="s2">] !== </span><span class="s3">&quot;object&quot;</span><span class="s2">) {</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;nonObjectDependencies&quot;</span><span class="s2">, </span><span class="s1">deps</span><span class="s2">)</span>
+        <span class="s0">delete </span><span class="s1">data</span><span class="s2">[</span><span class="s1">deps</span><span class="s2">]</span>
+        <span class="s0">return</span>
+      <span class="s2">}</span>
+      <span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">data</span><span class="s2">[</span><span class="s1">deps</span><span class="s2">]).</span><span class="s1">forEach</span><span class="s2">(</span><span class="s0">function </span><span class="s2">(</span><span class="s1">d</span><span class="s2">) {</span>
+        <span class="s0">var </span><span class="s1">r </span><span class="s2">= </span><span class="s1">data</span><span class="s2">[</span><span class="s1">deps</span><span class="s2">][</span><span class="s1">d</span><span class="s2">]</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">r </span><span class="s2">!== </span><span class="s3">'string'</span><span class="s2">) {</span>
+          <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;nonStringDependency&quot;</span><span class="s2">, </span><span class="s1">d</span><span class="s2">, </span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">stringify</span><span class="s2">(</span><span class="s1">r</span><span class="s2">))</span>
+          <span class="s0">delete </span><span class="s1">data</span><span class="s2">[</span><span class="s1">deps</span><span class="s2">][</span><span class="s1">d</span><span class="s2">]</span>
+        <span class="s2">}</span>
+        <span class="s0">var </span><span class="s1">hosted </span><span class="s2">= </span><span class="s1">hostedGitInfo</span><span class="s2">.</span><span class="s1">fromUrl</span><span class="s2">(</span><span class="s1">data</span><span class="s2">[</span><span class="s1">deps</span><span class="s2">][</span><span class="s1">d</span><span class="s2">])</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">hosted</span><span class="s2">) </span><span class="s1">data</span><span class="s2">[</span><span class="s1">deps</span><span class="s2">][</span><span class="s1">d</span><span class="s2">] = </span><span class="s1">hosted</span><span class="s2">.</span><span class="s1">toString</span><span class="s2">()</span>
+      <span class="s2">}, </span><span class="s0">this</span><span class="s2">)</span>
+    <span class="s2">}, </span><span class="s0">this</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+<span class="s2">, </span><span class="s1">fixModulesField</span><span class="s2">: </span><span class="s0">function </span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">modules</span><span class="s2">) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;deprecatedModules&quot;</span><span class="s2">)</span>
+      <span class="s0">delete </span><span class="s1">data</span><span class="s2">.</span><span class="s1">modules</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+<span class="s2">, </span><span class="s1">fixKeywordsField</span><span class="s2">: </span><span class="s0">function </span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">data</span><span class="s2">.</span><span class="s1">keywords </span><span class="s2">=== </span><span class="s3">&quot;string&quot;</span><span class="s2">) {</span>
+      <span class="s1">data</span><span class="s2">.</span><span class="s1">keywords </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">keywords</span><span class="s2">.</span><span class="s1">split</span><span class="s2">(</span><span class="s6">/,\s+/</span><span class="s2">)</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">keywords </span><span class="s2">&amp;&amp; !</span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">keywords</span><span class="s2">)) {</span>
+      <span class="s0">delete </span><span class="s1">data</span><span class="s2">.</span><span class="s1">keywords</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;nonArrayKeywords&quot;</span><span class="s2">)</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">keywords</span><span class="s2">) {</span>
+      <span class="s1">data</span><span class="s2">.</span><span class="s1">keywords </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">keywords</span><span class="s2">.</span><span class="s1">filter</span><span class="s2">(</span><span class="s0">function</span><span class="s2">(</span><span class="s1">kw</span><span class="s2">) {</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">kw </span><span class="s2">!== </span><span class="s3">&quot;string&quot; </span><span class="s2">|| !</span><span class="s1">kw</span><span class="s2">) {</span>
+          <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;nonStringKeyword&quot;</span><span class="s2">);</span>
+          <span class="s0">return false</span>
+        <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+          <span class="s0">return true</span>
+        <span class="s2">}</span>
+      <span class="s2">}, </span><span class="s0">this</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+<span class="s2">, </span><span class="s1">fixVersionField</span><span class="s2">: </span><span class="s0">function</span><span class="s2">(</span><span class="s1">data</span><span class="s2">, </span><span class="s1">strict</span><span class="s2">) {</span>
+    <span class="s4">// allow &quot;loose&quot; semver 1.0 versions in non-strict mode</span>
+    <span class="s4">// enforce strict semver 2.0 compliance in strict mode</span>
+    <span class="s0">var </span><span class="s1">loose </span><span class="s2">= !</span><span class="s1">strict</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">.</span><span class="s1">version</span><span class="s2">) {</span>
+      <span class="s1">data</span><span class="s2">.</span><span class="s1">version </span><span class="s2">= </span><span class="s3">&quot;&quot;</span>
+      <span class="s0">return true</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">semver</span><span class="s2">.</span><span class="s1">valid</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">version</span><span class="s2">, </span><span class="s1">loose</span><span class="s2">)) {</span>
+      <span class="s0">throw new </span><span class="s1">Error</span><span class="s2">(</span><span class="s3">'Invalid version: &quot;'</span><span class="s2">+ </span><span class="s1">data</span><span class="s2">.</span><span class="s1">version </span><span class="s2">+ </span><span class="s3">'&quot;'</span><span class="s2">)</span>
+    <span class="s2">}</span>
+    <span class="s1">data</span><span class="s2">.</span><span class="s1">version </span><span class="s2">= </span><span class="s1">semver</span><span class="s2">.</span><span class="s1">clean</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">version</span><span class="s2">, </span><span class="s1">loose</span><span class="s2">)</span>
+    <span class="s0">return true</span>
+  <span class="s2">}</span>
+
+<span class="s2">, </span><span class="s1">fixPeople</span><span class="s2">: </span><span class="s0">function</span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+    <span class="s1">modifyPeople</span><span class="s2">(</span><span class="s1">data</span><span class="s2">, </span><span class="s1">unParsePerson</span><span class="s2">)</span>
+    <span class="s1">modifyPeople</span><span class="s2">(</span><span class="s1">data</span><span class="s2">, </span><span class="s1">parsePerson</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+<span class="s2">, </span><span class="s1">fixNameField</span><span class="s2">: </span><span class="s0">function</span><span class="s2">(</span><span class="s1">data</span><span class="s2">, </span><span class="s1">options</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">options </span><span class="s2">=== </span><span class="s3">&quot;boolean&quot;</span><span class="s2">) </span><span class="s1">options </span><span class="s2">= {</span><span class="s1">strict</span><span class="s2">: </span><span class="s1">options</span><span class="s2">}</span>
+    <span class="s0">else if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">options </span><span class="s2">=== </span><span class="s3">&quot;undefined&quot;</span><span class="s2">) </span><span class="s1">options </span><span class="s2">= {}</span>
+    <span class="s0">var </span><span class="s1">strict </span><span class="s2">= </span><span class="s1">options</span><span class="s2">.</span><span class="s1">strict</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">.</span><span class="s1">name </span><span class="s2">&amp;&amp; !</span><span class="s1">strict</span><span class="s2">) {</span>
+      <span class="s1">data</span><span class="s2">.</span><span class="s1">name </span><span class="s2">= </span><span class="s3">&quot;&quot;</span>
+      <span class="s0">return</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">data</span><span class="s2">.</span><span class="s1">name </span><span class="s2">!== </span><span class="s3">&quot;string&quot;</span><span class="s2">) {</span>
+      <span class="s0">throw new </span><span class="s1">Error</span><span class="s2">(</span><span class="s3">&quot;name field must be a string.&quot;</span><span class="s2">)</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">strict</span><span class="s2">)</span>
+      <span class="s1">data</span><span class="s2">.</span><span class="s1">name </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">name</span><span class="s2">.</span><span class="s1">trim</span><span class="s2">()</span>
+    <span class="s1">ensureValidName</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">name</span><span class="s2">, </span><span class="s1">strict</span><span class="s2">, </span><span class="s1">options</span><span class="s2">.</span><span class="s1">allowLegacyCase</span><span class="s2">)</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isBuiltinModule</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">name</span><span class="s2">))</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;conflictingName&quot;</span><span class="s2">, </span><span class="s1">data</span><span class="s2">.</span><span class="s1">name</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+
+<span class="s2">, </span><span class="s1">fixDescriptionField</span><span class="s2">: </span><span class="s0">function </span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">description </span><span class="s2">&amp;&amp; </span><span class="s0">typeof </span><span class="s1">data</span><span class="s2">.</span><span class="s1">description </span><span class="s2">!== </span><span class="s3">'string'</span><span class="s2">) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;nonStringDescription&quot;</span><span class="s2">)</span>
+      <span class="s0">delete </span><span class="s1">data</span><span class="s2">.</span><span class="s1">description</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">readme </span><span class="s2">&amp;&amp; !</span><span class="s1">data</span><span class="s2">.</span><span class="s1">description</span><span class="s2">)</span>
+      <span class="s1">data</span><span class="s2">.</span><span class="s1">description </span><span class="s2">= </span><span class="s1">extractDescription</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">readme</span><span class="s2">)</span>
+      <span class="s0">if</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">description </span><span class="s2">=== </span><span class="s1">undefined</span><span class="s2">) </span><span class="s0">delete </span><span class="s1">data</span><span class="s2">.</span><span class="s1">description</span><span class="s2">;</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">.</span><span class="s1">description</span><span class="s2">) </span><span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;missingDescription&quot;</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+<span class="s2">, </span><span class="s1">fixReadmeField</span><span class="s2">: </span><span class="s0">function </span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">.</span><span class="s1">readme</span><span class="s2">) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;missingReadme&quot;</span><span class="s2">)</span>
+      <span class="s1">data</span><span class="s2">.</span><span class="s1">readme </span><span class="s2">= </span><span class="s3">&quot;ERROR: No README data found!&quot;</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+<span class="s2">, </span><span class="s1">fixBugsField</span><span class="s2">: </span><span class="s0">function</span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">.</span><span class="s1">bugs </span><span class="s2">&amp;&amp; </span><span class="s1">data</span><span class="s2">.</span><span class="s1">repository </span><span class="s2">&amp;&amp; </span><span class="s1">data</span><span class="s2">.</span><span class="s1">repository</span><span class="s2">.</span><span class="s1">url</span><span class="s2">) {</span>
+      <span class="s0">var </span><span class="s1">hosted </span><span class="s2">= </span><span class="s1">hostedGitInfo</span><span class="s2">.</span><span class="s1">fromUrl</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">repository</span><span class="s2">.</span><span class="s1">url</span><span class="s2">)</span>
+      <span class="s0">if</span><span class="s2">(</span><span class="s1">hosted </span><span class="s2">&amp;&amp; </span><span class="s1">hosted</span><span class="s2">.</span><span class="s1">bugs</span><span class="s2">()) {</span>
+        <span class="s1">data</span><span class="s2">.</span><span class="s1">bugs </span><span class="s2">= {</span><span class="s1">url</span><span class="s2">: </span><span class="s1">hosted</span><span class="s2">.</span><span class="s1">bugs</span><span class="s2">()}</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+    <span class="s0">else if</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">bugs</span><span class="s2">) {</span>
+      <span class="s0">var </span><span class="s1">emailRe </span><span class="s2">= </span><span class="s6">/^.+@.*\..+$/</span>
+      <span class="s0">if</span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">data</span><span class="s2">.</span><span class="s1">bugs </span><span class="s2">== </span><span class="s3">&quot;string&quot;</span><span class="s2">) {</span>
+        <span class="s0">if</span><span class="s2">(</span><span class="s1">emailRe</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">bugs</span><span class="s2">))</span>
+          <span class="s1">data</span><span class="s2">.</span><span class="s1">bugs </span><span class="s2">= {</span><span class="s1">email</span><span class="s2">:</span><span class="s1">data</span><span class="s2">.</span><span class="s1">bugs</span><span class="s2">}</span>
+        <span class="s0">else if</span><span class="s2">(</span><span class="s1">url</span><span class="s2">.</span><span class="s1">parse</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">bugs</span><span class="s2">).</span><span class="s1">protocol</span><span class="s2">)</span>
+          <span class="s1">data</span><span class="s2">.</span><span class="s1">bugs </span><span class="s2">= {</span><span class="s1">url</span><span class="s2">: </span><span class="s1">data</span><span class="s2">.</span><span class="s1">bugs</span><span class="s2">}</span>
+        <span class="s0">else</span>
+          <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;nonEmailUrlBugsString&quot;</span><span class="s2">)</span>
+      <span class="s2">}</span>
+      <span class="s0">else </span><span class="s2">{</span>
+        <span class="s1">bugsTypos</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">bugs</span><span class="s2">, </span><span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">)</span>
+        <span class="s0">var </span><span class="s1">oldBugs </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">bugs</span>
+        <span class="s1">data</span><span class="s2">.</span><span class="s1">bugs </span><span class="s2">= {}</span>
+        <span class="s0">if</span><span class="s2">(</span><span class="s1">oldBugs</span><span class="s2">.</span><span class="s1">url</span><span class="s2">) {</span>
+          <span class="s0">if</span><span class="s2">(</span><span class="s0">typeof</span><span class="s2">(</span><span class="s1">oldBugs</span><span class="s2">.</span><span class="s1">url</span><span class="s2">) == </span><span class="s3">&quot;string&quot; </span><span class="s2">&amp;&amp; </span><span class="s1">url</span><span class="s2">.</span><span class="s1">parse</span><span class="s2">(</span><span class="s1">oldBugs</span><span class="s2">.</span><span class="s1">url</span><span class="s2">).</span><span class="s1">protocol</span><span class="s2">)</span>
+            <span class="s1">data</span><span class="s2">.</span><span class="s1">bugs</span><span class="s2">.</span><span class="s1">url </span><span class="s2">= </span><span class="s1">oldBugs</span><span class="s2">.</span><span class="s1">url</span>
+          <span class="s0">else</span>
+            <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;nonUrlBugsUrlField&quot;</span><span class="s2">)</span>
+        <span class="s2">}</span>
+        <span class="s0">if</span><span class="s2">(</span><span class="s1">oldBugs</span><span class="s2">.</span><span class="s1">email</span><span class="s2">) {</span>
+          <span class="s0">if</span><span class="s2">(</span><span class="s0">typeof</span><span class="s2">(</span><span class="s1">oldBugs</span><span class="s2">.</span><span class="s1">email</span><span class="s2">) == </span><span class="s3">&quot;string&quot; </span><span class="s2">&amp;&amp; </span><span class="s1">emailRe</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">oldBugs</span><span class="s2">.</span><span class="s1">email</span><span class="s2">))</span>
+            <span class="s1">data</span><span class="s2">.</span><span class="s1">bugs</span><span class="s2">.</span><span class="s1">email </span><span class="s2">= </span><span class="s1">oldBugs</span><span class="s2">.</span><span class="s1">email</span>
+          <span class="s0">else</span>
+            <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;nonEmailBugsEmailField&quot;</span><span class="s2">)</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+      <span class="s0">if</span><span class="s2">(!</span><span class="s1">data</span><span class="s2">.</span><span class="s1">bugs</span><span class="s2">.</span><span class="s1">email </span><span class="s2">&amp;&amp; !</span><span class="s1">data</span><span class="s2">.</span><span class="s1">bugs</span><span class="s2">.</span><span class="s1">url</span><span class="s2">) {</span>
+        <span class="s0">delete </span><span class="s1">data</span><span class="s2">.</span><span class="s1">bugs</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;emptyNormalizedBugs&quot;</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+<span class="s2">, </span><span class="s1">fixHomepageField</span><span class="s2">: </span><span class="s0">function</span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">.</span><span class="s1">homepage </span><span class="s2">&amp;&amp; </span><span class="s1">data</span><span class="s2">.</span><span class="s1">repository </span><span class="s2">&amp;&amp; </span><span class="s1">data</span><span class="s2">.</span><span class="s1">repository</span><span class="s2">.</span><span class="s1">url</span><span class="s2">) {</span>
+      <span class="s0">var </span><span class="s1">hosted </span><span class="s2">= </span><span class="s1">hostedGitInfo</span><span class="s2">.</span><span class="s1">fromUrl</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">repository</span><span class="s2">.</span><span class="s1">url</span><span class="s2">)</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">hosted </span><span class="s2">&amp;&amp; </span><span class="s1">hosted</span><span class="s2">.</span><span class="s1">docs</span><span class="s2">()) </span><span class="s1">data</span><span class="s2">.</span><span class="s1">homepage </span><span class="s2">= </span><span class="s1">hosted</span><span class="s2">.</span><span class="s1">docs</span><span class="s2">()</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">.</span><span class="s1">homepage</span><span class="s2">) </span><span class="s0">return</span>
+
+    <span class="s0">if</span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">data</span><span class="s2">.</span><span class="s1">homepage </span><span class="s2">!== </span><span class="s3">&quot;string&quot;</span><span class="s2">) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;nonUrlHomepage&quot;</span><span class="s2">)</span>
+      <span class="s0">return delete </span><span class="s1">data</span><span class="s2">.</span><span class="s1">homepage</span>
+    <span class="s2">}</span>
+    <span class="s0">if</span><span class="s2">(!</span><span class="s1">url</span><span class="s2">.</span><span class="s1">parse</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">homepage</span><span class="s2">).</span><span class="s1">protocol</span><span class="s2">) {</span>
+      <span class="s1">data</span><span class="s2">.</span><span class="s1">homepage </span><span class="s2">= </span><span class="s3">&quot;http://&quot; </span><span class="s2">+ </span><span class="s1">data</span><span class="s2">.</span><span class="s1">homepage</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+<span class="s2">, </span><span class="s1">fixLicenseField</span><span class="s2">: </span><span class="s0">function</span><span class="s2">(</span><span class="s1">data</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">.</span><span class="s1">license</span><span class="s2">) {</span>
+      <span class="s0">return this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;missingLicense&quot;</span><span class="s2">)</span>
+    <span class="s2">} </span><span class="s0">else</span><span class="s2">{</span>
+      <span class="s0">if </span><span class="s2">(</span>
+        <span class="s0">typeof</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">license</span><span class="s2">) !== </span><span class="s3">'string' </span><span class="s2">||</span>
+        <span class="s1">data</span><span class="s2">.</span><span class="s1">license</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&lt; </span><span class="s5">1 </span><span class="s2">||</span>
+        <span class="s1">data</span><span class="s2">.</span><span class="s1">license</span><span class="s2">.</span><span class="s1">trim</span><span class="s2">() === </span><span class="s3">''</span>
+      <span class="s2">) {</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;invalidLicense&quot;</span><span class="s2">)</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s0">if </span><span class="s2">(!</span><span class="s1">validateLicense</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">license</span><span class="s2">).</span><span class="s1">validForNewPackages</span><span class="s2">)</span>
+          <span class="s0">this</span><span class="s2">.</span><span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;invalidLicense&quot;</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">isValidScopedPackageName</span><span class="s2">(</span><span class="s1">spec</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">spec</span><span class="s2">.</span><span class="s1">charAt</span><span class="s2">(</span><span class="s5">0</span><span class="s2">) !== </span><span class="s3">'@'</span><span class="s2">) </span><span class="s0">return false</span>
+
+  <span class="s0">var </span><span class="s1">rest </span><span class="s2">= </span><span class="s1">spec</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s5">1</span><span class="s2">).</span><span class="s1">split</span><span class="s2">(</span><span class="s3">'/'</span><span class="s2">)</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">rest</span><span class="s2">.</span><span class="s1">length </span><span class="s2">!== </span><span class="s5">2</span><span class="s2">) </span><span class="s0">return false</span>
+
+  <span class="s0">return </span><span class="s1">rest</span><span class="s2">[</span><span class="s5">0</span><span class="s2">] &amp;&amp; </span><span class="s1">rest</span><span class="s2">[</span><span class="s5">1</span><span class="s2">] &amp;&amp;</span>
+    <span class="s1">rest</span><span class="s2">[</span><span class="s5">0</span><span class="s2">] === </span><span class="s1">encodeURIComponent</span><span class="s2">(</span><span class="s1">rest</span><span class="s2">[</span><span class="s5">0</span><span class="s2">]) &amp;&amp;</span>
+    <span class="s1">rest</span><span class="s2">[</span><span class="s5">1</span><span class="s2">] === </span><span class="s1">encodeURIComponent</span><span class="s2">(</span><span class="s1">rest</span><span class="s2">[</span><span class="s5">1</span><span class="s2">])</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">isCorrectlyEncodedName</span><span class="s2">(</span><span class="s1">spec</span><span class="s2">) {</span>
+  <span class="s0">return </span><span class="s2">!</span><span class="s1">spec</span><span class="s2">.</span><span class="s1">match</span><span class="s2">(</span><span class="s6">/[\/@\s\+%:]/</span><span class="s2">) &amp;&amp;</span>
+    <span class="s1">spec </span><span class="s2">=== </span><span class="s1">encodeURIComponent</span><span class="s2">(</span><span class="s1">spec</span><span class="s2">)</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">ensureValidName </span><span class="s2">(</span><span class="s1">name</span><span class="s2">, </span><span class="s1">strict</span><span class="s2">, </span><span class="s1">allowLegacyCase</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">name</span><span class="s2">.</span><span class="s1">charAt</span><span class="s2">(</span><span class="s5">0</span><span class="s2">) === </span><span class="s3">&quot;.&quot; </span><span class="s2">||</span>
+      <span class="s2">!(</span><span class="s1">isValidScopedPackageName</span><span class="s2">(</span><span class="s1">name</span><span class="s2">) || </span><span class="s1">isCorrectlyEncodedName</span><span class="s2">(</span><span class="s1">name</span><span class="s2">)) ||</span>
+      <span class="s2">(</span><span class="s1">strict </span><span class="s2">&amp;&amp; (!</span><span class="s1">allowLegacyCase</span><span class="s2">) &amp;&amp; </span><span class="s1">name </span><span class="s2">!== </span><span class="s1">name</span><span class="s2">.</span><span class="s1">toLowerCase</span><span class="s2">()) ||</span>
+      <span class="s1">name</span><span class="s2">.</span><span class="s1">toLowerCase</span><span class="s2">() === </span><span class="s3">&quot;node_modules&quot; </span><span class="s2">||</span>
+      <span class="s1">name</span><span class="s2">.</span><span class="s1">toLowerCase</span><span class="s2">() === </span><span class="s3">&quot;favicon.ico&quot;</span><span class="s2">) {</span>
+        <span class="s0">throw new </span><span class="s1">Error</span><span class="s2">(</span><span class="s3">&quot;Invalid name: &quot; </span><span class="s2">+ </span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">stringify</span><span class="s2">(</span><span class="s1">name</span><span class="s2">))</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">modifyPeople </span><span class="s2">(</span><span class="s1">data</span><span class="s2">, </span><span class="s1">fn</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">author</span><span class="s2">) </span><span class="s1">data</span><span class="s2">.</span><span class="s1">author </span><span class="s2">= </span><span class="s1">fn</span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">author</span><span class="s2">)</span>
+  <span class="s2">;[</span><span class="s3">&quot;maintainers&quot;</span><span class="s2">, </span><span class="s3">&quot;contributors&quot;</span><span class="s2">].</span><span class="s1">forEach</span><span class="s2">(</span><span class="s0">function </span><span class="s2">(</span><span class="s1">set</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">data</span><span class="s2">[</span><span class="s1">set</span><span class="s2">])) </span><span class="s0">return</span><span class="s2">;</span>
+    <span class="s1">data</span><span class="s2">[</span><span class="s1">set</span><span class="s2">] = </span><span class="s1">data</span><span class="s2">[</span><span class="s1">set</span><span class="s2">].</span><span class="s1">map</span><span class="s2">(</span><span class="s1">fn</span><span class="s2">)</span>
+  <span class="s2">})</span>
+  <span class="s0">return </span><span class="s1">data</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">unParsePerson </span><span class="s2">(</span><span class="s1">person</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">person </span><span class="s2">=== </span><span class="s3">&quot;string&quot;</span><span class="s2">) </span><span class="s0">return </span><span class="s1">person</span>
+  <span class="s0">var </span><span class="s1">name </span><span class="s2">= </span><span class="s1">person</span><span class="s2">.</span><span class="s1">name </span><span class="s2">|| </span><span class="s3">&quot;&quot;</span>
+  <span class="s0">var </span><span class="s1">u </span><span class="s2">= </span><span class="s1">person</span><span class="s2">.</span><span class="s1">url </span><span class="s2">|| </span><span class="s1">person</span><span class="s2">.</span><span class="s1">web</span>
+  <span class="s0">var </span><span class="s1">url </span><span class="s2">= </span><span class="s1">u </span><span class="s2">? (</span><span class="s3">&quot; (&quot;</span><span class="s2">+</span><span class="s1">u</span><span class="s2">+</span><span class="s3">&quot;)&quot;</span><span class="s2">) : </span><span class="s3">&quot;&quot;</span>
+  <span class="s0">var </span><span class="s1">e </span><span class="s2">= </span><span class="s1">person</span><span class="s2">.</span><span class="s1">email </span><span class="s2">|| </span><span class="s1">person</span><span class="s2">.</span><span class="s1">mail</span>
+  <span class="s0">var </span><span class="s1">email </span><span class="s2">= </span><span class="s1">e </span><span class="s2">? (</span><span class="s3">&quot; &lt;&quot;</span><span class="s2">+</span><span class="s1">e</span><span class="s2">+</span><span class="s3">&quot;&gt;&quot;</span><span class="s2">) : </span><span class="s3">&quot;&quot;</span>
+  <span class="s0">return </span><span class="s1">name</span><span class="s2">+</span><span class="s1">email</span><span class="s2">+</span><span class="s1">url</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">parsePerson </span><span class="s2">(</span><span class="s1">person</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">person </span><span class="s2">!== </span><span class="s3">&quot;string&quot;</span><span class="s2">) </span><span class="s0">return </span><span class="s1">person</span>
+  <span class="s0">var </span><span class="s1">name </span><span class="s2">= </span><span class="s1">person</span><span class="s2">.</span><span class="s1">match</span><span class="s2">(</span><span class="s6">/^([^\(&lt;]+)/</span><span class="s2">)</span>
+  <span class="s0">var </span><span class="s1">url </span><span class="s2">= </span><span class="s1">person</span><span class="s2">.</span><span class="s1">match</span><span class="s2">(</span><span class="s6">/\(([^\)]+)\)/</span><span class="s2">)</span>
+  <span class="s0">var </span><span class="s1">email </span><span class="s2">= </span><span class="s1">person</span><span class="s2">.</span><span class="s1">match</span><span class="s2">(</span><span class="s6">/&lt;([^&gt;]+)&gt;/</span><span class="s2">)</span>
+  <span class="s0">var </span><span class="s1">obj </span><span class="s2">= {}</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">name </span><span class="s2">&amp;&amp; </span><span class="s1">name</span><span class="s2">[</span><span class="s5">0</span><span class="s2">].</span><span class="s1">trim</span><span class="s2">()) </span><span class="s1">obj</span><span class="s2">.</span><span class="s1">name </span><span class="s2">= </span><span class="s1">name</span><span class="s2">[</span><span class="s5">0</span><span class="s2">].</span><span class="s1">trim</span><span class="s2">()</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">email</span><span class="s2">) </span><span class="s1">obj</span><span class="s2">.</span><span class="s1">email </span><span class="s2">= </span><span class="s1">email</span><span class="s2">[</span><span class="s5">1</span><span class="s2">];</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">url</span><span class="s2">) </span><span class="s1">obj</span><span class="s2">.</span><span class="s1">url </span><span class="s2">= </span><span class="s1">url</span><span class="s2">[</span><span class="s5">1</span><span class="s2">];</span>
+  <span class="s0">return </span><span class="s1">obj</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">addOptionalDepsToDeps </span><span class="s2">(</span><span class="s1">data</span><span class="s2">, </span><span class="s1">warn</span><span class="s2">) {</span>
+  <span class="s0">var </span><span class="s1">o </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">optionalDependencies</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">o</span><span class="s2">) </span><span class="s0">return</span><span class="s2">;</span>
+  <span class="s0">var </span><span class="s1">d </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">dependencies </span><span class="s2">|| {}</span>
+  <span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">o</span><span class="s2">).</span><span class="s1">forEach</span><span class="s2">(</span><span class="s0">function </span><span class="s2">(</span><span class="s1">k</span><span class="s2">) {</span>
+    <span class="s1">d</span><span class="s2">[</span><span class="s1">k</span><span class="s2">] = </span><span class="s1">o</span><span class="s2">[</span><span class="s1">k</span><span class="s2">]</span>
+  <span class="s2">})</span>
+  <span class="s1">data</span><span class="s2">.</span><span class="s1">dependencies </span><span class="s2">= </span><span class="s1">d</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">depObjectify </span><span class="s2">(</span><span class="s1">deps</span><span class="s2">, </span><span class="s1">type</span><span class="s2">, </span><span class="s1">warn</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">deps</span><span class="s2">) </span><span class="s0">return </span><span class="s2">{}</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">deps </span><span class="s2">=== </span><span class="s3">&quot;string&quot;</span><span class="s2">) {</span>
+    <span class="s1">deps </span><span class="s2">= </span><span class="s1">deps</span><span class="s2">.</span><span class="s1">trim</span><span class="s2">().</span><span class="s1">split</span><span class="s2">(</span><span class="s6">/[\n\r\s\t ,]+/</span><span class="s2">)</span>
+  <span class="s2">}</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">deps</span><span class="s2">)) </span><span class="s0">return </span><span class="s1">deps</span>
+  <span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;deprecatedArrayDependencies&quot;</span><span class="s2">, </span><span class="s1">type</span><span class="s2">)</span>
+  <span class="s0">var </span><span class="s1">o </span><span class="s2">= {}</span>
+  <span class="s1">deps</span><span class="s2">.</span><span class="s1">filter</span><span class="s2">(</span><span class="s0">function </span><span class="s2">(</span><span class="s1">d</span><span class="s2">) {</span>
+    <span class="s0">return typeof </span><span class="s1">d </span><span class="s2">=== </span><span class="s3">&quot;string&quot;</span>
+  <span class="s2">}).</span><span class="s1">forEach</span><span class="s2">(</span><span class="s0">function</span><span class="s2">(</span><span class="s1">d</span><span class="s2">) {</span>
+    <span class="s1">d </span><span class="s2">= </span><span class="s1">d</span><span class="s2">.</span><span class="s1">trim</span><span class="s2">().</span><span class="s1">split</span><span class="s2">(</span><span class="s6">/(:?[@\s&gt;&lt;=])/</span><span class="s2">)</span>
+    <span class="s0">var </span><span class="s1">dn </span><span class="s2">= </span><span class="s1">d</span><span class="s2">.</span><span class="s1">shift</span><span class="s2">()</span>
+    <span class="s0">var </span><span class="s1">dv </span><span class="s2">= </span><span class="s1">d</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s3">&quot;&quot;</span><span class="s2">)</span>
+    <span class="s1">dv </span><span class="s2">= </span><span class="s1">dv</span><span class="s2">.</span><span class="s1">trim</span><span class="s2">()</span>
+    <span class="s1">dv </span><span class="s2">= </span><span class="s1">dv</span><span class="s2">.</span><span class="s1">replace</span><span class="s2">(</span><span class="s6">/^@/</span><span class="s2">, </span><span class="s3">&quot;&quot;</span><span class="s2">)</span>
+    <span class="s1">o</span><span class="s2">[</span><span class="s1">dn</span><span class="s2">] = </span><span class="s1">dv</span>
+  <span class="s2">})</span>
+  <span class="s0">return </span><span class="s1">o</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">objectifyDeps </span><span class="s2">(</span><span class="s1">data</span><span class="s2">, </span><span class="s1">warn</span><span class="s2">) {</span>
+  <span class="s1">depTypes</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s0">function </span><span class="s2">(</span><span class="s1">type</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">data</span><span class="s2">[</span><span class="s1">type</span><span class="s2">]) </span><span class="s0">return</span><span class="s2">;</span>
+    <span class="s1">data</span><span class="s2">[</span><span class="s1">type</span><span class="s2">] = </span><span class="s1">depObjectify</span><span class="s2">(</span><span class="s1">data</span><span class="s2">[</span><span class="s1">type</span><span class="s2">], </span><span class="s1">type</span><span class="s2">, </span><span class="s1">warn</span><span class="s2">)</span>
+  <span class="s2">})</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">bugsTypos</span><span class="s2">(</span><span class="s1">bugs</span><span class="s2">, </span><span class="s1">warn</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">bugs</span><span class="s2">) </span><span class="s0">return</span>
+  <span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">bugs</span><span class="s2">).</span><span class="s1">forEach</span><span class="s2">(</span><span class="s0">function </span><span class="s2">(</span><span class="s1">k</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">typos</span><span class="s2">.</span><span class="s1">bugs</span><span class="s2">[</span><span class="s1">k</span><span class="s2">]) {</span>
+      <span class="s1">warn</span><span class="s2">(</span><span class="s3">&quot;typo&quot;</span><span class="s2">, </span><span class="s1">k</span><span class="s2">, </span><span class="s1">typos</span><span class="s2">.</span><span class="s1">bugs</span><span class="s2">[</span><span class="s1">k</span><span class="s2">], </span><span class="s3">&quot;bugs&quot;</span><span class="s2">)</span>
+      <span class="s1">bugs</span><span class="s2">[</span><span class="s1">typos</span><span class="s2">.</span><span class="s1">bugs</span><span class="s2">[</span><span class="s1">k</span><span class="s2">]] = </span><span class="s1">bugs</span><span class="s2">[</span><span class="s1">k</span><span class="s2">]</span>
+      <span class="s0">delete </span><span class="s1">bugs</span><span class="s2">[</span><span class="s1">k</span><span class="s2">]</span>
+    <span class="s2">}</span>
+  <span class="s2">})</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

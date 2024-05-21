@@ -1,0 +1,127 @@
+<html>
+<head>
+<title>upload-core.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #67a37c; font-style: italic;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #bcbec4;}
+.s5 { color: #6aab73;}
+.s6 { color: #7a7e85;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+upload-core.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* </span><span class="s1">@description </span><span class="s0">上传的核心方法</span>
+ <span class="s0">* </span><span class="s1">@author </span><span class="s0">wangfupeng</span>
+ <span class="s0">*/</span>
+
+<span class="s3">import </span><span class="s4">{ </span><span class="s2">forEach </span><span class="s4">} </span><span class="s2">from </span><span class="s5">'../../utils/util'</span>
+<span class="s3">import </span><span class="s4">{ </span><span class="s2">DicType </span><span class="s4">} </span><span class="s2">from </span><span class="s5">'../../config/index'</span>
+
+<span class="s2">type PostOptionType</span><span class="s4">&lt;</span><span class="s2">T</span><span class="s4">&gt; = {</span>
+    <span class="s2">timeout</span><span class="s4">?: </span><span class="s2">number</span>
+    <span class="s2">formData</span><span class="s4">?: </span><span class="s2">FormData</span>
+    <span class="s2">headers</span><span class="s4">?: </span><span class="s2">DicType</span>
+    <span class="s2">withCredentials</span><span class="s4">?: </span><span class="s2">boolean</span>
+    <span class="s2">onTimeout</span><span class="s4">?: (</span><span class="s2">xhr</span><span class="s4">: </span><span class="s2">XMLHttpRequest</span><span class="s4">) =&gt; </span><span class="s3">void</span>
+    <span class="s2">onProgress</span><span class="s4">?: (</span><span class="s2">percent</span><span class="s4">: </span><span class="s2">number</span><span class="s4">, </span><span class="s2">event</span><span class="s4">: </span><span class="s2">ProgressEvent</span><span class="s4">) =&gt; </span><span class="s3">void</span>
+    <span class="s2">beforeSend</span><span class="s4">?: (</span><span class="s2">xhr</span><span class="s4">: </span><span class="s2">XMLHttpRequest</span><span class="s4">) =&gt; { </span><span class="s2">prevent</span><span class="s4">: </span><span class="s2">boolean</span><span class="s4">; </span><span class="s2">msg</span><span class="s4">: </span><span class="s2">string </span><span class="s4">} | </span><span class="s3">void</span>
+    <span class="s2">onError</span><span class="s4">?: (</span><span class="s2">xhr</span><span class="s4">: </span><span class="s2">XMLHttpRequest</span><span class="s4">) =&gt; </span><span class="s3">void</span>
+    <span class="s2">onFail</span><span class="s4">?: (</span><span class="s2">xhr</span><span class="s4">: </span><span class="s2">XMLHttpRequest</span><span class="s4">, </span><span class="s2">msg</span><span class="s4">: </span><span class="s2">string</span><span class="s4">) =&gt; </span><span class="s3">void</span>
+    <span class="s2">onSuccess</span><span class="s4">: (</span><span class="s2">xhr</span><span class="s4">: </span><span class="s2">XMLHttpRequest</span><span class="s4">, </span><span class="s2">result</span><span class="s4">: </span><span class="s2">T</span><span class="s4">) =&gt; </span><span class="s3">void</span>
+<span class="s4">}</span>
+
+<span class="s0">/**</span>
+ <span class="s0">* 发送 post 请求（用于文件上传）</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">url url</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">option 配置项</span>
+ <span class="s0">*/</span>
+<span class="s3">function </span><span class="s2">post</span><span class="s4">&lt;</span><span class="s2">T </span><span class="s3">extends </span><span class="s2">Object</span><span class="s4">&gt;(</span><span class="s2">url</span><span class="s4">: </span><span class="s2">string</span><span class="s4">, </span><span class="s2">option</span><span class="s4">: </span><span class="s2">PostOptionType</span><span class="s4">&lt;</span><span class="s2">T</span><span class="s4">&gt;): </span><span class="s2">XMLHttpRequest </span><span class="s4">| </span><span class="s2">string </span><span class="s4">{</span>
+    <span class="s3">const </span><span class="s2">xhr </span><span class="s4">= </span><span class="s3">new </span><span class="s2">XMLHttpRequest</span><span class="s4">()</span>
+    <span class="s2">xhr</span><span class="s4">.</span><span class="s2">open</span><span class="s4">(</span><span class="s5">'POST'</span><span class="s4">, </span><span class="s2">url</span><span class="s4">)</span>
+
+    <span class="s6">// 超时，默认 10s</span>
+    <span class="s2">xhr</span><span class="s4">.</span><span class="s2">timeout </span><span class="s4">= </span><span class="s2">option</span><span class="s4">.</span><span class="s2">timeout </span><span class="s4">|| </span><span class="s7">10 </span><span class="s4">* </span><span class="s7">1000</span>
+    <span class="s2">xhr</span><span class="s4">.</span><span class="s2">ontimeout </span><span class="s4">= () =&gt; {</span>
+        <span class="s2">console</span><span class="s4">.</span><span class="s2">error</span><span class="s4">(</span><span class="s5">'wangEditor - 请求超时'</span><span class="s4">)</span>
+        <span class="s2">option</span><span class="s4">.</span><span class="s2">onTimeout </span><span class="s4">&amp;&amp; </span><span class="s2">option</span><span class="s4">.</span><span class="s2">onTimeout</span><span class="s4">(</span><span class="s2">xhr</span><span class="s4">)</span>
+    <span class="s4">}</span>
+
+    <span class="s6">// 进度</span>
+    <span class="s3">if </span><span class="s4">(</span><span class="s2">xhr</span><span class="s4">.</span><span class="s2">upload</span><span class="s4">) {</span>
+        <span class="s2">xhr</span><span class="s4">.</span><span class="s2">upload</span><span class="s4">.</span><span class="s2">onprogress </span><span class="s4">= (</span><span class="s2">e</span><span class="s4">: </span><span class="s2">ProgressEvent</span><span class="s4">) =&gt; {</span>
+            <span class="s3">const </span><span class="s2">percent </span><span class="s4">= </span><span class="s2">e</span><span class="s4">.</span><span class="s2">loaded </span><span class="s4">/ </span><span class="s2">e</span><span class="s4">.</span><span class="s2">total</span>
+            <span class="s2">option</span><span class="s4">.</span><span class="s2">onProgress </span><span class="s4">&amp;&amp; </span><span class="s2">option</span><span class="s4">.</span><span class="s2">onProgress</span><span class="s4">(</span><span class="s2">percent</span><span class="s4">, </span><span class="s2">e</span><span class="s4">)</span>
+        <span class="s4">}</span>
+    <span class="s4">}</span>
+
+    <span class="s6">// 自定义 header</span>
+    <span class="s3">if </span><span class="s4">(</span><span class="s2">option</span><span class="s4">.</span><span class="s2">headers</span><span class="s4">) {</span>
+        <span class="s2">forEach</span><span class="s4">(</span><span class="s2">option</span><span class="s4">.</span><span class="s2">headers</span><span class="s4">, (</span><span class="s2">key</span><span class="s4">: </span><span class="s2">string</span><span class="s4">, </span><span class="s2">val</span><span class="s4">: </span><span class="s2">string</span><span class="s4">) =&gt; {</span>
+            <span class="s2">xhr</span><span class="s4">.</span><span class="s2">setRequestHeader</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">val</span><span class="s4">)</span>
+        <span class="s4">})</span>
+    <span class="s4">}</span>
+
+    <span class="s6">// 跨域传 cookie</span>
+    <span class="s2">xhr</span><span class="s4">.</span><span class="s2">withCredentials </span><span class="s4">= !!</span><span class="s2">option</span><span class="s4">.</span><span class="s2">withCredentials</span>
+
+    <span class="s6">// 上传之前的钩子函数，在 xhr.send() 之前执行</span>
+    <span class="s3">if </span><span class="s4">(</span><span class="s2">option</span><span class="s4">.</span><span class="s2">beforeSend</span><span class="s4">) {</span>
+        <span class="s3">const </span><span class="s2">beforeResult </span><span class="s4">= </span><span class="s2">option</span><span class="s4">.</span><span class="s2">beforeSend</span><span class="s4">(</span><span class="s2">xhr</span><span class="s4">)</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">beforeResult </span><span class="s4">&amp;&amp; </span><span class="s3">typeof </span><span class="s2">beforeResult </span><span class="s4">=== </span><span class="s5">'object'</span><span class="s4">) {</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">beforeResult</span><span class="s4">.</span><span class="s2">prevent</span><span class="s4">) {</span>
+                <span class="s6">// 如果返回的结果是 {prevent: true, msg: 'xxxx'} 则表示用户放弃上传</span>
+                <span class="s3">return </span><span class="s2">beforeResult</span><span class="s4">.</span><span class="s2">msg</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+    <span class="s4">}</span>
+
+    <span class="s6">// 服务端返回之后</span>
+    <span class="s2">xhr</span><span class="s4">.</span><span class="s2">onreadystatechange </span><span class="s4">= () =&gt; {</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">xhr</span><span class="s4">.</span><span class="s2">readyState </span><span class="s4">!== </span><span class="s7">4</span><span class="s4">) </span><span class="s3">return</span>
+        <span class="s3">const </span><span class="s2">status </span><span class="s4">= </span><span class="s2">xhr</span><span class="s4">.</span><span class="s2">status</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">status </span><span class="s4">&lt; </span><span class="s7">200</span><span class="s4">) </span><span class="s3">return </span><span class="s6">// 请求发送过程中，尚未返回</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">status </span><span class="s4">&gt;= </span><span class="s7">300 </span><span class="s4">&amp;&amp; </span><span class="s2">status </span><span class="s4">&lt; </span><span class="s7">400</span><span class="s4">) </span><span class="s3">return </span><span class="s6">// 重定向</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">status </span><span class="s4">&gt;= </span><span class="s7">400</span><span class="s4">) {</span>
+            <span class="s6">// 40x 50x 报错</span>
+            <span class="s2">console</span><span class="s4">.</span><span class="s2">error</span><span class="s4">(</span><span class="s5">'wangEditor - XHR 报错，状态码 ' </span><span class="s4">+ </span><span class="s2">status</span><span class="s4">)</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">option</span><span class="s4">.</span><span class="s2">onError</span><span class="s4">) </span><span class="s2">option</span><span class="s4">.</span><span class="s2">onError</span><span class="s4">(</span><span class="s2">xhr</span><span class="s4">) </span><span class="s6">// 有，则执行 onError 函数即可</span>
+            <span class="s3">return</span>
+        <span class="s4">}</span>
+
+        <span class="s6">// status = 200 ，得到结果</span>
+        <span class="s3">const </span><span class="s2">resultStr </span><span class="s4">= </span><span class="s2">xhr</span><span class="s4">.</span><span class="s2">responseText</span>
+        <span class="s3">let </span><span class="s2">result</span><span class="s4">: </span><span class="s2">T</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">resultStr </span><span class="s4">!== </span><span class="s5">'object'</span><span class="s4">) {</span>
+            <span class="s3">try </span><span class="s4">{</span>
+                <span class="s2">result </span><span class="s4">= </span><span class="s2">JSON</span><span class="s4">.</span><span class="s2">parse</span><span class="s4">(</span><span class="s2">resultStr</span><span class="s4">)</span>
+            <span class="s4">} </span><span class="s3">catch </span><span class="s4">(</span><span class="s2">ex</span><span class="s4">) {</span>
+                <span class="s2">console</span><span class="s4">.</span><span class="s2">error</span><span class="s4">(</span><span class="s5">'wangEditor - 返回结果不是 JSON 格式'</span><span class="s4">, </span><span class="s2">resultStr</span><span class="s4">)</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">option</span><span class="s4">.</span><span class="s2">onFail</span><span class="s4">) </span><span class="s2">option</span><span class="s4">.</span><span class="s2">onFail</span><span class="s4">(</span><span class="s2">xhr</span><span class="s4">, </span><span class="s2">resultStr</span><span class="s4">)</span>
+                <span class="s3">return</span>
+            <span class="s4">}</span>
+        <span class="s4">} </span><span class="s3">else </span><span class="s4">{</span>
+            <span class="s2">result </span><span class="s4">= </span><span class="s2">resultStr</span>
+        <span class="s4">}</span>
+        <span class="s2">option</span><span class="s4">.</span><span class="s2">onSuccess</span><span class="s4">(</span><span class="s2">xhr</span><span class="s4">, </span><span class="s2">result</span><span class="s4">)</span>
+    <span class="s4">}</span>
+
+    <span class="s6">// 发送请求</span>
+    <span class="s2">xhr</span><span class="s4">.</span><span class="s2">send</span><span class="s4">(</span><span class="s2">option</span><span class="s4">.</span><span class="s2">formData </span><span class="s4">|| </span><span class="s3">null</span><span class="s4">)</span>
+
+    <span class="s3">return </span><span class="s2">xhr</span>
+<span class="s4">}</span>
+
+<span class="s3">export default </span><span class="s2">post</span>
+</pre>
+</body>
+</html>

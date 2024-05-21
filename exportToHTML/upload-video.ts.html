@@ -1,0 +1,312 @@
+<html>
+<head>
+<title>upload-video.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #67a37c; font-style: italic;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #6aab73;}
+.s5 { color: #bcbec4;}
+.s6 { color: #7a7e85;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+upload-video.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* </span><span class="s1">@description </span><span class="s0">上传视频</span>
+ <span class="s0">* </span><span class="s1">@author </span><span class="s0">lichunlin</span>
+ <span class="s0">*/</span>
+
+<span class="s3">import </span><span class="s2">Editor from </span><span class="s4">'../../editor/index'</span>
+<span class="s3">import </span><span class="s5">{ </span><span class="s2">arrForEach</span><span class="s5">, </span><span class="s2">forEach </span><span class="s5">} </span><span class="s2">from </span><span class="s4">'../../utils/util'</span>
+<span class="s3">import </span><span class="s2">post from </span><span class="s4">'../../editor/upload/upload-core'</span>
+<span class="s3">import </span><span class="s2">Progress from </span><span class="s4">'../../editor/upload/progress'</span>
+<span class="s3">import </span><span class="s5">{ </span><span class="s2">EMPTY_P </span><span class="s5">} </span><span class="s2">from </span><span class="s4">'../../utils/const'</span>
+<span class="s3">import </span><span class="s5">{ </span><span class="s2">UA </span><span class="s5">} </span><span class="s2">from </span><span class="s4">'../../utils/util'</span>
+
+<span class="s2">type ResData </span><span class="s5">= {</span>
+    <span class="s2">url</span><span class="s5">: </span><span class="s2">string</span>
+<span class="s5">}</span>
+
+<span class="s6">// 后台返回的格式</span>
+<span class="s3">export </span><span class="s2">type ResType </span><span class="s5">= {</span>
+    <span class="s2">errno</span><span class="s5">: </span><span class="s2">number </span><span class="s5">| </span><span class="s2">string</span>
+    <span class="s2">data</span><span class="s5">: </span><span class="s2">ResData</span>
+<span class="s5">}</span>
+
+<span class="s3">class </span><span class="s2">UploadVideo </span><span class="s5">{</span>
+    <span class="s3">private </span><span class="s2">editor</span><span class="s5">: </span><span class="s2">Editor</span>
+
+    <span class="s2">constructor</span><span class="s5">(</span><span class="s2">editor</span><span class="s5">: </span><span class="s2">Editor</span><span class="s5">) {</span>
+        <span class="s3">this</span><span class="s5">.</span><span class="s2">editor </span><span class="s5">= </span><span class="s2">editor</span>
+    <span class="s5">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 上传视频</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">files 文件列表</span>
+     <span class="s0">*/</span>
+    <span class="s3">public </span><span class="s2">uploadVideo</span><span class="s5">(</span><span class="s2">files</span><span class="s5">: </span><span class="s2">FileList </span><span class="s5">| </span><span class="s2">File</span><span class="s5">[]): </span><span class="s3">void </span><span class="s5">{</span>
+        <span class="s3">if </span><span class="s5">(!</span><span class="s2">files</span><span class="s5">.</span><span class="s2">length</span><span class="s5">) {</span>
+            <span class="s3">return</span>
+        <span class="s5">}</span>
+
+        <span class="s3">const </span><span class="s2">editor </span><span class="s5">= </span><span class="s3">this</span><span class="s5">.</span><span class="s2">editor</span>
+        <span class="s3">const </span><span class="s2">config </span><span class="s5">= </span><span class="s2">editor</span><span class="s5">.</span><span class="s2">config</span>
+
+        <span class="s6">// ------------------------------ i18next ------------------------------</span>
+
+        <span class="s3">const </span><span class="s2">i18nPrefix </span><span class="s5">= </span><span class="s4">'validate.'</span>
+        <span class="s3">const </span><span class="s2">t </span><span class="s5">= (</span><span class="s2">text</span><span class="s5">: </span><span class="s2">string</span><span class="s5">): </span><span class="s2">string </span><span class="s5">=&gt; {</span>
+            <span class="s3">return </span><span class="s2">editor</span><span class="s5">.</span><span class="s2">i18next</span><span class="s5">.</span><span class="s2">t</span><span class="s5">(</span><span class="s2">i18nPrefix </span><span class="s5">+ </span><span class="s2">text</span><span class="s5">)</span>
+        <span class="s5">}</span>
+
+        <span class="s6">// ------------------------------ 获取配置信息 ------------------------------</span>
+        <span class="s6">// 服务端地址</span>
+        <span class="s3">let </span><span class="s2">uploadVideoServer </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadVideoServer</span>
+        <span class="s6">// 上传视频的最大体积，默认 1024M</span>
+        <span class="s3">const </span><span class="s2">maxSize </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadVideoMaxSize</span>
+        <span class="s3">const </span><span class="s2">uploadVideoMaxSize </span><span class="s5">= </span><span class="s2">maxSize </span><span class="s5">/ </span><span class="s7">1024</span>
+        <span class="s6">// 一次最多上传多少个视频</span>
+        <span class="s6">// const uploadVideoMaxLength = config.uploadVideoMaxLength</span>
+        <span class="s6">// 自定义上传视频的名称</span>
+        <span class="s3">const </span><span class="s2">uploadVideoName </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadVideoName</span>
+        <span class="s6">// 上传视频自定义参数</span>
+        <span class="s3">const </span><span class="s2">uploadVideoParams </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadVideoParams</span>
+        <span class="s6">// 自定义参数拼接到 url 中</span>
+        <span class="s3">const </span><span class="s2">uploadVideoParamsWithUrl </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadVideoParamsWithUrl</span>
+        <span class="s6">// 上传视频自定义 header</span>
+        <span class="s3">const </span><span class="s2">uploadVideoHeaders </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadVideoHeaders</span>
+        <span class="s6">// 钩子函数</span>
+        <span class="s3">const </span><span class="s2">uploadVideoHooks </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadVideoHooks</span>
+        <span class="s6">// 上传视频超时时间 ms 默认2个小时</span>
+        <span class="s3">const </span><span class="s2">uploadVideoTimeout </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadVideoTimeout</span>
+        <span class="s6">// 跨域带 cookie</span>
+        <span class="s3">const </span><span class="s2">withVideoCredentials </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">withVideoCredentials</span>
+        <span class="s6">// 自定义上传</span>
+        <span class="s3">const </span><span class="s2">customUploadVideo </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">customUploadVideo</span>
+        <span class="s6">// 格式校验</span>
+        <span class="s3">const </span><span class="s2">uploadVideoAccept </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadVideoAccept</span>
+
+        <span class="s6">// ------------------------------ 验证文件信息 ------------------------------</span>
+        <span class="s3">const </span><span class="s2">resultFiles</span><span class="s5">: </span><span class="s2">File</span><span class="s5">[] = []</span>
+        <span class="s3">const </span><span class="s2">errInfos</span><span class="s5">: </span><span class="s2">string</span><span class="s5">[] = []</span>
+        <span class="s2">arrForEach</span><span class="s5">(</span><span class="s2">files</span><span class="s5">, </span><span class="s2">file </span><span class="s5">=&gt; {</span>
+            <span class="s3">const </span><span class="s2">name </span><span class="s5">= </span><span class="s2">file</span><span class="s5">.</span><span class="s2">name</span>
+            <span class="s3">const </span><span class="s2">size </span><span class="s5">= </span><span class="s2">file</span><span class="s5">.</span><span class="s2">size </span><span class="s5">/ </span><span class="s7">1024 </span><span class="s5">/ </span><span class="s7">1024</span>
+
+            <span class="s6">// chrome 低版本 name === undefined</span>
+            <span class="s3">if </span><span class="s5">(!</span><span class="s2">name </span><span class="s5">|| !</span><span class="s2">size</span><span class="s5">) {</span>
+                <span class="s3">return</span>
+            <span class="s5">}</span>
+
+            <span class="s3">if </span><span class="s5">(!(</span><span class="s2">uploadVideoAccept </span><span class="s3">instanceof </span><span class="s2">Array</span><span class="s5">)) {</span>
+                <span class="s6">// 格式不是数组</span>
+                <span class="s2">errInfos</span><span class="s5">.</span><span class="s2">push</span><span class="s5">(</span><span class="s4">`【</span><span class="s2">$</span><span class="s5">{</span><span class="s2">uploadVideoAccept</span><span class="s5">}</span><span class="s4">】</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'uploadVideoAccept 不是Array'</span><span class="s5">)}</span><span class="s4">`</span><span class="s5">)</span>
+                <span class="s3">return</span>
+            <span class="s5">}</span>
+
+            <span class="s3">if </span><span class="s5">(</span>
+                <span class="s5">!</span><span class="s2">uploadVideoAccept</span><span class="s5">.</span><span class="s2">some</span><span class="s5">(</span>
+                    <span class="s2">item </span><span class="s5">=&gt; </span><span class="s2">item </span><span class="s5">=== </span><span class="s2">name</span><span class="s5">.</span><span class="s2">split</span><span class="s5">(</span><span class="s4">'.'</span><span class="s5">)[</span><span class="s2">name</span><span class="s5">.</span><span class="s2">split</span><span class="s5">(</span><span class="s4">'.'</span><span class="s5">).</span><span class="s2">length </span><span class="s5">- </span><span class="s7">1</span><span class="s5">]</span>
+                <span class="s5">)</span>
+            <span class="s5">) {</span>
+                <span class="s6">// 后缀名不合法，不是视频</span>
+                <span class="s2">errInfos</span><span class="s5">.</span><span class="s2">push</span><span class="s5">(</span><span class="s4">`【</span><span class="s2">$</span><span class="s5">{</span><span class="s2">name</span><span class="s5">}</span><span class="s4">】</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'不是视频'</span><span class="s5">)}</span><span class="s4">`</span><span class="s5">)</span>
+                <span class="s3">return</span>
+            <span class="s5">}</span>
+
+            <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadVideoMaxSize </span><span class="s5">&lt; </span><span class="s2">size</span><span class="s5">) {</span>
+                <span class="s6">// 上传视频过大</span>
+                <span class="s2">errInfos</span><span class="s5">.</span><span class="s2">push</span><span class="s5">(</span><span class="s4">`【</span><span class="s2">$</span><span class="s5">{</span><span class="s2">name</span><span class="s5">}</span><span class="s4">】</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'大于'</span><span class="s5">)} </span><span class="s2">$</span><span class="s5">{</span><span class="s2">uploadVideoMaxSize</span><span class="s5">}</span><span class="s4">M`</span><span class="s5">)</span>
+                <span class="s3">return</span>
+            <span class="s5">}</span>
+            <span class="s6">//验证通过的加入结果列表</span>
+            <span class="s2">resultFiles</span><span class="s5">.</span><span class="s2">push</span><span class="s5">(</span><span class="s2">file</span><span class="s5">)</span>
+        <span class="s5">})</span>
+        <span class="s6">// 抛出验证信息</span>
+        <span class="s3">if </span><span class="s5">(</span><span class="s2">errInfos</span><span class="s5">.</span><span class="s2">length</span><span class="s5">) {</span>
+            <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span><span class="s4">`</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'视频验证未通过'</span><span class="s5">)}</span><span class="s4">: </span><span class="s3">\n</span><span class="s4">` </span><span class="s5">+ </span><span class="s2">errInfos</span><span class="s5">.</span><span class="s2">join</span><span class="s5">(</span><span class="s4">'</span><span class="s3">\n</span><span class="s4">'</span><span class="s5">), </span><span class="s4">'warning'</span><span class="s5">)</span>
+            <span class="s3">return</span>
+        <span class="s5">}</span>
+        <span class="s6">// 如果过滤后文件列表为空直接返回</span>
+        <span class="s3">if </span><span class="s5">(</span><span class="s2">resultFiles</span><span class="s5">.</span><span class="s2">length </span><span class="s5">=== </span><span class="s7">0</span><span class="s5">) {</span>
+            <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'传入的文件不合法'</span><span class="s5">), </span><span class="s4">'warning'</span><span class="s5">)</span>
+            <span class="s3">return</span>
+        <span class="s5">}</span>
+
+        <span class="s6">// ------------------------------ 自定义上传 ------------------------------</span>
+        <span class="s3">if </span><span class="s5">(</span><span class="s2">customUploadVideo </span><span class="s5">&amp;&amp; </span><span class="s3">typeof </span><span class="s2">customUploadVideo </span><span class="s5">=== </span><span class="s4">'function'</span><span class="s5">) {</span>
+            <span class="s2">customUploadVideo</span><span class="s5">(</span><span class="s2">resultFiles</span><span class="s5">, </span><span class="s3">this</span><span class="s5">.</span><span class="s2">insertVideo</span><span class="s5">.</span><span class="s2">bind</span><span class="s5">(</span><span class="s3">this</span><span class="s5">))</span>
+            <span class="s3">return</span>
+        <span class="s5">}</span>
+
+        <span class="s6">// 添加视频数据</span>
+        <span class="s3">const </span><span class="s2">formData </span><span class="s5">= </span><span class="s3">new </span><span class="s2">FormData</span><span class="s5">()</span>
+        <span class="s2">resultFiles</span><span class="s5">.</span><span class="s2">forEach</span><span class="s5">((</span><span class="s2">file</span><span class="s5">: </span><span class="s2">File</span><span class="s5">, </span><span class="s2">index</span><span class="s5">: </span><span class="s2">number</span><span class="s5">) =&gt; {</span>
+            <span class="s3">let </span><span class="s2">name </span><span class="s5">= </span><span class="s2">uploadVideoName </span><span class="s5">|| </span><span class="s2">file</span><span class="s5">.</span><span class="s2">name</span>
+            <span class="s3">if </span><span class="s5">(</span><span class="s2">resultFiles</span><span class="s5">.</span><span class="s2">length </span><span class="s5">&gt; </span><span class="s7">1</span><span class="s5">) {</span>
+                <span class="s6">// 多个文件时，filename 不能重复</span>
+                <span class="s2">name </span><span class="s5">= </span><span class="s2">name </span><span class="s5">+ (</span><span class="s2">index </span><span class="s5">+ </span><span class="s7">1</span><span class="s5">)</span>
+            <span class="s5">}</span>
+            <span class="s2">formData</span><span class="s5">.</span><span class="s2">append</span><span class="s5">(</span><span class="s2">name</span><span class="s5">, </span><span class="s2">file</span><span class="s5">)</span>
+        <span class="s5">})</span>
+
+        <span class="s6">// ------------------------------ 上传视频 ------------------------------</span>
+
+        <span class="s6">//添加自定义参数  基于有服务端地址的情况下</span>
+        <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadVideoServer</span><span class="s5">) {</span>
+            <span class="s6">// 添加自定义参数</span>
+            <span class="s3">const </span><span class="s2">uploadVideoServerArr </span><span class="s5">= </span><span class="s2">uploadVideoServer</span><span class="s5">.</span><span class="s2">split</span><span class="s5">(</span><span class="s4">'#'</span><span class="s5">)</span>
+            <span class="s2">uploadVideoServer </span><span class="s5">= </span><span class="s2">uploadVideoServerArr</span><span class="s5">[</span><span class="s7">0</span><span class="s5">]</span>
+            <span class="s3">const </span><span class="s2">uploadVideoServerHash </span><span class="s5">= </span><span class="s2">uploadVideoServerArr</span><span class="s5">[</span><span class="s7">1</span><span class="s5">] || </span><span class="s4">''</span>
+            <span class="s2">forEach</span><span class="s5">(</span><span class="s2">uploadVideoParams</span><span class="s5">, (</span><span class="s2">key</span><span class="s5">: </span><span class="s2">string</span><span class="s5">, </span><span class="s2">val</span><span class="s5">: </span><span class="s2">string</span><span class="s5">) =&gt; {</span>
+                <span class="s6">// 因使用者反应，自定义参数不能默认 encode ，由 v3.1.1 版本开始注释掉</span>
+                <span class="s6">// val = encodeURIComponent(val)</span>
+
+                <span class="s6">// 第一，将参数拼接到 url 中</span>
+                <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadVideoParamsWithUrl</span><span class="s5">) {</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadVideoServer</span><span class="s5">.</span><span class="s2">indexOf</span><span class="s5">(</span><span class="s4">'?'</span><span class="s5">) &gt; </span><span class="s7">0</span><span class="s5">) {</span>
+                        <span class="s2">uploadVideoServer </span><span class="s5">+= </span><span class="s4">'&amp;'</span>
+                    <span class="s5">} </span><span class="s3">else </span><span class="s5">{</span>
+                        <span class="s2">uploadVideoServer </span><span class="s5">+= </span><span class="s4">'?'</span>
+                    <span class="s5">}</span>
+                    <span class="s2">uploadVideoServer </span><span class="s5">= </span><span class="s2">uploadVideoServer </span><span class="s5">+ </span><span class="s2">key </span><span class="s5">+ </span><span class="s4">'=' </span><span class="s5">+ </span><span class="s2">val</span>
+                <span class="s5">}</span>
+
+                <span class="s6">// 第二，将参数添加到 formData 中</span>
+                <span class="s2">formData</span><span class="s5">.</span><span class="s2">append</span><span class="s5">(</span><span class="s2">key</span><span class="s5">, </span><span class="s2">val</span><span class="s5">)</span>
+            <span class="s5">})</span>
+            <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadVideoServerHash</span><span class="s5">) {</span>
+                <span class="s2">uploadVideoServer </span><span class="s5">+= </span><span class="s4">'#' </span><span class="s5">+ </span><span class="s2">uploadVideoServerHash</span>
+            <span class="s5">}</span>
+
+            <span class="s6">// 开始上传</span>
+            <span class="s3">const </span><span class="s2">xhr </span><span class="s5">= </span><span class="s2">post</span><span class="s5">(</span><span class="s2">uploadVideoServer</span><span class="s5">, {</span>
+                <span class="s2">timeout</span><span class="s5">: </span><span class="s2">uploadVideoTimeout</span><span class="s5">,</span>
+                <span class="s2">formData</span><span class="s5">,</span>
+                <span class="s2">headers</span><span class="s5">: </span><span class="s2">uploadVideoHeaders</span><span class="s5">,</span>
+                <span class="s2">withCredentials</span><span class="s5">: !!</span><span class="s2">withVideoCredentials</span><span class="s5">,</span>
+                <span class="s2">beforeSend</span><span class="s5">: </span><span class="s2">xhr </span><span class="s5">=&gt; {</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadVideoHooks</span><span class="s5">.</span><span class="s2">before</span><span class="s5">)</span>
+                        <span class="s3">return </span><span class="s2">uploadVideoHooks</span><span class="s5">.</span><span class="s2">before</span><span class="s5">(</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">editor</span><span class="s5">, </span><span class="s2">resultFiles</span><span class="s5">)</span>
+                <span class="s5">},</span>
+                <span class="s2">onTimeout</span><span class="s5">: </span><span class="s2">xhr </span><span class="s5">=&gt; {</span>
+                    <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'上传视频超时'</span><span class="s5">), </span><span class="s4">'error'</span><span class="s5">)</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadVideoHooks</span><span class="s5">.</span><span class="s2">timeout</span><span class="s5">) </span><span class="s2">uploadVideoHooks</span><span class="s5">.</span><span class="s2">timeout</span><span class="s5">(</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">editor</span><span class="s5">)</span>
+                <span class="s5">},</span>
+                <span class="s2">onProgress</span><span class="s5">: (</span><span class="s2">percent</span><span class="s5">, </span><span class="s2">e</span><span class="s5">) =&gt; {</span>
+                    <span class="s3">const </span><span class="s2">progressBar </span><span class="s5">= </span><span class="s3">new </span><span class="s2">Progress</span><span class="s5">(</span><span class="s2">editor</span><span class="s5">)</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">e</span><span class="s5">.</span><span class="s2">lengthComputable</span><span class="s5">) {</span>
+                        <span class="s2">percent </span><span class="s5">= </span><span class="s2">e</span><span class="s5">.</span><span class="s2">loaded </span><span class="s5">/ </span><span class="s2">e</span><span class="s5">.</span><span class="s2">total</span>
+                        <span class="s2">progressBar</span><span class="s5">.</span><span class="s2">show</span><span class="s5">(</span><span class="s2">percent</span><span class="s5">)</span>
+                    <span class="s5">}</span>
+                <span class="s5">},</span>
+                <span class="s2">onError</span><span class="s5">: </span><span class="s2">xhr </span><span class="s5">=&gt; {</span>
+                    <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span>
+                        <span class="s2">t</span><span class="s5">(</span><span class="s4">'上传视频错误'</span><span class="s5">),</span>
+                        <span class="s4">'error'</span><span class="s5">,</span>
+                        <span class="s4">`</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'上传视频错误'</span><span class="s5">)}</span><span class="s4">，</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'服务器返回状态'</span><span class="s5">)}</span><span class="s4">: </span><span class="s2">$</span><span class="s5">{</span><span class="s2">xhr</span><span class="s5">.</span><span class="s2">status</span><span class="s5">}</span><span class="s4">`</span>
+                    <span class="s5">)</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadVideoHooks</span><span class="s5">.</span><span class="s2">error</span><span class="s5">) </span><span class="s2">uploadVideoHooks</span><span class="s5">.</span><span class="s2">error</span><span class="s5">(</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">editor</span><span class="s5">)</span>
+                <span class="s5">},</span>
+                <span class="s2">onFail</span><span class="s5">: (</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">resultStr</span><span class="s5">) =&gt; {</span>
+                    <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span>
+                        <span class="s2">t</span><span class="s5">(</span><span class="s4">'上传视频失败'</span><span class="s5">),</span>
+                        <span class="s4">'error'</span><span class="s5">,</span>
+                        <span class="s2">t</span><span class="s5">(</span><span class="s4">'上传视频返回结果错误'</span><span class="s5">) + </span><span class="s4">`，</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'返回结果'</span><span class="s5">)}</span><span class="s4">: ` </span><span class="s5">+ </span><span class="s2">resultStr</span>
+                    <span class="s5">)</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadVideoHooks</span><span class="s5">.</span><span class="s2">fail</span><span class="s5">) </span><span class="s2">uploadVideoHooks</span><span class="s5">.</span><span class="s2">fail</span><span class="s5">(</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">editor</span><span class="s5">, </span><span class="s2">resultStr</span><span class="s5">)</span>
+                <span class="s5">},</span>
+                <span class="s2">onSuccess</span><span class="s5">: (</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">result</span><span class="s5">: </span><span class="s2">ResType</span><span class="s5">) =&gt; {</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadVideoHooks</span><span class="s5">.</span><span class="s2">customInsert</span><span class="s5">) {</span>
+                        <span class="s6">// 自定义插入视频</span>
+                        <span class="s2">uploadVideoHooks</span><span class="s5">.</span><span class="s2">customInsert</span><span class="s5">(</span><span class="s3">this</span><span class="s5">.</span><span class="s2">insertVideo</span><span class="s5">.</span><span class="s2">bind</span><span class="s5">(</span><span class="s3">this</span><span class="s5">), </span><span class="s2">result</span><span class="s5">, </span><span class="s2">editor</span><span class="s5">)</span>
+                        <span class="s3">return</span>
+                    <span class="s5">}</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">result</span><span class="s5">.</span><span class="s2">errno </span><span class="s5">!= </span><span class="s4">'0'</span><span class="s5">) {</span>
+                        <span class="s6">// 返回格式不对，应该为 { errno: 0, data: [...] }</span>
+                        <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span>
+                            <span class="s2">t</span><span class="s5">(</span><span class="s4">'上传视频失败'</span><span class="s5">),</span>
+                            <span class="s4">'error'</span><span class="s5">,</span>
+                            <span class="s4">`</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'上传视频返回结果错误'</span><span class="s5">)}</span><span class="s4">，</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'返回结果'</span><span class="s5">)} </span><span class="s4">errno=</span><span class="s2">$</span><span class="s5">{</span><span class="s2">result</span><span class="s5">.</span><span class="s2">errno</span><span class="s5">}</span><span class="s4">`</span>
+                        <span class="s5">)</span>
+                        <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadVideoHooks</span><span class="s5">.</span><span class="s2">fail</span><span class="s5">) </span><span class="s2">uploadVideoHooks</span><span class="s5">.</span><span class="s2">fail</span><span class="s5">(</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">editor</span><span class="s5">, </span><span class="s2">result</span><span class="s5">)</span>
+                        <span class="s3">return</span>
+                    <span class="s5">}</span>
+
+                    <span class="s6">// 成功，插入视频</span>
+                    <span class="s3">const </span><span class="s2">data </span><span class="s5">= </span><span class="s2">result</span><span class="s5">.</span><span class="s2">data</span>
+
+                    <span class="s3">this</span><span class="s5">.</span><span class="s2">insertVideo</span><span class="s5">(</span><span class="s2">data</span><span class="s5">.</span><span class="s2">url</span><span class="s5">)</span>
+
+                    <span class="s6">// 钩子函数</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadVideoHooks</span><span class="s5">.</span><span class="s2">success</span><span class="s5">) </span><span class="s2">uploadVideoHooks</span><span class="s5">.</span><span class="s2">success</span><span class="s5">(</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">editor</span><span class="s5">, </span><span class="s2">result</span><span class="s5">)</span>
+                <span class="s5">},</span>
+            <span class="s5">})</span>
+            <span class="s3">if </span><span class="s5">(</span><span class="s3">typeof </span><span class="s2">xhr </span><span class="s5">=== </span><span class="s4">'string'</span><span class="s5">) {</span>
+                <span class="s6">// 上传被阻止</span>
+                <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span><span class="s2">xhr</span><span class="s5">, </span><span class="s4">'error'</span><span class="s5">)</span>
+            <span class="s5">}</span>
+        <span class="s5">}</span>
+    <span class="s5">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 往编辑器区域插入视频</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">url 视频访问地址</span>
+     <span class="s0">*/</span>
+    <span class="s3">public </span><span class="s2">insertVideo</span><span class="s5">(</span><span class="s2">url</span><span class="s5">: </span><span class="s2">string</span><span class="s5">): </span><span class="s3">void </span><span class="s5">{</span>
+        <span class="s3">const </span><span class="s2">editor </span><span class="s5">= </span><span class="s3">this</span><span class="s5">.</span><span class="s2">editor</span>
+        <span class="s3">const </span><span class="s2">config </span><span class="s5">= </span><span class="s2">editor</span><span class="s5">.</span><span class="s2">config</span>
+
+        <span class="s3">const </span><span class="s2">i18nPrefix </span><span class="s5">= </span><span class="s4">'validate.'</span>
+        <span class="s3">const </span><span class="s2">t </span><span class="s5">= (</span><span class="s2">text</span><span class="s5">: </span><span class="s2">string</span><span class="s5">, </span><span class="s2">prefix</span><span class="s5">: </span><span class="s2">string </span><span class="s5">= </span><span class="s2">i18nPrefix</span><span class="s5">): </span><span class="s2">string </span><span class="s5">=&gt; {</span>
+            <span class="s3">return </span><span class="s2">editor</span><span class="s5">.</span><span class="s2">i18next</span><span class="s5">.</span><span class="s2">t</span><span class="s5">(</span><span class="s2">prefix </span><span class="s5">+ </span><span class="s2">text</span><span class="s5">)</span>
+        <span class="s5">}</span>
+
+        <span class="s6">// 判断用户是否自定义插入视频</span>
+        <span class="s3">if </span><span class="s5">(!</span><span class="s2">config</span><span class="s5">.</span><span class="s2">customInsertVideo</span><span class="s5">) {</span>
+            <span class="s3">if </span><span class="s5">(</span><span class="s2">UA</span><span class="s5">.</span><span class="s2">isFirefox</span><span class="s5">) {</span>
+                <span class="s2">editor</span><span class="s5">.</span><span class="s2">cmd</span><span class="s5">.</span><span class="s2">do</span><span class="s5">(</span>
+                    <span class="s4">'insertHTML'</span><span class="s5">,</span>
+                    <span class="s4">`&lt;p data-we-video-p=&quot;true&quot;&gt;&lt;video src=&quot;</span><span class="s2">$</span><span class="s5">{</span><span class="s2">url</span><span class="s5">}</span><span class="s4">&quot; controls=&quot;controls&quot; style=&quot;max-width:100%&quot;&gt;&lt;/video&gt;&lt;/p&gt;&lt;p&gt;&amp;#8203&lt;/p&gt;`</span>
+                <span class="s5">)</span>
+            <span class="s5">} </span><span class="s3">else </span><span class="s5">{</span>
+                <span class="s2">editor</span><span class="s5">.</span><span class="s2">cmd</span><span class="s5">.</span><span class="s2">do</span><span class="s5">(</span>
+                    <span class="s4">'insertHTML'</span><span class="s5">,</span>
+                    <span class="s4">`&lt;video src=&quot;</span><span class="s2">$</span><span class="s5">{</span><span class="s2">url</span><span class="s5">}</span><span class="s4">&quot; controls=&quot;controls&quot; style=&quot;max-width:100%&quot;&gt;&lt;/video&gt;</span><span class="s2">$</span><span class="s5">{</span><span class="s2">EMPTY_P</span><span class="s5">}</span><span class="s4">`</span>
+                <span class="s5">)</span>
+            <span class="s5">}</span>
+        <span class="s5">} </span><span class="s3">else </span><span class="s5">{</span>
+            <span class="s2">config</span><span class="s5">.</span><span class="s2">customInsertVideo</span><span class="s5">(</span><span class="s2">url</span><span class="s5">)</span>
+            <span class="s3">return</span>
+        <span class="s5">}</span>
+
+        <span class="s6">// 加载视频</span>
+        <span class="s3">let </span><span class="s2">video</span><span class="s5">: </span><span class="s2">any </span><span class="s5">= </span><span class="s2">document</span><span class="s5">.</span><span class="s2">createElement</span><span class="s5">(</span><span class="s4">'video'</span><span class="s5">)</span>
+        <span class="s2">video</span><span class="s5">.</span><span class="s2">onload </span><span class="s5">= () =&gt; {</span>
+            <span class="s2">video </span><span class="s5">= </span><span class="s3">null</span>
+        <span class="s5">}</span>
+        <span class="s2">video</span><span class="s5">.</span><span class="s2">onerror </span><span class="s5">= () =&gt; {</span>
+            <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span>
+                <span class="s2">t</span><span class="s5">(</span><span class="s4">'插入视频错误'</span><span class="s5">),</span>
+                <span class="s4">'error'</span><span class="s5">,</span>
+                <span class="s4">`wangEditor: </span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'插入视频错误'</span><span class="s5">)}</span><span class="s4">，</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'视频链接'</span><span class="s5">)} </span><span class="s4">&quot;</span><span class="s2">$</span><span class="s5">{</span><span class="s2">url</span><span class="s5">}</span><span class="s4">&quot;，</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'下载链接失败'</span><span class="s5">)}</span><span class="s4">`</span>
+            <span class="s5">)</span>
+            <span class="s2">video </span><span class="s5">= </span><span class="s3">null</span>
+        <span class="s5">}</span>
+        <span class="s2">video</span><span class="s5">.</span><span class="s2">onabort </span><span class="s5">= () =&gt; (</span><span class="s2">video </span><span class="s5">= </span><span class="s3">null</span><span class="s5">)</span>
+        <span class="s2">video</span><span class="s5">.</span><span class="s2">src </span><span class="s5">= </span><span class="s2">url</span>
+    <span class="s5">}</span>
+<span class="s5">}</span>
+
+<span class="s3">export default </span><span class="s2">UploadVideo</span>
+</pre>
+</body>
+</html>

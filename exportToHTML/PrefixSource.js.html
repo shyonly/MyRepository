@@ -1,0 +1,137 @@
+<html>
+<head>
+<title>PrefixSource.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #42c3d4;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+PrefixSource.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+    MIT License http://www.opensource.org/licenses/mit-license.php 
+    Author Tobias Koppers @sokra 
+*/</span>
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">const </span><span class="s1">Source </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./Source&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">RawSource </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./RawSource&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">streamChunks </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./helpers/streamChunks&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s3">{ </span><span class="s1">getMap</span><span class="s3">, </span><span class="s1">getSourceAndMap </span><span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./helpers/getFromStreamChunks&quot;</span><span class="s3">);</span>
+
+<span class="s4">const </span><span class="s1">REPLACE_REGEX </span><span class="s3">= </span><span class="s5">/\n(?=.|\s)/g</span><span class="s3">;</span>
+
+<span class="s4">class </span><span class="s1">PrefixSource </span><span class="s4">extends </span><span class="s1">Source </span><span class="s3">{</span>
+	<span class="s1">constructor</span><span class="s3">(</span><span class="s1">prefix</span><span class="s3">, </span><span class="s1">source</span><span class="s3">) {</span>
+		<span class="s4">super</span><span class="s3">();</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_source </span><span class="s3">=</span>
+			<span class="s4">typeof </span><span class="s1">source </span><span class="s3">=== </span><span class="s2">&quot;string&quot; </span><span class="s3">|| </span><span class="s1">Buffer</span><span class="s3">.</span><span class="s1">isBuffer</span><span class="s3">(</span><span class="s1">source</span><span class="s3">)</span>
+				<span class="s3">? </span><span class="s4">new </span><span class="s1">RawSource</span><span class="s3">(</span><span class="s1">source</span><span class="s3">, </span><span class="s4">true</span><span class="s3">)</span>
+				<span class="s3">: </span><span class="s1">source</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_prefix </span><span class="s3">= </span><span class="s1">prefix</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s1">getPrefix</span><span class="s3">() {</span>
+		<span class="s4">return this</span><span class="s3">.</span><span class="s1">_prefix</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s1">original</span><span class="s3">() {</span>
+		<span class="s4">return this</span><span class="s3">.</span><span class="s1">_source</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s1">source</span><span class="s3">() {</span>
+		<span class="s4">const </span><span class="s1">node </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_source</span><span class="s3">.</span><span class="s1">source</span><span class="s3">();</span>
+		<span class="s4">const </span><span class="s1">prefix </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_prefix</span><span class="s3">;</span>
+		<span class="s4">return </span><span class="s1">prefix </span><span class="s3">+ </span><span class="s1">node</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s1">REPLACE_REGEX</span><span class="s3">, </span><span class="s2">&quot;</span><span class="s4">\n</span><span class="s2">&quot; </span><span class="s3">+ </span><span class="s1">prefix</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s0">// TODO efficient buffer() implementation</span>
+
+	<span class="s1">map</span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+		<span class="s4">return </span><span class="s1">getMap</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">options</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s1">sourceAndMap</span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+		<span class="s4">return </span><span class="s1">getSourceAndMap</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">options</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s1">streamChunks</span><span class="s3">(</span><span class="s1">options</span><span class="s3">, </span><span class="s1">onChunk</span><span class="s3">, </span><span class="s1">onSource</span><span class="s3">, </span><span class="s1">onName</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s1">prefix </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_prefix</span><span class="s3">;</span>
+		<span class="s4">const </span><span class="s1">prefixOffset </span><span class="s3">= </span><span class="s1">prefix</span><span class="s3">.</span><span class="s1">length</span><span class="s3">;</span>
+		<span class="s4">const </span><span class="s1">linesOnly </span><span class="s3">= !!(</span><span class="s1">options </span><span class="s3">&amp;&amp; </span><span class="s1">options</span><span class="s3">.</span><span class="s1">columns </span><span class="s3">=== </span><span class="s4">false</span><span class="s3">);</span>
+		<span class="s4">const </span><span class="s3">{ </span><span class="s1">generatedLine</span><span class="s3">, </span><span class="s1">generatedColumn</span><span class="s3">, </span><span class="s1">source </span><span class="s3">} = </span><span class="s1">streamChunks</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_source</span><span class="s3">,</span>
+			<span class="s1">options</span><span class="s3">,</span>
+			<span class="s3">(</span>
+				<span class="s1">chunk</span><span class="s3">,</span>
+				<span class="s1">generatedLine</span><span class="s3">,</span>
+				<span class="s1">generatedColumn</span><span class="s3">,</span>
+				<span class="s1">sourceIndex</span><span class="s3">,</span>
+				<span class="s1">originalLine</span><span class="s3">,</span>
+				<span class="s1">originalColumn</span><span class="s3">,</span>
+				<span class="s1">nameIndex</span>
+			<span class="s3">) =&gt; {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">generatedColumn </span><span class="s3">!== </span><span class="s6">0</span><span class="s3">) {</span>
+					<span class="s0">// In the middle of the line, we just adject the column</span>
+					<span class="s1">generatedColumn </span><span class="s3">+= </span><span class="s1">prefixOffset</span><span class="s3">;</span>
+				<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">chunk </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+					<span class="s0">// At the start of the line, when we have source content</span>
+					<span class="s0">// add the prefix as generated mapping</span>
+					<span class="s0">// (in lines only mode we just add it to the original mapping</span>
+					<span class="s0">// for performance reasons)</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">linesOnly </span><span class="s3">|| </span><span class="s1">sourceIndex </span><span class="s3">&lt; </span><span class="s6">0</span><span class="s3">) {</span>
+						<span class="s1">chunk </span><span class="s3">= </span><span class="s1">prefix </span><span class="s3">+ </span><span class="s1">chunk</span><span class="s3">;</span>
+					<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">prefixOffset </span><span class="s3">&gt; </span><span class="s6">0</span><span class="s3">) {</span>
+						<span class="s1">onChunk</span><span class="s3">(</span><span class="s1">prefix</span><span class="s3">, </span><span class="s1">generatedLine</span><span class="s3">, </span><span class="s1">generatedColumn</span><span class="s3">, -</span><span class="s6">1</span><span class="s3">, -</span><span class="s6">1</span><span class="s3">, -</span><span class="s6">1</span><span class="s3">, -</span><span class="s6">1</span><span class="s3">);</span>
+						<span class="s1">generatedColumn </span><span class="s3">+= </span><span class="s1">prefixOffset</span><span class="s3">;</span>
+					<span class="s3">}</span>
+				<span class="s3">} </span><span class="s4">else if </span><span class="s3">(!</span><span class="s1">linesOnly</span><span class="s3">) {</span>
+					<span class="s0">// Without source content, we only need to adject the column info</span>
+					<span class="s0">// expect in lines only mode where prefix is added to original mapping</span>
+					<span class="s1">generatedColumn </span><span class="s3">+= </span><span class="s1">prefixOffset</span><span class="s3">;</span>
+				<span class="s3">}</span>
+				<span class="s1">onChunk</span><span class="s3">(</span>
+					<span class="s1">chunk</span><span class="s3">,</span>
+					<span class="s1">generatedLine</span><span class="s3">,</span>
+					<span class="s1">generatedColumn</span><span class="s3">,</span>
+					<span class="s1">sourceIndex</span><span class="s3">,</span>
+					<span class="s1">originalLine</span><span class="s3">,</span>
+					<span class="s1">originalColumn</span><span class="s3">,</span>
+					<span class="s1">nameIndex</span>
+				<span class="s3">);</span>
+			<span class="s3">},</span>
+			<span class="s1">onSource</span><span class="s3">,</span>
+			<span class="s1">onName</span>
+		<span class="s3">);</span>
+		<span class="s4">return </span><span class="s3">{</span>
+			<span class="s1">generatedLine</span><span class="s3">,</span>
+			<span class="s1">generatedColumn</span><span class="s3">:</span>
+				<span class="s1">generatedColumn </span><span class="s3">=== </span><span class="s6">0 </span><span class="s3">? </span><span class="s6">0 </span><span class="s3">: </span><span class="s1">prefixOffset </span><span class="s3">+ </span><span class="s1">generatedColumn</span><span class="s3">,</span>
+			<span class="s1">source</span><span class="s3">:</span>
+				<span class="s1">source </span><span class="s3">!== </span><span class="s1">undefined</span>
+					<span class="s3">? </span><span class="s1">prefix </span><span class="s3">+ </span><span class="s1">source</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s1">REPLACE_REGEX</span><span class="s3">, </span><span class="s2">&quot;</span><span class="s4">\n</span><span class="s2">&quot; </span><span class="s3">+ </span><span class="s1">prefix</span><span class="s3">)</span>
+					<span class="s3">: </span><span class="s1">undefined</span>
+		<span class="s3">};</span>
+	<span class="s3">}</span>
+
+	<span class="s1">updateHash</span><span class="s3">(</span><span class="s1">hash</span><span class="s3">) {</span>
+		<span class="s1">hash</span><span class="s3">.</span><span class="s1">update</span><span class="s3">(</span><span class="s2">&quot;PrefixSource&quot;</span><span class="s3">);</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_source</span><span class="s3">.</span><span class="s1">updateHash</span><span class="s3">(</span><span class="s1">hash</span><span class="s3">);</span>
+		<span class="s1">hash</span><span class="s3">.</span><span class="s1">update</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_prefix</span><span class="s3">);</span>
+	<span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">PrefixSource</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

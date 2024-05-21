@@ -1,0 +1,441 @@
+<html>
+<head>
+<title>worker.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+worker.js</font>
+</center></td></tr></table>
+<pre><span class="s0">&quot;use strict&quot;</span><span class="s1">;</span>
+
+<span class="s3">var </span><span class="s2">_fs </span><span class="s1">= </span><span class="s2">_interopRequireDefault</span><span class="s1">(</span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;fs&quot;</span><span class="s1">));</span>
+
+<span class="s3">var </span><span class="s2">_module </span><span class="s1">= </span><span class="s2">_interopRequireDefault</span><span class="s1">(</span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;module&quot;</span><span class="s1">));</span>
+
+<span class="s3">var </span><span class="s2">_querystring </span><span class="s1">= </span><span class="s2">_interopRequireDefault</span><span class="s1">(</span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;querystring&quot;</span><span class="s1">));</span>
+
+<span class="s3">var </span><span class="s2">_loaderRunner </span><span class="s1">= </span><span class="s2">_interopRequireDefault</span><span class="s1">(</span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;loader-runner&quot;</span><span class="s1">));</span>
+
+<span class="s3">var </span><span class="s2">_queue </span><span class="s1">= </span><span class="s2">_interopRequireDefault</span><span class="s1">(</span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;neo-async/queue&quot;</span><span class="s1">));</span>
+
+<span class="s3">var </span><span class="s2">_jsonParseBetterErrors </span><span class="s1">= </span><span class="s2">_interopRequireDefault</span><span class="s1">(</span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;json-parse-better-errors&quot;</span><span class="s1">));</span>
+
+<span class="s3">var </span><span class="s2">_schemaUtils </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;schema-utils&quot;</span><span class="s1">);</span>
+
+<span class="s3">var </span><span class="s2">_readBuffer </span><span class="s1">= </span><span class="s2">_interopRequireDefault</span><span class="s1">(</span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./readBuffer&quot;</span><span class="s1">));</span>
+
+<span class="s3">var </span><span class="s2">_serializer </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./serializer&quot;</span><span class="s1">);</span>
+
+<span class="s3">function </span><span class="s2">_interopRequireDefault</span><span class="s1">(</span><span class="s2">obj</span><span class="s1">) { </span><span class="s3">return </span><span class="s2">obj </span><span class="s1">&amp;&amp; </span><span class="s2">obj</span><span class="s1">.</span><span class="s2">__esModule </span><span class="s1">? </span><span class="s2">obj </span><span class="s1">: { </span><span class="s3">default</span><span class="s1">: </span><span class="s2">obj </span><span class="s1">}; }</span>
+
+<span class="s4">/* eslint-disable no-console */</span>
+<span class="s3">const </span><span class="s2">writePipe </span><span class="s1">= </span><span class="s2">_fs</span><span class="s1">.</span><span class="s2">default</span><span class="s1">.</span><span class="s2">createWriteStream</span><span class="s1">(</span><span class="s3">null</span><span class="s1">, {</span>
+  <span class="s2">fd</span><span class="s1">: </span><span class="s5">3</span>
+<span class="s1">});</span>
+
+<span class="s3">const </span><span class="s2">readPipe </span><span class="s1">= </span><span class="s2">_fs</span><span class="s1">.</span><span class="s2">default</span><span class="s1">.</span><span class="s2">createReadStream</span><span class="s1">(</span><span class="s3">null</span><span class="s1">, {</span>
+  <span class="s2">fd</span><span class="s1">: </span><span class="s5">4</span>
+<span class="s1">});</span>
+
+<span class="s2">writePipe</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">'finish'</span><span class="s1">, </span><span class="s2">onTerminateWrite</span><span class="s1">);</span>
+<span class="s2">readPipe</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">'end'</span><span class="s1">, </span><span class="s2">onTerminateRead</span><span class="s1">);</span>
+<span class="s2">writePipe</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">'close'</span><span class="s1">, </span><span class="s2">onTerminateWrite</span><span class="s1">);</span>
+<span class="s2">readPipe</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">'close'</span><span class="s1">, </span><span class="s2">onTerminateRead</span><span class="s1">);</span>
+<span class="s2">readPipe</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">'error'</span><span class="s1">, </span><span class="s2">onError</span><span class="s1">);</span>
+<span class="s2">writePipe</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">'error'</span><span class="s1">, </span><span class="s2">onError</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">PARALLEL_JOBS </span><span class="s1">= +</span><span class="s2">process</span><span class="s1">.</span><span class="s2">argv</span><span class="s1">[</span><span class="s5">2</span><span class="s1">] || </span><span class="s5">20</span><span class="s1">;</span>
+<span class="s3">let </span><span class="s2">terminated </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+<span class="s3">let </span><span class="s2">nextQuestionId </span><span class="s1">= </span><span class="s5">0</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">callbackMap </span><span class="s1">= </span><span class="s2">Object</span><span class="s1">.</span><span class="s2">create</span><span class="s1">(</span><span class="s3">null</span><span class="s1">);</span>
+
+<span class="s3">function </span><span class="s2">onError</span><span class="s1">(</span><span class="s2">error</span><span class="s1">) {</span>
+  <span class="s2">console</span><span class="s1">.</span><span class="s2">error</span><span class="s1">(</span><span class="s2">error</span><span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">onTerminateRead</span><span class="s1">() {</span>
+  <span class="s2">terminateRead</span><span class="s1">();</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">onTerminateWrite</span><span class="s1">() {</span>
+  <span class="s2">terminateWrite</span><span class="s1">();</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">writePipeWrite</span><span class="s1">(</span><span class="s2">...args</span><span class="s1">) {</span>
+  <span class="s3">if </span><span class="s1">(!</span><span class="s2">terminated</span><span class="s1">) {</span>
+    <span class="s2">writePipe</span><span class="s1">.</span><span class="s2">write</span><span class="s1">(</span><span class="s2">...args</span><span class="s1">);</span>
+  <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">writePipeCork</span><span class="s1">() {</span>
+  <span class="s3">if </span><span class="s1">(!</span><span class="s2">terminated</span><span class="s1">) {</span>
+    <span class="s2">writePipe</span><span class="s1">.</span><span class="s2">cork</span><span class="s1">();</span>
+  <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">writePipeUncork</span><span class="s1">() {</span>
+  <span class="s3">if </span><span class="s1">(!</span><span class="s2">terminated</span><span class="s1">) {</span>
+    <span class="s2">writePipe</span><span class="s1">.</span><span class="s2">uncork</span><span class="s1">();</span>
+  <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">terminateRead</span><span class="s1">() {</span>
+  <span class="s2">terminated </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+  <span class="s2">readPipe</span><span class="s1">.</span><span class="s2">removeAllListeners</span><span class="s1">();</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">terminateWrite</span><span class="s1">() {</span>
+  <span class="s2">terminated </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+  <span class="s2">writePipe</span><span class="s1">.</span><span class="s2">removeAllListeners</span><span class="s1">();</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">terminate</span><span class="s1">() {</span>
+  <span class="s2">terminateRead</span><span class="s1">();</span>
+  <span class="s2">terminateWrite</span><span class="s1">();</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">toErrorObj</span><span class="s1">(</span><span class="s2">err</span><span class="s1">) {</span>
+  <span class="s3">return </span><span class="s1">{</span>
+    <span class="s2">message</span><span class="s1">: </span><span class="s2">err</span><span class="s1">.</span><span class="s2">message</span><span class="s1">,</span>
+    <span class="s2">details</span><span class="s1">: </span><span class="s2">err</span><span class="s1">.</span><span class="s2">details</span><span class="s1">,</span>
+    <span class="s2">stack</span><span class="s1">: </span><span class="s2">err</span><span class="s1">.</span><span class="s2">stack</span><span class="s1">,</span>
+    <span class="s2">hideStack</span><span class="s1">: </span><span class="s2">err</span><span class="s1">.</span><span class="s2">hideStack</span>
+  <span class="s1">};</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">toNativeError</span><span class="s1">(</span><span class="s2">obj</span><span class="s1">) {</span>
+  <span class="s3">if </span><span class="s1">(!</span><span class="s2">obj</span><span class="s1">) </span><span class="s3">return null</span><span class="s1">;</span>
+  <span class="s3">const </span><span class="s2">err </span><span class="s1">= </span><span class="s3">new </span><span class="s2">Error</span><span class="s1">(</span><span class="s2">obj</span><span class="s1">.</span><span class="s2">message</span><span class="s1">);</span>
+  <span class="s2">err</span><span class="s1">.</span><span class="s2">details </span><span class="s1">= </span><span class="s2">obj</span><span class="s1">.</span><span class="s2">details</span><span class="s1">;</span>
+  <span class="s2">err</span><span class="s1">.</span><span class="s2">missing </span><span class="s1">= </span><span class="s2">obj</span><span class="s1">.</span><span class="s2">missing</span><span class="s1">;</span>
+  <span class="s3">return </span><span class="s2">err</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">writeJson</span><span class="s1">(</span><span class="s2">data</span><span class="s1">) {</span>
+  <span class="s2">writePipeCork</span><span class="s1">();</span>
+  <span class="s2">process</span><span class="s1">.</span><span class="s2">nextTick</span><span class="s1">(() =&gt; {</span>
+    <span class="s2">writePipeUncork</span><span class="s1">();</span>
+  <span class="s1">});</span>
+  <span class="s3">const </span><span class="s2">lengthBuffer </span><span class="s1">= </span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">alloc</span><span class="s1">(</span><span class="s5">4</span><span class="s1">);</span>
+  <span class="s3">const </span><span class="s2">messageBuffer </span><span class="s1">= </span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">from</span><span class="s1">(</span><span class="s2">JSON</span><span class="s1">.</span><span class="s2">stringify</span><span class="s1">(</span><span class="s2">data</span><span class="s1">, </span><span class="s2">_serializer</span><span class="s1">.</span><span class="s2">replacer</span><span class="s1">), </span><span class="s0">'utf-8'</span><span class="s1">);</span>
+  <span class="s2">lengthBuffer</span><span class="s1">.</span><span class="s2">writeInt32BE</span><span class="s1">(</span><span class="s2">messageBuffer</span><span class="s1">.</span><span class="s2">length</span><span class="s1">, </span><span class="s5">0</span><span class="s1">);</span>
+  <span class="s2">writePipeWrite</span><span class="s1">(</span><span class="s2">lengthBuffer</span><span class="s1">);</span>
+  <span class="s2">writePipeWrite</span><span class="s1">(</span><span class="s2">messageBuffer</span><span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s3">const </span><span class="s2">queue </span><span class="s1">= (</span><span class="s5">0</span><span class="s1">, </span><span class="s2">_queue</span><span class="s1">.</span><span class="s2">default</span><span class="s1">)(({</span>
+  <span class="s2">id</span><span class="s1">,</span>
+  <span class="s2">data</span>
+<span class="s1">}, </span><span class="s2">taskCallback</span><span class="s1">) =&gt; {</span>
+  <span class="s3">try </span><span class="s1">{</span>
+    <span class="s3">const </span><span class="s2">resolveWithOptions </span><span class="s1">= (</span><span class="s2">context</span><span class="s1">, </span><span class="s2">request</span><span class="s1">, </span><span class="s2">callback</span><span class="s1">, </span><span class="s2">options</span><span class="s1">) =&gt; {</span>
+      <span class="s2">callbackMap</span><span class="s1">[</span><span class="s2">nextQuestionId</span><span class="s1">] = </span><span class="s2">callback</span><span class="s1">;</span>
+      <span class="s2">writeJson</span><span class="s1">({</span>
+        <span class="s2">type</span><span class="s1">: </span><span class="s0">'resolve'</span><span class="s1">,</span>
+        <span class="s2">id</span><span class="s1">,</span>
+        <span class="s2">questionId</span><span class="s1">: </span><span class="s2">nextQuestionId</span><span class="s1">,</span>
+        <span class="s2">context</span><span class="s1">,</span>
+        <span class="s2">request</span><span class="s1">,</span>
+        <span class="s2">options</span>
+      <span class="s1">});</span>
+      <span class="s2">nextQuestionId </span><span class="s1">+= </span><span class="s5">1</span><span class="s1">;</span>
+    <span class="s1">};</span>
+
+    <span class="s3">const </span><span class="s2">buildDependencies </span><span class="s1">= [];</span>
+
+    <span class="s2">_loaderRunner</span><span class="s1">.</span><span class="s2">default</span><span class="s1">.</span><span class="s2">runLoaders</span><span class="s1">({</span>
+      <span class="s2">loaders</span><span class="s1">: </span><span class="s2">data</span><span class="s1">.</span><span class="s2">loaders</span><span class="s1">,</span>
+      <span class="s2">resource</span><span class="s1">: </span><span class="s2">data</span><span class="s1">.</span><span class="s2">resource</span><span class="s1">,</span>
+      <span class="s2">readResource</span><span class="s1">: </span><span class="s2">_fs</span><span class="s1">.</span><span class="s2">default</span><span class="s1">.</span><span class="s2">readFile</span><span class="s1">.</span><span class="s2">bind</span><span class="s1">(</span><span class="s2">_fs</span><span class="s1">.</span><span class="s2">default</span><span class="s1">),</span>
+      <span class="s2">context</span><span class="s1">: {</span>
+        <span class="s2">version</span><span class="s1">: </span><span class="s5">2</span><span class="s1">,</span>
+        <span class="s2">fs</span><span class="s1">: </span><span class="s2">_fs</span><span class="s1">.</span><span class="s2">default</span><span class="s1">,</span>
+        <span class="s2">loadModule</span><span class="s1">: (</span><span class="s2">request</span><span class="s1">, </span><span class="s2">callback</span><span class="s1">) =&gt; {</span>
+          <span class="s2">callbackMap</span><span class="s1">[</span><span class="s2">nextQuestionId</span><span class="s1">] = (</span><span class="s2">error</span><span class="s1">, </span><span class="s2">result</span><span class="s1">) =&gt; </span><span class="s2">callback</span><span class="s1">(</span><span class="s2">error</span><span class="s1">, </span><span class="s2">...result</span><span class="s1">);</span>
+
+          <span class="s2">writeJson</span><span class="s1">({</span>
+            <span class="s2">type</span><span class="s1">: </span><span class="s0">'loadModule'</span><span class="s1">,</span>
+            <span class="s2">id</span><span class="s1">,</span>
+            <span class="s2">questionId</span><span class="s1">: </span><span class="s2">nextQuestionId</span><span class="s1">,</span>
+            <span class="s2">request</span>
+          <span class="s1">});</span>
+          <span class="s2">nextQuestionId </span><span class="s1">+= </span><span class="s5">1</span><span class="s1">;</span>
+        <span class="s1">},</span>
+        <span class="s2">resolve</span><span class="s1">: (</span><span class="s2">context</span><span class="s1">, </span><span class="s2">request</span><span class="s1">, </span><span class="s2">callback</span><span class="s1">) =&gt; {</span>
+          <span class="s2">resolveWithOptions</span><span class="s1">(</span><span class="s2">context</span><span class="s1">, </span><span class="s2">request</span><span class="s1">, </span><span class="s2">callback</span><span class="s1">);</span>
+        <span class="s1">},</span>
+        <span class="s4">// eslint-disable-next-line consistent-return</span>
+        <span class="s2">getResolve</span><span class="s1">: </span><span class="s2">options </span><span class="s1">=&gt; (</span><span class="s2">context</span><span class="s1">, </span><span class="s2">request</span><span class="s1">, </span><span class="s2">callback</span><span class="s1">) =&gt; {</span>
+          <span class="s3">if </span><span class="s1">(</span><span class="s2">callback</span><span class="s1">) {</span>
+            <span class="s2">resolveWithOptions</span><span class="s1">(</span><span class="s2">context</span><span class="s1">, </span><span class="s2">request</span><span class="s1">, </span><span class="s2">callback</span><span class="s1">, </span><span class="s2">options</span><span class="s1">);</span>
+          <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+            <span class="s3">return new </span><span class="s2">Promise</span><span class="s1">((</span><span class="s2">resolve</span><span class="s1">, </span><span class="s2">reject</span><span class="s1">) =&gt; {</span>
+              <span class="s2">resolveWithOptions</span><span class="s1">(</span><span class="s2">context</span><span class="s1">, </span><span class="s2">request</span><span class="s1">, (</span><span class="s2">err</span><span class="s1">, </span><span class="s2">result</span><span class="s1">) =&gt; {</span>
+                <span class="s3">if </span><span class="s1">(</span><span class="s2">err</span><span class="s1">) {</span>
+                  <span class="s2">reject</span><span class="s1">(</span><span class="s2">err</span><span class="s1">);</span>
+                <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+                  <span class="s2">resolve</span><span class="s1">(</span><span class="s2">result</span><span class="s1">);</span>
+                <span class="s1">}</span>
+              <span class="s1">}, </span><span class="s2">options</span><span class="s1">);</span>
+            <span class="s1">});</span>
+          <span class="s1">}</span>
+        <span class="s1">},</span>
+
+        <span class="s4">// Not an arrow function because it uses this</span>
+        <span class="s2">getOptions</span><span class="s1">(</span><span class="s2">schema</span><span class="s1">) {</span>
+          <span class="s4">// loaders, loaderIndex will be defined by runLoaders</span>
+          <span class="s3">const </span><span class="s2">loader </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">loaders</span><span class="s1">[</span><span class="s3">this</span><span class="s1">.</span><span class="s2">loaderIndex</span><span class="s1">]; </span><span class="s4">// Verbatim copy from</span>
+          <span class="s4">// https://github.com/webpack/webpack/blob/v5.31.2/lib/NormalModule.js#L471-L508</span>
+          <span class="s4">// except eslint/prettier differences</span>
+          <span class="s4">// -- unfortunate result of getOptions being synchronous functions.</span>
+
+          <span class="s3">let </span><span class="s1">{</span>
+            <span class="s2">options</span>
+          <span class="s1">} = </span><span class="s2">loader</span><span class="s1">;</span>
+
+          <span class="s3">if </span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">options </span><span class="s1">=== </span><span class="s0">'string'</span><span class="s1">) {</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s2">options</span><span class="s1">.</span><span class="s2">substr</span><span class="s1">(</span><span class="s5">0</span><span class="s1">, </span><span class="s5">1</span><span class="s1">) === </span><span class="s0">'{' </span><span class="s1">&amp;&amp; </span><span class="s2">options</span><span class="s1">.</span><span class="s2">substr</span><span class="s1">(-</span><span class="s5">1</span><span class="s1">) === </span><span class="s0">'}'</span><span class="s1">) {</span>
+              <span class="s3">try </span><span class="s1">{</span>
+                <span class="s2">options </span><span class="s1">= (</span><span class="s5">0</span><span class="s1">, </span><span class="s2">_jsonParseBetterErrors</span><span class="s1">.</span><span class="s2">default</span><span class="s1">)(</span><span class="s2">options</span><span class="s1">);</span>
+              <span class="s1">} </span><span class="s3">catch </span><span class="s1">(</span><span class="s2">e</span><span class="s1">) {</span>
+                <span class="s3">throw new </span><span class="s2">Error</span><span class="s1">(</span><span class="s0">`Cannot parse string options: </span><span class="s2">$</span><span class="s1">{</span><span class="s2">e</span><span class="s1">.</span><span class="s2">message</span><span class="s1">}</span><span class="s0">`</span><span class="s1">);</span>
+              <span class="s1">}</span>
+            <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+              <span class="s2">options </span><span class="s1">= </span><span class="s2">_querystring</span><span class="s1">.</span><span class="s2">default</span><span class="s1">.</span><span class="s2">parse</span><span class="s1">(</span><span class="s2">options</span><span class="s1">, </span><span class="s0">'&amp;'</span><span class="s1">, </span><span class="s0">'='</span><span class="s1">, {</span>
+                <span class="s2">maxKeys</span><span class="s1">: </span><span class="s5">0</span>
+              <span class="s1">});</span>
+            <span class="s1">}</span>
+          <span class="s1">} </span><span class="s4">// eslint-disable-next-line no-undefined</span>
+
+
+          <span class="s3">if </span><span class="s1">(</span><span class="s2">options </span><span class="s1">=== </span><span class="s3">null </span><span class="s1">|| </span><span class="s2">options </span><span class="s1">=== </span><span class="s2">undefined</span><span class="s1">) {</span>
+            <span class="s2">options </span><span class="s1">= {};</span>
+          <span class="s1">}</span>
+
+          <span class="s3">if </span><span class="s1">(</span><span class="s2">schema</span><span class="s1">) {</span>
+            <span class="s3">let </span><span class="s2">name </span><span class="s1">= </span><span class="s0">'Loader'</span><span class="s1">;</span>
+            <span class="s3">let </span><span class="s2">baseDataPath </span><span class="s1">= </span><span class="s0">'options'</span><span class="s1">;</span>
+            <span class="s3">let </span><span class="s2">match</span><span class="s1">; </span><span class="s4">// eslint-disable-next-line no-cond-assign</span>
+
+            <span class="s3">if </span><span class="s1">(</span><span class="s2">schema</span><span class="s1">.</span><span class="s2">title </span><span class="s1">&amp;&amp; (</span><span class="s2">match </span><span class="s1">= </span><span class="s6">/^(.+) (.+)$/</span><span class="s1">.</span><span class="s2">exec</span><span class="s1">(</span><span class="s2">schema</span><span class="s1">.</span><span class="s2">title</span><span class="s1">))) {</span>
+              <span class="s1">[, </span><span class="s2">name</span><span class="s1">, </span><span class="s2">baseDataPath</span><span class="s1">] = </span><span class="s2">match</span><span class="s1">;</span>
+            <span class="s1">}</span>
+
+            <span class="s1">(</span><span class="s5">0</span><span class="s1">, </span><span class="s2">_schemaUtils</span><span class="s1">.</span><span class="s2">validate</span><span class="s1">)(</span><span class="s2">schema</span><span class="s1">, </span><span class="s2">options</span><span class="s1">, {</span>
+              <span class="s2">name</span><span class="s1">,</span>
+              <span class="s2">baseDataPath</span>
+            <span class="s1">});</span>
+          <span class="s1">}</span>
+
+          <span class="s3">return </span><span class="s2">options</span><span class="s1">;</span>
+        <span class="s1">},</span>
+
+        <span class="s2">emitWarning</span><span class="s1">: </span><span class="s2">warning </span><span class="s1">=&gt; {</span>
+          <span class="s2">writeJson</span><span class="s1">({</span>
+            <span class="s2">type</span><span class="s1">: </span><span class="s0">'emitWarning'</span><span class="s1">,</span>
+            <span class="s2">id</span><span class="s1">,</span>
+            <span class="s2">data</span><span class="s1">: </span><span class="s2">toErrorObj</span><span class="s1">(</span><span class="s2">warning</span><span class="s1">)</span>
+          <span class="s1">});</span>
+        <span class="s1">},</span>
+        <span class="s2">emitError</span><span class="s1">: </span><span class="s2">error </span><span class="s1">=&gt; {</span>
+          <span class="s2">writeJson</span><span class="s1">({</span>
+            <span class="s2">type</span><span class="s1">: </span><span class="s0">'emitError'</span><span class="s1">,</span>
+            <span class="s2">id</span><span class="s1">,</span>
+            <span class="s2">data</span><span class="s1">: </span><span class="s2">toErrorObj</span><span class="s1">(</span><span class="s2">error</span><span class="s1">)</span>
+          <span class="s1">});</span>
+        <span class="s1">},</span>
+        <span class="s2">exec</span><span class="s1">: (</span><span class="s2">code</span><span class="s1">, </span><span class="s2">filename</span><span class="s1">) =&gt; {</span>
+          <span class="s3">const </span><span class="s2">module </span><span class="s1">= </span><span class="s3">new </span><span class="s2">_module</span><span class="s1">.</span><span class="s2">default</span><span class="s1">(</span><span class="s2">filename</span><span class="s1">, </span><span class="s3">void </span><span class="s5">0</span><span class="s1">);</span>
+          <span class="s2">module</span><span class="s1">.</span><span class="s2">paths </span><span class="s1">= </span><span class="s2">_module</span><span class="s1">.</span><span class="s2">default</span><span class="s1">.</span><span class="s2">_nodeModulePaths</span><span class="s1">((</span><span class="s3">void </span><span class="s5">0</span><span class="s1">).</span><span class="s2">context</span><span class="s1">); </span><span class="s4">// eslint-disable-line no-underscore-dangle</span>
+
+          <span class="s2">module</span><span class="s1">.</span><span class="s2">filename </span><span class="s1">= </span><span class="s2">filename</span><span class="s1">;</span>
+
+          <span class="s2">module</span><span class="s1">.</span><span class="s2">_compile</span><span class="s1">(</span><span class="s2">code</span><span class="s1">, </span><span class="s2">filename</span><span class="s1">); </span><span class="s4">// eslint-disable-line no-underscore-dangle</span>
+
+
+          <span class="s3">return </span><span class="s2">module</span><span class="s1">.</span><span class="s2">exports</span><span class="s1">;</span>
+        <span class="s1">},</span>
+        <span class="s2">addBuildDependency</span><span class="s1">: </span><span class="s2">filename </span><span class="s1">=&gt; {</span>
+          <span class="s2">buildDependencies</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(</span><span class="s2">filename</span><span class="s1">);</span>
+        <span class="s1">},</span>
+        <span class="s2">options</span><span class="s1">: {</span>
+          <span class="s2">context</span><span class="s1">: </span><span class="s2">data</span><span class="s1">.</span><span class="s2">optionsContext</span>
+        <span class="s1">},</span>
+        <span class="s2">webpack</span><span class="s1">: </span><span class="s3">true</span><span class="s1">,</span>
+        <span class="s0">'thread-loader'</span><span class="s1">: </span><span class="s3">true</span><span class="s1">,</span>
+        <span class="s2">sourceMap</span><span class="s1">: </span><span class="s2">data</span><span class="s1">.</span><span class="s2">sourceMap</span><span class="s1">,</span>
+        <span class="s2">target</span><span class="s1">: </span><span class="s2">data</span><span class="s1">.</span><span class="s2">target</span><span class="s1">,</span>
+        <span class="s2">minimize</span><span class="s1">: </span><span class="s2">data</span><span class="s1">.</span><span class="s2">minimize</span><span class="s1">,</span>
+        <span class="s2">resourceQuery</span><span class="s1">: </span><span class="s2">data</span><span class="s1">.</span><span class="s2">resourceQuery</span><span class="s1">,</span>
+        <span class="s2">rootContext</span><span class="s1">: </span><span class="s2">data</span><span class="s1">.</span><span class="s2">rootContext</span>
+      <span class="s1">}</span>
+    <span class="s1">}, (</span><span class="s2">err</span><span class="s1">, </span><span class="s2">lrResult</span><span class="s1">) =&gt; {</span>
+      <span class="s3">const </span><span class="s1">{</span>
+        <span class="s2">result</span><span class="s1">,</span>
+        <span class="s2">cacheable</span><span class="s1">,</span>
+        <span class="s2">fileDependencies</span><span class="s1">,</span>
+        <span class="s2">contextDependencies</span><span class="s1">,</span>
+        <span class="s2">missingDependencies</span>
+      <span class="s1">} = </span><span class="s2">lrResult</span><span class="s1">;</span>
+      <span class="s3">const </span><span class="s2">buffersToSend </span><span class="s1">= [];</span>
+      <span class="s3">const </span><span class="s2">convertedResult </span><span class="s1">= </span><span class="s2">Array</span><span class="s1">.</span><span class="s2">isArray</span><span class="s1">(</span><span class="s2">result</span><span class="s1">) &amp;&amp; </span><span class="s2">result</span><span class="s1">.</span><span class="s2">map</span><span class="s1">(</span><span class="s2">item </span><span class="s1">=&gt; {</span>
+        <span class="s3">const </span><span class="s2">isBuffer </span><span class="s1">= </span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">isBuffer</span><span class="s1">(</span><span class="s2">item</span><span class="s1">);</span>
+
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">isBuffer</span><span class="s1">) {</span>
+          <span class="s2">buffersToSend</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(</span><span class="s2">item</span><span class="s1">);</span>
+          <span class="s3">return </span><span class="s1">{</span>
+            <span class="s2">buffer</span><span class="s1">: </span><span class="s3">true</span>
+          <span class="s1">};</span>
+        <span class="s1">}</span>
+
+        <span class="s3">if </span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">item </span><span class="s1">=== </span><span class="s0">'string'</span><span class="s1">) {</span>
+          <span class="s3">const </span><span class="s2">stringBuffer </span><span class="s1">= </span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">from</span><span class="s1">(</span><span class="s2">item</span><span class="s1">, </span><span class="s0">'utf-8'</span><span class="s1">);</span>
+          <span class="s2">buffersToSend</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(</span><span class="s2">stringBuffer</span><span class="s1">);</span>
+          <span class="s3">return </span><span class="s1">{</span>
+            <span class="s2">buffer</span><span class="s1">: </span><span class="s3">true</span><span class="s1">,</span>
+            <span class="s2">string</span><span class="s1">: </span><span class="s3">true</span>
+          <span class="s1">};</span>
+        <span class="s1">}</span>
+
+        <span class="s3">return </span><span class="s1">{</span>
+          <span class="s2">data</span><span class="s1">: </span><span class="s2">item</span>
+        <span class="s1">};</span>
+      <span class="s1">});</span>
+      <span class="s2">writeJson</span><span class="s1">({</span>
+        <span class="s2">type</span><span class="s1">: </span><span class="s0">'job'</span><span class="s1">,</span>
+        <span class="s2">id</span><span class="s1">,</span>
+        <span class="s2">error</span><span class="s1">: </span><span class="s2">err </span><span class="s1">&amp;&amp; </span><span class="s2">toErrorObj</span><span class="s1">(</span><span class="s2">err</span><span class="s1">),</span>
+        <span class="s2">result</span><span class="s1">: {</span>
+          <span class="s2">result</span><span class="s1">: </span><span class="s2">convertedResult</span><span class="s1">,</span>
+          <span class="s2">cacheable</span><span class="s1">,</span>
+          <span class="s2">fileDependencies</span><span class="s1">,</span>
+          <span class="s2">contextDependencies</span><span class="s1">,</span>
+          <span class="s2">missingDependencies</span><span class="s1">,</span>
+          <span class="s2">buildDependencies</span>
+        <span class="s1">},</span>
+        <span class="s2">data</span><span class="s1">: </span><span class="s2">buffersToSend</span><span class="s1">.</span><span class="s2">map</span><span class="s1">(</span><span class="s2">buffer </span><span class="s1">=&gt; </span><span class="s2">buffer</span><span class="s1">.</span><span class="s2">length</span><span class="s1">)</span>
+      <span class="s1">});</span>
+      <span class="s2">buffersToSend</span><span class="s1">.</span><span class="s2">forEach</span><span class="s1">(</span><span class="s2">buffer </span><span class="s1">=&gt; {</span>
+        <span class="s2">writePipeWrite</span><span class="s1">(</span><span class="s2">buffer</span><span class="s1">);</span>
+      <span class="s1">});</span>
+      <span class="s2">setImmediate</span><span class="s1">(</span><span class="s2">taskCallback</span><span class="s1">);</span>
+    <span class="s1">});</span>
+  <span class="s1">} </span><span class="s3">catch </span><span class="s1">(</span><span class="s2">e</span><span class="s1">) {</span>
+    <span class="s2">writeJson</span><span class="s1">({</span>
+      <span class="s2">type</span><span class="s1">: </span><span class="s0">'job'</span><span class="s1">,</span>
+      <span class="s2">id</span><span class="s1">,</span>
+      <span class="s2">error</span><span class="s1">: </span><span class="s2">toErrorObj</span><span class="s1">(</span><span class="s2">e</span><span class="s1">)</span>
+    <span class="s1">});</span>
+    <span class="s2">taskCallback</span><span class="s1">();</span>
+  <span class="s1">}</span>
+<span class="s1">}, </span><span class="s2">PARALLEL_JOBS</span><span class="s1">);</span>
+
+<span class="s3">function </span><span class="s2">dispose</span><span class="s1">() {</span>
+  <span class="s2">terminate</span><span class="s1">();</span>
+  <span class="s2">queue</span><span class="s1">.</span><span class="s2">kill</span><span class="s1">();</span>
+  <span class="s2">process</span><span class="s1">.</span><span class="s2">exit</span><span class="s1">(</span><span class="s5">0</span><span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">onMessage</span><span class="s1">(</span><span class="s2">message</span><span class="s1">) {</span>
+  <span class="s3">try </span><span class="s1">{</span>
+    <span class="s3">const </span><span class="s1">{</span>
+      <span class="s2">type</span><span class="s1">,</span>
+      <span class="s2">id</span>
+    <span class="s1">} = </span><span class="s2">message</span><span class="s1">;</span>
+
+    <span class="s3">switch </span><span class="s1">(</span><span class="s2">type</span><span class="s1">) {</span>
+      <span class="s3">case </span><span class="s0">'job'</span><span class="s1">:</span>
+        <span class="s1">{</span>
+          <span class="s2">queue</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(</span><span class="s2">message</span><span class="s1">);</span>
+          <span class="s3">break</span><span class="s1">;</span>
+        <span class="s1">}</span>
+
+      <span class="s3">case </span><span class="s0">'result'</span><span class="s1">:</span>
+        <span class="s1">{</span>
+          <span class="s3">const </span><span class="s1">{</span>
+            <span class="s2">error</span><span class="s1">,</span>
+            <span class="s2">result</span>
+          <span class="s1">} = </span><span class="s2">message</span><span class="s1">;</span>
+          <span class="s3">const </span><span class="s2">callback </span><span class="s1">= </span><span class="s2">callbackMap</span><span class="s1">[</span><span class="s2">id</span><span class="s1">];</span>
+
+          <span class="s3">if </span><span class="s1">(</span><span class="s2">callback</span><span class="s1">) {</span>
+            <span class="s3">const </span><span class="s2">nativeError </span><span class="s1">= </span><span class="s2">toNativeError</span><span class="s1">(</span><span class="s2">error</span><span class="s1">);</span>
+            <span class="s2">callback</span><span class="s1">(</span><span class="s2">nativeError</span><span class="s1">, </span><span class="s2">result</span><span class="s1">);</span>
+          <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+            <span class="s2">console</span><span class="s1">.</span><span class="s2">error</span><span class="s1">(</span><span class="s0">`Worker got unexpected result id </span><span class="s2">$</span><span class="s1">{</span><span class="s2">id</span><span class="s1">}</span><span class="s0">`</span><span class="s1">);</span>
+          <span class="s1">}</span>
+
+          <span class="s3">delete </span><span class="s2">callbackMap</span><span class="s1">[</span><span class="s2">id</span><span class="s1">];</span>
+          <span class="s3">break</span><span class="s1">;</span>
+        <span class="s1">}</span>
+
+      <span class="s3">case </span><span class="s0">'warmup'</span><span class="s1">:</span>
+        <span class="s1">{</span>
+          <span class="s3">const </span><span class="s1">{</span>
+            <span class="s2">requires</span>
+          <span class="s1">} = </span><span class="s2">message</span><span class="s1">; </span><span class="s4">// load modules into process</span>
+
+          <span class="s2">requires</span><span class="s1">.</span><span class="s2">forEach</span><span class="s1">(</span><span class="s2">r </span><span class="s1">=&gt; </span><span class="s2">require</span><span class="s1">(</span><span class="s2">r</span><span class="s1">)); </span><span class="s4">// eslint-disable-line import/no-dynamic-require, global-require</span>
+
+          <span class="s3">break</span><span class="s1">;</span>
+        <span class="s1">}</span>
+
+      <span class="s3">default</span><span class="s1">:</span>
+        <span class="s1">{</span>
+          <span class="s2">console</span><span class="s1">.</span><span class="s2">error</span><span class="s1">(</span><span class="s0">`Worker got unexpected job type </span><span class="s2">$</span><span class="s1">{</span><span class="s2">type</span><span class="s1">}</span><span class="s0">`</span><span class="s1">);</span>
+          <span class="s3">break</span><span class="s1">;</span>
+        <span class="s1">}</span>
+    <span class="s1">}</span>
+  <span class="s1">} </span><span class="s3">catch </span><span class="s1">(</span><span class="s2">e</span><span class="s1">) {</span>
+    <span class="s2">console</span><span class="s1">.</span><span class="s2">error</span><span class="s1">(</span><span class="s0">`Error in worker </span><span class="s2">$</span><span class="s1">{</span><span class="s2">e</span><span class="s1">}</span><span class="s0">`</span><span class="s1">);</span>
+  <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s3">function </span><span class="s2">readNextMessage</span><span class="s1">() {</span>
+  <span class="s1">(</span><span class="s5">0</span><span class="s1">, </span><span class="s2">_readBuffer</span><span class="s1">.</span><span class="s2">default</span><span class="s1">)(</span><span class="s2">readPipe</span><span class="s1">, </span><span class="s5">4</span><span class="s1">, (</span><span class="s2">lengthReadError</span><span class="s1">, </span><span class="s2">lengthBuffer</span><span class="s1">) =&gt; {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">lengthReadError</span><span class="s1">) {</span>
+      <span class="s2">console</span><span class="s1">.</span><span class="s2">error</span><span class="s1">(</span><span class="s0">`Failed to communicate with main process (read length) </span><span class="s2">$</span><span class="s1">{</span><span class="s2">lengthReadError</span><span class="s1">}</span><span class="s0">`</span><span class="s1">);</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s3">const </span><span class="s2">length </span><span class="s1">= </span><span class="s2">lengthBuffer</span><span class="s1">.</span><span class="s2">length </span><span class="s1">&amp;&amp; </span><span class="s2">lengthBuffer</span><span class="s1">.</span><span class="s2">readInt32BE</span><span class="s1">(</span><span class="s5">0</span><span class="s1">);</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">length </span><span class="s1">=== </span><span class="s5">0</span><span class="s1">) {</span>
+      <span class="s4">// worker should dispose and exit</span>
+      <span class="s2">dispose</span><span class="s1">();</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s1">(</span><span class="s5">0</span><span class="s1">, </span><span class="s2">_readBuffer</span><span class="s1">.</span><span class="s2">default</span><span class="s1">)(</span><span class="s2">readPipe</span><span class="s1">, </span><span class="s2">length</span><span class="s1">, (</span><span class="s2">messageError</span><span class="s1">, </span><span class="s2">messageBuffer</span><span class="s1">) =&gt; {</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">terminated</span><span class="s1">) {</span>
+        <span class="s3">return</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">messageError</span><span class="s1">) {</span>
+        <span class="s2">console</span><span class="s1">.</span><span class="s2">error</span><span class="s1">(</span><span class="s0">`Failed to communicate with main process (read message) </span><span class="s2">$</span><span class="s1">{</span><span class="s2">messageError</span><span class="s1">}</span><span class="s0">`</span><span class="s1">);</span>
+        <span class="s3">return</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s3">const </span><span class="s2">messageString </span><span class="s1">= </span><span class="s2">messageBuffer</span><span class="s1">.</span><span class="s2">toString</span><span class="s1">(</span><span class="s0">'utf-8'</span><span class="s1">);</span>
+      <span class="s3">const </span><span class="s2">message </span><span class="s1">= </span><span class="s2">JSON</span><span class="s1">.</span><span class="s2">parse</span><span class="s1">(</span><span class="s2">messageString</span><span class="s1">, </span><span class="s2">_serializer</span><span class="s1">.</span><span class="s2">reviver</span><span class="s1">);</span>
+      <span class="s2">onMessage</span><span class="s1">(</span><span class="s2">message</span><span class="s1">);</span>
+      <span class="s2">setImmediate</span><span class="s1">(() =&gt; </span><span class="s2">readNextMessage</span><span class="s1">());</span>
+    <span class="s1">});</span>
+  <span class="s1">});</span>
+<span class="s1">} </span><span class="s4">// start reading messages from main process</span>
+
+
+<span class="s2">readNextMessage</span><span class="s1">();</span></pre>
+</body>
+</html>

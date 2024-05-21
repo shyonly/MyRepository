@@ -1,0 +1,93 @@
+<html>
+<head>
+<title>apiInject.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+apiInject.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">isFunction</span><span class="s2">, </span><span class="s1">warn </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'core/util'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">currentInstance </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./currentInstance'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">Component </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/component'</span>
+
+<span class="s0">export interface </span><span class="s1">InjectionKey</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">&gt; </span><span class="s0">extends </span><span class="s1">Symbol </span><span class="s2">{}</span>
+
+<span class="s0">export function </span><span class="s1">provide</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">&gt;(</span><span class="s1">key</span><span class="s2">: </span><span class="s1">InjectionKey</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">&gt; | </span><span class="s1">string </span><span class="s2">| </span><span class="s1">number</span><span class="s2">, </span><span class="s1">value</span><span class="s2">: </span><span class="s1">T</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">currentInstance</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">__DEV__</span><span class="s2">) {</span>
+      <span class="s1">warn</span><span class="s2">(</span><span class="s3">`provide() can only be used inside setup().`</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s4">// TS doesn't allow symbol as index type</span>
+    <span class="s1">resolveProvided</span><span class="s2">(</span><span class="s1">currentInstance</span><span class="s2">)[</span><span class="s1">key </span><span class="s2">as </span><span class="s1">string</span><span class="s2">] = </span><span class="s1">value</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">resolveProvided</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">: </span><span class="s1">Component</span><span class="s2">): </span><span class="s1">Record</span><span class="s2">&lt;</span><span class="s1">string</span><span class="s2">, </span><span class="s1">any</span><span class="s2">&gt; {</span>
+  <span class="s4">// by default an instance inherits its parent's provides object</span>
+  <span class="s4">// but when it needs to provide values of its own, it creates its</span>
+  <span class="s4">// own provides object using parent provides object as prototype.</span>
+  <span class="s4">// this way in `inject` we can simply look up injections from direct</span>
+  <span class="s4">// parent and let the prototype chain do the work.</span>
+  <span class="s0">const </span><span class="s1">existing </span><span class="s2">= </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_provided</span>
+  <span class="s0">const </span><span class="s1">parentProvides </span><span class="s2">= </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$parent </span><span class="s2">&amp;&amp; </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$parent</span><span class="s2">.</span><span class="s1">_provided</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">parentProvides </span><span class="s2">=== </span><span class="s1">existing</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s2">(</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_provided </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">create</span><span class="s2">(</span><span class="s1">parentProvides</span><span class="s2">))</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s0">return </span><span class="s1">existing</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">inject</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">&gt;(</span><span class="s1">key</span><span class="s2">: </span><span class="s1">InjectionKey</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">&gt; | </span><span class="s1">string</span><span class="s2">): </span><span class="s1">T </span><span class="s2">| </span><span class="s1">undefined</span>
+<span class="s0">export function </span><span class="s1">inject</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">&gt;(</span>
+  <span class="s1">key</span><span class="s2">: </span><span class="s1">InjectionKey</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">&gt; | </span><span class="s1">string</span><span class="s2">,</span>
+  <span class="s1">defaultValue</span><span class="s2">: </span><span class="s1">T</span><span class="s2">,</span>
+  <span class="s1">treatDefaultAsFactory</span><span class="s2">?: </span><span class="s0">false</span>
+<span class="s2">): </span><span class="s1">T</span>
+<span class="s0">export function </span><span class="s1">inject</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">&gt;(</span>
+  <span class="s1">key</span><span class="s2">: </span><span class="s1">InjectionKey</span><span class="s2">&lt;</span><span class="s1">T</span><span class="s2">&gt; | </span><span class="s1">string</span><span class="s2">,</span>
+  <span class="s1">defaultValue</span><span class="s2">: </span><span class="s1">T </span><span class="s2">| (() =&gt; </span><span class="s1">T</span><span class="s2">),</span>
+  <span class="s1">treatDefaultAsFactory</span><span class="s2">: </span><span class="s0">true</span>
+<span class="s2">): </span><span class="s1">T</span>
+<span class="s0">export function </span><span class="s1">inject</span><span class="s2">(</span>
+  <span class="s1">key</span><span class="s2">: </span><span class="s1">InjectionKey</span><span class="s2">&lt;</span><span class="s1">any</span><span class="s2">&gt; | </span><span class="s1">string</span><span class="s2">,</span>
+  <span class="s1">defaultValue</span><span class="s2">?: </span><span class="s1">unknown</span><span class="s2">,</span>
+  <span class="s1">treatDefaultAsFactory </span><span class="s2">= </span><span class="s0">false</span>
+<span class="s2">) {</span>
+  <span class="s4">// fallback to `currentRenderingInstance` so that this can be called in</span>
+  <span class="s4">// a functional component</span>
+  <span class="s0">const </span><span class="s1">instance </span><span class="s2">= </span><span class="s1">currentInstance</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">instance</span><span class="s2">) {</span>
+    <span class="s4">// #2400</span>
+    <span class="s4">// to support `app.use` plugins,</span>
+    <span class="s4">// fallback to appContext's `provides` if the instance is at root</span>
+    <span class="s0">const </span><span class="s1">provides </span><span class="s2">= </span><span class="s1">instance</span><span class="s2">.</span><span class="s1">$parent </span><span class="s2">&amp;&amp; </span><span class="s1">instance</span><span class="s2">.</span><span class="s1">$parent</span><span class="s2">.</span><span class="s1">_provided</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">provides </span><span class="s2">&amp;&amp; (</span><span class="s1">key </span><span class="s2">as </span><span class="s1">string </span><span class="s2">| </span><span class="s1">symbol</span><span class="s2">) </span><span class="s0">in </span><span class="s1">provides</span><span class="s2">) {</span>
+      <span class="s4">// TS doesn't allow symbol as index type</span>
+      <span class="s0">return </span><span class="s1">provides</span><span class="s2">[</span><span class="s1">key </span><span class="s2">as </span><span class="s1">string</span><span class="s2">]</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">arguments</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s5">1</span><span class="s2">) {</span>
+      <span class="s0">return </span><span class="s1">treatDefaultAsFactory </span><span class="s2">&amp;&amp; </span><span class="s1">isFunction</span><span class="s2">(</span><span class="s1">defaultValue</span><span class="s2">)</span>
+        <span class="s2">? </span><span class="s1">defaultValue</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s1">instance</span><span class="s2">)</span>
+        <span class="s2">: </span><span class="s1">defaultValue</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">__DEV__</span><span class="s2">) {</span>
+      <span class="s1">warn</span><span class="s2">(</span><span class="s3">`injection &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">String</span><span class="s2">(</span><span class="s1">key</span><span class="s2">)}</span><span class="s3">&quot; not found.`</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">__DEV__</span><span class="s2">) {</span>
+    <span class="s1">warn</span><span class="s2">(</span><span class="s3">`inject() can only be used inside setup() or functional components.`</span><span class="s2">)</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

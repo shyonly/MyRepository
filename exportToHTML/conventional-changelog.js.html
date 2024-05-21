@@ -1,0 +1,111 @@
+<html>
+<head>
+<title>conventional-changelog.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #42c3d4;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+conventional-changelog.js</font>
+</center></td></tr></table>
+<pre><span class="s0">const </span><span class="s2">{ </span><span class="s1">EOL </span><span class="s2">} = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'os'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s1">fs </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'fs'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s2">{ </span><span class="s1">Plugin </span><span class="s2">} = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'release-it'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s1">conventionalChangelog </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'conventional-changelog'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s1">concat </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'concat-stream'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s1">prependFile </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'prepend-file'</span><span class="s2">)</span>
+
+<span class="s0">class </span><span class="s1">ConventionalChangelog </span><span class="s0">extends </span><span class="s1">Plugin </span><span class="s2">{</span>
+  <span class="s1">getInitialOptions</span><span class="s2">(</span><span class="s1">options</span><span class="s2">, </span><span class="s1">namespace</span><span class="s2">) {</span>
+    <span class="s1">options</span><span class="s2">[</span><span class="s1">namespace</span><span class="s2">].</span><span class="s1">tagName </span><span class="s2">= </span><span class="s1">options</span><span class="s2">.</span><span class="s1">git</span><span class="s2">.</span><span class="s1">tagName</span>
+    <span class="s0">return </span><span class="s1">options</span><span class="s2">[</span><span class="s1">namespace</span><span class="s2">]</span>
+  <span class="s2">}</span>
+
+  <span class="s1">async bump</span><span class="s2">(</span><span class="s1">version</span><span class="s2">) {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">setContext</span><span class="s2">({ </span><span class="s1">version </span><span class="s2">})</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">previousTag</span><span class="s2">, </span><span class="s1">currentTag </span><span class="s2">} = </span><span class="s0">await this</span><span class="s2">.</span><span class="s1">getConventionalConfig</span><span class="s2">()</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">setContext</span><span class="s2">({ </span><span class="s1">previousTag</span><span class="s2">, </span><span class="s1">currentTag </span><span class="s2">})</span>
+    <span class="s0">const </span><span class="s1">changelog </span><span class="s2">= </span><span class="s0">await this</span><span class="s2">.</span><span class="s1">generateChangelog</span><span class="s2">()</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">setContext</span><span class="s2">({ </span><span class="s1">changelog </span><span class="s2">})</span>
+  <span class="s2">}</span>
+
+  <span class="s1">async getConventionalConfig</span><span class="s2">() {</span>
+    <span class="s0">const </span><span class="s1">version </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">getContext</span><span class="s2">(</span><span class="s3">'version'</span><span class="s2">)</span>
+
+    <span class="s0">const </span><span class="s1">previousTag </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">config</span><span class="s2">.</span><span class="s1">getContext</span><span class="s2">(</span><span class="s3">'latestTag'</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">tagTemplate </span><span class="s2">=</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">tagName </span><span class="s2">|| ((</span><span class="s1">previousTag </span><span class="s2">|| </span><span class="s3">''</span><span class="s2">).</span><span class="s1">match</span><span class="s2">(</span><span class="s4">/^v/</span><span class="s2">) ? </span><span class="s3">'v${version}' </span><span class="s2">: </span><span class="s3">'${version}'</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">currentTag </span><span class="s2">= </span><span class="s1">tagTemplate</span><span class="s2">.</span><span class="s1">replace</span><span class="s2">(</span><span class="s3">'${version}'</span><span class="s2">, </span><span class="s1">version</span><span class="s2">)</span>
+
+    <span class="s0">return </span><span class="s2">{ </span><span class="s1">version</span><span class="s2">, </span><span class="s1">previousTag</span><span class="s2">, </span><span class="s1">currentTag </span><span class="s2">}</span>
+  <span class="s2">}</span>
+
+  <span class="s1">getChangelogStream</span><span class="s2">(</span><span class="s1">options </span><span class="s2">= {}) {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">version</span><span class="s2">, </span><span class="s1">previousTag</span><span class="s2">, </span><span class="s1">currentTag </span><span class="s2">} = </span><span class="s0">this</span><span class="s2">.</span><span class="s1">getContext</span><span class="s2">()</span>
+    <span class="s0">return </span><span class="s1">conventionalChangelog</span><span class="s2">(</span>
+      <span class="s1">Object</span><span class="s2">.</span><span class="s1">assign</span><span class="s2">(</span><span class="s1">options</span><span class="s2">, </span><span class="s0">this</span><span class="s2">.</span><span class="s1">options</span><span class="s2">),</span>
+      <span class="s2">{ </span><span class="s1">version</span><span class="s2">, </span><span class="s1">previousTag</span><span class="s2">, </span><span class="s1">currentTag </span><span class="s2">},</span>
+      <span class="s2">{</span>
+        <span class="s1">debug</span><span class="s2">: </span><span class="s0">this</span><span class="s2">.</span><span class="s1">config</span><span class="s2">.</span><span class="s1">isDebug </span><span class="s2">? </span><span class="s0">this</span><span class="s2">.</span><span class="s1">debug </span><span class="s2">: </span><span class="s0">null</span><span class="s2">,</span>
+      <span class="s2">}</span>
+    <span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s1">generateChangelog</span><span class="s2">(</span><span class="s1">options</span><span class="s2">) {</span>
+    <span class="s0">return new </span><span class="s1">Promise</span><span class="s2">((</span><span class="s1">resolve</span><span class="s2">, </span><span class="s1">reject</span><span class="s2">) =&gt; {</span>
+      <span class="s0">const </span><span class="s1">resolver </span><span class="s2">= </span><span class="s1">result </span><span class="s2">=&gt; </span><span class="s1">resolve</span><span class="s2">(</span><span class="s1">result</span><span class="s2">.</span><span class="s1">toString</span><span class="s2">().</span><span class="s1">trim</span><span class="s2">())</span>
+      <span class="s0">const </span><span class="s1">changelogStream </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">getChangelogStream</span><span class="s2">(</span><span class="s1">options</span><span class="s2">)</span>
+      <span class="s1">changelogStream</span><span class="s2">.</span><span class="s1">pipe</span><span class="s2">(</span><span class="s1">concat</span><span class="s2">(</span><span class="s1">resolver</span><span class="s2">))</span>
+      <span class="s1">changelogStream</span><span class="s2">.</span><span class="s1">on</span><span class="s2">(</span><span class="s3">'error'</span><span class="s2">, </span><span class="s1">reject</span><span class="s2">)</span>
+    <span class="s2">})</span>
+  <span class="s2">}</span>
+
+  <span class="s1">async writeChangelog</span><span class="s2">() {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">infile </span><span class="s2">} = </span><span class="s0">this</span><span class="s2">.</span><span class="s1">options</span>
+    <span class="s0">let </span><span class="s2">{ </span><span class="s1">changelog </span><span class="s2">} = </span><span class="s0">this</span><span class="s2">.</span><span class="s1">getContext</span><span class="s2">()</span>
+
+    <span class="s0">let </span><span class="s1">hasInfile </span><span class="s2">= </span><span class="s0">false</span>
+    <span class="s0">try </span><span class="s2">{</span>
+      <span class="s1">fs</span><span class="s2">.</span><span class="s1">accessSync</span><span class="s2">(</span><span class="s1">infile</span><span class="s2">)</span>
+      <span class="s1">hasInfile </span><span class="s2">= </span><span class="s0">true</span>
+    <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">err</span><span class="s2">) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">debug</span><span class="s2">(</span><span class="s1">err</span><span class="s2">)</span>
+    <span class="s2">}</span>
+
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">hasInfile</span><span class="s2">) {</span>
+      <span class="s1">changelog </span><span class="s2">= </span><span class="s0">await this</span><span class="s2">.</span><span class="s1">generateChangelog</span><span class="s2">({ </span><span class="s1">releaseCount</span><span class="s2">: </span><span class="s5">0 </span><span class="s2">})</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">debug</span><span class="s2">({ </span><span class="s1">changelog </span><span class="s2">})</span>
+    <span class="s2">}</span>
+
+    <span class="s0">await </span><span class="s1">prependFile</span><span class="s2">(</span><span class="s1">infile</span><span class="s2">, </span><span class="s1">changelog </span><span class="s2">+ </span><span class="s1">EOL </span><span class="s2">+ </span><span class="s1">EOL</span><span class="s2">)</span>
+
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">hasInfile</span><span class="s2">) {</span>
+      <span class="s0">await this</span><span class="s2">.</span><span class="s1">exec</span><span class="s2">(</span><span class="s3">`git add </span><span class="s1">$</span><span class="s2">{</span><span class="s1">infile</span><span class="s2">}</span><span class="s3">`</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+  <span class="s1">async beforeRelease</span><span class="s2">() {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">infile </span><span class="s2">} = </span><span class="s0">this</span><span class="s2">.</span><span class="s1">options</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">isDryRun </span><span class="s2">} = </span><span class="s0">this</span><span class="s2">.</span><span class="s1">config</span>
+
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">log</span><span class="s2">.</span><span class="s1">exec</span><span class="s2">(</span><span class="s3">`Writing changelog to </span><span class="s1">$</span><span class="s2">{</span><span class="s1">infile</span><span class="s2">}</span><span class="s3">`</span><span class="s2">, </span><span class="s1">isDryRun</span><span class="s2">)</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">infile </span><span class="s2">&amp;&amp; !</span><span class="s1">isDryRun</span><span class="s2">) {</span>
+      <span class="s0">await this</span><span class="s2">.</span><span class="s1">writeChangelog</span><span class="s2">()</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= </span><span class="s1">ConventionalChangelog</span>
+</pre>
+</body>
+</html>

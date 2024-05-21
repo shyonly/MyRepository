@@ -1,0 +1,227 @@
+<html>
+<head>
+<title>error-stack-parser.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #bcbec4;}
+.s1 { color: #cf8e6d;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #42c3d4;}
+.s6 { color: #5f826b; font-style: italic;}
+.s7 { color: #67a37c; font-style: italic;}
+.s8 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+error-stack-parser.js</font>
+</center></td></tr></table>
+<pre><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">root</span><span class="s0">, </span><span class="s2">factory</span><span class="s0">) {</span>
+    <span class="s3">'use strict'</span><span class="s0">;</span>
+    <span class="s4">// Universal Module Definition (UMD) to support AMD, CommonJS/Node.js, Rhino, and browsers.</span>
+
+    <span class="s4">/* istanbul ignore next */</span>
+    <span class="s1">if </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">define </span><span class="s0">=== </span><span class="s3">'function' </span><span class="s0">&amp;&amp; </span><span class="s2">define</span><span class="s0">.</span><span class="s2">amd</span><span class="s0">) {</span>
+        <span class="s2">define</span><span class="s0">(</span><span class="s3">'error-stack-parser'</span><span class="s0">, [</span><span class="s3">'stackframe'</span><span class="s0">], </span><span class="s2">factory</span><span class="s0">);</span>
+    <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">exports </span><span class="s0">=== </span><span class="s3">'object'</span><span class="s0">) {</span>
+        <span class="s2">module</span><span class="s0">.</span><span class="s2">exports </span><span class="s0">= </span><span class="s2">factory</span><span class="s0">(</span><span class="s2">require</span><span class="s0">(</span><span class="s3">'stackframe'</span><span class="s0">));</span>
+    <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+        <span class="s2">root</span><span class="s0">.</span><span class="s2">ErrorStackParser </span><span class="s0">= </span><span class="s2">factory</span><span class="s0">(</span><span class="s2">root</span><span class="s0">.</span><span class="s2">StackFrame</span><span class="s0">);</span>
+    <span class="s0">}</span>
+<span class="s0">}(</span><span class="s1">this</span><span class="s0">, </span><span class="s1">function </span><span class="s2">ErrorStackParser</span><span class="s0">(</span><span class="s2">StackFrame</span><span class="s0">) {</span>
+    <span class="s3">'use strict'</span><span class="s0">;</span>
+
+    <span class="s1">var </span><span class="s2">FIREFOX_SAFARI_STACK_REGEXP </span><span class="s0">= </span><span class="s5">/(^|@)\S+:\d+/</span><span class="s0">;</span>
+    <span class="s1">var </span><span class="s2">CHROME_IE_STACK_REGEXP </span><span class="s0">= </span><span class="s5">/^\s*at .*(\S+:\d+|\(native\))/m</span><span class="s0">;</span>
+    <span class="s1">var </span><span class="s2">SAFARI_NATIVE_CODE_REGEXP </span><span class="s0">= </span><span class="s5">/^(eval@)?(\[native code])?$/</span><span class="s0">;</span>
+
+    <span class="s1">return </span><span class="s0">{</span>
+        <span class="s6">/**</span>
+         <span class="s6">* Given an Error object, extract the most information from it.</span>
+         <span class="s6">*</span>
+         <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Error} error object</span>
+         <span class="s6">* </span><span class="s7">@return </span><span class="s6">{Array} of StackFrames</span>
+         <span class="s6">*/</span>
+        <span class="s2">parse</span><span class="s0">: </span><span class="s1">function </span><span class="s2">ErrorStackParser$$parse</span><span class="s0">(</span><span class="s2">error</span><span class="s0">) {</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">error</span><span class="s0">.</span><span class="s2">stacktrace </span><span class="s0">!== </span><span class="s3">'undefined' </span><span class="s0">|| </span><span class="s1">typeof </span><span class="s2">error</span><span class="s0">[</span><span class="s3">'opera#sourceloc'</span><span class="s0">] !== </span><span class="s3">'undefined'</span><span class="s0">) {</span>
+                <span class="s1">return this</span><span class="s0">.</span><span class="s2">parseOpera</span><span class="s0">(</span><span class="s2">error</span><span class="s0">);</span>
+            <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">error</span><span class="s0">.</span><span class="s2">stack </span><span class="s0">&amp;&amp; </span><span class="s2">error</span><span class="s0">.</span><span class="s2">stack</span><span class="s0">.</span><span class="s2">match</span><span class="s0">(</span><span class="s2">CHROME_IE_STACK_REGEXP</span><span class="s0">)) {</span>
+                <span class="s1">return this</span><span class="s0">.</span><span class="s2">parseV8OrIE</span><span class="s0">(</span><span class="s2">error</span><span class="s0">);</span>
+            <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">error</span><span class="s0">.</span><span class="s2">stack</span><span class="s0">) {</span>
+                <span class="s1">return this</span><span class="s0">.</span><span class="s2">parseFFOrSafari</span><span class="s0">(</span><span class="s2">error</span><span class="s0">);</span>
+            <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+                <span class="s1">throw new </span><span class="s2">Error</span><span class="s0">(</span><span class="s3">'Cannot parse given Error object'</span><span class="s0">);</span>
+            <span class="s0">}</span>
+        <span class="s0">},</span>
+
+        <span class="s4">// Separate line and column numbers from a string of the form: (URI:Line:Column)</span>
+        <span class="s2">extractLocation</span><span class="s0">: </span><span class="s1">function </span><span class="s2">ErrorStackParser$$extractLocation</span><span class="s0">(</span><span class="s2">urlLike</span><span class="s0">) {</span>
+            <span class="s4">// Fail-fast but return locations like &quot;(native)&quot;</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">urlLike</span><span class="s0">.</span><span class="s2">indexOf</span><span class="s0">(</span><span class="s3">':'</span><span class="s0">) === -</span><span class="s8">1</span><span class="s0">) {</span>
+                <span class="s1">return </span><span class="s0">[</span><span class="s2">urlLike</span><span class="s0">];</span>
+            <span class="s0">}</span>
+
+            <span class="s1">var </span><span class="s2">regExp </span><span class="s0">= </span><span class="s5">/(.+?)(?::(\d+))?(?::(\d+))?$/</span><span class="s0">;</span>
+            <span class="s1">var </span><span class="s2">parts </span><span class="s0">= </span><span class="s2">regExp</span><span class="s0">.</span><span class="s2">exec</span><span class="s0">(</span><span class="s2">urlLike</span><span class="s0">.</span><span class="s2">replace</span><span class="s0">(</span><span class="s5">/[()]/g</span><span class="s0">, </span><span class="s3">''</span><span class="s0">));</span>
+            <span class="s1">return </span><span class="s0">[</span><span class="s2">parts</span><span class="s0">[</span><span class="s8">1</span><span class="s0">], </span><span class="s2">parts</span><span class="s0">[</span><span class="s8">2</span><span class="s0">] || </span><span class="s2">undefined</span><span class="s0">, </span><span class="s2">parts</span><span class="s0">[</span><span class="s8">3</span><span class="s0">] || </span><span class="s2">undefined</span><span class="s0">];</span>
+        <span class="s0">},</span>
+
+        <span class="s2">parseV8OrIE</span><span class="s0">: </span><span class="s1">function </span><span class="s2">ErrorStackParser$$parseV8OrIE</span><span class="s0">(</span><span class="s2">error</span><span class="s0">) {</span>
+            <span class="s1">var </span><span class="s2">filtered </span><span class="s0">= </span><span class="s2">error</span><span class="s0">.</span><span class="s2">stack</span><span class="s0">.</span><span class="s2">split</span><span class="s0">(</span><span class="s3">'</span><span class="s1">\n</span><span class="s3">'</span><span class="s0">).</span><span class="s2">filter</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">line</span><span class="s0">) {</span>
+                <span class="s1">return </span><span class="s0">!!</span><span class="s2">line</span><span class="s0">.</span><span class="s2">match</span><span class="s0">(</span><span class="s2">CHROME_IE_STACK_REGEXP</span><span class="s0">);</span>
+            <span class="s0">}, </span><span class="s1">this</span><span class="s0">);</span>
+
+            <span class="s1">return </span><span class="s2">filtered</span><span class="s0">.</span><span class="s2">map</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">line</span><span class="s0">) {</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">line</span><span class="s0">.</span><span class="s2">indexOf</span><span class="s0">(</span><span class="s3">'(eval '</span><span class="s0">) &gt; -</span><span class="s8">1</span><span class="s0">) {</span>
+                    <span class="s4">// Throw away eval information until we implement stacktrace.js/stackframe#8</span>
+                    <span class="s2">line </span><span class="s0">= </span><span class="s2">line</span><span class="s0">.</span><span class="s2">replace</span><span class="s0">(</span><span class="s5">/eval code/g</span><span class="s0">, </span><span class="s3">'eval'</span><span class="s0">).</span><span class="s2">replace</span><span class="s0">(</span><span class="s5">/(\(eval at [^()]*)|(,.*$)/g</span><span class="s0">, </span><span class="s3">''</span><span class="s0">);</span>
+                <span class="s0">}</span>
+                <span class="s1">var </span><span class="s2">sanitizedLine </span><span class="s0">= </span><span class="s2">line</span><span class="s0">.</span><span class="s2">replace</span><span class="s0">(</span><span class="s5">/^\s+/</span><span class="s0">, </span><span class="s3">''</span><span class="s0">).</span><span class="s2">replace</span><span class="s0">(</span><span class="s5">/\(eval code/g</span><span class="s0">, </span><span class="s3">'('</span><span class="s0">).</span><span class="s2">replace</span><span class="s0">(</span><span class="s5">/^.*?\s+/</span><span class="s0">, </span><span class="s3">''</span><span class="s0">);</span>
+
+                <span class="s4">// capture and preseve the parenthesized location &quot;(/foo/my bar.js:12:87)&quot; in</span>
+                <span class="s4">// case it has spaces in it, as the string is split on \s+ later on</span>
+                <span class="s1">var </span><span class="s2">location </span><span class="s0">= </span><span class="s2">sanitizedLine</span><span class="s0">.</span><span class="s2">match</span><span class="s0">(</span><span class="s5">/ (\(.+\)$)/</span><span class="s0">);</span>
+
+                <span class="s4">// remove the parenthesized location from the line, if it was matched</span>
+                <span class="s2">sanitizedLine </span><span class="s0">= </span><span class="s2">location </span><span class="s0">? </span><span class="s2">sanitizedLine</span><span class="s0">.</span><span class="s2">replace</span><span class="s0">(</span><span class="s2">location</span><span class="s0">[</span><span class="s8">0</span><span class="s0">], </span><span class="s3">''</span><span class="s0">) : </span><span class="s2">sanitizedLine</span><span class="s0">;</span>
+
+                <span class="s4">// if a location was matched, pass it to extractLocation() otherwise pass all sanitizedLine</span>
+                <span class="s4">// because this line doesn't have function name</span>
+                <span class="s1">var </span><span class="s2">locationParts </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">extractLocation</span><span class="s0">(</span><span class="s2">location </span><span class="s0">? </span><span class="s2">location</span><span class="s0">[</span><span class="s8">1</span><span class="s0">] : </span><span class="s2">sanitizedLine</span><span class="s0">);</span>
+                <span class="s1">var </span><span class="s2">functionName </span><span class="s0">= </span><span class="s2">location </span><span class="s0">&amp;&amp; </span><span class="s2">sanitizedLine </span><span class="s0">|| </span><span class="s2">undefined</span><span class="s0">;</span>
+                <span class="s1">var </span><span class="s2">fileName </span><span class="s0">= [</span><span class="s3">'eval'</span><span class="s0">, </span><span class="s3">'&lt;anonymous&gt;'</span><span class="s0">].</span><span class="s2">indexOf</span><span class="s0">(</span><span class="s2">locationParts</span><span class="s0">[</span><span class="s8">0</span><span class="s0">]) &gt; -</span><span class="s8">1 </span><span class="s0">? </span><span class="s2">undefined </span><span class="s0">: </span><span class="s2">locationParts</span><span class="s0">[</span><span class="s8">0</span><span class="s0">];</span>
+
+                <span class="s1">return new </span><span class="s2">StackFrame</span><span class="s0">({</span>
+                    <span class="s2">functionName</span><span class="s0">: </span><span class="s2">functionName</span><span class="s0">,</span>
+                    <span class="s2">fileName</span><span class="s0">: </span><span class="s2">fileName</span><span class="s0">,</span>
+                    <span class="s2">lineNumber</span><span class="s0">: </span><span class="s2">locationParts</span><span class="s0">[</span><span class="s8">1</span><span class="s0">],</span>
+                    <span class="s2">columnNumber</span><span class="s0">: </span><span class="s2">locationParts</span><span class="s0">[</span><span class="s8">2</span><span class="s0">],</span>
+                    <span class="s2">source</span><span class="s0">: </span><span class="s2">line</span>
+                <span class="s0">});</span>
+            <span class="s0">}, </span><span class="s1">this</span><span class="s0">);</span>
+        <span class="s0">},</span>
+
+        <span class="s2">parseFFOrSafari</span><span class="s0">: </span><span class="s1">function </span><span class="s2">ErrorStackParser$$parseFFOrSafari</span><span class="s0">(</span><span class="s2">error</span><span class="s0">) {</span>
+            <span class="s1">var </span><span class="s2">filtered </span><span class="s0">= </span><span class="s2">error</span><span class="s0">.</span><span class="s2">stack</span><span class="s0">.</span><span class="s2">split</span><span class="s0">(</span><span class="s3">'</span><span class="s1">\n</span><span class="s3">'</span><span class="s0">).</span><span class="s2">filter</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">line</span><span class="s0">) {</span>
+                <span class="s1">return </span><span class="s0">!</span><span class="s2">line</span><span class="s0">.</span><span class="s2">match</span><span class="s0">(</span><span class="s2">SAFARI_NATIVE_CODE_REGEXP</span><span class="s0">);</span>
+            <span class="s0">}, </span><span class="s1">this</span><span class="s0">);</span>
+
+            <span class="s1">return </span><span class="s2">filtered</span><span class="s0">.</span><span class="s2">map</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">line</span><span class="s0">) {</span>
+                <span class="s4">// Throw away eval information until we implement stacktrace.js/stackframe#8</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">line</span><span class="s0">.</span><span class="s2">indexOf</span><span class="s0">(</span><span class="s3">' &gt; eval'</span><span class="s0">) &gt; -</span><span class="s8">1</span><span class="s0">) {</span>
+                    <span class="s2">line </span><span class="s0">= </span><span class="s2">line</span><span class="s0">.</span><span class="s2">replace</span><span class="s0">(</span><span class="s5">/ line (\d+)(?: &gt; eval line \d+)* &gt; eval:\d+:\d+/g</span><span class="s0">, </span><span class="s3">':$1'</span><span class="s0">);</span>
+                <span class="s0">}</span>
+
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">line</span><span class="s0">.</span><span class="s2">indexOf</span><span class="s0">(</span><span class="s3">'@'</span><span class="s0">) === -</span><span class="s8">1 </span><span class="s0">&amp;&amp; </span><span class="s2">line</span><span class="s0">.</span><span class="s2">indexOf</span><span class="s0">(</span><span class="s3">':'</span><span class="s0">) === -</span><span class="s8">1</span><span class="s0">) {</span>
+                    <span class="s4">// Safari eval frames only have function names and nothing else</span>
+                    <span class="s1">return new </span><span class="s2">StackFrame</span><span class="s0">({</span>
+                        <span class="s2">functionName</span><span class="s0">: </span><span class="s2">line</span>
+                    <span class="s0">});</span>
+                <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+                    <span class="s1">var </span><span class="s2">functionNameRegex </span><span class="s0">= </span><span class="s5">/((.*&quot;.+&quot;[^@]*)?[^@]*)(?:@)/</span><span class="s0">;</span>
+                    <span class="s1">var </span><span class="s2">matches </span><span class="s0">= </span><span class="s2">line</span><span class="s0">.</span><span class="s2">match</span><span class="s0">(</span><span class="s2">functionNameRegex</span><span class="s0">);</span>
+                    <span class="s1">var </span><span class="s2">functionName </span><span class="s0">= </span><span class="s2">matches </span><span class="s0">&amp;&amp; </span><span class="s2">matches</span><span class="s0">[</span><span class="s8">1</span><span class="s0">] ? </span><span class="s2">matches</span><span class="s0">[</span><span class="s8">1</span><span class="s0">] : </span><span class="s2">undefined</span><span class="s0">;</span>
+                    <span class="s1">var </span><span class="s2">locationParts </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">extractLocation</span><span class="s0">(</span><span class="s2">line</span><span class="s0">.</span><span class="s2">replace</span><span class="s0">(</span><span class="s2">functionNameRegex</span><span class="s0">, </span><span class="s3">''</span><span class="s0">));</span>
+
+                    <span class="s1">return new </span><span class="s2">StackFrame</span><span class="s0">({</span>
+                        <span class="s2">functionName</span><span class="s0">: </span><span class="s2">functionName</span><span class="s0">,</span>
+                        <span class="s2">fileName</span><span class="s0">: </span><span class="s2">locationParts</span><span class="s0">[</span><span class="s8">0</span><span class="s0">],</span>
+                        <span class="s2">lineNumber</span><span class="s0">: </span><span class="s2">locationParts</span><span class="s0">[</span><span class="s8">1</span><span class="s0">],</span>
+                        <span class="s2">columnNumber</span><span class="s0">: </span><span class="s2">locationParts</span><span class="s0">[</span><span class="s8">2</span><span class="s0">],</span>
+                        <span class="s2">source</span><span class="s0">: </span><span class="s2">line</span>
+                    <span class="s0">});</span>
+                <span class="s0">}</span>
+            <span class="s0">}, </span><span class="s1">this</span><span class="s0">);</span>
+        <span class="s0">},</span>
+
+        <span class="s2">parseOpera</span><span class="s0">: </span><span class="s1">function </span><span class="s2">ErrorStackParser$$parseOpera</span><span class="s0">(</span><span class="s2">e</span><span class="s0">) {</span>
+            <span class="s1">if </span><span class="s0">(!</span><span class="s2">e</span><span class="s0">.</span><span class="s2">stacktrace </span><span class="s0">|| (</span><span class="s2">e</span><span class="s0">.</span><span class="s2">message</span><span class="s0">.</span><span class="s2">indexOf</span><span class="s0">(</span><span class="s3">'</span><span class="s1">\n</span><span class="s3">'</span><span class="s0">) &gt; -</span><span class="s8">1 </span><span class="s0">&amp;&amp;</span>
+                <span class="s2">e</span><span class="s0">.</span><span class="s2">message</span><span class="s0">.</span><span class="s2">split</span><span class="s0">(</span><span class="s3">'</span><span class="s1">\n</span><span class="s3">'</span><span class="s0">).</span><span class="s2">length </span><span class="s0">&gt; </span><span class="s2">e</span><span class="s0">.</span><span class="s2">stacktrace</span><span class="s0">.</span><span class="s2">split</span><span class="s0">(</span><span class="s3">'</span><span class="s1">\n</span><span class="s3">'</span><span class="s0">).</span><span class="s2">length</span><span class="s0">)) {</span>
+                <span class="s1">return this</span><span class="s0">.</span><span class="s2">parseOpera9</span><span class="s0">(</span><span class="s2">e</span><span class="s0">);</span>
+            <span class="s0">} </span><span class="s1">else if </span><span class="s0">(!</span><span class="s2">e</span><span class="s0">.</span><span class="s2">stack</span><span class="s0">) {</span>
+                <span class="s1">return this</span><span class="s0">.</span><span class="s2">parseOpera10</span><span class="s0">(</span><span class="s2">e</span><span class="s0">);</span>
+            <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+                <span class="s1">return this</span><span class="s0">.</span><span class="s2">parseOpera11</span><span class="s0">(</span><span class="s2">e</span><span class="s0">);</span>
+            <span class="s0">}</span>
+        <span class="s0">},</span>
+
+        <span class="s2">parseOpera9</span><span class="s0">: </span><span class="s1">function </span><span class="s2">ErrorStackParser$$parseOpera9</span><span class="s0">(</span><span class="s2">e</span><span class="s0">) {</span>
+            <span class="s1">var </span><span class="s2">lineRE </span><span class="s0">= </span><span class="s5">/Line (\d+).*script (?:in )?(\S+)/i</span><span class="s0">;</span>
+            <span class="s1">var </span><span class="s2">lines </span><span class="s0">= </span><span class="s2">e</span><span class="s0">.</span><span class="s2">message</span><span class="s0">.</span><span class="s2">split</span><span class="s0">(</span><span class="s3">'</span><span class="s1">\n</span><span class="s3">'</span><span class="s0">);</span>
+            <span class="s1">var </span><span class="s2">result </span><span class="s0">= [];</span>
+
+            <span class="s1">for </span><span class="s0">(</span><span class="s1">var </span><span class="s2">i </span><span class="s0">= </span><span class="s8">2</span><span class="s0">, </span><span class="s2">len </span><span class="s0">= </span><span class="s2">lines</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">len</span><span class="s0">; </span><span class="s2">i </span><span class="s0">+= </span><span class="s8">2</span><span class="s0">) {</span>
+                <span class="s1">var </span><span class="s2">match </span><span class="s0">= </span><span class="s2">lineRE</span><span class="s0">.</span><span class="s2">exec</span><span class="s0">(</span><span class="s2">lines</span><span class="s0">[</span><span class="s2">i</span><span class="s0">]);</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">match</span><span class="s0">) {</span>
+                    <span class="s2">result</span><span class="s0">.</span><span class="s2">push</span><span class="s0">(</span><span class="s1">new </span><span class="s2">StackFrame</span><span class="s0">({</span>
+                        <span class="s2">fileName</span><span class="s0">: </span><span class="s2">match</span><span class="s0">[</span><span class="s8">2</span><span class="s0">],</span>
+                        <span class="s2">lineNumber</span><span class="s0">: </span><span class="s2">match</span><span class="s0">[</span><span class="s8">1</span><span class="s0">],</span>
+                        <span class="s2">source</span><span class="s0">: </span><span class="s2">lines</span><span class="s0">[</span><span class="s2">i</span><span class="s0">]</span>
+                    <span class="s0">}));</span>
+                <span class="s0">}</span>
+            <span class="s0">}</span>
+
+            <span class="s1">return </span><span class="s2">result</span><span class="s0">;</span>
+        <span class="s0">},</span>
+
+        <span class="s2">parseOpera10</span><span class="s0">: </span><span class="s1">function </span><span class="s2">ErrorStackParser$$parseOpera10</span><span class="s0">(</span><span class="s2">e</span><span class="s0">) {</span>
+            <span class="s1">var </span><span class="s2">lineRE </span><span class="s0">= </span><span class="s5">/Line (\d+).*script (?:in )?(\S+)(?:: In function (\S+))?$/i</span><span class="s0">;</span>
+            <span class="s1">var </span><span class="s2">lines </span><span class="s0">= </span><span class="s2">e</span><span class="s0">.</span><span class="s2">stacktrace</span><span class="s0">.</span><span class="s2">split</span><span class="s0">(</span><span class="s3">'</span><span class="s1">\n</span><span class="s3">'</span><span class="s0">);</span>
+            <span class="s1">var </span><span class="s2">result </span><span class="s0">= [];</span>
+
+            <span class="s1">for </span><span class="s0">(</span><span class="s1">var </span><span class="s2">i </span><span class="s0">= </span><span class="s8">0</span><span class="s0">, </span><span class="s2">len </span><span class="s0">= </span><span class="s2">lines</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">len</span><span class="s0">; </span><span class="s2">i </span><span class="s0">+= </span><span class="s8">2</span><span class="s0">) {</span>
+                <span class="s1">var </span><span class="s2">match </span><span class="s0">= </span><span class="s2">lineRE</span><span class="s0">.</span><span class="s2">exec</span><span class="s0">(</span><span class="s2">lines</span><span class="s0">[</span><span class="s2">i</span><span class="s0">]);</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">match</span><span class="s0">) {</span>
+                    <span class="s2">result</span><span class="s0">.</span><span class="s2">push</span><span class="s0">(</span>
+                        <span class="s1">new </span><span class="s2">StackFrame</span><span class="s0">({</span>
+                            <span class="s2">functionName</span><span class="s0">: </span><span class="s2">match</span><span class="s0">[</span><span class="s8">3</span><span class="s0">] || </span><span class="s2">undefined</span><span class="s0">,</span>
+                            <span class="s2">fileName</span><span class="s0">: </span><span class="s2">match</span><span class="s0">[</span><span class="s8">2</span><span class="s0">],</span>
+                            <span class="s2">lineNumber</span><span class="s0">: </span><span class="s2">match</span><span class="s0">[</span><span class="s8">1</span><span class="s0">],</span>
+                            <span class="s2">source</span><span class="s0">: </span><span class="s2">lines</span><span class="s0">[</span><span class="s2">i</span><span class="s0">]</span>
+                        <span class="s0">})</span>
+                    <span class="s0">);</span>
+                <span class="s0">}</span>
+            <span class="s0">}</span>
+
+            <span class="s1">return </span><span class="s2">result</span><span class="s0">;</span>
+        <span class="s0">},</span>
+
+        <span class="s4">// Opera 10.65+ Error.stack very similar to FF/Safari</span>
+        <span class="s2">parseOpera11</span><span class="s0">: </span><span class="s1">function </span><span class="s2">ErrorStackParser$$parseOpera11</span><span class="s0">(</span><span class="s2">error</span><span class="s0">) {</span>
+            <span class="s1">var </span><span class="s2">filtered </span><span class="s0">= </span><span class="s2">error</span><span class="s0">.</span><span class="s2">stack</span><span class="s0">.</span><span class="s2">split</span><span class="s0">(</span><span class="s3">'</span><span class="s1">\n</span><span class="s3">'</span><span class="s0">).</span><span class="s2">filter</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">line</span><span class="s0">) {</span>
+                <span class="s1">return </span><span class="s0">!!</span><span class="s2">line</span><span class="s0">.</span><span class="s2">match</span><span class="s0">(</span><span class="s2">FIREFOX_SAFARI_STACK_REGEXP</span><span class="s0">) &amp;&amp; !</span><span class="s2">line</span><span class="s0">.</span><span class="s2">match</span><span class="s0">(</span><span class="s5">/^Error created at/</span><span class="s0">);</span>
+            <span class="s0">}, </span><span class="s1">this</span><span class="s0">);</span>
+
+            <span class="s1">return </span><span class="s2">filtered</span><span class="s0">.</span><span class="s2">map</span><span class="s0">(</span><span class="s1">function</span><span class="s0">(</span><span class="s2">line</span><span class="s0">) {</span>
+                <span class="s1">var </span><span class="s2">tokens </span><span class="s0">= </span><span class="s2">line</span><span class="s0">.</span><span class="s2">split</span><span class="s0">(</span><span class="s3">'@'</span><span class="s0">);</span>
+                <span class="s1">var </span><span class="s2">locationParts </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">extractLocation</span><span class="s0">(</span><span class="s2">tokens</span><span class="s0">.</span><span class="s2">pop</span><span class="s0">());</span>
+                <span class="s1">var </span><span class="s2">functionCall </span><span class="s0">= (</span><span class="s2">tokens</span><span class="s0">.</span><span class="s2">shift</span><span class="s0">() || </span><span class="s3">''</span><span class="s0">);</span>
+                <span class="s1">var </span><span class="s2">functionName </span><span class="s0">= </span><span class="s2">functionCall</span>
+                    <span class="s0">.</span><span class="s2">replace</span><span class="s0">(</span><span class="s5">/&lt;anonymous function(: (\w+))?&gt;/</span><span class="s0">, </span><span class="s3">'$2'</span><span class="s0">)</span>
+                    <span class="s0">.</span><span class="s2">replace</span><span class="s0">(</span><span class="s5">/\([^)]*\)/g</span><span class="s0">, </span><span class="s3">''</span><span class="s0">) || </span><span class="s2">undefined</span><span class="s0">;</span>
+                <span class="s1">var </span><span class="s2">argsRaw</span><span class="s0">;</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">functionCall</span><span class="s0">.</span><span class="s2">match</span><span class="s0">(</span><span class="s5">/\(([^)]*)\)/</span><span class="s0">)) {</span>
+                    <span class="s2">argsRaw </span><span class="s0">= </span><span class="s2">functionCall</span><span class="s0">.</span><span class="s2">replace</span><span class="s0">(</span><span class="s5">/^[^(]+\(([^)]*)\)$/</span><span class="s0">, </span><span class="s3">'$1'</span><span class="s0">);</span>
+                <span class="s0">}</span>
+                <span class="s1">var </span><span class="s2">args </span><span class="s0">= (</span><span class="s2">argsRaw </span><span class="s0">=== </span><span class="s2">undefined </span><span class="s0">|| </span><span class="s2">argsRaw </span><span class="s0">=== </span><span class="s3">'[arguments not available]'</span><span class="s0">) ?</span>
+                    <span class="s2">undefined </span><span class="s0">: </span><span class="s2">argsRaw</span><span class="s0">.</span><span class="s2">split</span><span class="s0">(</span><span class="s3">','</span><span class="s0">);</span>
+
+                <span class="s1">return new </span><span class="s2">StackFrame</span><span class="s0">({</span>
+                    <span class="s2">functionName</span><span class="s0">: </span><span class="s2">functionName</span><span class="s0">,</span>
+                    <span class="s2">args</span><span class="s0">: </span><span class="s2">args</span><span class="s0">,</span>
+                    <span class="s2">fileName</span><span class="s0">: </span><span class="s2">locationParts</span><span class="s0">[</span><span class="s8">0</span><span class="s0">],</span>
+                    <span class="s2">lineNumber</span><span class="s0">: </span><span class="s2">locationParts</span><span class="s0">[</span><span class="s8">1</span><span class="s0">],</span>
+                    <span class="s2">columnNumber</span><span class="s0">: </span><span class="s2">locationParts</span><span class="s0">[</span><span class="s8">2</span><span class="s0">],</span>
+                    <span class="s2">source</span><span class="s0">: </span><span class="s2">line</span>
+                <span class="s0">});</span>
+            <span class="s0">}, </span><span class="s1">this</span><span class="s0">);</span>
+        <span class="s0">}</span>
+    <span class="s0">};</span>
+<span class="s0">}));</span>
+</pre>
+</body>
+</html>

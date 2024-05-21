@@ -1,0 +1,121 @@
+<html>
+<head>
+<title>state-machine.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+state-machine.js</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">createMachine from </span><span class="s2">&quot;./fsm.js&quot;</span><span class="s3">;</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@typedef </span><span class="s4">{Object} ShowOverlayData</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{'warning' | 'error'} level</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{Array&lt;string  | { moduleIdentifier?: string, moduleName?: string, loc?: string, message?: string }&gt;} messages</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{'build' | 'runtime'} messageSource</span>
+ <span class="s4">*/</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@typedef </span><span class="s4">{Object} CreateOverlayMachineOptions</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{(data: ShowOverlayData) =&gt; void} showOverlay</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{() =&gt; void} hideOverlay</span>
+ <span class="s4">*/</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{CreateOverlayMachineOptions} options</span>
+ <span class="s4">*/</span>
+<span class="s0">var </span><span class="s1">createOverlayMachine </span><span class="s3">= </span><span class="s0">function </span><span class="s1">createOverlayMachine</span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+  <span class="s0">var </span><span class="s1">hideOverlay </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">hideOverlay</span><span class="s3">,</span>
+    <span class="s1">showOverlay </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">showOverlay</span><span class="s3">;</span>
+  <span class="s0">var </span><span class="s1">overlayMachine </span><span class="s3">= </span><span class="s1">createMachine</span><span class="s3">({</span>
+    <span class="s1">initial</span><span class="s3">: </span><span class="s2">&quot;hidden&quot;</span><span class="s3">,</span>
+    <span class="s1">context</span><span class="s3">: {</span>
+      <span class="s1">level</span><span class="s3">: </span><span class="s2">&quot;error&quot;</span><span class="s3">,</span>
+      <span class="s1">messages</span><span class="s3">: [],</span>
+      <span class="s1">messageSource</span><span class="s3">: </span><span class="s2">&quot;build&quot;</span>
+    <span class="s3">},</span>
+    <span class="s1">states</span><span class="s3">: {</span>
+      <span class="s1">hidden</span><span class="s3">: {</span>
+        <span class="s1">on</span><span class="s3">: {</span>
+          <span class="s1">BUILD_ERROR</span><span class="s3">: {</span>
+            <span class="s1">target</span><span class="s3">: </span><span class="s2">&quot;displayBuildError&quot;</span><span class="s3">,</span>
+            <span class="s1">actions</span><span class="s3">: [</span><span class="s2">&quot;setMessages&quot;</span><span class="s3">, </span><span class="s2">&quot;showOverlay&quot;</span><span class="s3">]</span>
+          <span class="s3">},</span>
+          <span class="s1">RUNTIME_ERROR</span><span class="s3">: {</span>
+            <span class="s1">target</span><span class="s3">: </span><span class="s2">&quot;displayRuntimeError&quot;</span><span class="s3">,</span>
+            <span class="s1">actions</span><span class="s3">: [</span><span class="s2">&quot;setMessages&quot;</span><span class="s3">, </span><span class="s2">&quot;showOverlay&quot;</span><span class="s3">]</span>
+          <span class="s3">}</span>
+        <span class="s3">}</span>
+      <span class="s3">},</span>
+      <span class="s1">displayBuildError</span><span class="s3">: {</span>
+        <span class="s1">on</span><span class="s3">: {</span>
+          <span class="s1">DISMISS</span><span class="s3">: {</span>
+            <span class="s1">target</span><span class="s3">: </span><span class="s2">&quot;hidden&quot;</span><span class="s3">,</span>
+            <span class="s1">actions</span><span class="s3">: [</span><span class="s2">&quot;dismissMessages&quot;</span><span class="s3">, </span><span class="s2">&quot;hideOverlay&quot;</span><span class="s3">]</span>
+          <span class="s3">},</span>
+          <span class="s1">BUILD_ERROR</span><span class="s3">: {</span>
+            <span class="s1">target</span><span class="s3">: </span><span class="s2">&quot;displayBuildError&quot;</span><span class="s3">,</span>
+            <span class="s1">actions</span><span class="s3">: [</span><span class="s2">&quot;appendMessages&quot;</span><span class="s3">, </span><span class="s2">&quot;showOverlay&quot;</span><span class="s3">]</span>
+          <span class="s3">}</span>
+        <span class="s3">}</span>
+      <span class="s3">},</span>
+      <span class="s1">displayRuntimeError</span><span class="s3">: {</span>
+        <span class="s1">on</span><span class="s3">: {</span>
+          <span class="s1">DISMISS</span><span class="s3">: {</span>
+            <span class="s1">target</span><span class="s3">: </span><span class="s2">&quot;hidden&quot;</span><span class="s3">,</span>
+            <span class="s1">actions</span><span class="s3">: [</span><span class="s2">&quot;dismissMessages&quot;</span><span class="s3">, </span><span class="s2">&quot;hideOverlay&quot;</span><span class="s3">]</span>
+          <span class="s3">},</span>
+          <span class="s1">RUNTIME_ERROR</span><span class="s3">: {</span>
+            <span class="s1">target</span><span class="s3">: </span><span class="s2">&quot;displayRuntimeError&quot;</span><span class="s3">,</span>
+            <span class="s1">actions</span><span class="s3">: [</span><span class="s2">&quot;appendMessages&quot;</span><span class="s3">, </span><span class="s2">&quot;showOverlay&quot;</span><span class="s3">]</span>
+          <span class="s3">},</span>
+          <span class="s1">BUILD_ERROR</span><span class="s3">: {</span>
+            <span class="s1">target</span><span class="s3">: </span><span class="s2">&quot;displayBuildError&quot;</span><span class="s3">,</span>
+            <span class="s1">actions</span><span class="s3">: [</span><span class="s2">&quot;setMessages&quot;</span><span class="s3">, </span><span class="s2">&quot;showOverlay&quot;</span><span class="s3">]</span>
+          <span class="s3">}</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">}, {</span>
+    <span class="s1">actions</span><span class="s3">: {</span>
+      <span class="s1">dismissMessages</span><span class="s3">: </span><span class="s0">function </span><span class="s1">dismissMessages</span><span class="s3">() {</span>
+        <span class="s0">return </span><span class="s3">{</span>
+          <span class="s1">messages</span><span class="s3">: [],</span>
+          <span class="s1">level</span><span class="s3">: </span><span class="s2">&quot;error&quot;</span><span class="s3">,</span>
+          <span class="s1">messageSource</span><span class="s3">: </span><span class="s2">&quot;build&quot;</span>
+        <span class="s3">};</span>
+      <span class="s3">},</span>
+      <span class="s1">appendMessages</span><span class="s3">: </span><span class="s0">function </span><span class="s1">appendMessages</span><span class="s3">(</span><span class="s1">context</span><span class="s3">, </span><span class="s1">event</span><span class="s3">) {</span>
+        <span class="s0">return </span><span class="s3">{</span>
+          <span class="s1">messages</span><span class="s3">: </span><span class="s1">context</span><span class="s3">.</span><span class="s1">messages</span><span class="s3">.</span><span class="s1">concat</span><span class="s3">(</span><span class="s1">event</span><span class="s3">.</span><span class="s1">messages</span><span class="s3">),</span>
+          <span class="s1">level</span><span class="s3">: </span><span class="s1">event</span><span class="s3">.</span><span class="s1">level </span><span class="s3">|| </span><span class="s1">context</span><span class="s3">.</span><span class="s1">level</span><span class="s3">,</span>
+          <span class="s1">messageSource</span><span class="s3">: </span><span class="s1">event</span><span class="s3">.</span><span class="s1">type </span><span class="s3">=== </span><span class="s2">&quot;RUNTIME_ERROR&quot; </span><span class="s3">? </span><span class="s2">&quot;runtime&quot; </span><span class="s3">: </span><span class="s2">&quot;build&quot;</span>
+        <span class="s3">};</span>
+      <span class="s3">},</span>
+      <span class="s1">setMessages</span><span class="s3">: </span><span class="s0">function </span><span class="s1">setMessages</span><span class="s3">(</span><span class="s1">context</span><span class="s3">, </span><span class="s1">event</span><span class="s3">) {</span>
+        <span class="s0">return </span><span class="s3">{</span>
+          <span class="s1">messages</span><span class="s3">: </span><span class="s1">event</span><span class="s3">.</span><span class="s1">messages</span><span class="s3">,</span>
+          <span class="s1">level</span><span class="s3">: </span><span class="s1">event</span><span class="s3">.</span><span class="s1">level </span><span class="s3">|| </span><span class="s1">context</span><span class="s3">.</span><span class="s1">level</span><span class="s3">,</span>
+          <span class="s1">messageSource</span><span class="s3">: </span><span class="s1">event</span><span class="s3">.</span><span class="s1">type </span><span class="s3">=== </span><span class="s2">&quot;RUNTIME_ERROR&quot; </span><span class="s3">? </span><span class="s2">&quot;runtime&quot; </span><span class="s3">: </span><span class="s2">&quot;build&quot;</span>
+        <span class="s3">};</span>
+      <span class="s3">},</span>
+      <span class="s1">hideOverlay</span><span class="s3">: </span><span class="s1">hideOverlay</span><span class="s3">,</span>
+      <span class="s1">showOverlay</span><span class="s3">: </span><span class="s1">showOverlay</span>
+    <span class="s3">}</span>
+  <span class="s3">});</span>
+  <span class="s0">return </span><span class="s1">overlayMachine</span><span class="s3">;</span>
+<span class="s3">};</span>
+<span class="s0">export default </span><span class="s1">createOverlayMachine</span><span class="s3">;</span></pre>
+</body>
+</html>

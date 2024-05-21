@@ -1,0 +1,565 @@
+<html>
+<head>
+<title>framer.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+framer.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span>
+
+<span class="s2">var </span><span class="s1">transport </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'../../../spdy-transport'</span><span class="s3">)</span>
+<span class="s2">var </span><span class="s1">base </span><span class="s3">= </span><span class="s1">transport</span><span class="s3">.</span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">base</span>
+<span class="s2">var </span><span class="s1">constants </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'./'</span><span class="s3">).</span><span class="s1">constants</span>
+
+<span class="s2">var </span><span class="s1">assert </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'assert'</span><span class="s3">)</span>
+<span class="s2">var </span><span class="s1">util </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'util'</span><span class="s3">)</span>
+<span class="s2">var </span><span class="s1">WriteBuffer </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'wbuf'</span><span class="s3">)</span>
+<span class="s2">var </span><span class="s1">OffsetBuffer </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'obuf'</span><span class="s3">)</span>
+<span class="s2">var </span><span class="s1">debug </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'debug'</span><span class="s3">)(</span><span class="s0">'spdy:framer'</span><span class="s3">)</span>
+<span class="s2">var </span><span class="s1">debugExtra </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'debug'</span><span class="s3">)(</span><span class="s0">'spdy:framer:extra'</span><span class="s3">)</span>
+
+<span class="s2">function </span><span class="s1">Framer </span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+  <span class="s1">base</span><span class="s3">.</span><span class="s1">Framer</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s2">this</span><span class="s3">, </span><span class="s1">options</span><span class="s3">)</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">maxFrameSize </span><span class="s3">= </span><span class="s1">constants</span><span class="s3">.</span><span class="s1">INITIAL_MAX_FRAME_SIZE</span>
+<span class="s3">}</span>
+<span class="s1">util</span><span class="s3">.</span><span class="s1">inherits</span><span class="s3">(</span><span class="s1">Framer</span><span class="s3">, </span><span class="s1">base</span><span class="s3">.</span><span class="s1">Framer</span><span class="s3">)</span>
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">Framer</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">create </span><span class="s3">= </span><span class="s2">function </span><span class="s1">create </span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+  <span class="s2">return new </span><span class="s1">Framer</span><span class="s3">(</span><span class="s1">options</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">setMaxFrameSize </span><span class="s3">= </span><span class="s2">function </span><span class="s1">setMaxFrameSize </span><span class="s3">(</span><span class="s1">size</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">maxFrameSize </span><span class="s3">= </span><span class="s1">size</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_frame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_frame </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">, </span><span class="s1">body</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s1">debug</span><span class="s3">(</span><span class="s0">'id=%d type=%s'</span><span class="s3">, </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">, </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">type</span><span class="s3">)</span>
+
+  <span class="s2">var </span><span class="s1">buffer </span><span class="s3">= </span><span class="s2">new </span><span class="s1">WriteBuffer</span><span class="s3">()</span>
+
+  <span class="s1">buffer</span><span class="s3">.</span><span class="s1">reserve</span><span class="s3">(</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">FRAME_HEADER_SIZE</span><span class="s3">)</span>
+  <span class="s2">var </span><span class="s1">len </span><span class="s3">= </span><span class="s1">buffer</span><span class="s3">.</span><span class="s1">skip</span><span class="s3">(</span><span class="s4">3</span><span class="s3">)</span>
+  <span class="s1">buffer</span><span class="s3">.</span><span class="s1">writeUInt8</span><span class="s3">(</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">frameType</span><span class="s3">[</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">type</span><span class="s3">])</span>
+  <span class="s1">buffer</span><span class="s3">.</span><span class="s1">writeUInt8</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">flags</span><span class="s3">)</span>
+  <span class="s1">buffer</span><span class="s3">.</span><span class="s1">writeUInt32BE</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id </span><span class="s3">&amp; </span><span class="s4">0x7fffffff</span><span class="s3">)</span>
+
+  <span class="s1">body</span><span class="s3">(</span><span class="s1">buffer</span><span class="s3">)</span>
+
+  <span class="s2">var </span><span class="s1">frameSize </span><span class="s3">= </span><span class="s1">buffer</span><span class="s3">.</span><span class="s1">size </span><span class="s3">- </span><span class="s1">constants</span><span class="s3">.</span><span class="s1">FRAME_HEADER_SIZE</span>
+  <span class="s1">len</span><span class="s3">.</span><span class="s1">writeUInt24BE</span><span class="s3">(</span><span class="s1">frameSize</span><span class="s3">)</span>
+
+  <span class="s2">var </span><span class="s1">chunks </span><span class="s3">= </span><span class="s1">buffer</span><span class="s3">.</span><span class="s1">render</span><span class="s3">()</span>
+  <span class="s2">var </span><span class="s1">toWrite </span><span class="s3">= {</span>
+    <span class="s1">stream</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+    <span class="s1">priority</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">priority </span><span class="s3">=== </span><span class="s1">undefined </span><span class="s3">? </span><span class="s2">false </span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">priority</span><span class="s3">,</span>
+    <span class="s1">chunks</span><span class="s3">: </span><span class="s1">chunks</span><span class="s3">,</span>
+    <span class="s1">callback</span><span class="s3">: </span><span class="s1">callback</span>
+  <span class="s3">}</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">window </span><span class="s3">&amp;&amp; </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">type </span><span class="s3">=== </span><span class="s0">'DATA'</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">self </span><span class="s3">= </span><span class="s2">this</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_resetTimeout</span><span class="s3">()</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">window</span><span class="s3">.</span><span class="s1">send</span><span class="s3">.</span><span class="s1">update</span><span class="s3">(-</span><span class="s1">frameSize</span><span class="s3">, </span><span class="s2">function </span><span class="s3">() {</span>
+      <span class="s1">self</span><span class="s3">.</span><span class="s1">_resetTimeout</span><span class="s3">()</span>
+      <span class="s1">self</span><span class="s3">.</span><span class="s1">schedule</span><span class="s3">(</span><span class="s1">toWrite</span><span class="s3">)</span>
+    <span class="s3">})</span>
+  <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_resetTimeout</span><span class="s3">()</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">schedule</span><span class="s3">(</span><span class="s1">toWrite</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s2">return </span><span class="s1">chunks</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_split </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_split </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">buf </span><span class="s3">= </span><span class="s2">new </span><span class="s1">OffsetBuffer</span><span class="s3">()</span>
+  <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">i </span><span class="s3">= </span><span class="s4">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) { </span><span class="s1">buf</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]) }</span>
+
+  <span class="s2">var </span><span class="s1">frames </span><span class="s3">= []</span>
+  <span class="s2">while </span><span class="s3">(!</span><span class="s1">buf</span><span class="s3">.</span><span class="s1">isEmpty</span><span class="s3">()) {</span>
+    <span class="s5">// First frame may have reserved bytes in it</span>
+    <span class="s2">var </span><span class="s1">size </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">maxFrameSize</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">frames</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s4">0</span><span class="s3">) {</span>
+      <span class="s1">size </span><span class="s3">-= </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">reserve</span>
+    <span class="s3">}</span>
+    <span class="s1">size </span><span class="s3">= </span><span class="s1">Math</span><span class="s3">.</span><span class="s1">min</span><span class="s3">(</span><span class="s1">size</span><span class="s3">, </span><span class="s1">buf</span><span class="s3">.</span><span class="s1">size</span><span class="s3">)</span>
+
+    <span class="s2">var </span><span class="s1">frameBuf </span><span class="s3">= </span><span class="s1">buf</span><span class="s3">.</span><span class="s1">clone</span><span class="s3">(</span><span class="s1">size</span><span class="s3">)</span>
+    <span class="s1">buf</span><span class="s3">.</span><span class="s1">skip</span><span class="s3">(</span><span class="s1">size</span><span class="s3">)</span>
+
+    <span class="s1">frames</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({</span>
+      <span class="s1">size</span><span class="s3">: </span><span class="s1">frameBuf</span><span class="s3">.</span><span class="s1">size</span><span class="s3">,</span>
+      <span class="s1">chunks</span><span class="s3">: </span><span class="s1">frameBuf</span><span class="s3">.</span><span class="s1">toChunks</span><span class="s3">()</span>
+    <span class="s3">})</span>
+  <span class="s3">}</span>
+
+  <span class="s2">return </span><span class="s1">frames</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_continuationFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_continuationFrame </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">,</span>
+  <span class="s1">body</span><span class="s3">,</span>
+  <span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">frames </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_split</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">)</span>
+
+  <span class="s1">frames</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">(</span><span class="s2">function </span><span class="s3">(</span><span class="s1">subFrame</span><span class="s3">, </span><span class="s1">i</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">isFirst </span><span class="s3">= </span><span class="s1">i </span><span class="s3">=== </span><span class="s4">0</span>
+    <span class="s2">var </span><span class="s1">isLast </span><span class="s3">= </span><span class="s1">i </span><span class="s3">=== </span><span class="s1">frames</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s4">1</span>
+
+    <span class="s2">var </span><span class="s1">flags </span><span class="s3">= </span><span class="s1">isLast </span><span class="s3">? </span><span class="s1">constants</span><span class="s3">.</span><span class="s1">flags</span><span class="s3">.</span><span class="s1">END_HEADERS </span><span class="s3">: </span><span class="s4">0</span>
+
+    <span class="s5">// PRIORITY and friends</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">isFirst</span><span class="s3">) {</span>
+      <span class="s1">flags </span><span class="s3">|= </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">flags</span>
+    <span class="s3">}</span>
+
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_frame</span><span class="s3">({</span>
+      <span class="s1">id</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+      <span class="s1">priority</span><span class="s3">: </span><span class="s2">false</span><span class="s3">,</span>
+      <span class="s1">type</span><span class="s3">: </span><span class="s1">isFirst </span><span class="s3">? </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">type </span><span class="s3">: </span><span class="s0">'CONTINUATION'</span><span class="s3">,</span>
+      <span class="s1">flags</span><span class="s3">: </span><span class="s1">flags</span>
+    <span class="s3">}, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">buf</span><span class="s3">) {</span>
+      <span class="s5">// Fill those reserved bytes</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">isFirst </span><span class="s3">&amp;&amp; </span><span class="s1">body</span><span class="s3">) { </span><span class="s1">body</span><span class="s3">(</span><span class="s1">buf</span><span class="s3">) }</span>
+
+      <span class="s1">buf</span><span class="s3">.</span><span class="s1">reserve</span><span class="s3">(</span><span class="s1">subFrame</span><span class="s3">.</span><span class="s1">size</span><span class="s3">)</span>
+      <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">i </span><span class="s3">= </span><span class="s4">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">subFrame</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) { </span><span class="s1">buf</span><span class="s3">.</span><span class="s1">copyFrom</span><span class="s3">(</span><span class="s1">subFrame</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]) }</span>
+    <span class="s3">}, </span><span class="s1">isLast </span><span class="s3">? </span><span class="s1">callback </span><span class="s3">: </span><span class="s2">null</span><span class="s3">)</span>
+  <span class="s3">}, </span><span class="s2">this</span><span class="s3">)</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">frames</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s4">0</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_frame</span><span class="s3">({</span>
+      <span class="s1">id</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+      <span class="s1">priority</span><span class="s3">: </span><span class="s2">false</span><span class="s3">,</span>
+      <span class="s1">type</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">type</span><span class="s3">,</span>
+      <span class="s1">flags</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">flags </span><span class="s3">| </span><span class="s1">constants</span><span class="s3">.</span><span class="s1">flags</span><span class="s3">.</span><span class="s1">END_HEADERS</span>
+    <span class="s3">}, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">buf</span><span class="s3">) {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">body</span><span class="s3">) { </span><span class="s1">body</span><span class="s3">(</span><span class="s1">buf</span><span class="s3">) }</span>
+    <span class="s3">}, </span><span class="s1">callback</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_compressHeaders </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_compressHeaders </span><span class="s3">(</span><span class="s1">headers</span><span class="s3">,</span>
+  <span class="s1">pairs</span><span class="s3">,</span>
+  <span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s1">Object</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">(</span><span class="s1">headers </span><span class="s3">|| {}).</span><span class="s1">forEach</span><span class="s3">(</span><span class="s2">function </span><span class="s3">(</span><span class="s1">name</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">lowName </span><span class="s3">= </span><span class="s1">name</span><span class="s3">.</span><span class="s1">toLowerCase</span><span class="s3">()</span>
+
+    <span class="s5">// Not allowed in HTTP2</span>
+    <span class="s2">switch </span><span class="s3">(</span><span class="s1">lowName</span><span class="s3">) {</span>
+      <span class="s2">case </span><span class="s0">'host'</span><span class="s3">:</span>
+      <span class="s2">case </span><span class="s0">'connection'</span><span class="s3">:</span>
+      <span class="s2">case </span><span class="s0">'keep-alive'</span><span class="s3">:</span>
+      <span class="s2">case </span><span class="s0">'proxy-connection'</span><span class="s3">:</span>
+      <span class="s2">case </span><span class="s0">'transfer-encoding'</span><span class="s3">:</span>
+      <span class="s2">case </span><span class="s0">'upgrade'</span><span class="s3">:</span>
+        <span class="s2">return</span>
+    <span class="s3">}</span>
+
+    <span class="s5">// Should be in `pairs`</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s6">/^:/</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">lowName</span><span class="s3">)) {</span>
+      <span class="s2">return</span>
+    <span class="s3">}</span>
+
+    <span class="s5">// Do not compress, or index Cookie field (for security reasons)</span>
+    <span class="s2">var </span><span class="s1">neverIndex </span><span class="s3">= </span><span class="s1">lowName </span><span class="s3">=== </span><span class="s0">'cookie' </span><span class="s3">|| </span><span class="s1">lowName </span><span class="s3">=== </span><span class="s0">'set-cookie'</span>
+
+    <span class="s2">var </span><span class="s1">value </span><span class="s3">= </span><span class="s1">headers</span><span class="s3">[</span><span class="s1">name</span><span class="s3">]</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">Array</span><span class="s3">.</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">value</span><span class="s3">)) {</span>
+      <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">i </span><span class="s3">= </span><span class="s4">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">value</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+        <span class="s1">pairs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({</span>
+          <span class="s1">name</span><span class="s3">: </span><span class="s1">lowName</span><span class="s3">,</span>
+          <span class="s1">value</span><span class="s3">: </span><span class="s1">value</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] + </span><span class="s0">''</span><span class="s3">,</span>
+          <span class="s1">neverIndex</span><span class="s3">: </span><span class="s1">neverIndex</span><span class="s3">,</span>
+          <span class="s1">huffman</span><span class="s3">: !</span><span class="s1">neverIndex</span>
+        <span class="s3">})</span>
+      <span class="s3">}</span>
+    <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+      <span class="s1">pairs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({</span>
+        <span class="s1">name</span><span class="s3">: </span><span class="s1">lowName</span><span class="s3">,</span>
+        <span class="s1">value</span><span class="s3">: </span><span class="s1">value </span><span class="s3">+ </span><span class="s0">''</span><span class="s3">,</span>
+        <span class="s1">neverIndex</span><span class="s3">: </span><span class="s1">neverIndex</span><span class="s3">,</span>
+        <span class="s1">huffman</span><span class="s3">: !</span><span class="s1">neverIndex</span>
+      <span class="s3">})</span>
+    <span class="s3">}</span>
+  <span class="s3">})</span>
+
+  <span class="s1">assert</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">compress </span><span class="s3">!== </span><span class="s2">null</span><span class="s3">, </span><span class="s0">'Framer version not initialized'</span><span class="s3">)</span>
+  <span class="s1">debugExtra</span><span class="s3">(</span><span class="s0">'compressing headers=%j'</span><span class="s3">, </span><span class="s1">pairs</span><span class="s3">)</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">compress</span><span class="s3">.</span><span class="s1">write</span><span class="s3">([ </span><span class="s1">pairs </span><span class="s3">], </span><span class="s1">callback</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_isDefaultPriority </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_isDefaultPriority </span><span class="s3">(</span><span class="s1">priority</span><span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">priority</span><span class="s3">) { </span><span class="s2">return true </span><span class="s3">}</span>
+
+  <span class="s2">return </span><span class="s3">!</span><span class="s1">priority</span><span class="s3">.</span><span class="s1">parent </span><span class="s3">&amp;&amp;</span>
+         <span class="s1">priority</span><span class="s3">.</span><span class="s1">weight </span><span class="s3">=== </span><span class="s1">constants</span><span class="s3">.</span><span class="s1">DEFAULT </span><span class="s3">&amp;&amp;</span>
+         <span class="s3">!</span><span class="s1">priority</span><span class="s3">.</span><span class="s1">exclusive</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_defaultHeaders </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_defaultHeaders </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">, </span><span class="s1">pairs</span><span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">path</span><span class="s3">) {</span>
+    <span class="s2">throw new </span><span class="s1">Error</span><span class="s3">(</span><span class="s0">'`path` is required frame argument'</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s1">pairs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({</span>
+    <span class="s1">name</span><span class="s3">: </span><span class="s0">':method'</span><span class="s3">,</span>
+    <span class="s1">value</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">method </span><span class="s3">|| </span><span class="s1">base</span><span class="s3">.</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">DEFAULT_METHOD</span>
+  <span class="s3">})</span>
+  <span class="s1">pairs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({ </span><span class="s1">name</span><span class="s3">: </span><span class="s0">':path'</span><span class="s3">, </span><span class="s1">value</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">path </span><span class="s3">})</span>
+  <span class="s1">pairs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({ </span><span class="s1">name</span><span class="s3">: </span><span class="s0">':scheme'</span><span class="s3">, </span><span class="s1">value</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">scheme </span><span class="s3">|| </span><span class="s0">'https' </span><span class="s3">})</span>
+  <span class="s1">pairs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({</span>
+    <span class="s1">name</span><span class="s3">: </span><span class="s0">':authority'</span><span class="s3">,</span>
+    <span class="s1">value</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">host </span><span class="s3">||</span>
+           <span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">headers </span><span class="s3">&amp;&amp; </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">headers</span><span class="s3">.</span><span class="s1">host</span><span class="s3">) ||</span>
+           <span class="s1">base</span><span class="s3">.</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">DEFAULT_HOST</span>
+  <span class="s3">})</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_headersFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_headersFrame </span><span class="s3">(</span><span class="s1">kind</span><span class="s3">, </span><span class="s1">frame</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">pairs </span><span class="s3">= []</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">kind </span><span class="s3">=== </span><span class="s0">'request'</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_defaultHeaders</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">, </span><span class="s1">pairs</span><span class="s3">)</span>
+  <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s1">kind </span><span class="s3">=== </span><span class="s0">'response'</span><span class="s3">) {</span>
+    <span class="s1">pairs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({ </span><span class="s1">name</span><span class="s3">: </span><span class="s0">':status'</span><span class="s3">, </span><span class="s1">value</span><span class="s3">: (</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">status </span><span class="s3">|| </span><span class="s4">200</span><span class="s3">) + </span><span class="s0">'' </span><span class="s3">})</span>
+  <span class="s3">}</span>
+
+  <span class="s2">var </span><span class="s1">self </span><span class="s3">= </span><span class="s2">this</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_compressHeaders</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">headers</span><span class="s3">, </span><span class="s1">pairs</span><span class="s3">, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">chunks</span><span class="s3">) {</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+        <span class="s2">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">)</span>
+      <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+        <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s1">err</span><span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s2">var </span><span class="s1">reserve </span><span class="s3">= </span><span class="s4">0</span>
+
+    <span class="s5">// If priority info is present, and the values are not default ones</span>
+    <span class="s5">// reserve space for the priority info and add PRIORITY flag</span>
+    <span class="s2">var </span><span class="s1">priority </span><span class="s3">= </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">priority</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">self</span><span class="s3">.</span><span class="s1">_isDefaultPriority</span><span class="s3">(</span><span class="s1">priority</span><span class="s3">)) { </span><span class="s1">reserve </span><span class="s3">= </span><span class="s4">5 </span><span class="s3">}</span>
+
+    <span class="s2">var </span><span class="s1">flags </span><span class="s3">= </span><span class="s1">reserve </span><span class="s3">=== </span><span class="s4">0 </span><span class="s3">? </span><span class="s4">0 </span><span class="s3">: </span><span class="s1">constants</span><span class="s3">.</span><span class="s1">flags</span><span class="s3">.</span><span class="s1">PRIORITY</span>
+
+    <span class="s5">// Mostly for testing</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">fin</span><span class="s3">) {</span>
+      <span class="s1">flags </span><span class="s3">|= </span><span class="s1">constants</span><span class="s3">.</span><span class="s1">flags</span><span class="s3">.</span><span class="s1">END_STREAM</span>
+    <span class="s3">}</span>
+
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">_continuationFrame</span><span class="s3">({</span>
+      <span class="s1">id</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+      <span class="s1">type</span><span class="s3">: </span><span class="s0">'HEADERS'</span><span class="s3">,</span>
+      <span class="s1">flags</span><span class="s3">: </span><span class="s1">flags</span><span class="s3">,</span>
+      <span class="s1">reserve</span><span class="s3">: </span><span class="s1">reserve</span><span class="s3">,</span>
+      <span class="s1">chunks</span><span class="s3">: </span><span class="s1">chunks</span>
+    <span class="s3">}, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">buf</span><span class="s3">) {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">reserve </span><span class="s3">=== </span><span class="s4">0</span><span class="s3">) {</span>
+        <span class="s2">return</span>
+      <span class="s3">}</span>
+
+      <span class="s1">buf</span><span class="s3">.</span><span class="s1">writeUInt32BE</span><span class="s3">(((</span><span class="s1">priority</span><span class="s3">.</span><span class="s1">exclusive </span><span class="s3">? </span><span class="s4">0x80000000 </span><span class="s3">: </span><span class="s4">0</span><span class="s3">) |</span>
+                         <span class="s1">priority</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">) &gt;&gt;&gt; </span><span class="s4">0</span><span class="s3">)</span>
+      <span class="s1">buf</span><span class="s3">.</span><span class="s1">writeUInt8</span><span class="s3">((</span><span class="s1">priority</span><span class="s3">.</span><span class="s1">weight </span><span class="s3">| </span><span class="s4">0</span><span class="s3">) - </span><span class="s4">1</span><span class="s3">)</span>
+    <span class="s3">}, </span><span class="s1">callback</span><span class="s3">)</span>
+  <span class="s3">})</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">requestFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">requestFrame </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">_headersFrame</span><span class="s3">(</span><span class="s0">'request'</span><span class="s3">, </span><span class="s1">frame</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">responseFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">responseFrame </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">_headersFrame</span><span class="s3">(</span><span class="s0">'response'</span><span class="s3">, </span><span class="s1">frame</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">headersFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">headersFrame </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">_headersFrame</span><span class="s3">(</span><span class="s0">'headers'</span><span class="s3">, </span><span class="s1">frame</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">pushFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">pushFrame </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">self </span><span class="s3">= </span><span class="s2">this</span>
+
+  <span class="s2">function </span><span class="s1">compress </span><span class="s3">(</span><span class="s1">headers</span><span class="s3">, </span><span class="s1">pairs</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">_compressHeaders</span><span class="s3">(</span><span class="s1">headers</span><span class="s3">, </span><span class="s1">pairs</span><span class="s3">, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">chunks</span><span class="s3">) {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+        <span class="s2">if </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+          <span class="s2">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">)</span>
+        <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+          <span class="s2">return </span><span class="s1">self</span><span class="s3">.</span><span class="s1">emit</span><span class="s3">(</span><span class="s0">'error'</span><span class="s3">, </span><span class="s1">err</span><span class="s3">)</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+
+      <span class="s1">callback</span><span class="s3">(</span><span class="s1">chunks</span><span class="s3">)</span>
+    <span class="s3">})</span>
+  <span class="s3">}</span>
+
+  <span class="s2">function </span><span class="s1">sendPromise </span><span class="s3">(</span><span class="s1">chunks</span><span class="s3">) {</span>
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">_continuationFrame</span><span class="s3">({</span>
+      <span class="s1">id</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+      <span class="s1">type</span><span class="s3">: </span><span class="s0">'PUSH_PROMISE'</span><span class="s3">,</span>
+      <span class="s1">reserve</span><span class="s3">: </span><span class="s4">4</span><span class="s3">,</span>
+      <span class="s1">chunks</span><span class="s3">: </span><span class="s1">chunks</span>
+    <span class="s3">}, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">buf</span><span class="s3">) {</span>
+      <span class="s1">buf</span><span class="s3">.</span><span class="s1">writeUInt32BE</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">promisedId</span><span class="s3">)</span>
+    <span class="s3">})</span>
+  <span class="s3">}</span>
+
+  <span class="s2">function </span><span class="s1">sendResponse </span><span class="s3">(</span><span class="s1">chunks</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">priority </span><span class="s3">= </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">priority</span>
+    <span class="s2">var </span><span class="s1">isDefaultPriority </span><span class="s3">= </span><span class="s1">self</span><span class="s3">.</span><span class="s1">_isDefaultPriority</span><span class="s3">(</span><span class="s1">priority</span><span class="s3">)</span>
+    <span class="s2">var </span><span class="s1">flags </span><span class="s3">= </span><span class="s1">isDefaultPriority </span><span class="s3">? </span><span class="s4">0 </span><span class="s3">: </span><span class="s1">constants</span><span class="s3">.</span><span class="s1">flags</span><span class="s3">.</span><span class="s1">PRIORITY</span>
+
+    <span class="s5">// Mostly for testing</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">fin</span><span class="s3">) {</span>
+      <span class="s1">flags </span><span class="s3">|= </span><span class="s1">constants</span><span class="s3">.</span><span class="s1">flags</span><span class="s3">.</span><span class="s1">END_STREAM</span>
+    <span class="s3">}</span>
+
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">_continuationFrame</span><span class="s3">({</span>
+      <span class="s1">id</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">promisedId</span><span class="s3">,</span>
+      <span class="s1">type</span><span class="s3">: </span><span class="s0">'HEADERS'</span><span class="s3">,</span>
+      <span class="s1">flags</span><span class="s3">: </span><span class="s1">flags</span><span class="s3">,</span>
+      <span class="s1">reserve</span><span class="s3">: </span><span class="s1">isDefaultPriority </span><span class="s3">? </span><span class="s4">0 </span><span class="s3">: </span><span class="s4">5</span><span class="s3">,</span>
+      <span class="s1">chunks</span><span class="s3">: </span><span class="s1">chunks</span>
+    <span class="s3">}, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">buf</span><span class="s3">) {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">isDefaultPriority</span><span class="s3">) {</span>
+        <span class="s2">return</span>
+      <span class="s3">}</span>
+
+      <span class="s1">buf</span><span class="s3">.</span><span class="s1">writeUInt32BE</span><span class="s3">((</span><span class="s1">priority</span><span class="s3">.</span><span class="s1">exclusive </span><span class="s3">? </span><span class="s4">0x80000000 </span><span class="s3">: </span><span class="s4">0</span><span class="s3">) |</span>
+                        <span class="s1">priority</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">)</span>
+      <span class="s1">buf</span><span class="s3">.</span><span class="s1">writeUInt8</span><span class="s3">((</span><span class="s1">priority</span><span class="s3">.</span><span class="s1">weight </span><span class="s3">| </span><span class="s4">0</span><span class="s3">) - </span><span class="s4">1</span><span class="s3">)</span>
+    <span class="s3">}, </span><span class="s1">callback</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_checkPush</span><span class="s3">(</span><span class="s2">function </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+      <span class="s2">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">)</span>
+    <span class="s3">}</span>
+
+    <span class="s2">var </span><span class="s1">pairs </span><span class="s3">= {</span>
+      <span class="s1">promise</span><span class="s3">: [],</span>
+      <span class="s1">response</span><span class="s3">: []</span>
+    <span class="s3">}</span>
+
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">_defaultHeaders</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">, </span><span class="s1">pairs</span><span class="s3">.</span><span class="s1">promise</span><span class="s3">)</span>
+    <span class="s1">pairs</span><span class="s3">.</span><span class="s1">response</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({ </span><span class="s1">name</span><span class="s3">: </span><span class="s0">':status'</span><span class="s3">, </span><span class="s1">value</span><span class="s3">: (</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">status </span><span class="s3">|| </span><span class="s4">200</span><span class="s3">) + </span><span class="s0">'' </span><span class="s3">})</span>
+
+    <span class="s1">compress</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">headers</span><span class="s3">, </span><span class="s1">pairs</span><span class="s3">.</span><span class="s1">promise</span><span class="s3">, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">promiseChunks</span><span class="s3">) {</span>
+      <span class="s1">sendPromise</span><span class="s3">(</span><span class="s1">promiseChunks</span><span class="s3">)</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">response </span><span class="s3">=== </span><span class="s2">false</span><span class="s3">) {</span>
+        <span class="s2">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s2">null</span><span class="s3">)</span>
+      <span class="s3">}</span>
+      <span class="s1">compress</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">response</span><span class="s3">, </span><span class="s1">pairs</span><span class="s3">.</span><span class="s1">response</span><span class="s3">, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">responseChunks</span><span class="s3">) {</span>
+        <span class="s1">sendResponse</span><span class="s3">(</span><span class="s1">responseChunks</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">)</span>
+      <span class="s3">})</span>
+    <span class="s3">})</span>
+  <span class="s3">})</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">priorityFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">priorityFrame </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_frame</span><span class="s3">({</span>
+    <span class="s1">id</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+    <span class="s1">priority</span><span class="s3">: </span><span class="s2">false</span><span class="s3">,</span>
+    <span class="s1">type</span><span class="s3">: </span><span class="s0">'PRIORITY'</span><span class="s3">,</span>
+    <span class="s1">flags</span><span class="s3">: </span><span class="s4">0</span>
+  <span class="s3">}, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">buf</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">priority </span><span class="s3">= </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">priority</span>
+    <span class="s1">buf</span><span class="s3">.</span><span class="s1">writeUInt32BE</span><span class="s3">((</span><span class="s1">priority</span><span class="s3">.</span><span class="s1">exclusive </span><span class="s3">? </span><span class="s4">0x80000000 </span><span class="s3">: </span><span class="s4">0</span><span class="s3">) |</span>
+                      <span class="s1">priority</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">)</span>
+    <span class="s1">buf</span><span class="s3">.</span><span class="s1">writeUInt8</span><span class="s3">((</span><span class="s1">priority</span><span class="s3">.</span><span class="s1">weight </span><span class="s3">| </span><span class="s4">0</span><span class="s3">) - </span><span class="s4">1</span><span class="s3">)</span>
+  <span class="s3">}, </span><span class="s1">callback</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">dataFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">dataFrame </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">frames </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_split</span><span class="s3">({</span>
+    <span class="s1">reserve</span><span class="s3">: </span><span class="s4">0</span><span class="s3">,</span>
+    <span class="s1">chunks</span><span class="s3">: [ </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">data </span><span class="s3">]</span>
+  <span class="s3">})</span>
+
+  <span class="s2">var </span><span class="s1">fin </span><span class="s3">= </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">fin </span><span class="s3">? </span><span class="s1">constants</span><span class="s3">.</span><span class="s1">flags</span><span class="s3">.</span><span class="s1">END_STREAM </span><span class="s3">: </span><span class="s4">0</span>
+
+  <span class="s2">var </span><span class="s1">self </span><span class="s3">= </span><span class="s2">this</span>
+  <span class="s1">frames</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">(</span><span class="s2">function </span><span class="s3">(</span><span class="s1">subFrame</span><span class="s3">, </span><span class="s1">i</span><span class="s3">) {</span>
+    <span class="s2">var </span><span class="s1">isLast </span><span class="s3">= </span><span class="s1">i </span><span class="s3">=== </span><span class="s1">frames</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s4">1</span>
+    <span class="s2">var </span><span class="s1">flags </span><span class="s3">= </span><span class="s4">0</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">isLast</span><span class="s3">) {</span>
+      <span class="s1">flags </span><span class="s3">|= </span><span class="s1">fin</span>
+    <span class="s3">}</span>
+
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">_frame</span><span class="s3">({</span>
+      <span class="s1">id</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+      <span class="s1">priority</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">priority</span><span class="s3">,</span>
+      <span class="s1">type</span><span class="s3">: </span><span class="s0">'DATA'</span><span class="s3">,</span>
+      <span class="s1">flags</span><span class="s3">: </span><span class="s1">flags</span>
+    <span class="s3">}, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">buf</span><span class="s3">) {</span>
+      <span class="s1">buf</span><span class="s3">.</span><span class="s1">reserve</span><span class="s3">(</span><span class="s1">subFrame</span><span class="s3">.</span><span class="s1">size</span><span class="s3">)</span>
+      <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">i </span><span class="s3">= </span><span class="s4">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">subFrame</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) { </span><span class="s1">buf</span><span class="s3">.</span><span class="s1">copyFrom</span><span class="s3">(</span><span class="s1">subFrame</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]) }</span>
+    <span class="s3">}, </span><span class="s1">isLast </span><span class="s3">? </span><span class="s1">callback </span><span class="s3">: </span><span class="s2">null</span><span class="s3">)</span>
+  <span class="s3">})</span>
+
+  <span class="s5">// Empty DATA</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">frames</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s4">0</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_frame</span><span class="s3">({</span>
+      <span class="s1">id</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+      <span class="s1">priority</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">priority</span><span class="s3">,</span>
+      <span class="s1">type</span><span class="s3">: </span><span class="s0">'DATA'</span><span class="s3">,</span>
+      <span class="s1">flags</span><span class="s3">: </span><span class="s1">fin</span>
+    <span class="s3">}, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">buf</span><span class="s3">) {</span>
+      <span class="s5">// No-op</span>
+    <span class="s3">}, </span><span class="s1">callback</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">pingFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">pingFrame </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_frame</span><span class="s3">({</span>
+    <span class="s1">id</span><span class="s3">: </span><span class="s4">0</span><span class="s3">,</span>
+    <span class="s1">type</span><span class="s3">: </span><span class="s0">'PING'</span><span class="s3">,</span>
+    <span class="s1">flags</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">ack </span><span class="s3">? </span><span class="s1">constants</span><span class="s3">.</span><span class="s1">flags</span><span class="s3">.</span><span class="s1">ACK </span><span class="s3">: </span><span class="s4">0</span>
+  <span class="s3">}, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">buf</span><span class="s3">) {</span>
+    <span class="s1">buf</span><span class="s3">.</span><span class="s1">copyFrom</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">opaque</span><span class="s3">)</span>
+  <span class="s3">}, </span><span class="s1">callback</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">rstFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">rstFrame </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_frame</span><span class="s3">({</span>
+    <span class="s1">id</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+    <span class="s1">type</span><span class="s3">: </span><span class="s0">'RST_STREAM'</span><span class="s3">,</span>
+    <span class="s1">flags</span><span class="s3">: </span><span class="s4">0</span>
+  <span class="s3">}, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">buf</span><span class="s3">) {</span>
+    <span class="s1">buf</span><span class="s3">.</span><span class="s1">writeUInt32BE</span><span class="s3">(</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">error</span><span class="s3">[</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">code</span><span class="s3">])</span>
+  <span class="s3">}, </span><span class="s1">callback</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">prefaceFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">prefaceFrame </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s1">debug</span><span class="s3">(</span><span class="s0">'preface'</span><span class="s3">)</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_resetTimeout</span><span class="s3">()</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">schedule</span><span class="s3">({</span>
+    <span class="s1">stream</span><span class="s3">: </span><span class="s4">0</span><span class="s3">,</span>
+    <span class="s1">priority</span><span class="s3">: </span><span class="s2">false</span><span class="s3">,</span>
+    <span class="s1">chunks</span><span class="s3">: [ </span><span class="s1">constants</span><span class="s3">.</span><span class="s1">PREFACE_BUFFER </span><span class="s3">],</span>
+    <span class="s1">callback</span><span class="s3">: </span><span class="s1">callback</span>
+  <span class="s3">})</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">settingsFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">settingsFrame </span><span class="s3">(</span><span class="s1">options</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">key </span><span class="s3">= </span><span class="s1">JSON</span><span class="s3">.</span><span class="s1">stringify</span><span class="s3">(</span><span class="s1">options</span><span class="s3">)</span>
+
+  <span class="s2">var </span><span class="s1">settings </span><span class="s3">= </span><span class="s1">Framer</span><span class="s3">.</span><span class="s1">settingsCache</span><span class="s3">[</span><span class="s1">key</span><span class="s3">]</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">settings</span><span class="s3">) {</span>
+    <span class="s1">debug</span><span class="s3">(</span><span class="s0">'cached settings'</span><span class="s3">)</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">_resetTimeout</span><span class="s3">()</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">schedule</span><span class="s3">({</span>
+      <span class="s1">id</span><span class="s3">: </span><span class="s4">0</span><span class="s3">,</span>
+      <span class="s1">priority</span><span class="s3">: </span><span class="s2">false</span><span class="s3">,</span>
+      <span class="s1">chunks</span><span class="s3">: </span><span class="s1">settings</span><span class="s3">,</span>
+      <span class="s1">callback</span><span class="s3">: </span><span class="s1">callback</span>
+    <span class="s3">})</span>
+    <span class="s2">return</span>
+  <span class="s3">}</span>
+
+  <span class="s2">var </span><span class="s1">params </span><span class="s3">= []</span>
+  <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">i </span><span class="s3">= </span><span class="s4">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">constants</span><span class="s3">.</span><span class="s1">settingsIndex</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+    <span class="s2">var </span><span class="s1">name </span><span class="s3">= </span><span class="s1">constants</span><span class="s3">.</span><span class="s1">settingsIndex</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">name</span><span class="s3">) {</span>
+      <span class="s2">continue</span>
+    <span class="s3">}</span>
+
+    <span class="s5">// value: Infinity</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">isFinite</span><span class="s3">(</span><span class="s1">options</span><span class="s3">[</span><span class="s1">name</span><span class="s3">])) {</span>
+      <span class="s2">continue</span>
+    <span class="s3">}</span>
+
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">options</span><span class="s3">[</span><span class="s1">name</span><span class="s3">] !== </span><span class="s1">undefined</span><span class="s3">) {</span>
+      <span class="s1">params</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({ </span><span class="s1">key</span><span class="s3">: </span><span class="s1">i</span><span class="s3">, </span><span class="s1">value</span><span class="s3">: </span><span class="s1">options</span><span class="s3">[</span><span class="s1">name</span><span class="s3">] })</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s2">var </span><span class="s1">bodySize </span><span class="s3">= </span><span class="s1">params</span><span class="s3">.</span><span class="s1">length </span><span class="s3">* </span><span class="s4">6</span>
+
+  <span class="s2">var </span><span class="s1">chunks </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_frame</span><span class="s3">({</span>
+    <span class="s1">id</span><span class="s3">: </span><span class="s4">0</span><span class="s3">,</span>
+    <span class="s1">type</span><span class="s3">: </span><span class="s0">'SETTINGS'</span><span class="s3">,</span>
+    <span class="s1">flags</span><span class="s3">: </span><span class="s4">0</span>
+  <span class="s3">}, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">buffer</span><span class="s3">) {</span>
+    <span class="s1">buffer</span><span class="s3">.</span><span class="s1">reserve</span><span class="s3">(</span><span class="s1">bodySize</span><span class="s3">)</span>
+    <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">i </span><span class="s3">= </span><span class="s4">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">params</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+      <span class="s2">var </span><span class="s1">param </span><span class="s3">= </span><span class="s1">params</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+
+      <span class="s1">buffer</span><span class="s3">.</span><span class="s1">writeUInt16BE</span><span class="s3">(</span><span class="s1">param</span><span class="s3">.</span><span class="s1">key</span><span class="s3">)</span>
+      <span class="s1">buffer</span><span class="s3">.</span><span class="s1">writeUInt32BE</span><span class="s3">(</span><span class="s1">param</span><span class="s3">.</span><span class="s1">value</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">}, </span><span class="s1">callback</span><span class="s3">)</span>
+
+  <span class="s1">Framer</span><span class="s3">.</span><span class="s1">settingsCache</span><span class="s3">[</span><span class="s1">key</span><span class="s3">] = </span><span class="s1">chunks</span>
+<span class="s3">}</span>
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">settingsCache </span><span class="s3">= {}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">ackSettingsFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">ackSettingsFrame </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s5">/* var chunks = */ </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_frame</span><span class="s3">({</span>
+    <span class="s1">id</span><span class="s3">: </span><span class="s4">0</span><span class="s3">,</span>
+    <span class="s1">type</span><span class="s3">: </span><span class="s0">'SETTINGS'</span><span class="s3">,</span>
+    <span class="s1">flags</span><span class="s3">: </span><span class="s1">constants</span><span class="s3">.</span><span class="s1">flags</span><span class="s3">.</span><span class="s1">ACK</span>
+  <span class="s3">}, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">buffer</span><span class="s3">) {</span>
+    <span class="s5">// No-op</span>
+  <span class="s3">}, </span><span class="s1">callback</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">windowUpdateFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">windowUpdateFrame </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">,</span>
+  <span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_frame</span><span class="s3">({</span>
+    <span class="s1">id</span><span class="s3">: </span><span class="s1">frame</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+    <span class="s1">type</span><span class="s3">: </span><span class="s0">'WINDOW_UPDATE'</span><span class="s3">,</span>
+    <span class="s1">flags</span><span class="s3">: </span><span class="s4">0</span>
+  <span class="s3">}, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">buffer</span><span class="s3">) {</span>
+    <span class="s1">buffer</span><span class="s3">.</span><span class="s1">reserve</span><span class="s3">(</span><span class="s4">4</span><span class="s3">)</span>
+    <span class="s1">buffer</span><span class="s3">.</span><span class="s1">writeInt32BE</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">delta</span><span class="s3">)</span>
+  <span class="s3">}, </span><span class="s1">callback</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">goawayFrame </span><span class="s3">= </span><span class="s2">function </span><span class="s1">goawayFrame </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_frame</span><span class="s3">({</span>
+    <span class="s1">type</span><span class="s3">: </span><span class="s0">'GOAWAY'</span><span class="s3">,</span>
+    <span class="s1">id</span><span class="s3">: </span><span class="s4">0</span><span class="s3">,</span>
+    <span class="s1">flags</span><span class="s3">: </span><span class="s4">0</span>
+  <span class="s3">}, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">buf</span><span class="s3">) {</span>
+    <span class="s1">buf</span><span class="s3">.</span><span class="s1">reserve</span><span class="s3">(</span><span class="s4">8</span><span class="s3">)</span>
+
+    <span class="s5">// Last-good-stream-ID</span>
+    <span class="s1">buf</span><span class="s3">.</span><span class="s1">writeUInt32BE</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">lastId </span><span class="s3">&amp; </span><span class="s4">0x7fffffff</span><span class="s3">)</span>
+    <span class="s5">// Code</span>
+    <span class="s1">buf</span><span class="s3">.</span><span class="s1">writeUInt32BE</span><span class="s3">(</span><span class="s1">constants</span><span class="s3">.</span><span class="s1">goaway</span><span class="s3">[</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">code</span><span class="s3">])</span>
+
+    <span class="s5">// Extra debugging information</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">extra</span><span class="s3">) { </span><span class="s1">buf</span><span class="s3">.</span><span class="s1">write</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">extra</span><span class="s3">) }</span>
+  <span class="s3">}, </span><span class="s1">callback</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Framer</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">xForwardedFor </span><span class="s3">= </span><span class="s2">function </span><span class="s1">xForwardedFor </span><span class="s3">(</span><span class="s1">frame</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_frame</span><span class="s3">({</span>
+    <span class="s1">type</span><span class="s3">: </span><span class="s0">'X_FORWARDED_FOR'</span><span class="s3">,</span>
+    <span class="s1">id</span><span class="s3">: </span><span class="s4">0</span><span class="s3">,</span>
+    <span class="s1">flags</span><span class="s3">: </span><span class="s4">0</span>
+  <span class="s3">}, </span><span class="s2">function </span><span class="s3">(</span><span class="s1">buf</span><span class="s3">) {</span>
+    <span class="s1">buf</span><span class="s3">.</span><span class="s1">write</span><span class="s3">(</span><span class="s1">frame</span><span class="s3">.</span><span class="s1">host</span><span class="s3">)</span>
+  <span class="s3">}, </span><span class="s1">callback</span><span class="s3">)</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

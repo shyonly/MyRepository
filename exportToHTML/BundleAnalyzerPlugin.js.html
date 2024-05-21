@@ -1,0 +1,187 @@
+<html>
+<head>
+<title>BundleAnalyzerPlugin.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+BundleAnalyzerPlugin.js</font>
+</center></td></tr></table>
+<pre><span class="s0">&quot;use strict&quot;</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s2">fs </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'fs'</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s2">path </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'path'</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s1">{</span>
+  <span class="s2">bold</span>
+<span class="s1">} = </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'picocolors'</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s2">Logger </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./Logger'</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s2">viewer </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./viewer'</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s2">utils </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./utils'</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s1">{</span>
+  <span class="s2">writeStats</span>
+<span class="s1">} = </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./statsUtils'</span><span class="s1">);</span>
+
+<span class="s3">class </span><span class="s2">BundleAnalyzerPlugin </span><span class="s1">{</span>
+  <span class="s2">constructor</span><span class="s1">(</span><span class="s2">opts </span><span class="s1">= {}) {</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">opts </span><span class="s1">= {</span>
+      <span class="s2">analyzerMode</span><span class="s1">: </span><span class="s0">'server'</span><span class="s1">,</span>
+      <span class="s2">analyzerHost</span><span class="s1">: </span><span class="s0">'127.0.0.1'</span><span class="s1">,</span>
+      <span class="s2">reportFilename</span><span class="s1">: </span><span class="s3">null</span><span class="s1">,</span>
+      <span class="s2">reportTitle</span><span class="s1">: </span><span class="s2">utils</span><span class="s1">.</span><span class="s2">defaultTitle</span><span class="s1">,</span>
+      <span class="s2">defaultSizes</span><span class="s1">: </span><span class="s0">'parsed'</span><span class="s1">,</span>
+      <span class="s2">openAnalyzer</span><span class="s1">: </span><span class="s3">true</span><span class="s1">,</span>
+      <span class="s2">generateStatsFile</span><span class="s1">: </span><span class="s3">false</span><span class="s1">,</span>
+      <span class="s2">statsFilename</span><span class="s1">: </span><span class="s0">'stats.json'</span><span class="s1">,</span>
+      <span class="s2">statsOptions</span><span class="s1">: </span><span class="s3">null</span><span class="s1">,</span>
+      <span class="s2">excludeAssets</span><span class="s1">: </span><span class="s3">null</span><span class="s1">,</span>
+      <span class="s2">logLevel</span><span class="s1">: </span><span class="s0">'info'</span><span class="s1">,</span>
+      <span class="s4">// deprecated</span>
+      <span class="s2">startAnalyzer</span><span class="s1">: </span><span class="s3">true</span><span class="s1">,</span>
+      <span class="s2">analyzerUrl</span><span class="s1">: </span><span class="s2">utils</span><span class="s1">.</span><span class="s2">defaultAnalyzerUrl</span><span class="s1">,</span>
+      <span class="s2">...opts</span><span class="s1">,</span>
+      <span class="s2">analyzerPort</span><span class="s1">: </span><span class="s0">'analyzerPort' </span><span class="s3">in </span><span class="s2">opts </span><span class="s1">? </span><span class="s2">opts</span><span class="s1">.</span><span class="s2">analyzerPort </span><span class="s1">=== </span><span class="s0">'auto' </span><span class="s1">? </span><span class="s5">0 </span><span class="s1">: </span><span class="s2">opts</span><span class="s1">.</span><span class="s2">analyzerPort </span><span class="s1">: </span><span class="s5">8888</span>
+    <span class="s1">};</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">server </span><span class="s1">= </span><span class="s3">null</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">logger </span><span class="s1">= </span><span class="s3">new </span><span class="s2">Logger</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">logLevel</span><span class="s1">);</span>
+  <span class="s1">}</span>
+
+  <span class="s2">apply</span><span class="s1">(</span><span class="s2">compiler</span><span class="s1">) {</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">compiler </span><span class="s1">= </span><span class="s2">compiler</span><span class="s1">;</span>
+
+    <span class="s3">const </span><span class="s2">done </span><span class="s1">= (</span><span class="s2">stats</span><span class="s1">, </span><span class="s2">callback</span><span class="s1">) =&gt; {</span>
+      <span class="s2">callback </span><span class="s1">= </span><span class="s2">callback </span><span class="s1">|| (() =&gt; {});</span>
+
+      <span class="s3">const </span><span class="s2">actions </span><span class="s1">= [];</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">generateStatsFile</span><span class="s1">) {</span>
+        <span class="s2">actions</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(() =&gt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">generateStatsFile</span><span class="s1">(</span><span class="s2">stats</span><span class="s1">.</span><span class="s2">toJson</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">statsOptions</span><span class="s1">)));</span>
+      <span class="s1">} </span><span class="s4">// Handling deprecated `startAnalyzer` flag</span>
+
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">analyzerMode </span><span class="s1">=== </span><span class="s0">'server' </span><span class="s1">&amp;&amp; !</span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">startAnalyzer</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">analyzerMode </span><span class="s1">= </span><span class="s0">'disabled'</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">analyzerMode </span><span class="s1">=== </span><span class="s0">'server'</span><span class="s1">) {</span>
+        <span class="s2">actions</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(() =&gt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">startAnalyzerServer</span><span class="s1">(</span><span class="s2">stats</span><span class="s1">.</span><span class="s2">toJson</span><span class="s1">()));</span>
+      <span class="s1">} </span><span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">analyzerMode </span><span class="s1">=== </span><span class="s0">'static'</span><span class="s1">) {</span>
+        <span class="s2">actions</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(() =&gt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">generateStaticReport</span><span class="s1">(</span><span class="s2">stats</span><span class="s1">.</span><span class="s2">toJson</span><span class="s1">()));</span>
+      <span class="s1">} </span><span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">analyzerMode </span><span class="s1">=== </span><span class="s0">'json'</span><span class="s1">) {</span>
+        <span class="s2">actions</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(() =&gt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">generateJSONReport</span><span class="s1">(</span><span class="s2">stats</span><span class="s1">.</span><span class="s2">toJson</span><span class="s1">()));</span>
+      <span class="s1">}</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">actions</span><span class="s1">.</span><span class="s2">length</span><span class="s1">) {</span>
+        <span class="s4">// Making analyzer logs to be after all webpack logs in the console</span>
+        <span class="s2">setImmediate</span><span class="s1">(</span><span class="s2">async </span><span class="s1">() =&gt; {</span>
+          <span class="s3">try </span><span class="s1">{</span>
+            <span class="s3">await </span><span class="s2">Promise</span><span class="s1">.</span><span class="s2">all</span><span class="s1">(</span><span class="s2">actions</span><span class="s1">.</span><span class="s2">map</span><span class="s1">(</span><span class="s2">action </span><span class="s1">=&gt; </span><span class="s2">action</span><span class="s1">()));</span>
+            <span class="s2">callback</span><span class="s1">();</span>
+          <span class="s1">} </span><span class="s3">catch </span><span class="s1">(</span><span class="s2">e</span><span class="s1">) {</span>
+            <span class="s2">callback</span><span class="s1">(</span><span class="s2">e</span><span class="s1">);</span>
+          <span class="s1">}</span>
+        <span class="s1">});</span>
+      <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+        <span class="s2">callback</span><span class="s1">();</span>
+      <span class="s1">}</span>
+    <span class="s1">};</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">compiler</span><span class="s1">.</span><span class="s2">hooks</span><span class="s1">) {</span>
+      <span class="s2">compiler</span><span class="s1">.</span><span class="s2">hooks</span><span class="s1">.</span><span class="s2">done</span><span class="s1">.</span><span class="s2">tapAsync</span><span class="s1">(</span><span class="s0">'webpack-bundle-analyzer'</span><span class="s1">, </span><span class="s2">done</span><span class="s1">);</span>
+    <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+      <span class="s2">compiler</span><span class="s1">.</span><span class="s2">plugin</span><span class="s1">(</span><span class="s0">'done'</span><span class="s1">, </span><span class="s2">done</span><span class="s1">);</span>
+    <span class="s1">}</span>
+  <span class="s1">}</span>
+
+  <span class="s2">async generateStatsFile</span><span class="s1">(</span><span class="s2">stats</span><span class="s1">) {</span>
+    <span class="s3">const </span><span class="s2">statsFilepath </span><span class="s1">= </span><span class="s2">path</span><span class="s1">.</span><span class="s2">resolve</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">compiler</span><span class="s1">.</span><span class="s2">outputPath</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">statsFilename</span><span class="s1">);</span>
+    <span class="s3">await </span><span class="s2">fs</span><span class="s1">.</span><span class="s2">promises</span><span class="s1">.</span><span class="s2">mkdir</span><span class="s1">(</span><span class="s2">path</span><span class="s1">.</span><span class="s2">dirname</span><span class="s1">(</span><span class="s2">statsFilepath</span><span class="s1">), {</span>
+      <span class="s2">recursive</span><span class="s1">: </span><span class="s3">true</span>
+    <span class="s1">});</span>
+
+    <span class="s3">try </span><span class="s1">{</span>
+      <span class="s3">await </span><span class="s2">writeStats</span><span class="s1">(</span><span class="s2">stats</span><span class="s1">, </span><span class="s2">statsFilepath</span><span class="s1">);</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">info</span><span class="s1">(</span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">bold</span><span class="s1">(</span><span class="s0">'Webpack Bundle Analyzer'</span><span class="s1">)} </span><span class="s0">saved stats file to </span><span class="s2">$</span><span class="s1">{</span><span class="s2">bold</span><span class="s1">(</span><span class="s2">statsFilepath</span><span class="s1">)}</span><span class="s0">`</span><span class="s1">);</span>
+    <span class="s1">} </span><span class="s3">catch </span><span class="s1">(</span><span class="s2">error</span><span class="s1">) {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">error</span><span class="s1">(</span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">bold</span><span class="s1">(</span><span class="s0">'Webpack Bundle Analyzer'</span><span class="s1">)} </span><span class="s0">error saving stats file to </span><span class="s2">$</span><span class="s1">{</span><span class="s2">bold</span><span class="s1">(</span><span class="s2">statsFilepath</span><span class="s1">)}</span><span class="s0">: </span><span class="s2">$</span><span class="s1">{</span><span class="s2">error</span><span class="s1">}</span><span class="s0">`</span><span class="s1">);</span>
+    <span class="s1">}</span>
+  <span class="s1">}</span>
+
+  <span class="s2">async startAnalyzerServer</span><span class="s1">(</span><span class="s2">stats</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">) {</span>
+      <span class="s1">(</span><span class="s3">await this</span><span class="s1">.</span><span class="s2">server</span><span class="s1">).</span><span class="s2">updateChartData</span><span class="s1">(</span><span class="s2">stats</span><span class="s1">);</span>
+    <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">server </span><span class="s1">= </span><span class="s2">viewer</span><span class="s1">.</span><span class="s2">startServer</span><span class="s1">(</span><span class="s2">stats</span><span class="s1">, {</span>
+        <span class="s2">openBrowser</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">openAnalyzer</span><span class="s1">,</span>
+        <span class="s2">host</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">analyzerHost</span><span class="s1">,</span>
+        <span class="s2">port</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">analyzerPort</span><span class="s1">,</span>
+        <span class="s2">reportTitle</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">reportTitle</span><span class="s1">,</span>
+        <span class="s2">bundleDir</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">getBundleDirFromCompiler</span><span class="s1">(),</span>
+        <span class="s2">logger</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">,</span>
+        <span class="s2">defaultSizes</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">defaultSizes</span><span class="s1">,</span>
+        <span class="s2">excludeAssets</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">excludeAssets</span><span class="s1">,</span>
+        <span class="s2">analyzerUrl</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">analyzerUrl</span>
+      <span class="s1">});</span>
+    <span class="s1">}</span>
+  <span class="s1">}</span>
+
+  <span class="s2">async generateJSONReport</span><span class="s1">(</span><span class="s2">stats</span><span class="s1">) {</span>
+    <span class="s3">await </span><span class="s2">viewer</span><span class="s1">.</span><span class="s2">generateJSONReport</span><span class="s1">(</span><span class="s2">stats</span><span class="s1">, {</span>
+      <span class="s2">reportFilename</span><span class="s1">: </span><span class="s2">path</span><span class="s1">.</span><span class="s2">resolve</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">compiler</span><span class="s1">.</span><span class="s2">outputPath</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">reportFilename </span><span class="s1">|| </span><span class="s0">'report.json'</span><span class="s1">),</span>
+      <span class="s2">bundleDir</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">getBundleDirFromCompiler</span><span class="s1">(),</span>
+      <span class="s2">logger</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">,</span>
+      <span class="s2">excludeAssets</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">excludeAssets</span>
+    <span class="s1">});</span>
+  <span class="s1">}</span>
+
+  <span class="s2">async generateStaticReport</span><span class="s1">(</span><span class="s2">stats</span><span class="s1">) {</span>
+    <span class="s3">await </span><span class="s2">viewer</span><span class="s1">.</span><span class="s2">generateReport</span><span class="s1">(</span><span class="s2">stats</span><span class="s1">, {</span>
+      <span class="s2">openBrowser</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">openAnalyzer</span><span class="s1">,</span>
+      <span class="s2">reportFilename</span><span class="s1">: </span><span class="s2">path</span><span class="s1">.</span><span class="s2">resolve</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">compiler</span><span class="s1">.</span><span class="s2">outputPath</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">reportFilename </span><span class="s1">|| </span><span class="s0">'report.html'</span><span class="s1">),</span>
+      <span class="s2">reportTitle</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">reportTitle</span><span class="s1">,</span>
+      <span class="s2">bundleDir</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">getBundleDirFromCompiler</span><span class="s1">(),</span>
+      <span class="s2">logger</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">,</span>
+      <span class="s2">defaultSizes</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">defaultSizes</span><span class="s1">,</span>
+      <span class="s2">excludeAssets</span><span class="s1">: </span><span class="s3">this</span><span class="s1">.</span><span class="s2">opts</span><span class="s1">.</span><span class="s2">excludeAssets</span>
+    <span class="s1">});</span>
+  <span class="s1">}</span>
+
+  <span class="s2">getBundleDirFromCompiler</span><span class="s1">() {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">typeof this</span><span class="s1">.</span><span class="s2">compiler</span><span class="s1">.</span><span class="s2">outputFileSystem</span><span class="s1">.</span><span class="s2">constructor </span><span class="s1">=== </span><span class="s0">'undefined'</span><span class="s1">) {</span>
+      <span class="s3">return this</span><span class="s1">.</span><span class="s2">compiler</span><span class="s1">.</span><span class="s2">outputPath</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s3">switch </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">compiler</span><span class="s1">.</span><span class="s2">outputFileSystem</span><span class="s1">.</span><span class="s2">constructor</span><span class="s1">.</span><span class="s2">name</span><span class="s1">) {</span>
+      <span class="s3">case </span><span class="s0">'MemoryFileSystem'</span><span class="s1">:</span>
+        <span class="s3">return null</span><span class="s1">;</span>
+      <span class="s4">// Detect AsyncMFS used by Nuxt 2.5 that replaces webpack's MFS during development</span>
+      <span class="s4">// Related: #274</span>
+
+      <span class="s3">case </span><span class="s0">'AsyncMFS'</span><span class="s1">:</span>
+        <span class="s3">return null</span><span class="s1">;</span>
+
+      <span class="s3">default</span><span class="s1">:</span>
+        <span class="s3">return this</span><span class="s1">.</span><span class="s2">compiler</span><span class="s1">.</span><span class="s2">outputPath</span><span class="s1">;</span>
+    <span class="s1">}</span>
+  <span class="s1">}</span>
+
+<span class="s1">}</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= </span><span class="s2">BundleAnalyzerPlugin</span><span class="s1">;</span></pre>
+</body>
+</html>

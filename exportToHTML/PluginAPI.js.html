@@ -1,0 +1,241 @@
+<html>
+<head>
+<title>PluginAPI.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #67a37c; font-style: italic;}
+.s7 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+PluginAPI.js</font>
+</center></td></tr></table>
+<pre><span class="s0">const </span><span class="s1">path </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'path'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s1">hash </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'hash-sum'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s2">{ </span><span class="s1">semver</span><span class="s2">, </span><span class="s1">matchesPluginId </span><span class="s2">} = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'@vue/cli-shared-utils'</span><span class="s2">)</span>
+
+<span class="s4">// Note: if a plugin-registered command needs to run in a specific default mode,</span>
+<span class="s4">// the plugin needs to expose it via `module.exports.defaultModes` in the form</span>
+<span class="s4">// of { [commandName]: mode }. This is because the command mode needs to be</span>
+<span class="s4">// known and applied before loading user options / applying plugins.</span>
+
+<span class="s0">class </span><span class="s1">PluginAPI </span><span class="s2">{</span>
+  <span class="s5">/**</span>
+   <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} id - Id of the plugin.</span>
+   <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Service} service - A vue-cli-service instance.</span>
+   <span class="s5">*/</span>
+  <span class="s1">constructor </span><span class="s2">(</span><span class="s1">id</span><span class="s2">, </span><span class="s1">service</span><span class="s2">) {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">id </span><span class="s2">= </span><span class="s1">id</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">service </span><span class="s2">= </span><span class="s1">service</span>
+  <span class="s2">}</span>
+
+  <span class="s1">get version </span><span class="s2">() {</span>
+    <span class="s0">return </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'../package.json'</span><span class="s2">).</span><span class="s1">version</span>
+  <span class="s2">}</span>
+
+  <span class="s1">assertVersion </span><span class="s2">(</span><span class="s1">range</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">range </span><span class="s2">=== </span><span class="s3">'number'</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(!</span><span class="s1">Number</span><span class="s2">.</span><span class="s1">isInteger</span><span class="s2">(</span><span class="s1">range</span><span class="s2">)) {</span>
+        <span class="s0">throw new </span><span class="s1">Error</span><span class="s2">(</span><span class="s3">'Expected string or integer value.'</span><span class="s2">)</span>
+      <span class="s2">}</span>
+      <span class="s1">range </span><span class="s2">= </span><span class="s3">`^</span><span class="s1">$</span><span class="s2">{</span><span class="s1">range</span><span class="s2">}</span><span class="s3">.0.0-0`</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">range </span><span class="s2">!== </span><span class="s3">'string'</span><span class="s2">) {</span>
+      <span class="s0">throw new </span><span class="s1">Error</span><span class="s2">(</span><span class="s3">'Expected string or integer value.'</span><span class="s2">)</span>
+    <span class="s2">}</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">semver</span><span class="s2">.</span><span class="s1">satisfies</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">version</span><span class="s2">, </span><span class="s1">range</span><span class="s2">, { </span><span class="s1">includePrerelease</span><span class="s2">: </span><span class="s0">true </span><span class="s2">})) </span><span class="s0">return</span>
+
+    <span class="s0">throw new </span><span class="s1">Error</span><span class="s2">(</span>
+      <span class="s3">`Require @vue/cli-service &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">range</span><span class="s2">}</span><span class="s3">&quot;, but was loaded with &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s0">this</span><span class="s2">.</span><span class="s1">version</span><span class="s2">}</span><span class="s3">&quot;.`</span>
+    <span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Current working directory.</span>
+   <span class="s5">*/</span>
+  <span class="s1">getCwd </span><span class="s2">() {</span>
+    <span class="s0">return this</span><span class="s2">.</span><span class="s1">service</span><span class="s2">.</span><span class="s1">context</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Resolve path for a project.</span>
+   <span class="s5">*</span>
+   <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} _path - Relative path from project root</span>
+   <span class="s5">* </span><span class="s6">@return </span><span class="s5">{string} The resolved absolute path.</span>
+   <span class="s5">*/</span>
+  <span class="s1">resolve </span><span class="s2">(</span><span class="s1">_path</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">path</span><span class="s2">.</span><span class="s1">resolve</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">service</span><span class="s2">.</span><span class="s1">context</span><span class="s2">, </span><span class="s1">_path</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Check if the project has a given plugin.</span>
+   <span class="s5">*</span>
+   <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} id - Plugin id, can omit the (@vue/|vue-|@scope/vue)-cli-plugin- prefix</span>
+   <span class="s5">* </span><span class="s6">@return </span><span class="s5">{boolean}</span>
+   <span class="s5">*/</span>
+  <span class="s1">hasPlugin </span><span class="s2">(</span><span class="s1">id</span><span class="s2">) {</span>
+    <span class="s0">return this</span><span class="s2">.</span><span class="s1">service</span><span class="s2">.</span><span class="s1">plugins</span><span class="s2">.</span><span class="s1">some</span><span class="s2">(</span><span class="s1">p </span><span class="s2">=&gt; </span><span class="s1">matchesPluginId</span><span class="s2">(</span><span class="s1">id</span><span class="s2">, </span><span class="s1">p</span><span class="s2">.</span><span class="s1">id</span><span class="s2">))</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Register a command that will become available as `vue-cli-service [name]`.</span>
+   <span class="s5">*</span>
+   <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} name</span>
+   <span class="s5">* </span><span class="s6">@param </span><span class="s5">{object} [opts]</span>
+   <span class="s5">*   {</span>
+   <span class="s5">*     description: string,</span>
+   <span class="s5">*     usage: string,</span>
+   <span class="s5">*     options: { [string]: string }</span>
+   <span class="s5">*   }</span>
+   <span class="s5">* </span><span class="s6">@param </span><span class="s5">{function} fn</span>
+   <span class="s5">*   (args: { [string]: string }, rawArgs: string[]) =&gt; ?Promise</span>
+   <span class="s5">*/</span>
+  <span class="s1">registerCommand </span><span class="s2">(</span><span class="s1">name</span><span class="s2">, </span><span class="s1">opts</span><span class="s2">, </span><span class="s1">fn</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">opts </span><span class="s2">=== </span><span class="s3">'function'</span><span class="s2">) {</span>
+      <span class="s1">fn </span><span class="s2">= </span><span class="s1">opts</span>
+      <span class="s1">opts </span><span class="s2">= </span><span class="s0">null</span>
+    <span class="s2">}</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">service</span><span class="s2">.</span><span class="s1">commands</span><span class="s2">[</span><span class="s1">name</span><span class="s2">] = { </span><span class="s1">fn</span><span class="s2">, </span><span class="s1">opts</span><span class="s2">: </span><span class="s1">opts </span><span class="s2">|| {} }</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Register a function that will receive a chainable webpack config</span>
+   <span class="s5">* the function is lazy and won't be called until `resolveWebpackConfig` is</span>
+   <span class="s5">* called</span>
+   <span class="s5">*</span>
+   <span class="s5">* </span><span class="s6">@param </span><span class="s5">{function} fn</span>
+   <span class="s5">*/</span>
+  <span class="s1">chainWebpack </span><span class="s2">(</span><span class="s1">fn</span><span class="s2">) {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">service</span><span class="s2">.</span><span class="s1">webpackChainFns</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">fn</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Register</span>
+   <span class="s5">* - a webpack configuration object that will be merged into the config</span>
+   <span class="s5">* OR</span>
+   <span class="s5">* - a function that will receive the raw webpack config.</span>
+   <span class="s5">*   the function can either mutate the config directly or return an object</span>
+   <span class="s5">*   that will be merged into the config.</span>
+   <span class="s5">*</span>
+   <span class="s5">* </span><span class="s6">@param </span><span class="s5">{object | function} fn</span>
+   <span class="s5">*/</span>
+  <span class="s1">configureWebpack </span><span class="s2">(</span><span class="s1">fn</span><span class="s2">) {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">service</span><span class="s2">.</span><span class="s1">webpackRawConfigFns</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">fn</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Register a dev serve config function. It will receive the express `app`</span>
+   <span class="s5">* instance of the dev server.</span>
+   <span class="s5">*</span>
+   <span class="s5">* </span><span class="s6">@param </span><span class="s5">{function} fn</span>
+   <span class="s5">*/</span>
+  <span class="s1">configureDevServer </span><span class="s2">(</span><span class="s1">fn</span><span class="s2">) {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">service</span><span class="s2">.</span><span class="s1">devServerConfigFns</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">fn</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Resolve the final raw webpack config, that will be passed to webpack.</span>
+   <span class="s5">*</span>
+   <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ChainableWebpackConfig} [chainableConfig]</span>
+   <span class="s5">* </span><span class="s6">@return </span><span class="s5">{object} Raw webpack config.</span>
+   <span class="s5">*/</span>
+  <span class="s1">resolveWebpackConfig </span><span class="s2">(</span><span class="s1">chainableConfig</span><span class="s2">) {</span>
+    <span class="s0">return this</span><span class="s2">.</span><span class="s1">service</span><span class="s2">.</span><span class="s1">resolveWebpackConfig</span><span class="s2">(</span><span class="s1">chainableConfig</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Resolve an intermediate chainable webpack config instance, which can be</span>
+   <span class="s5">* further tweaked before generating the final raw webpack config.</span>
+   <span class="s5">* You can call this multiple times to generate different branches of the</span>
+   <span class="s5">* base webpack config.</span>
+   <span class="s5">* See https://github.com/mozilla-neutrino/webpack-chain</span>
+   <span class="s5">*</span>
+   <span class="s5">* </span><span class="s6">@return </span><span class="s5">{ChainableWebpackConfig}</span>
+   <span class="s5">*/</span>
+  <span class="s1">resolveChainableWebpackConfig </span><span class="s2">() {</span>
+    <span class="s0">return this</span><span class="s2">.</span><span class="s1">service</span><span class="s2">.</span><span class="s1">resolveChainableWebpackConfig</span><span class="s2">()</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Generate a cache identifier from a number of variables</span>
+   <span class="s5">*/</span>
+  <span class="s1">genCacheConfig </span><span class="s2">(</span><span class="s1">id</span><span class="s2">, </span><span class="s1">partialIdentifier</span><span class="s2">, </span><span class="s1">configFiles </span><span class="s2">= []) {</span>
+    <span class="s0">const </span><span class="s1">fs </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'fs'</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">cacheDirectory </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">resolve</span><span class="s2">(</span><span class="s3">`node_modules/.cache/</span><span class="s1">$</span><span class="s2">{</span><span class="s1">id</span><span class="s2">}</span><span class="s3">`</span><span class="s2">)</span>
+
+    <span class="s4">// replace \r\n to \n generate consistent hash</span>
+    <span class="s0">const </span><span class="s1">fmtFunc </span><span class="s2">= </span><span class="s1">conf </span><span class="s2">=&gt; {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">conf </span><span class="s2">=== </span><span class="s3">'function'</span><span class="s2">) {</span>
+        <span class="s0">return </span><span class="s1">conf</span><span class="s2">.</span><span class="s1">toString</span><span class="s2">().</span><span class="s1">replace</span><span class="s2">(</span><span class="s7">/\r\n?/g</span><span class="s2">, </span><span class="s3">'</span><span class="s0">\n</span><span class="s3">'</span><span class="s2">)</span>
+      <span class="s2">}</span>
+      <span class="s0">return </span><span class="s1">conf</span>
+    <span class="s2">}</span>
+
+    <span class="s0">const </span><span class="s1">variables </span><span class="s2">= {</span>
+      <span class="s1">partialIdentifier</span><span class="s2">,</span>
+      <span class="s3">'cli-service'</span><span class="s2">: </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'../package.json'</span><span class="s2">).</span><span class="s1">version</span><span class="s2">,</span>
+      <span class="s1">env</span><span class="s2">: </span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">NODE_ENV</span><span class="s2">,</span>
+      <span class="s1">test</span><span class="s2">: !!</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">VUE_CLI_TEST</span><span class="s2">,</span>
+      <span class="s1">config</span><span class="s2">: [</span>
+        <span class="s1">fmtFunc</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">service</span><span class="s2">.</span><span class="s1">projectOptions</span><span class="s2">.</span><span class="s1">chainWebpack</span><span class="s2">),</span>
+        <span class="s1">fmtFunc</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">service</span><span class="s2">.</span><span class="s1">projectOptions</span><span class="s2">.</span><span class="s1">configureWebpack</span><span class="s2">)</span>
+      <span class="s2">]</span>
+    <span class="s2">}</span>
+
+    <span class="s0">try </span><span class="s2">{</span>
+      <span class="s1">variables</span><span class="s2">[</span><span class="s3">'cache-loader'</span><span class="s2">] = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'cache-loader/package.json'</span><span class="s2">).</span><span class="s1">version</span>
+    <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">e</span><span class="s2">) {</span>
+      <span class="s4">// cache-loader is only intended to be used for webpack 4</span>
+    <span class="s2">}</span>
+
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">configFiles</span><span class="s2">)) {</span>
+      <span class="s1">configFiles </span><span class="s2">= [</span><span class="s1">configFiles</span><span class="s2">]</span>
+    <span class="s2">}</span>
+    <span class="s1">configFiles </span><span class="s2">= </span><span class="s1">configFiles</span><span class="s2">.</span><span class="s1">concat</span><span class="s2">([</span>
+      <span class="s3">'package-lock.json'</span><span class="s2">,</span>
+      <span class="s3">'yarn.lock'</span><span class="s2">,</span>
+      <span class="s3">'pnpm-lock.yaml'</span>
+    <span class="s2">])</span>
+
+    <span class="s0">const </span><span class="s1">readConfig </span><span class="s2">= </span><span class="s1">file </span><span class="s2">=&gt; {</span>
+      <span class="s0">const </span><span class="s1">absolutePath </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">resolve</span><span class="s2">(</span><span class="s1">file</span><span class="s2">)</span>
+      <span class="s0">if </span><span class="s2">(!</span><span class="s1">fs</span><span class="s2">.</span><span class="s1">existsSync</span><span class="s2">(</span><span class="s1">absolutePath</span><span class="s2">)) {</span>
+        <span class="s0">return</span>
+      <span class="s2">}</span>
+
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">absolutePath</span><span class="s2">.</span><span class="s1">endsWith</span><span class="s2">(</span><span class="s3">'.js'</span><span class="s2">)) {</span>
+        <span class="s4">// should evaluate config scripts to reflect environment variable changes</span>
+        <span class="s0">try </span><span class="s2">{</span>
+          <span class="s0">return </span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">stringify</span><span class="s2">(</span><span class="s1">require</span><span class="s2">(</span><span class="s1">absolutePath</span><span class="s2">))</span>
+        <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">e</span><span class="s2">) {</span>
+          <span class="s0">return </span><span class="s1">fs</span><span class="s2">.</span><span class="s1">readFileSync</span><span class="s2">(</span><span class="s1">absolutePath</span><span class="s2">, </span><span class="s3">'utf-8'</span><span class="s2">)</span>
+        <span class="s2">}</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s0">return </span><span class="s1">fs</span><span class="s2">.</span><span class="s1">readFileSync</span><span class="s2">(</span><span class="s1">absolutePath</span><span class="s2">, </span><span class="s3">'utf-8'</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s1">variables</span><span class="s2">.</span><span class="s1">configFiles </span><span class="s2">= </span><span class="s1">configFiles</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">file </span><span class="s2">=&gt; {</span>
+      <span class="s0">const </span><span class="s1">content </span><span class="s2">= </span><span class="s1">readConfig</span><span class="s2">(</span><span class="s1">file</span><span class="s2">)</span>
+      <span class="s0">return </span><span class="s1">content </span><span class="s2">&amp;&amp; </span><span class="s1">content</span><span class="s2">.</span><span class="s1">replace</span><span class="s2">(</span><span class="s7">/\r\n?/g</span><span class="s2">, </span><span class="s3">'</span><span class="s0">\n</span><span class="s3">'</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s0">const </span><span class="s1">cacheIdentifier </span><span class="s2">= </span><span class="s1">hash</span><span class="s2">(</span><span class="s1">variables</span><span class="s2">)</span>
+    <span class="s0">return </span><span class="s2">{ </span><span class="s1">cacheDirectory</span><span class="s2">, </span><span class="s1">cacheIdentifier </span><span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= </span><span class="s1">PluginAPI</span>
+</pre>
+</body>
+</html>

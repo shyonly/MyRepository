@@ -1,0 +1,94 @@
+<html>
+<head>
+<title>RestrictionsPlugin.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #cf8e6d;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+RestrictionsPlugin.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+    MIT License http://www.opensource.org/licenses/mit-license.php 
+    Author Ivan Kopeykin @vankop 
+*/</span>
+
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;./Resolver&quot;)} Resolver */</span>
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;./Resolver&quot;).ResolveStepHook} ResolveStepHook */</span>
+
+<span class="s6">const </span><span class="s1">slashCode </span><span class="s3">= </span><span class="s2">&quot;/&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">backslashCode </span><span class="s3">= </span><span class="s2">&quot;</span><span class="s6">\\</span><span class="s2">&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} path path</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} parent parent path</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{boolean} true, if path is inside of parent</span>
+ <span class="s4">*/</span>
+<span class="s6">const </span><span class="s1">isInside </span><span class="s3">= (</span><span class="s1">path</span><span class="s3">, </span><span class="s1">parent</span><span class="s3">) =&gt; {</span>
+	<span class="s6">if </span><span class="s3">(!</span><span class="s1">path</span><span class="s3">.</span><span class="s1">startsWith</span><span class="s3">(</span><span class="s1">parent</span><span class="s3">)) </span><span class="s6">return false</span><span class="s3">;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s1">parent</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return true</span><span class="s3">;</span>
+	<span class="s6">const </span><span class="s1">charCode </span><span class="s3">= </span><span class="s1">path</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">parent</span><span class="s3">.</span><span class="s1">length</span><span class="s3">);</span>
+	<span class="s6">return </span><span class="s1">charCode </span><span class="s3">=== </span><span class="s1">slashCode </span><span class="s3">|| </span><span class="s1">charCode </span><span class="s3">=== </span><span class="s1">backslashCode</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s6">class </span><span class="s1">RestrictionsPlugin </span><span class="s3">{</span>
+	<span class="s4">/**</span>
+	 <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string | ResolveStepHook} source source</span>
+	 <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Set&lt;string | RegExp&gt;} restrictions restrictions</span>
+	 <span class="s4">*/</span>
+	<span class="s1">constructor</span><span class="s3">(</span><span class="s1">source</span><span class="s3">, </span><span class="s1">restrictions</span><span class="s3">) {</span>
+		<span class="s6">this</span><span class="s3">.</span><span class="s1">source </span><span class="s3">= </span><span class="s1">source</span><span class="s3">;</span>
+		<span class="s6">this</span><span class="s3">.</span><span class="s1">restrictions </span><span class="s3">= </span><span class="s1">restrictions</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s4">/**</span>
+	 <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Resolver} resolver the resolver</span>
+	 <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{void}</span>
+	 <span class="s4">*/</span>
+	<span class="s1">apply</span><span class="s3">(</span><span class="s1">resolver</span><span class="s3">) {</span>
+		<span class="s1">resolver</span>
+			<span class="s3">.</span><span class="s1">getHook</span><span class="s3">(</span><span class="s6">this</span><span class="s3">.</span><span class="s1">source</span><span class="s3">)</span>
+			<span class="s3">.</span><span class="s1">tapAsync</span><span class="s3">(</span><span class="s2">&quot;RestrictionsPlugin&quot;</span><span class="s3">, (</span><span class="s1">request</span><span class="s3">, </span><span class="s1">resolveContext</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) =&gt; {</span>
+				<span class="s6">if </span><span class="s3">(</span><span class="s6">typeof </span><span class="s1">request</span><span class="s3">.</span><span class="s1">path </span><span class="s3">=== </span><span class="s2">&quot;string&quot;</span><span class="s3">) {</span>
+					<span class="s6">const </span><span class="s1">path </span><span class="s3">= </span><span class="s1">request</span><span class="s3">.</span><span class="s1">path</span><span class="s3">;</span>
+					<span class="s6">for </span><span class="s3">(</span><span class="s6">const </span><span class="s1">rule of </span><span class="s6">this</span><span class="s3">.</span><span class="s1">restrictions</span><span class="s3">) {</span>
+						<span class="s6">if </span><span class="s3">(</span><span class="s6">typeof </span><span class="s1">rule </span><span class="s3">=== </span><span class="s2">&quot;string&quot;</span><span class="s3">) {</span>
+							<span class="s6">if </span><span class="s3">(!</span><span class="s1">isInside</span><span class="s3">(</span><span class="s1">path</span><span class="s3">, </span><span class="s1">rule</span><span class="s3">)) {</span>
+								<span class="s6">if </span><span class="s3">(</span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">log</span><span class="s3">) {</span>
+									<span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">log</span><span class="s3">(</span>
+										<span class="s2">`</span><span class="s1">$</span><span class="s3">{</span><span class="s1">path</span><span class="s3">} </span><span class="s2">is not inside of the restriction </span><span class="s1">$</span><span class="s3">{</span><span class="s1">rule</span><span class="s3">}</span><span class="s2">`</span>
+									<span class="s3">);</span>
+								<span class="s3">}</span>
+								<span class="s6">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s6">null</span><span class="s3">, </span><span class="s6">null</span><span class="s3">);</span>
+							<span class="s3">}</span>
+						<span class="s3">} </span><span class="s6">else if </span><span class="s3">(!</span><span class="s1">rule</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">path</span><span class="s3">)) {</span>
+							<span class="s6">if </span><span class="s3">(</span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">log</span><span class="s3">) {</span>
+								<span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">log</span><span class="s3">(</span>
+									<span class="s2">`</span><span class="s1">$</span><span class="s3">{</span><span class="s1">path</span><span class="s3">} </span><span class="s2">doesn't match the restriction </span><span class="s1">$</span><span class="s3">{</span><span class="s1">rule</span><span class="s3">}</span><span class="s2">`</span>
+								<span class="s3">);</span>
+							<span class="s3">}</span>
+							<span class="s6">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s6">null</span><span class="s3">, </span><span class="s6">null</span><span class="s3">);</span>
+						<span class="s3">}</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+
+				<span class="s1">callback</span><span class="s3">();</span>
+			<span class="s3">});</span>
+	<span class="s3">}</span>
+<span class="s3">};</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,235 @@
+<html>
+<head>
+<title>component.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #7a7e85;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #67a37c; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+component.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">type VNode from </span><span class="s2">'core/vdom/vnode'</span>
+<span class="s0">import </span><span class="s1">type Watcher from </span><span class="s2">'core/observer/watcher'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">ComponentOptions </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./options'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">SetupContext </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'v3/apiSetup'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">ScopedSlotsData</span><span class="s3">, </span><span class="s1">VNodeChildren</span><span class="s3">, </span><span class="s1">VNodeData </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./vnode'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">GlobalAPI </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./global-api'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">EffectScope </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'v3/reactivity/effectScope'</span>
+
+<span class="s4">// TODO this should be using the same as /component/</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@internal</span>
+ <span class="s5">*/</span>
+<span class="s0">export </span><span class="s1">declare </span><span class="s0">class </span><span class="s1">Component </span><span class="s3">{</span>
+  <span class="s1">constructor</span><span class="s3">(</span><span class="s1">options</span><span class="s3">?: </span><span class="s1">any</span><span class="s3">)</span>
+  <span class="s4">// constructor information</span>
+  <span class="s0">static </span><span class="s1">cid</span><span class="s3">: </span><span class="s1">number</span>
+  <span class="s0">static </span><span class="s1">options</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s4">// extend</span>
+  <span class="s0">static </span><span class="s1">extend</span><span class="s3">: </span><span class="s1">GlobalAPI</span><span class="s3">[</span><span class="s2">'extend'</span><span class="s3">]</span>
+  <span class="s0">static </span><span class="s1">superOptions</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s0">static </span><span class="s1">extendOptions</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s0">static </span><span class="s1">sealedOptions</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s0">static super</span><span class="s3">: </span><span class="s0">typeof </span><span class="s1">Component</span>
+  <span class="s4">// assets</span>
+  <span class="s0">static </span><span class="s1">directive</span><span class="s3">: </span><span class="s1">GlobalAPI</span><span class="s3">[</span><span class="s2">'directive'</span><span class="s3">]</span>
+  <span class="s0">static </span><span class="s1">component</span><span class="s3">: </span><span class="s1">GlobalAPI</span><span class="s3">[</span><span class="s2">'component'</span><span class="s3">]</span>
+  <span class="s0">static </span><span class="s1">filter</span><span class="s3">: </span><span class="s1">GlobalAPI</span><span class="s3">[</span><span class="s2">'filter'</span><span class="s3">]</span>
+  <span class="s4">// functional context constructor</span>
+  <span class="s0">static </span><span class="s1">FunctionalRenderContext</span><span class="s3">: </span><span class="s1">Function</span>
+  <span class="s0">static </span><span class="s1">mixin</span><span class="s3">: </span><span class="s1">GlobalAPI</span><span class="s3">[</span><span class="s2">'mixin'</span><span class="s3">]</span>
+  <span class="s0">static </span><span class="s1">use</span><span class="s3">: </span><span class="s1">GlobalAPI</span><span class="s3">[</span><span class="s2">'use'</span><span class="s3">]</span>
+
+  <span class="s4">// public properties</span>
+  <span class="s1">$el</span><span class="s3">: </span><span class="s1">any </span><span class="s4">// so that we can attach __vue__ to it</span>
+  <span class="s1">$data</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s1">$props</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s1">$options</span><span class="s3">: </span><span class="s1">ComponentOptions</span>
+  <span class="s1">$parent</span><span class="s3">: </span><span class="s1">Component </span><span class="s3">| </span><span class="s1">undefined</span>
+  <span class="s1">$root</span><span class="s3">: </span><span class="s1">Component</span>
+  <span class="s1">$children</span><span class="s3">: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">Component</span><span class="s3">&gt;</span>
+  <span class="s1">$refs</span><span class="s3">: {</span>
+    <span class="s3">[</span><span class="s1">key</span><span class="s3">: </span><span class="s1">string</span><span class="s3">]: </span><span class="s1">Component </span><span class="s3">| </span><span class="s1">Element </span><span class="s3">| </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">Component </span><span class="s3">| </span><span class="s1">Element</span><span class="s3">&gt; | </span><span class="s1">undefined</span>
+  <span class="s3">}</span>
+  <span class="s1">$slots</span><span class="s3">: { [</span><span class="s1">key</span><span class="s3">: </span><span class="s1">string</span><span class="s3">]: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt; }</span>
+  <span class="s1">$scopedSlots</span><span class="s3">: { [</span><span class="s1">key</span><span class="s3">: </span><span class="s1">string</span><span class="s3">]: () =&gt; </span><span class="s1">VNode</span><span class="s3">[] | </span><span class="s1">undefined </span><span class="s3">}</span>
+  <span class="s1">$vnode</span><span class="s3">: </span><span class="s1">VNode </span><span class="s4">// the placeholder node for the component in parent's render tree</span>
+  <span class="s1">$attrs</span><span class="s3">: { [</span><span class="s1">key</span><span class="s3">: </span><span class="s1">string</span><span class="s3">]: </span><span class="s1">string </span><span class="s3">}</span>
+  <span class="s1">$listeners</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">Function </span><span class="s3">| </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">Function</span><span class="s3">&gt;&gt;</span>
+  <span class="s1">$isServer</span><span class="s3">: </span><span class="s1">boolean</span>
+
+  <span class="s4">// public methods</span>
+  <span class="s1">$mount</span><span class="s3">: (</span>
+    <span class="s1">el</span><span class="s3">?: </span><span class="s1">Element </span><span class="s3">| </span><span class="s1">string</span><span class="s3">,</span>
+    <span class="s1">hydrating</span><span class="s3">?: </span><span class="s1">boolean</span>
+  <span class="s3">) =&gt; </span><span class="s1">Component </span><span class="s3">&amp; { [</span><span class="s1">key</span><span class="s3">: </span><span class="s1">string</span><span class="s3">]: </span><span class="s1">any </span><span class="s3">}</span>
+  <span class="s1">$forceUpdate</span><span class="s3">: () =&gt; </span><span class="s0">void</span>
+  <span class="s1">$destroy</span><span class="s3">: () =&gt; </span><span class="s0">void</span>
+  <span class="s1">$set</span><span class="s3">: &lt;</span><span class="s1">T</span><span class="s3">&gt;(</span>
+    <span class="s1">target</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt; | </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">T</span><span class="s3">&gt;,</span>
+    <span class="s1">key</span><span class="s3">: </span><span class="s1">string </span><span class="s3">| </span><span class="s1">number</span><span class="s3">,</span>
+    <span class="s1">val</span><span class="s3">: </span><span class="s1">T</span>
+  <span class="s3">) =&gt; </span><span class="s1">T</span>
+  <span class="s1">$delete</span><span class="s3">: &lt;</span><span class="s1">T</span><span class="s3">&gt;(</span>
+    <span class="s1">target</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt; | </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">T</span><span class="s3">&gt;,</span>
+    <span class="s1">key</span><span class="s3">: </span><span class="s1">string </span><span class="s3">| </span><span class="s1">number</span>
+  <span class="s3">) =&gt; </span><span class="s0">void</span>
+  <span class="s1">$watch</span><span class="s3">: (</span>
+    <span class="s1">expOrFn</span><span class="s3">: </span><span class="s1">string </span><span class="s3">| (() =&gt; </span><span class="s1">any</span><span class="s3">),</span>
+    <span class="s1">cb</span><span class="s3">: </span><span class="s1">Function</span><span class="s3">,</span>
+    <span class="s1">options</span><span class="s3">?: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s3">) =&gt; </span><span class="s1">Function</span>
+  <span class="s1">$on</span><span class="s3">: (</span><span class="s1">event</span><span class="s3">: </span><span class="s1">string </span><span class="s3">| </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">&gt;, </span><span class="s1">fn</span><span class="s3">: </span><span class="s1">Function</span><span class="s3">) =&gt; </span><span class="s1">Component</span>
+  <span class="s1">$once</span><span class="s3">: (</span><span class="s1">event</span><span class="s3">: </span><span class="s1">string</span><span class="s3">, </span><span class="s1">fn</span><span class="s3">: </span><span class="s1">Function</span><span class="s3">) =&gt; </span><span class="s1">Component</span>
+  <span class="s1">$off</span><span class="s3">: (</span><span class="s1">event</span><span class="s3">?: </span><span class="s1">string </span><span class="s3">| </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">&gt;, </span><span class="s1">fn</span><span class="s3">?: </span><span class="s1">Function</span><span class="s3">) =&gt; </span><span class="s1">Component</span>
+  <span class="s1">$emit</span><span class="s3">: (</span><span class="s1">event</span><span class="s3">: </span><span class="s1">string</span><span class="s3">, </span><span class="s1">...args</span><span class="s3">: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">any</span><span class="s3">&gt;) =&gt; </span><span class="s1">Component</span>
+  <span class="s1">$nextTick</span><span class="s3">: (</span><span class="s1">fn</span><span class="s3">: (</span><span class="s1">...args</span><span class="s3">: </span><span class="s1">any</span><span class="s3">[]) =&gt; </span><span class="s1">any</span><span class="s3">) =&gt; </span><span class="s0">void </span><span class="s3">| </span><span class="s1">Promise</span><span class="s3">&lt;</span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s1">$createElement</span><span class="s3">: (</span>
+    <span class="s1">tag</span><span class="s3">?: </span><span class="s1">string </span><span class="s3">| </span><span class="s1">Component</span><span class="s3">,</span>
+    <span class="s1">data</span><span class="s3">?: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;,</span>
+    <span class="s1">children</span><span class="s3">?: </span><span class="s1">VNodeChildren</span>
+  <span class="s3">) =&gt; </span><span class="s1">VNode</span>
+
+  <span class="s4">// private properties</span>
+  <span class="s1">_uid</span><span class="s3">: </span><span class="s1">number </span><span class="s3">| </span><span class="s1">string</span>
+  <span class="s1">_name</span><span class="s3">: </span><span class="s1">string </span><span class="s4">// this only exists in dev mode</span>
+  <span class="s1">_isVue</span><span class="s3">: </span><span class="s0">true</span>
+  <span class="s1">__v_skip</span><span class="s3">: </span><span class="s0">true</span>
+  <span class="s1">_self</span><span class="s3">: </span><span class="s1">Component</span>
+  <span class="s1">_renderProxy</span><span class="s3">: </span><span class="s1">Component</span>
+  <span class="s1">_renderContext</span><span class="s3">?: </span><span class="s1">Component</span>
+  <span class="s1">_watcher</span><span class="s3">: </span><span class="s1">Watcher </span><span class="s3">| </span><span class="s0">null</span>
+  <span class="s1">_scope</span><span class="s3">: </span><span class="s1">EffectScope</span>
+  <span class="s1">_computedWatchers</span><span class="s3">: { [</span><span class="s1">key</span><span class="s3">: </span><span class="s1">string</span><span class="s3">]: </span><span class="s1">Watcher </span><span class="s3">}</span>
+  <span class="s1">_data</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s1">_props</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s1">_events</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s1">_inactive</span><span class="s3">: </span><span class="s1">boolean </span><span class="s3">| </span><span class="s0">null</span>
+  <span class="s1">_directInactive</span><span class="s3">: </span><span class="s1">boolean</span>
+  <span class="s1">_isMounted</span><span class="s3">: </span><span class="s1">boolean</span>
+  <span class="s1">_isDestroyed</span><span class="s3">: </span><span class="s1">boolean</span>
+  <span class="s1">_isBeingDestroyed</span><span class="s3">: </span><span class="s1">boolean</span>
+  <span class="s1">_vnode</span><span class="s3">?: </span><span class="s1">VNode </span><span class="s3">| </span><span class="s0">null </span><span class="s4">// self root node</span>
+  <span class="s1">_staticTrees</span><span class="s3">?: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt; | </span><span class="s0">null </span><span class="s4">// v-once cached trees</span>
+  <span class="s1">_hasHookEvent</span><span class="s3">: </span><span class="s1">boolean</span>
+  <span class="s1">_provided</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s4">// _virtualComponents?: { [key: string]: Component };</span>
+
+  <span class="s4">// @v3</span>
+  <span class="s1">_setupState</span><span class="s3">?: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s1">_setupProxy</span><span class="s3">?: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s1">_setupContext</span><span class="s3">?: </span><span class="s1">SetupContext</span>
+  <span class="s1">_attrsProxy</span><span class="s3">?: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s1">_listenersProxy</span><span class="s3">?: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">Function </span><span class="s3">| </span><span class="s1">Function</span><span class="s3">[]&gt;</span>
+  <span class="s1">_slotsProxy</span><span class="s3">?: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, () =&gt; </span><span class="s1">VNode</span><span class="s3">[]&gt;</span>
+  <span class="s1">_preWatchers</span><span class="s3">?: </span><span class="s1">Watcher</span><span class="s3">[]</span>
+
+  <span class="s4">// private methods</span>
+
+  <span class="s4">// lifecycle</span>
+  <span class="s1">_init</span><span class="s3">: </span><span class="s1">Function</span>
+  <span class="s1">_mount</span><span class="s3">: (</span><span class="s1">el</span><span class="s3">?: </span><span class="s1">Element </span><span class="s3">| </span><span class="s0">void</span><span class="s3">, </span><span class="s1">hydrating</span><span class="s3">?: </span><span class="s1">boolean</span><span class="s3">) =&gt; </span><span class="s1">Component</span>
+  <span class="s1">_update</span><span class="s3">: (</span><span class="s1">vnode</span><span class="s3">: </span><span class="s1">VNode</span><span class="s3">, </span><span class="s1">hydrating</span><span class="s3">?: </span><span class="s1">boolean</span><span class="s3">) =&gt; </span><span class="s0">void</span>
+
+  <span class="s4">// rendering</span>
+  <span class="s1">_render</span><span class="s3">: () =&gt; </span><span class="s1">VNode</span>
+
+  <span class="s1">__patch__</span><span class="s3">: (</span>
+    <span class="s1">a</span><span class="s3">: </span><span class="s1">Element </span><span class="s3">| </span><span class="s1">VNode </span><span class="s3">| </span><span class="s0">void </span><span class="s3">| </span><span class="s0">null</span><span class="s3">,</span>
+    <span class="s1">b</span><span class="s3">: </span><span class="s1">VNode </span><span class="s3">| </span><span class="s0">null</span><span class="s3">,</span>
+    <span class="s1">hydrating</span><span class="s3">?: </span><span class="s1">boolean</span><span class="s3">,</span>
+    <span class="s1">removeOnly</span><span class="s3">?: </span><span class="s1">boolean</span><span class="s3">,</span>
+    <span class="s1">parentElm</span><span class="s3">?: </span><span class="s1">any</span><span class="s3">,</span>
+    <span class="s1">refElm</span><span class="s3">?: </span><span class="s1">any</span>
+  <span class="s3">) =&gt; </span><span class="s1">any</span>
+
+  <span class="s4">// createElement</span>
+
+  <span class="s4">// _c is internal that accepts `normalizationType` optimization hint</span>
+  <span class="s1">_c</span><span class="s3">: (</span>
+    <span class="s1">vnode</span><span class="s3">?: </span><span class="s1">VNode</span><span class="s3">,</span>
+    <span class="s1">data</span><span class="s3">?: </span><span class="s1">VNodeData</span><span class="s3">,</span>
+    <span class="s1">children</span><span class="s3">?: </span><span class="s1">VNodeChildren</span><span class="s3">,</span>
+    <span class="s1">normalizationType</span><span class="s3">?: </span><span class="s1">number</span>
+  <span class="s3">) =&gt; </span><span class="s1">VNode </span><span class="s3">| </span><span class="s0">void</span>
+
+  <span class="s4">// renderStatic</span>
+  <span class="s1">_m</span><span class="s3">: (</span><span class="s1">index</span><span class="s3">: </span><span class="s1">number</span><span class="s3">, </span><span class="s1">isInFor</span><span class="s3">?: </span><span class="s1">boolean</span><span class="s3">) =&gt; </span><span class="s1">VNode </span><span class="s3">| </span><span class="s1">VNodeChildren</span>
+  <span class="s4">// markOnce</span>
+  <span class="s1">_o</span><span class="s3">: (</span>
+    <span class="s1">vnode</span><span class="s3">: </span><span class="s1">VNode </span><span class="s3">| </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt;,</span>
+    <span class="s1">index</span><span class="s3">: </span><span class="s1">number</span><span class="s3">,</span>
+    <span class="s1">key</span><span class="s3">: </span><span class="s1">string</span>
+  <span class="s3">) =&gt; </span><span class="s1">VNode </span><span class="s3">| </span><span class="s1">VNodeChildren</span>
+  <span class="s4">// toString</span>
+  <span class="s1">_s</span><span class="s3">: (</span><span class="s1">value</span><span class="s3">: </span><span class="s1">any</span><span class="s3">) =&gt; </span><span class="s1">string</span>
+  <span class="s4">// text to VNode</span>
+  <span class="s1">_v</span><span class="s3">: (</span><span class="s1">value</span><span class="s3">: </span><span class="s1">string </span><span class="s3">| </span><span class="s1">number</span><span class="s3">) =&gt; </span><span class="s1">VNode</span>
+  <span class="s4">// toNumber</span>
+  <span class="s1">_n</span><span class="s3">: (</span><span class="s1">value</span><span class="s3">: </span><span class="s1">string</span><span class="s3">) =&gt; </span><span class="s1">number </span><span class="s3">| </span><span class="s1">string</span>
+  <span class="s4">// empty vnode</span>
+  <span class="s1">_e</span><span class="s3">: () =&gt; </span><span class="s1">VNode</span>
+  <span class="s4">// loose equal</span>
+  <span class="s1">_q</span><span class="s3">: (</span><span class="s1">a</span><span class="s3">: </span><span class="s1">any</span><span class="s3">, </span><span class="s1">b</span><span class="s3">: </span><span class="s1">any</span><span class="s3">) =&gt; </span><span class="s1">boolean</span>
+  <span class="s4">// loose indexOf</span>
+  <span class="s1">_i</span><span class="s3">: (</span><span class="s1">arr</span><span class="s3">: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">any</span><span class="s3">&gt;, </span><span class="s1">val</span><span class="s3">: </span><span class="s1">any</span><span class="s3">) =&gt; </span><span class="s1">number</span>
+  <span class="s4">// resolveFilter</span>
+  <span class="s1">_f</span><span class="s3">: (</span><span class="s1">id</span><span class="s3">: </span><span class="s1">string</span><span class="s3">) =&gt; </span><span class="s1">Function</span>
+  <span class="s4">// renderList</span>
+  <span class="s1">_l</span><span class="s3">: (</span><span class="s1">val</span><span class="s3">: </span><span class="s1">any</span><span class="s3">, </span><span class="s1">render</span><span class="s3">: </span><span class="s1">Function</span><span class="s3">) =&gt; </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt; | </span><span class="s0">null</span>
+  <span class="s4">// renderSlot</span>
+  <span class="s1">_t</span><span class="s3">: (</span>
+    <span class="s1">name</span><span class="s3">: </span><span class="s1">string</span><span class="s3">,</span>
+    <span class="s1">fallback</span><span class="s3">?: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt;,</span>
+    <span class="s1">props</span><span class="s3">?: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s3">) =&gt; </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt; | </span><span class="s0">null</span>
+  <span class="s4">// apply v-bind object</span>
+  <span class="s1">_b</span><span class="s3">: (</span>
+    <span class="s1">data</span><span class="s3">: </span><span class="s1">any</span><span class="s3">,</span>
+    <span class="s1">tag</span><span class="s3">: </span><span class="s1">string</span><span class="s3">,</span>
+    <span class="s1">value</span><span class="s3">: </span><span class="s1">any</span><span class="s3">,</span>
+    <span class="s1">asProp</span><span class="s3">: </span><span class="s1">boolean</span><span class="s3">,</span>
+    <span class="s1">isSync</span><span class="s3">?: </span><span class="s1">boolean</span>
+  <span class="s3">) =&gt; </span><span class="s1">VNodeData</span>
+  <span class="s4">// apply v-on object</span>
+  <span class="s1">_g</span><span class="s3">: (</span><span class="s1">data</span><span class="s3">: </span><span class="s1">any</span><span class="s3">, </span><span class="s1">value</span><span class="s3">: </span><span class="s1">any</span><span class="s3">) =&gt; </span><span class="s1">VNodeData</span>
+  <span class="s4">// check custom keyCode</span>
+  <span class="s1">_k</span><span class="s3">: (</span>
+    <span class="s1">eventKeyCode</span><span class="s3">: </span><span class="s1">number</span><span class="s3">,</span>
+    <span class="s1">key</span><span class="s3">: </span><span class="s1">string</span><span class="s3">,</span>
+    <span class="s1">builtInAlias</span><span class="s3">?: </span><span class="s1">number </span><span class="s3">| </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">number</span><span class="s3">&gt;,</span>
+    <span class="s1">eventKeyName</span><span class="s3">?: </span><span class="s1">string</span>
+  <span class="s3">) =&gt; </span><span class="s1">boolean </span><span class="s3">| </span><span class="s0">null</span>
+  <span class="s4">// resolve scoped slots</span>
+  <span class="s1">_u</span><span class="s3">: (</span>
+    <span class="s1">scopedSlots</span><span class="s3">: </span><span class="s1">ScopedSlotsData</span><span class="s3">,</span>
+    <span class="s1">res</span><span class="s3">?: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt;</span>
+  <span class="s3">) =&gt; { [</span><span class="s1">key</span><span class="s3">: </span><span class="s1">string</span><span class="s3">]: </span><span class="s1">Function </span><span class="s3">}</span>
+
+  <span class="s4">// SSR specific</span>
+  <span class="s1">_ssrNode</span><span class="s3">: </span><span class="s1">Function</span>
+  <span class="s1">_ssrList</span><span class="s3">: </span><span class="s1">Function</span>
+  <span class="s1">_ssrEscape</span><span class="s3">: </span><span class="s1">Function</span>
+  <span class="s1">_ssrAttr</span><span class="s3">: </span><span class="s1">Function</span>
+  <span class="s1">_ssrAttrs</span><span class="s3">: </span><span class="s1">Function</span>
+  <span class="s1">_ssrDOMProps</span><span class="s3">: </span><span class="s1">Function</span>
+  <span class="s1">_ssrClass</span><span class="s3">: </span><span class="s1">Function</span>
+  <span class="s1">_ssrStyle</span><span class="s3">: </span><span class="s1">Function</span>
+
+  <span class="s4">// allow dynamic method registration</span>
+  <span class="s4">// [key: string]: any</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

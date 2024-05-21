@@ -1,0 +1,194 @@
+<html>
+<head>
+<title>create-element.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+create-element.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">config from </span><span class="s2">'../config'</span>
+<span class="s0">import </span><span class="s1">VNode</span><span class="s3">, { </span><span class="s1">createEmptyVNode </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./vnode'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">createComponent </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./create-component'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">traverse </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'../observer/traverse'</span>
+
+<span class="s0">import </span><span class="s3">{</span>
+  <span class="s1">warn</span><span class="s3">,</span>
+  <span class="s1">isDef</span><span class="s3">,</span>
+  <span class="s1">isUndef</span><span class="s3">,</span>
+  <span class="s1">isArray</span><span class="s3">,</span>
+  <span class="s1">isTrue</span><span class="s3">,</span>
+  <span class="s1">isObject</span><span class="s3">,</span>
+  <span class="s1">isPrimitive</span><span class="s3">,</span>
+  <span class="s1">resolveAsset</span><span class="s3">,</span>
+  <span class="s1">isFunction</span>
+<span class="s3">} </span><span class="s1">from </span><span class="s2">'../util/index'</span>
+
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">normalizeChildren</span><span class="s3">, </span><span class="s1">simpleNormalizeChildren </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./helpers/index'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s3">{ </span><span class="s1">Component </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'types/component'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s3">{ </span><span class="s1">VNodeData </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'types/vnode'</span>
+
+<span class="s0">const </span><span class="s1">SIMPLE_NORMALIZE </span><span class="s3">= </span><span class="s4">1</span>
+<span class="s0">const </span><span class="s1">ALWAYS_NORMALIZE </span><span class="s3">= </span><span class="s4">2</span>
+
+<span class="s5">// wrapper function for providing a more flexible interface</span>
+<span class="s5">// without getting yelled at by flow</span>
+<span class="s0">export function </span><span class="s1">createElement</span><span class="s3">(</span>
+  <span class="s1">context</span><span class="s3">: </span><span class="s1">Component</span><span class="s3">,</span>
+  <span class="s1">tag</span><span class="s3">: </span><span class="s1">any</span><span class="s3">,</span>
+  <span class="s1">data</span><span class="s3">: </span><span class="s1">any</span><span class="s3">,</span>
+  <span class="s1">children</span><span class="s3">: </span><span class="s1">any</span><span class="s3">,</span>
+  <span class="s1">normalizationType</span><span class="s3">: </span><span class="s1">any</span><span class="s3">,</span>
+  <span class="s1">alwaysNormalize</span><span class="s3">: </span><span class="s1">boolean</span>
+<span class="s3">): </span><span class="s1">VNode </span><span class="s3">| </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt; {</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">data</span><span class="s3">) || </span><span class="s1">isPrimitive</span><span class="s3">(</span><span class="s1">data</span><span class="s3">)) {</span>
+    <span class="s1">normalizationType </span><span class="s3">= </span><span class="s1">children</span>
+    <span class="s1">children </span><span class="s3">= </span><span class="s1">data</span>
+    <span class="s1">data </span><span class="s3">= </span><span class="s1">undefined</span>
+  <span class="s3">}</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isTrue</span><span class="s3">(</span><span class="s1">alwaysNormalize</span><span class="s3">)) {</span>
+    <span class="s1">normalizationType </span><span class="s3">= </span><span class="s1">ALWAYS_NORMALIZE</span>
+  <span class="s3">}</span>
+  <span class="s0">return </span><span class="s1">_createElement</span><span class="s3">(</span><span class="s1">context</span><span class="s3">, </span><span class="s1">tag</span><span class="s3">, </span><span class="s1">data</span><span class="s3">, </span><span class="s1">children</span><span class="s3">, </span><span class="s1">normalizationType</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s0">export function </span><span class="s1">_createElement</span><span class="s3">(</span>
+  <span class="s1">context</span><span class="s3">: </span><span class="s1">Component</span><span class="s3">,</span>
+  <span class="s1">tag</span><span class="s3">?: </span><span class="s1">string </span><span class="s3">| </span><span class="s1">Component </span><span class="s3">| </span><span class="s1">Function </span><span class="s3">| </span><span class="s1">Object</span><span class="s3">,</span>
+  <span class="s1">data</span><span class="s3">?: </span><span class="s1">VNodeData</span><span class="s3">,</span>
+  <span class="s1">children</span><span class="s3">?: </span><span class="s1">any</span><span class="s3">,</span>
+  <span class="s1">normalizationType</span><span class="s3">?: </span><span class="s1">number</span>
+<span class="s3">): </span><span class="s1">VNode </span><span class="s3">| </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt; {</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isDef</span><span class="s3">(</span><span class="s1">data</span><span class="s3">) &amp;&amp; </span><span class="s1">isDef</span><span class="s3">((</span><span class="s1">data </span><span class="s3">as </span><span class="s1">any</span><span class="s3">).</span><span class="s1">__ob__</span><span class="s3">)) {</span>
+    <span class="s1">__DEV__ </span><span class="s3">&amp;&amp;</span>
+      <span class="s1">warn</span><span class="s3">(</span>
+        <span class="s2">`Avoid using observed data object as vnode data: </span><span class="s1">$</span><span class="s3">{</span><span class="s1">JSON</span><span class="s3">.</span><span class="s1">stringify</span><span class="s3">(</span>
+          <span class="s1">data</span>
+        <span class="s3">)}</span><span class="s0">\n</span><span class="s2">` </span><span class="s3">+ </span><span class="s2">'Always create fresh vnode data objects in each render!'</span><span class="s3">,</span>
+        <span class="s1">context</span>
+      <span class="s3">)</span>
+    <span class="s0">return </span><span class="s1">createEmptyVNode</span><span class="s3">()</span>
+  <span class="s3">}</span>
+  <span class="s5">// object syntax in v-bind</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isDef</span><span class="s3">(</span><span class="s1">data</span><span class="s3">) &amp;&amp; </span><span class="s1">isDef</span><span class="s3">(</span><span class="s1">data</span><span class="s3">.</span><span class="s1">is</span><span class="s3">)) {</span>
+    <span class="s1">tag </span><span class="s3">= </span><span class="s1">data</span><span class="s3">.</span><span class="s1">is</span>
+  <span class="s3">}</span>
+  <span class="s0">if </span><span class="s3">(!</span><span class="s1">tag</span><span class="s3">) {</span>
+    <span class="s5">// in case of component :is set to falsy value</span>
+    <span class="s0">return </span><span class="s1">createEmptyVNode</span><span class="s3">()</span>
+  <span class="s3">}</span>
+  <span class="s5">// warn against non-primitive key</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__ </span><span class="s3">&amp;&amp; </span><span class="s1">isDef</span><span class="s3">(</span><span class="s1">data</span><span class="s3">) &amp;&amp; </span><span class="s1">isDef</span><span class="s3">(</span><span class="s1">data</span><span class="s3">.</span><span class="s1">key</span><span class="s3">) &amp;&amp; !</span><span class="s1">isPrimitive</span><span class="s3">(</span><span class="s1">data</span><span class="s3">.</span><span class="s1">key</span><span class="s3">)) {</span>
+    <span class="s1">warn</span><span class="s3">(</span>
+      <span class="s2">'Avoid using non-primitive value as key, ' </span><span class="s3">+</span>
+        <span class="s2">'use string/number value instead.'</span><span class="s3">,</span>
+      <span class="s1">context</span>
+    <span class="s3">)</span>
+  <span class="s3">}</span>
+  <span class="s5">// support single function children as default scoped slot</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">children</span><span class="s3">) &amp;&amp; </span><span class="s1">isFunction</span><span class="s3">(</span><span class="s1">children</span><span class="s3">[</span><span class="s4">0</span><span class="s3">])) {</span>
+    <span class="s1">data </span><span class="s3">= </span><span class="s1">data </span><span class="s3">|| {}</span>
+    <span class="s1">data</span><span class="s3">.</span><span class="s1">scopedSlots </span><span class="s3">= { </span><span class="s0">default</span><span class="s3">: </span><span class="s1">children</span><span class="s3">[</span><span class="s4">0</span><span class="s3">] }</span>
+    <span class="s1">children</span><span class="s3">.</span><span class="s1">length </span><span class="s3">= </span><span class="s4">0</span>
+  <span class="s3">}</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">normalizationType </span><span class="s3">=== </span><span class="s1">ALWAYS_NORMALIZE</span><span class="s3">) {</span>
+    <span class="s1">children </span><span class="s3">= </span><span class="s1">normalizeChildren</span><span class="s3">(</span><span class="s1">children</span><span class="s3">)</span>
+  <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s1">normalizationType </span><span class="s3">=== </span><span class="s1">SIMPLE_NORMALIZE</span><span class="s3">) {</span>
+    <span class="s1">children </span><span class="s3">= </span><span class="s1">simpleNormalizeChildren</span><span class="s3">(</span><span class="s1">children</span><span class="s3">)</span>
+  <span class="s3">}</span>
+  <span class="s0">let </span><span class="s1">vnode</span><span class="s3">, </span><span class="s1">ns</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s0">typeof </span><span class="s1">tag </span><span class="s3">=== </span><span class="s2">'string'</span><span class="s3">) {</span>
+    <span class="s0">let </span><span class="s1">Ctor</span>
+    <span class="s1">ns </span><span class="s3">= (</span><span class="s1">context</span><span class="s3">.</span><span class="s1">$vnode </span><span class="s3">&amp;&amp; </span><span class="s1">context</span><span class="s3">.</span><span class="s1">$vnode</span><span class="s3">.</span><span class="s1">ns</span><span class="s3">) || </span><span class="s1">config</span><span class="s3">.</span><span class="s1">getTagNamespace</span><span class="s3">(</span><span class="s1">tag</span><span class="s3">)</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">config</span><span class="s3">.</span><span class="s1">isReservedTag</span><span class="s3">(</span><span class="s1">tag</span><span class="s3">)) {</span>
+      <span class="s5">// platform built-in elements</span>
+      <span class="s0">if </span><span class="s3">(</span>
+        <span class="s1">__DEV__ </span><span class="s3">&amp;&amp;</span>
+        <span class="s1">isDef</span><span class="s3">(</span><span class="s1">data</span><span class="s3">) &amp;&amp;</span>
+        <span class="s1">isDef</span><span class="s3">(</span><span class="s1">data</span><span class="s3">.</span><span class="s1">nativeOn</span><span class="s3">) &amp;&amp;</span>
+        <span class="s1">data</span><span class="s3">.</span><span class="s1">tag </span><span class="s3">!== </span><span class="s2">'component'</span>
+      <span class="s3">) {</span>
+        <span class="s1">warn</span><span class="s3">(</span>
+          <span class="s2">`The .native modifier for v-on is only valid on components but it was used on &lt;</span><span class="s1">$</span><span class="s3">{</span><span class="s1">tag</span><span class="s3">}</span><span class="s2">&gt;.`</span><span class="s3">,</span>
+          <span class="s1">context</span>
+        <span class="s3">)</span>
+      <span class="s3">}</span>
+      <span class="s1">vnode </span><span class="s3">= </span><span class="s0">new </span><span class="s1">VNode</span><span class="s3">(</span>
+        <span class="s1">config</span><span class="s3">.</span><span class="s1">parsePlatformTagName</span><span class="s3">(</span><span class="s1">tag</span><span class="s3">),</span>
+        <span class="s1">data</span><span class="s3">,</span>
+        <span class="s1">children</span><span class="s3">,</span>
+        <span class="s1">undefined</span><span class="s3">,</span>
+        <span class="s1">undefined</span><span class="s3">,</span>
+        <span class="s1">context</span>
+      <span class="s3">)</span>
+    <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span>
+      <span class="s3">(!</span><span class="s1">data </span><span class="s3">|| !</span><span class="s1">data</span><span class="s3">.</span><span class="s1">pre</span><span class="s3">) &amp;&amp;</span>
+      <span class="s1">isDef</span><span class="s3">((</span><span class="s1">Ctor </span><span class="s3">= </span><span class="s1">resolveAsset</span><span class="s3">(</span><span class="s1">context</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">, </span><span class="s2">'components'</span><span class="s3">, </span><span class="s1">tag</span><span class="s3">)))</span>
+    <span class="s3">) {</span>
+      <span class="s5">// component</span>
+      <span class="s1">vnode </span><span class="s3">= </span><span class="s1">createComponent</span><span class="s3">(</span><span class="s1">Ctor</span><span class="s3">, </span><span class="s1">data</span><span class="s3">, </span><span class="s1">context</span><span class="s3">, </span><span class="s1">children</span><span class="s3">, </span><span class="s1">tag</span><span class="s3">)</span>
+    <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+      <span class="s5">// unknown or unlisted namespaced elements</span>
+      <span class="s5">// check at runtime because it may get assigned a namespace when its</span>
+      <span class="s5">// parent normalizes children</span>
+      <span class="s1">vnode </span><span class="s3">= </span><span class="s0">new </span><span class="s1">VNode</span><span class="s3">(</span><span class="s1">tag</span><span class="s3">, </span><span class="s1">data</span><span class="s3">, </span><span class="s1">children</span><span class="s3">, </span><span class="s1">undefined</span><span class="s3">, </span><span class="s1">undefined</span><span class="s3">, </span><span class="s1">context</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+    <span class="s5">// direct component options / constructor</span>
+    <span class="s1">vnode </span><span class="s3">= </span><span class="s1">createComponent</span><span class="s3">(</span><span class="s1">tag </span><span class="s3">as </span><span class="s1">any</span><span class="s3">, </span><span class="s1">data</span><span class="s3">, </span><span class="s1">context</span><span class="s3">, </span><span class="s1">children</span><span class="s3">)</span>
+  <span class="s3">}</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">vnode</span><span class="s3">)) {</span>
+    <span class="s0">return </span><span class="s1">vnode</span>
+  <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s1">isDef</span><span class="s3">(</span><span class="s1">vnode</span><span class="s3">)) {</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">isDef</span><span class="s3">(</span><span class="s1">ns</span><span class="s3">)) </span><span class="s1">applyNS</span><span class="s3">(</span><span class="s1">vnode</span><span class="s3">, </span><span class="s1">ns</span><span class="s3">)</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">isDef</span><span class="s3">(</span><span class="s1">data</span><span class="s3">)) </span><span class="s1">registerDeepBindings</span><span class="s3">(</span><span class="s1">data</span><span class="s3">)</span>
+    <span class="s0">return </span><span class="s1">vnode</span>
+  <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+    <span class="s0">return </span><span class="s1">createEmptyVNode</span><span class="s3">()</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">function </span><span class="s1">applyNS</span><span class="s3">(</span><span class="s1">vnode</span><span class="s3">, </span><span class="s1">ns</span><span class="s3">, </span><span class="s1">force</span><span class="s3">?: </span><span class="s1">boolean</span><span class="s3">) {</span>
+  <span class="s1">vnode</span><span class="s3">.</span><span class="s1">ns </span><span class="s3">= </span><span class="s1">ns</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">tag </span><span class="s3">=== </span><span class="s2">'foreignObject'</span><span class="s3">) {</span>
+    <span class="s5">// use default namespace inside foreignObject</span>
+    <span class="s1">ns </span><span class="s3">= </span><span class="s1">undefined</span>
+    <span class="s1">force </span><span class="s3">= </span><span class="s0">true</span>
+  <span class="s3">}</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isDef</span><span class="s3">(</span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">children</span><span class="s3">)) {</span>
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s4">0</span><span class="s3">, </span><span class="s1">l </span><span class="s3">= </span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">l</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+      <span class="s0">const </span><span class="s1">child </span><span class="s3">= </span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">children</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+      <span class="s0">if </span><span class="s3">(</span>
+        <span class="s1">isDef</span><span class="s3">(</span><span class="s1">child</span><span class="s3">.</span><span class="s1">tag</span><span class="s3">) &amp;&amp;</span>
+        <span class="s3">(</span><span class="s1">isUndef</span><span class="s3">(</span><span class="s1">child</span><span class="s3">.</span><span class="s1">ns</span><span class="s3">) || (</span><span class="s1">isTrue</span><span class="s3">(</span><span class="s1">force</span><span class="s3">) &amp;&amp; </span><span class="s1">child</span><span class="s3">.</span><span class="s1">tag </span><span class="s3">!== </span><span class="s2">'svg'</span><span class="s3">))</span>
+      <span class="s3">) {</span>
+        <span class="s1">applyNS</span><span class="s3">(</span><span class="s1">child</span><span class="s3">, </span><span class="s1">ns</span><span class="s3">, </span><span class="s1">force</span><span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s5">// ref #5318</span>
+<span class="s5">// necessary to ensure parent re-render when deep bindings like :style and</span>
+<span class="s5">// :class are used on slot nodes</span>
+<span class="s0">function </span><span class="s1">registerDeepBindings</span><span class="s3">(</span><span class="s1">data</span><span class="s3">) {</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isObject</span><span class="s3">(</span><span class="s1">data</span><span class="s3">.</span><span class="s1">style</span><span class="s3">)) {</span>
+    <span class="s1">traverse</span><span class="s3">(</span><span class="s1">data</span><span class="s3">.</span><span class="s1">style</span><span class="s3">)</span>
+  <span class="s3">}</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isObject</span><span class="s3">(</span><span class="s1">data</span><span class="s3">.</span><span class="s1">class</span><span class="s3">)) {</span>
+    <span class="s1">traverse</span><span class="s3">(</span><span class="s1">data</span><span class="s3">.</span><span class="s1">class</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

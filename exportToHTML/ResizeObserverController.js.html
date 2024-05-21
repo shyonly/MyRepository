@@ -1,0 +1,262 @@
+<html>
+<head>
+<title>ResizeObserverController.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+.s6 { color: #5f826b; font-style: italic;}
+.s7 { color: #67a37c; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+ResizeObserverController.js</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">isBrowser from </span><span class="s2">'./utils/isBrowser.js'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s1">throttle from </span><span class="s2">'./utils/throttle.js'</span><span class="s3">;</span>
+
+<span class="s4">// Minimum delay before invoking the update of observers.</span>
+<span class="s0">const </span><span class="s1">REFRESH_DELAY </span><span class="s3">= </span><span class="s5">20</span><span class="s3">;</span>
+
+<span class="s4">// A list of substrings of CSS properties used to find transition events that</span>
+<span class="s4">// might affect dimensions of observed elements.</span>
+<span class="s0">const </span><span class="s1">transitionKeys </span><span class="s3">= [</span><span class="s2">'top'</span><span class="s3">, </span><span class="s2">'right'</span><span class="s3">, </span><span class="s2">'bottom'</span><span class="s3">, </span><span class="s2">'left'</span><span class="s3">, </span><span class="s2">'width'</span><span class="s3">, </span><span class="s2">'height'</span><span class="s3">, </span><span class="s2">'size'</span><span class="s3">, </span><span class="s2">'weight'</span><span class="s3">];</span>
+
+<span class="s4">// Check if MutationObserver is available.</span>
+<span class="s0">const </span><span class="s1">mutationObserverSupported </span><span class="s3">= </span><span class="s0">typeof </span><span class="s1">MutationObserver </span><span class="s3">!== </span><span class="s2">'undefined'</span><span class="s3">;</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Singleton controller class which handles updates of ResizeObserver instances.</span>
+ <span class="s6">*/</span>
+<span class="s0">export default class </span><span class="s1">ResizeObserverController </span><span class="s3">{</span>
+    <span class="s6">/**</span>
+     <span class="s6">* Indicates whether DOM listeners have been added.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@private </span><span class="s6">{boolean}</span>
+     <span class="s6">*/</span>
+    <span class="s1">connected_ </span><span class="s3">= </span><span class="s0">false</span><span class="s3">;</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* Tells that controller has subscribed for Mutation Events.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@private </span><span class="s6">{boolean}</span>
+     <span class="s6">*/</span>
+    <span class="s1">mutationEventsAdded_ </span><span class="s3">= </span><span class="s0">false</span><span class="s3">;</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* Keeps reference to the instance of MutationObserver.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@private </span><span class="s6">{MutationObserver}</span>
+     <span class="s6">*/</span>
+    <span class="s1">mutationsObserver_ </span><span class="s3">= </span><span class="s0">null</span><span class="s3">;</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* A list of connected observers.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@private </span><span class="s6">{Array&lt;ResizeObserverSPI&gt;}</span>
+     <span class="s6">*/</span>
+    <span class="s1">observers_ </span><span class="s3">= [];</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* Holds reference to the controller's instance.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@private </span><span class="s6">{ResizeObserverController}</span>
+     <span class="s6">*/</span>
+    <span class="s0">static </span><span class="s1">instance_ </span><span class="s3">= </span><span class="s0">null</span><span class="s3">;</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* Creates a new instance of ResizeObserverController.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@private</span>
+     <span class="s6">*/</span>
+    <span class="s1">constructor</span><span class="s3">() {</span>
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">onTransitionEnd_ </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">onTransitionEnd_</span><span class="s3">.</span><span class="s1">bind</span><span class="s3">(</span><span class="s0">this</span><span class="s3">);</span>
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">refresh </span><span class="s3">= </span><span class="s1">throttle</span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">refresh</span><span class="s3">.</span><span class="s1">bind</span><span class="s3">(</span><span class="s0">this</span><span class="s3">), </span><span class="s1">REFRESH_DELAY</span><span class="s3">);</span>
+    <span class="s3">}</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* Adds observer to observers list.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@param </span><span class="s6">{ResizeObserverSPI} observer - Observer to be added.</span>
+     <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{void}</span>
+     <span class="s6">*/</span>
+    <span class="s1">addObserver</span><span class="s3">(</span><span class="s1">observer</span><span class="s3">) {</span>
+        <span class="s0">if </span><span class="s3">(!~</span><span class="s0">this</span><span class="s3">.</span><span class="s1">observers_</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s1">observer</span><span class="s3">)) {</span>
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">observers_</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">observer</span><span class="s3">);</span>
+        <span class="s3">}</span>
+
+        <span class="s4">// Add listeners if they haven't been added yet.</span>
+        <span class="s0">if </span><span class="s3">(!</span><span class="s0">this</span><span class="s3">.</span><span class="s1">connected_</span><span class="s3">) {</span>
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">connect_</span><span class="s3">();</span>
+        <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* Removes observer from observers list.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@param </span><span class="s6">{ResizeObserverSPI} observer - Observer to be removed.</span>
+     <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{void}</span>
+     <span class="s6">*/</span>
+    <span class="s1">removeObserver</span><span class="s3">(</span><span class="s1">observer</span><span class="s3">) {</span>
+        <span class="s0">const </span><span class="s1">observers </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">observers_</span><span class="s3">;</span>
+        <span class="s0">const </span><span class="s1">index </span><span class="s3">= </span><span class="s1">observers</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s1">observer</span><span class="s3">);</span>
+
+        <span class="s4">// Remove observer if it's present in registry.</span>
+        <span class="s0">if </span><span class="s3">(~</span><span class="s1">index</span><span class="s3">) {</span>
+            <span class="s1">observers</span><span class="s3">.</span><span class="s1">splice</span><span class="s3">(</span><span class="s1">index</span><span class="s3">, </span><span class="s5">1</span><span class="s3">);</span>
+        <span class="s3">}</span>
+
+        <span class="s4">// Remove listeners if controller has no connected observers.</span>
+        <span class="s0">if </span><span class="s3">(!</span><span class="s1">observers</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&amp;&amp; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">connected_</span><span class="s3">) {</span>
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">disconnect_</span><span class="s3">();</span>
+        <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* Invokes the update of observers. It will continue running updates insofar</span>
+     <span class="s6">* it detects changes.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{void}</span>
+     <span class="s6">*/</span>
+    <span class="s1">refresh</span><span class="s3">() {</span>
+        <span class="s0">const </span><span class="s1">changesDetected </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">updateObservers_</span><span class="s3">();</span>
+
+        <span class="s4">// Continue running updates if changes have been detected as there might</span>
+        <span class="s4">// be future ones caused by CSS transitions.</span>
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">changesDetected</span><span class="s3">) {</span>
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">refresh</span><span class="s3">();</span>
+        <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* Updates every observer from observers list and notifies them of queued</span>
+     <span class="s6">* entries.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@private</span>
+     <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{boolean} Returns &quot;true&quot; if any observer has detected changes in</span>
+     <span class="s6">*      dimensions of it's elements.</span>
+     <span class="s6">*/</span>
+    <span class="s1">updateObservers_</span><span class="s3">() {</span>
+        <span class="s4">// Collect observers that have active observations.</span>
+        <span class="s0">const </span><span class="s1">activeObservers </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">observers_</span><span class="s3">.</span><span class="s1">filter</span><span class="s3">(</span><span class="s1">observer </span><span class="s3">=&gt; {</span>
+            <span class="s0">return </span><span class="s1">observer</span><span class="s3">.</span><span class="s1">gatherActive</span><span class="s3">(), </span><span class="s1">observer</span><span class="s3">.</span><span class="s1">hasActive</span><span class="s3">();</span>
+        <span class="s3">});</span>
+
+        <span class="s4">// Deliver notifications in a separate cycle in order to avoid any</span>
+        <span class="s4">// collisions between observers, e.g. when multiple instances of</span>
+        <span class="s4">// ResizeObserver are tracking the same element and the callback of one</span>
+        <span class="s4">// of them changes content dimensions of the observed target. Sometimes</span>
+        <span class="s4">// this may result in notifications being blocked for the rest of observers.</span>
+        <span class="s1">activeObservers</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">(</span><span class="s1">observer </span><span class="s3">=&gt; </span><span class="s1">observer</span><span class="s3">.</span><span class="s1">broadcastActive</span><span class="s3">());</span>
+
+        <span class="s0">return </span><span class="s1">activeObservers</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s5">0</span><span class="s3">;</span>
+    <span class="s3">}</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* Initializes DOM listeners.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@private</span>
+     <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{void}</span>
+     <span class="s6">*/</span>
+    <span class="s1">connect_</span><span class="s3">() {</span>
+        <span class="s4">// Do nothing if running in a non-browser environment or if listeners</span>
+        <span class="s4">// have been already added.</span>
+        <span class="s0">if </span><span class="s3">(!</span><span class="s1">isBrowser </span><span class="s3">|| </span><span class="s0">this</span><span class="s3">.</span><span class="s1">connected_</span><span class="s3">) {</span>
+            <span class="s0">return</span><span class="s3">;</span>
+        <span class="s3">}</span>
+
+        <span class="s4">// Subscription to the &quot;Transitionend&quot; event is used as a workaround for</span>
+        <span class="s4">// delayed transitions. This way it's possible to capture at least the</span>
+        <span class="s4">// final state of an element.</span>
+        <span class="s1">document</span><span class="s3">.</span><span class="s1">addEventListener</span><span class="s3">(</span><span class="s2">'transitionend'</span><span class="s3">, </span><span class="s0">this</span><span class="s3">.</span><span class="s1">onTransitionEnd_</span><span class="s3">);</span>
+
+        <span class="s1">window</span><span class="s3">.</span><span class="s1">addEventListener</span><span class="s3">(</span><span class="s2">'resize'</span><span class="s3">, </span><span class="s0">this</span><span class="s3">.</span><span class="s1">refresh</span><span class="s3">);</span>
+
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">mutationObserverSupported</span><span class="s3">) {</span>
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">mutationsObserver_ </span><span class="s3">= </span><span class="s0">new </span><span class="s1">MutationObserver</span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">refresh</span><span class="s3">);</span>
+
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">mutationsObserver_</span><span class="s3">.</span><span class="s1">observe</span><span class="s3">(</span><span class="s1">document</span><span class="s3">, {</span>
+                <span class="s1">attributes</span><span class="s3">: </span><span class="s0">true</span><span class="s3">,</span>
+                <span class="s1">childList</span><span class="s3">: </span><span class="s0">true</span><span class="s3">,</span>
+                <span class="s1">characterData</span><span class="s3">: </span><span class="s0">true</span><span class="s3">,</span>
+                <span class="s1">subtree</span><span class="s3">: </span><span class="s0">true</span>
+            <span class="s3">});</span>
+        <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+            <span class="s1">document</span><span class="s3">.</span><span class="s1">addEventListener</span><span class="s3">(</span><span class="s2">'DOMSubtreeModified'</span><span class="s3">, </span><span class="s0">this</span><span class="s3">.</span><span class="s1">refresh</span><span class="s3">);</span>
+
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">mutationEventsAdded_ </span><span class="s3">= </span><span class="s0">true</span><span class="s3">;</span>
+        <span class="s3">}</span>
+
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">connected_ </span><span class="s3">= </span><span class="s0">true</span><span class="s3">;</span>
+    <span class="s3">}</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* Removes DOM listeners.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@private</span>
+     <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{void}</span>
+     <span class="s6">*/</span>
+    <span class="s1">disconnect_</span><span class="s3">() {</span>
+        <span class="s4">// Do nothing if running in a non-browser environment or if listeners</span>
+        <span class="s4">// have been already removed.</span>
+        <span class="s0">if </span><span class="s3">(!</span><span class="s1">isBrowser </span><span class="s3">|| !</span><span class="s0">this</span><span class="s3">.</span><span class="s1">connected_</span><span class="s3">) {</span>
+            <span class="s0">return</span><span class="s3">;</span>
+        <span class="s3">}</span>
+
+        <span class="s1">document</span><span class="s3">.</span><span class="s1">removeEventListener</span><span class="s3">(</span><span class="s2">'transitionend'</span><span class="s3">, </span><span class="s0">this</span><span class="s3">.</span><span class="s1">onTransitionEnd_</span><span class="s3">);</span>
+        <span class="s1">window</span><span class="s3">.</span><span class="s1">removeEventListener</span><span class="s3">(</span><span class="s2">'resize'</span><span class="s3">, </span><span class="s0">this</span><span class="s3">.</span><span class="s1">refresh</span><span class="s3">);</span>
+
+        <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">mutationsObserver_</span><span class="s3">) {</span>
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">mutationsObserver_</span><span class="s3">.</span><span class="s1">disconnect</span><span class="s3">();</span>
+        <span class="s3">}</span>
+
+        <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">mutationEventsAdded_</span><span class="s3">) {</span>
+            <span class="s1">document</span><span class="s3">.</span><span class="s1">removeEventListener</span><span class="s3">(</span><span class="s2">'DOMSubtreeModified'</span><span class="s3">, </span><span class="s0">this</span><span class="s3">.</span><span class="s1">refresh</span><span class="s3">);</span>
+        <span class="s3">}</span>
+
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">mutationsObserver_ </span><span class="s3">= </span><span class="s0">null</span><span class="s3">;</span>
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">mutationEventsAdded_ </span><span class="s3">= </span><span class="s0">false</span><span class="s3">;</span>
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">connected_ </span><span class="s3">= </span><span class="s0">false</span><span class="s3">;</span>
+    <span class="s3">}</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* &quot;Transitionend&quot; event handler.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@private</span>
+     <span class="s6">* </span><span class="s7">@param </span><span class="s6">{TransitionEvent} event</span>
+     <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{void}</span>
+     <span class="s6">*/</span>
+    <span class="s1">onTransitionEnd_</span><span class="s3">({</span><span class="s1">propertyName </span><span class="s3">= </span><span class="s2">''</span><span class="s3">}) {</span>
+        <span class="s4">// Detect whether transition may affect dimensions of an element.</span>
+        <span class="s0">const </span><span class="s1">isReflowProperty </span><span class="s3">= </span><span class="s1">transitionKeys</span><span class="s3">.</span><span class="s1">some</span><span class="s3">(</span><span class="s1">key </span><span class="s3">=&gt; {</span>
+            <span class="s0">return </span><span class="s3">!!~</span><span class="s1">propertyName</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s1">key</span><span class="s3">);</span>
+        <span class="s3">});</span>
+
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">isReflowProperty</span><span class="s3">) {</span>
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">refresh</span><span class="s3">();</span>
+        <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* Returns instance of the ResizeObserverController.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{ResizeObserverController}</span>
+     <span class="s6">*/</span>
+    <span class="s0">static </span><span class="s1">getInstance</span><span class="s3">() {</span>
+        <span class="s0">if </span><span class="s3">(!</span><span class="s0">this</span><span class="s3">.</span><span class="s1">instance_</span><span class="s3">) {</span>
+            <span class="s0">this</span><span class="s3">.</span><span class="s1">instance_ </span><span class="s3">= </span><span class="s0">new </span><span class="s1">ResizeObserverController</span><span class="s3">();</span>
+        <span class="s3">}</span>
+
+        <span class="s0">return this</span><span class="s3">.</span><span class="s1">instance_</span><span class="s3">;</span>
+    <span class="s3">}</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

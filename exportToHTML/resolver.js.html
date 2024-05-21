@@ -1,0 +1,626 @@
+<html>
+<head>
+<title>Resolver.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #67a37c; font-style: italic;}
+.s7 { color: #42c3d4;}
+.s8 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+Resolver.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+    MIT License http://www.opensource.org/licenses/mit-license.php 
+    Author Tobias Koppers @sokra 
+*/</span>
+
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">const </span><span class="s3">{ </span><span class="s1">AsyncSeriesBailHook</span><span class="s3">, </span><span class="s1">AsyncSeriesHook</span><span class="s3">, </span><span class="s1">SyncHook </span><span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;tapable&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">createInnerContext </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./createInnerContext&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s3">{ </span><span class="s1">parseIdentifier </span><span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./util/identifier&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s3">{</span>
+	<span class="s1">normalize</span><span class="s3">,</span>
+	<span class="s1">cachedJoin</span><span class="s3">: </span><span class="s1">join</span><span class="s3">,</span>
+	<span class="s1">getType</span><span class="s3">,</span>
+	<span class="s1">PathType</span>
+<span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./util/path&quot;</span><span class="s3">);</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./ResolverFactory&quot;).ResolveOptions} ResolveOptions */</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{Error &amp; {details?: string}} ErrorWithDetail */</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{(err: ErrorWithDetail|null, res?: string|false, req?: ResolveRequest) =&gt; void} ResolveCallback */</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{Object} FileSystemStats</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{function(): boolean} isDirectory</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{function(): boolean} isFile</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{Object} FileSystemDirent</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{Buffer | string} name</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{function(): boolean} isDirectory</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{function(): boolean} isFile</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{Object} PossibleFileSystemError</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string=} code</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{number=} errno</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string=} path</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string=} syscall</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@template </span><span class="s5">T</span>
+ <span class="s5">* </span><span class="s6">@callback </span><span class="s5">FileSystemCallback</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{PossibleFileSystemError &amp; Error | null | undefined} err</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{T=} result</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{function((NodeJS.ErrnoException | null)=, (string | Buffer)[] | import(&quot;fs&quot;).Dirent[]=): void} DirentArrayCallback */</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{Object} ReaddirOptions</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{BufferEncoding | null | 'buffer'} [encoding]</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{boolean | undefined} [withFileTypes=false]</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{Object} FileSystem</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{(function(string, FileSystemCallback&lt;Buffer | string&gt;): void) &amp; function(string, object, FileSystemCallback&lt;Buffer | string&gt;): void} readFile</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{function(string, (ReaddirOptions | BufferEncoding | null | undefined | 'buffer' | DirentArrayCallback)=,  DirentArrayCallback=): void} readdir</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{((function(string, FileSystemCallback&lt;object&gt;): void) &amp; function(string, object, FileSystemCallback&lt;object&gt;): void)=} readJson</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{(function(string, FileSystemCallback&lt;Buffer | string&gt;): void) &amp; function(string, object, FileSystemCallback&lt;Buffer | string&gt;): void} readlink</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{(function(string, FileSystemCallback&lt;FileSystemStats&gt;): void) &amp; function(string, object, FileSystemCallback&lt;Buffer | string&gt;): void=} lstat</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{(function(string, FileSystemCallback&lt;FileSystemStats&gt;): void) &amp; function(string, object, FileSystemCallback&lt;Buffer | string&gt;): void} stat</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{Object} SyncFileSystem</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{function(string, object=): Buffer | string} readFileSync</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{function(string, object=): (Buffer | string)[] | FileSystemDirent[]} readdirSync</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{(function(string, object=): object)=} readJsonSync</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{function(string, object=): Buffer | string} readlinkSync</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{function(string, object=): FileSystemStats=} lstatSync</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{function(string, object=): FileSystemStats} statSync</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{Object} ParsedIdentifier</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string} request</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string} query</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string} fragment</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{boolean} directory</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{boolean} module</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{boolean} file</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{boolean} internal</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{string | number | boolean | null} JsonPrimitive */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{JsonValue[]} JsonArray */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{JsonPrimitive | JsonObject | JsonArray} JsonValue */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{{[Key in string]: JsonValue} &amp; {[Key in string]?: JsonValue | undefined}} JsonObject */</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{Object} BaseResolveRequest</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string | false} path</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{object=} context</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string=} descriptionFilePath</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string=} descriptionFileRoot</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{JsonObject=} descriptionFileData</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string=} relativePath</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{boolean=} ignoreSymlinks</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{boolean=} fullySpecified</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string=} __innerRequest</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string=} __innerRequest_request</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string=} __innerRequest_relativePath</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{BaseResolveRequest &amp; Partial&lt;ParsedIdentifier&gt;} ResolveRequest */</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* String with special formatting</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{string} StackEntry</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@template </span><span class="s5">T</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{{ add: (item: T) =&gt; void }} WriteOnlySet</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{(function (ResolveRequest): void)} ResolveContextYield */</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* Resolve context</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{Object} ResolveContext</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{WriteOnlySet&lt;string&gt;=} contextDependencies</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{WriteOnlySet&lt;string&gt;=} fileDependencies files that was found on file system</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{WriteOnlySet&lt;string&gt;=} missingDependencies dependencies that was not found on file system</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{Set&lt;StackEntry&gt;=} stack set of hooks' calls. For instance, `resolve → parsedResolve → describedResolve`,</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{(function(string): void)=} log log function</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{ResolveContextYield=} yield yield result, if provided plugins can return several results</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{AsyncSeriesBailHook&lt;[ResolveRequest, ResolveContext], ResolveRequest | null&gt;} ResolveStepHook */</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{Object} KnownHooks</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{SyncHook&lt;[ResolveStepHook, ResolveRequest], void&gt;} resolveStep</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{SyncHook&lt;[ResolveRequest, Error]&gt;} noResolve</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{ResolveStepHook} resolve</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{AsyncSeriesHook&lt;[ResolveRequest, ResolveContext]&gt;} result</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{{[key: string]: ResolveStepHook}} EnsuredHooks</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} str input string</span>
+ <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{string} in camel case</span>
+ <span class="s5">*/</span>
+<span class="s4">function </span><span class="s1">toCamelCase</span><span class="s3">(</span><span class="s1">str</span><span class="s3">) {</span>
+	<span class="s4">return </span><span class="s1">str</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s7">/-([a-z])/g</span><span class="s3">, </span><span class="s1">str </span><span class="s3">=&gt; </span><span class="s1">str</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s8">1</span><span class="s3">).</span><span class="s1">toUpperCase</span><span class="s3">());</span>
+<span class="s3">}</span>
+
+<span class="s4">class </span><span class="s1">Resolver </span><span class="s3">{</span>
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ResolveStepHook} hook hook</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ResolveRequest} request request</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{StackEntry} stack entry</span>
+	 <span class="s5">*/</span>
+	<span class="s4">static </span><span class="s1">createStackEntry</span><span class="s3">(</span><span class="s1">hook</span><span class="s3">, </span><span class="s1">request</span><span class="s3">) {</span>
+		<span class="s4">return </span><span class="s3">(</span>
+			<span class="s1">hook</span><span class="s3">.</span><span class="s1">name </span><span class="s3">+</span>
+			<span class="s2">&quot;: (&quot; </span><span class="s3">+</span>
+			<span class="s1">request</span><span class="s3">.</span><span class="s1">path </span><span class="s3">+</span>
+			<span class="s2">&quot;) &quot; </span><span class="s3">+</span>
+			<span class="s3">(</span><span class="s1">request</span><span class="s3">.</span><span class="s1">request </span><span class="s3">|| </span><span class="s2">&quot;&quot;</span><span class="s3">) +</span>
+			<span class="s3">(</span><span class="s1">request</span><span class="s3">.</span><span class="s1">query </span><span class="s3">|| </span><span class="s2">&quot;&quot;</span><span class="s3">) +</span>
+			<span class="s3">(</span><span class="s1">request</span><span class="s3">.</span><span class="s1">fragment </span><span class="s3">|| </span><span class="s2">&quot;&quot;</span><span class="s3">) +</span>
+			<span class="s3">(</span><span class="s1">request</span><span class="s3">.</span><span class="s1">directory </span><span class="s3">? </span><span class="s2">&quot; directory&quot; </span><span class="s3">: </span><span class="s2">&quot;&quot;</span><span class="s3">) +</span>
+			<span class="s3">(</span><span class="s1">request</span><span class="s3">.</span><span class="s1">module </span><span class="s3">? </span><span class="s2">&quot; module&quot; </span><span class="s3">: </span><span class="s2">&quot;&quot;</span><span class="s3">)</span>
+		<span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{FileSystem} fileSystem a filesystem</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ResolveOptions} options options</span>
+	 <span class="s5">*/</span>
+	<span class="s1">constructor</span><span class="s3">(</span><span class="s1">fileSystem</span><span class="s3">, </span><span class="s1">options</span><span class="s3">) {</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">fileSystem </span><span class="s3">= </span><span class="s1">fileSystem</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">options </span><span class="s3">= </span><span class="s1">options</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{KnownHooks} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">hooks </span><span class="s3">= {</span>
+			<span class="s1">resolveStep</span><span class="s3">: </span><span class="s4">new </span><span class="s1">SyncHook</span><span class="s3">([</span><span class="s2">&quot;hook&quot;</span><span class="s3">, </span><span class="s2">&quot;request&quot;</span><span class="s3">], </span><span class="s2">&quot;resolveStep&quot;</span><span class="s3">),</span>
+			<span class="s1">noResolve</span><span class="s3">: </span><span class="s4">new </span><span class="s1">SyncHook</span><span class="s3">([</span><span class="s2">&quot;request&quot;</span><span class="s3">, </span><span class="s2">&quot;error&quot;</span><span class="s3">], </span><span class="s2">&quot;noResolve&quot;</span><span class="s3">),</span>
+			<span class="s1">resolve</span><span class="s3">: </span><span class="s4">new </span><span class="s1">AsyncSeriesBailHook</span><span class="s3">(</span>
+				<span class="s3">[</span><span class="s2">&quot;request&quot;</span><span class="s3">, </span><span class="s2">&quot;resolveContext&quot;</span><span class="s3">],</span>
+				<span class="s2">&quot;resolve&quot;</span>
+			<span class="s3">),</span>
+			<span class="s1">result</span><span class="s3">: </span><span class="s4">new </span><span class="s1">AsyncSeriesHook</span><span class="s3">([</span><span class="s2">&quot;result&quot;</span><span class="s3">, </span><span class="s2">&quot;resolveContext&quot;</span><span class="s3">], </span><span class="s2">&quot;result&quot;</span><span class="s3">)</span>
+		<span class="s3">};</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string | ResolveStepHook} name hook name or hook itself</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{ResolveStepHook} the hook</span>
+	 <span class="s5">*/</span>
+	<span class="s1">ensureHook</span><span class="s3">(</span><span class="s1">name</span><span class="s3">) {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">name </span><span class="s3">!== </span><span class="s2">&quot;string&quot;</span><span class="s3">) {</span>
+			<span class="s4">return </span><span class="s1">name</span><span class="s3">;</span>
+		<span class="s3">}</span>
+		<span class="s1">name </span><span class="s3">= </span><span class="s1">toCamelCase</span><span class="s3">(</span><span class="s1">name</span><span class="s3">);</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s7">/^before/</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)) {</span>
+			<span class="s4">return </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveStepHook} */ </span><span class="s3">(</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">ensureHook</span><span class="s3">(</span><span class="s1">name</span><span class="s3">[</span><span class="s8">6</span><span class="s3">].</span><span class="s1">toLowerCase</span><span class="s3">() + </span><span class="s1">name</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s8">7</span><span class="s3">)).</span><span class="s1">withOptions</span><span class="s3">({</span>
+					<span class="s1">stage</span><span class="s3">: -</span><span class="s8">10</span>
+				<span class="s3">})</span>
+			<span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s7">/^after/</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)) {</span>
+			<span class="s4">return </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveStepHook} */ </span><span class="s3">(</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">ensureHook</span><span class="s3">(</span><span class="s1">name</span><span class="s3">[</span><span class="s8">5</span><span class="s3">].</span><span class="s1">toLowerCase</span><span class="s3">() + </span><span class="s1">name</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s8">6</span><span class="s3">)).</span><span class="s1">withOptions</span><span class="s3">({</span>
+					<span class="s1">stage</span><span class="s3">: </span><span class="s8">10</span>
+				<span class="s3">})</span>
+			<span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveStepHook} */</span>
+		<span class="s4">const </span><span class="s1">hook </span><span class="s3">= </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{KnownHooks &amp; EnsuredHooks} */ </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">)[</span><span class="s1">name</span><span class="s3">];</span>
+		<span class="s4">if </span><span class="s3">(!</span><span class="s1">hook</span><span class="s3">) {</span>
+			<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{KnownHooks &amp; EnsuredHooks} */</span>
+			<span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">)[</span><span class="s1">name</span><span class="s3">] = </span><span class="s4">new </span><span class="s1">AsyncSeriesBailHook</span><span class="s3">(</span>
+				<span class="s3">[</span><span class="s2">&quot;request&quot;</span><span class="s3">, </span><span class="s2">&quot;resolveContext&quot;</span><span class="s3">],</span>
+				<span class="s1">name</span>
+			<span class="s3">);</span>
+
+			<span class="s4">return </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{KnownHooks &amp; EnsuredHooks} */ </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">)[</span><span class="s1">name</span><span class="s3">];</span>
+		<span class="s3">}</span>
+		<span class="s4">return </span><span class="s1">hook</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string | ResolveStepHook} name hook name or hook itself</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{ResolveStepHook} the hook</span>
+	 <span class="s5">*/</span>
+	<span class="s1">getHook</span><span class="s3">(</span><span class="s1">name</span><span class="s3">) {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">name </span><span class="s3">!== </span><span class="s2">&quot;string&quot;</span><span class="s3">) {</span>
+			<span class="s4">return </span><span class="s1">name</span><span class="s3">;</span>
+		<span class="s3">}</span>
+		<span class="s1">name </span><span class="s3">= </span><span class="s1">toCamelCase</span><span class="s3">(</span><span class="s1">name</span><span class="s3">);</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s7">/^before/</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)) {</span>
+			<span class="s4">return </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveStepHook} */ </span><span class="s3">(</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">getHook</span><span class="s3">(</span><span class="s1">name</span><span class="s3">[</span><span class="s8">6</span><span class="s3">].</span><span class="s1">toLowerCase</span><span class="s3">() + </span><span class="s1">name</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s8">7</span><span class="s3">)).</span><span class="s1">withOptions</span><span class="s3">({</span>
+					<span class="s1">stage</span><span class="s3">: -</span><span class="s8">10</span>
+				<span class="s3">})</span>
+			<span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s7">/^after/</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">name</span><span class="s3">)) {</span>
+			<span class="s4">return </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveStepHook} */ </span><span class="s3">(</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">getHook</span><span class="s3">(</span><span class="s1">name</span><span class="s3">[</span><span class="s8">5</span><span class="s3">].</span><span class="s1">toLowerCase</span><span class="s3">() + </span><span class="s1">name</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s8">6</span><span class="s3">)).</span><span class="s1">withOptions</span><span class="s3">({</span>
+					<span class="s1">stage</span><span class="s3">: </span><span class="s8">10</span>
+				<span class="s3">})</span>
+			<span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveStepHook} */</span>
+		<span class="s4">const </span><span class="s1">hook </span><span class="s3">= </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{KnownHooks &amp; EnsuredHooks} */ </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">)[</span><span class="s1">name</span><span class="s3">];</span>
+		<span class="s4">if </span><span class="s3">(!</span><span class="s1">hook</span><span class="s3">) {</span>
+			<span class="s4">throw new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">`Hook </span><span class="s1">$</span><span class="s3">{</span><span class="s1">name</span><span class="s3">} </span><span class="s2">doesn't exist`</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s4">return </span><span class="s1">hook</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{object} context context information object</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} path context path</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} request request string</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{string | false} result</span>
+	 <span class="s5">*/</span>
+	<span class="s1">resolveSync</span><span class="s3">(</span><span class="s1">context</span><span class="s3">, </span><span class="s1">path</span><span class="s3">, </span><span class="s1">request</span><span class="s3">) {</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Error | null | undefined} */</span>
+		<span class="s4">let </span><span class="s1">err </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{string | false | undefined} */</span>
+		<span class="s4">let </span><span class="s1">result </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s4">let </span><span class="s1">sync </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s1">context</span><span class="s3">, </span><span class="s1">path</span><span class="s3">, </span><span class="s1">request</span><span class="s3">, {}, (</span><span class="s1">e</span><span class="s3">, </span><span class="s1">r</span><span class="s3">) =&gt; {</span>
+			<span class="s1">err </span><span class="s3">= </span><span class="s1">e</span><span class="s3">;</span>
+			<span class="s1">result </span><span class="s3">= </span><span class="s1">r</span><span class="s3">;</span>
+			<span class="s1">sync </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+		<span class="s3">});</span>
+		<span class="s4">if </span><span class="s3">(!</span><span class="s1">sync</span><span class="s3">) {</span>
+			<span class="s4">throw new </span><span class="s1">Error</span><span class="s3">(</span>
+				<span class="s2">&quot;Cannot 'resolveSync' because the fileSystem is not sync. Use 'resolve'!&quot;</span>
+			<span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">throw </span><span class="s1">err</span><span class="s3">;</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">result </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) </span><span class="s4">throw new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">&quot;No result&quot;</span><span class="s3">);</span>
+		<span class="s4">return </span><span class="s1">result</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{object} context context information object</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} path context path</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} request request string</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ResolveContext} resolveContext resolve context</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ResolveCallback} callback callback function</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">resolve</span><span class="s3">(</span><span class="s1">context</span><span class="s3">, </span><span class="s1">path</span><span class="s3">, </span><span class="s1">request</span><span class="s3">, </span><span class="s1">resolveContext</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+		<span class="s4">if </span><span class="s3">(!</span><span class="s1">context </span><span class="s3">|| </span><span class="s4">typeof </span><span class="s1">context </span><span class="s3">!== </span><span class="s2">&quot;object&quot;</span><span class="s3">)</span>
+			<span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s4">new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">&quot;context argument is not an object&quot;</span><span class="s3">));</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">path </span><span class="s3">!== </span><span class="s2">&quot;string&quot;</span><span class="s3">)</span>
+			<span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s4">new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">&quot;path argument is not a string&quot;</span><span class="s3">));</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">request </span><span class="s3">!== </span><span class="s2">&quot;string&quot;</span><span class="s3">)</span>
+			<span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s4">new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">&quot;request argument is not a string&quot;</span><span class="s3">));</span>
+		<span class="s4">if </span><span class="s3">(!</span><span class="s1">resolveContext</span><span class="s3">)</span>
+			<span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s4">new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">&quot;resolveContext argument is not set&quot;</span><span class="s3">));</span>
+
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveRequest} */</span>
+		<span class="s4">const </span><span class="s1">obj </span><span class="s3">= {</span>
+			<span class="s1">context</span><span class="s3">: </span><span class="s1">context</span><span class="s3">,</span>
+			<span class="s1">path</span><span class="s3">: </span><span class="s1">path</span><span class="s3">,</span>
+			<span class="s1">request</span><span class="s3">: </span><span class="s1">request</span>
+		<span class="s3">};</span>
+
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveContextYield | undefined} */</span>
+		<span class="s4">let </span><span class="s1">yield_</span><span class="s3">;</span>
+		<span class="s4">let </span><span class="s1">yieldCalled </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveContextYield | undefined} */</span>
+		<span class="s4">let </span><span class="s1">finishYield</span><span class="s3">;</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">yield </span><span class="s3">=== </span><span class="s2">&quot;function&quot;</span><span class="s3">) {</span>
+			<span class="s4">const </span><span class="s1">old </span><span class="s3">= </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">yield</span><span class="s3">;</span>
+			<span class="s5">/**</span>
+			 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ResolveRequest} obj object</span>
+			 <span class="s5">*/</span>
+			<span class="s1">yield_ </span><span class="s3">= </span><span class="s1">obj </span><span class="s3">=&gt; {</span>
+				<span class="s1">old</span><span class="s3">(</span><span class="s1">obj</span><span class="s3">);</span>
+				<span class="s1">yieldCalled </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+			<span class="s3">};</span>
+			<span class="s5">/**</span>
+			 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ResolveRequest} result result</span>
+			 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+			 <span class="s5">*/</span>
+			<span class="s1">finishYield </span><span class="s3">= </span><span class="s1">result </span><span class="s3">=&gt; {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">result</span><span class="s3">) {</span>
+					<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveContextYield} */ </span><span class="s3">(</span><span class="s1">yield_</span><span class="s3">)(</span><span class="s1">result</span><span class="s3">);</span>
+				<span class="s3">}</span>
+				<span class="s1">callback</span><span class="s3">(</span><span class="s4">null</span><span class="s3">);</span>
+			<span class="s3">};</span>
+		<span class="s3">}</span>
+
+		<span class="s4">const </span><span class="s1">message </span><span class="s3">= </span><span class="s2">`resolve '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">request</span><span class="s3">}</span><span class="s2">' in '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">path</span><span class="s3">}</span><span class="s2">'`</span><span class="s3">;</span>
+
+		<span class="s5">/**</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ResolveRequest} result result</span>
+		 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+		 <span class="s5">*/</span>
+		<span class="s4">const </span><span class="s1">finishResolved </span><span class="s3">= </span><span class="s1">result </span><span class="s3">=&gt; {</span>
+			<span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span>
+				<span class="s4">null</span><span class="s3">,</span>
+				<span class="s1">result</span><span class="s3">.</span><span class="s1">path </span><span class="s3">=== </span><span class="s4">false</span>
+					<span class="s3">? </span><span class="s4">false</span>
+					<span class="s3">: </span><span class="s2">`</span><span class="s1">$</span><span class="s3">{</span><span class="s1">result</span><span class="s3">.</span><span class="s1">path</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s7">/#/g</span><span class="s3">, </span><span class="s2">&quot;</span><span class="s4">\0</span><span class="s2">#&quot;</span><span class="s3">)}</span><span class="s1">$</span><span class="s3">{</span>
+							<span class="s1">result</span><span class="s3">.</span><span class="s1">query </span><span class="s3">? </span><span class="s1">result</span><span class="s3">.</span><span class="s1">query</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s7">/#/g</span><span class="s3">, </span><span class="s2">&quot;</span><span class="s4">\0</span><span class="s2">#&quot;</span><span class="s3">) : </span><span class="s2">&quot;&quot;</span>
+					  <span class="s3">}</span><span class="s1">$</span><span class="s3">{</span><span class="s1">result</span><span class="s3">.</span><span class="s1">fragment </span><span class="s3">|| </span><span class="s2">&quot;&quot;</span><span class="s3">}</span><span class="s2">`</span><span class="s3">,</span>
+				<span class="s1">result</span>
+			<span class="s3">);</span>
+		<span class="s3">};</span>
+
+		<span class="s5">/**</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string[]} log logs</span>
+		 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+		 <span class="s5">*/</span>
+		<span class="s4">const </span><span class="s1">finishWithoutResolve </span><span class="s3">= </span><span class="s1">log </span><span class="s3">=&gt; {</span>
+			<span class="s5">/**</span>
+			 <span class="s5">* </span><span class="s6">@type </span><span class="s5">{ErrorWithDetail}</span>
+			 <span class="s5">*/</span>
+			<span class="s4">const </span><span class="s1">error </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">&quot;Can't &quot; </span><span class="s3">+ </span><span class="s1">message</span><span class="s3">);</span>
+			<span class="s1">error</span><span class="s3">.</span><span class="s1">details </span><span class="s3">= </span><span class="s1">log</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s2">&quot;</span><span class="s4">\n</span><span class="s2">&quot;</span><span class="s3">);</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">noResolve</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">obj</span><span class="s3">, </span><span class="s1">error</span><span class="s3">);</span>
+			<span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">error</span><span class="s3">);</span>
+		<span class="s3">};</span>
+
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">log</span><span class="s3">) {</span>
+			<span class="s0">// We need log anyway to capture it in case of an error</span>
+			<span class="s4">const </span><span class="s1">parentLog </span><span class="s3">= </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">log</span><span class="s3">;</span>
+			<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{string[]} */</span>
+			<span class="s4">const </span><span class="s1">log </span><span class="s3">= [];</span>
+			<span class="s4">return this</span><span class="s3">.</span><span class="s1">doResolve</span><span class="s3">(</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">,</span>
+				<span class="s1">obj</span><span class="s3">,</span>
+				<span class="s1">message</span><span class="s3">,</span>
+				<span class="s3">{</span>
+					<span class="s1">log</span><span class="s3">: </span><span class="s1">msg </span><span class="s3">=&gt; {</span>
+						<span class="s1">parentLog</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">);</span>
+						<span class="s1">log</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">);</span>
+					<span class="s3">},</span>
+					<span class="s4">yield</span><span class="s3">: </span><span class="s1">yield_</span><span class="s3">,</span>
+					<span class="s1">fileDependencies</span><span class="s3">: </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">fileDependencies</span><span class="s3">,</span>
+					<span class="s1">contextDependencies</span><span class="s3">: </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">contextDependencies</span><span class="s3">,</span>
+					<span class="s1">missingDependencies</span><span class="s3">: </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">missingDependencies</span><span class="s3">,</span>
+					<span class="s1">stack</span><span class="s3">: </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">stack</span>
+				<span class="s3">},</span>
+				<span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">result</span><span class="s3">) =&gt; {</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">yieldCalled </span><span class="s3">|| (</span><span class="s1">result </span><span class="s3">&amp;&amp; </span><span class="s1">yield_</span><span class="s3">)) {</span>
+						<span class="s4">return </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveContextYield} */ </span><span class="s3">(</span><span class="s1">finishYield</span><span class="s3">)(</span>
+							<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveRequest} */ </span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+						<span class="s3">);</span>
+					<span class="s3">}</span>
+
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">result</span><span class="s3">) </span><span class="s4">return </span><span class="s1">finishResolved</span><span class="s3">(</span><span class="s1">result</span><span class="s3">);</span>
+
+					<span class="s4">return </span><span class="s1">finishWithoutResolve</span><span class="s3">(</span><span class="s1">log</span><span class="s3">);</span>
+				<span class="s3">}</span>
+			<span class="s3">);</span>
+		<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+			<span class="s0">// Try to resolve assuming there is no error</span>
+			<span class="s0">// We don't log stuff in this case</span>
+			<span class="s4">return this</span><span class="s3">.</span><span class="s1">doResolve</span><span class="s3">(</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">,</span>
+				<span class="s1">obj</span><span class="s3">,</span>
+				<span class="s1">message</span><span class="s3">,</span>
+				<span class="s3">{</span>
+					<span class="s1">log</span><span class="s3">: </span><span class="s1">undefined</span><span class="s3">,</span>
+					<span class="s4">yield</span><span class="s3">: </span><span class="s1">yield_</span><span class="s3">,</span>
+					<span class="s1">fileDependencies</span><span class="s3">: </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">fileDependencies</span><span class="s3">,</span>
+					<span class="s1">contextDependencies</span><span class="s3">: </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">contextDependencies</span><span class="s3">,</span>
+					<span class="s1">missingDependencies</span><span class="s3">: </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">missingDependencies</span><span class="s3">,</span>
+					<span class="s1">stack</span><span class="s3">: </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">stack</span>
+				<span class="s3">},</span>
+				<span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">result</span><span class="s3">) =&gt; {</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">yieldCalled </span><span class="s3">|| (</span><span class="s1">result </span><span class="s3">&amp;&amp; </span><span class="s1">yield_</span><span class="s3">)) {</span>
+						<span class="s4">return </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveContextYield} */ </span><span class="s3">(</span><span class="s1">finishYield</span><span class="s3">)(</span>
+							<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveRequest} */ </span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+						<span class="s3">);</span>
+					<span class="s3">}</span>
+
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">result</span><span class="s3">) </span><span class="s4">return </span><span class="s1">finishResolved</span><span class="s3">(</span><span class="s1">result</span><span class="s3">);</span>
+
+					<span class="s0">// log is missing for the error details</span>
+					<span class="s0">// so we redo the resolving for the log info</span>
+					<span class="s0">// this is more expensive to the success case</span>
+					<span class="s0">// is assumed by default</span>
+					<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{string[]} */</span>
+					<span class="s4">const </span><span class="s1">log </span><span class="s3">= [];</span>
+
+					<span class="s4">return this</span><span class="s3">.</span><span class="s1">doResolve</span><span class="s3">(</span>
+						<span class="s4">this</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">,</span>
+						<span class="s1">obj</span><span class="s3">,</span>
+						<span class="s1">message</span><span class="s3">,</span>
+						<span class="s3">{</span>
+							<span class="s1">log</span><span class="s3">: </span><span class="s1">msg </span><span class="s3">=&gt; </span><span class="s1">log</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">msg</span><span class="s3">),</span>
+							<span class="s4">yield</span><span class="s3">: </span><span class="s1">yield_</span><span class="s3">,</span>
+							<span class="s1">stack</span><span class="s3">: </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">stack</span>
+						<span class="s3">},</span>
+						<span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">result</span><span class="s3">) =&gt; {</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+
+							<span class="s0">// In a case that there is a race condition and yield will be called</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">yieldCalled </span><span class="s3">|| (</span><span class="s1">result </span><span class="s3">&amp;&amp; </span><span class="s1">yield_</span><span class="s3">)) {</span>
+								<span class="s4">return </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveContextYield} */ </span><span class="s3">(</span><span class="s1">finishYield</span><span class="s3">)(</span>
+									<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveRequest} */ </span><span class="s3">(</span><span class="s1">result</span><span class="s3">)</span>
+								<span class="s3">);</span>
+							<span class="s3">}</span>
+
+							<span class="s4">return </span><span class="s1">finishWithoutResolve</span><span class="s3">(</span><span class="s1">log</span><span class="s3">);</span>
+						<span class="s3">}</span>
+					<span class="s3">);</span>
+				<span class="s3">}</span>
+			<span class="s3">);</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ResolveStepHook} hook hook</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ResolveRequest} request request</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{null|string} message string</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ResolveContext} resolveContext resolver context</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{(err?: null|Error, result?: ResolveRequest) =&gt; void} callback callback</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">doResolve</span><span class="s3">(</span><span class="s1">hook</span><span class="s3">, </span><span class="s1">request</span><span class="s3">, </span><span class="s1">message</span><span class="s3">, </span><span class="s1">resolveContext</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s1">stackEntry </span><span class="s3">= </span><span class="s1">Resolver</span><span class="s3">.</span><span class="s1">createStackEntry</span><span class="s3">(</span><span class="s1">hook</span><span class="s3">, </span><span class="s1">request</span><span class="s3">);</span>
+
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Set&lt;string&gt; | undefined} */</span>
+		<span class="s4">let </span><span class="s1">newStack</span><span class="s3">;</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">stack</span><span class="s3">) {</span>
+			<span class="s1">newStack </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">(</span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">stack</span><span class="s3">);</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">stack</span><span class="s3">.</span><span class="s1">has</span><span class="s3">(</span><span class="s1">stackEntry</span><span class="s3">)) {</span>
+				<span class="s5">/**</span>
+				 <span class="s5">* Prevent recursion</span>
+				 <span class="s5">* </span><span class="s6">@type </span><span class="s5">{Error &amp; {recursion?: boolean}}</span>
+				 <span class="s5">*/</span>
+				<span class="s4">const </span><span class="s1">recursionError </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Error</span><span class="s3">(</span>
+					<span class="s2">&quot;Recursion in resolving</span><span class="s4">\n</span><span class="s2">Stack:</span><span class="s4">\n  </span><span class="s2">&quot; </span><span class="s3">+</span>
+						<span class="s1">Array</span><span class="s3">.</span><span class="s1">from</span><span class="s3">(</span><span class="s1">newStack</span><span class="s3">).</span><span class="s1">join</span><span class="s3">(</span><span class="s2">&quot;</span><span class="s4">\n  </span><span class="s2">&quot;</span><span class="s3">)</span>
+				<span class="s3">);</span>
+				<span class="s1">recursionError</span><span class="s3">.</span><span class="s1">recursion </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">log</span><span class="s3">)</span>
+					<span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">log</span><span class="s3">(</span><span class="s2">&quot;abort resolving because of recursion&quot;</span><span class="s3">);</span>
+				<span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">recursionError</span><span class="s3">);</span>
+			<span class="s3">}</span>
+			<span class="s1">newStack</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">stackEntry</span><span class="s3">);</span>
+		<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+			<span class="s1">newStack </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">([</span><span class="s1">stackEntry</span><span class="s3">]);</span>
+		<span class="s3">}</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">resolveStep</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">hook</span><span class="s3">, </span><span class="s1">request</span><span class="s3">);</span>
+
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">hook</span><span class="s3">.</span><span class="s1">isUsed</span><span class="s3">()) {</span>
+			<span class="s4">const </span><span class="s1">innerContext </span><span class="s3">= </span><span class="s1">createInnerContext</span><span class="s3">(</span>
+				<span class="s3">{</span>
+					<span class="s1">log</span><span class="s3">: </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">log</span><span class="s3">,</span>
+					<span class="s4">yield</span><span class="s3">: </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">yield</span><span class="s3">,</span>
+					<span class="s1">fileDependencies</span><span class="s3">: </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">fileDependencies</span><span class="s3">,</span>
+					<span class="s1">contextDependencies</span><span class="s3">: </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">contextDependencies</span><span class="s3">,</span>
+					<span class="s1">missingDependencies</span><span class="s3">: </span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">missingDependencies</span><span class="s3">,</span>
+					<span class="s1">stack</span><span class="s3">: </span><span class="s1">newStack</span>
+				<span class="s3">},</span>
+				<span class="s1">message</span>
+			<span class="s3">);</span>
+			<span class="s4">return </span><span class="s1">hook</span><span class="s3">.</span><span class="s1">callAsync</span><span class="s3">(</span><span class="s1">request</span><span class="s3">, </span><span class="s1">innerContext</span><span class="s3">, (</span><span class="s1">err</span><span class="s3">, </span><span class="s1">result</span><span class="s3">) =&gt; {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">result</span><span class="s3">) </span><span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, </span><span class="s1">result</span><span class="s3">);</span>
+				<span class="s1">callback</span><span class="s3">();</span>
+			<span class="s3">});</span>
+		<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+			<span class="s1">callback</span><span class="s3">();</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} identifier identifier</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{ParsedIdentifier} parsed identifier</span>
+	 <span class="s5">*/</span>
+	<span class="s1">parse</span><span class="s3">(</span><span class="s1">identifier</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s1">part </span><span class="s3">= {</span>
+			<span class="s1">request</span><span class="s3">: </span><span class="s2">&quot;&quot;</span><span class="s3">,</span>
+			<span class="s1">query</span><span class="s3">: </span><span class="s2">&quot;&quot;</span><span class="s3">,</span>
+			<span class="s1">fragment</span><span class="s3">: </span><span class="s2">&quot;&quot;</span><span class="s3">,</span>
+			<span class="s1">module</span><span class="s3">: </span><span class="s4">false</span><span class="s3">,</span>
+			<span class="s1">directory</span><span class="s3">: </span><span class="s4">false</span><span class="s3">,</span>
+			<span class="s1">file</span><span class="s3">: </span><span class="s4">false</span><span class="s3">,</span>
+			<span class="s1">internal</span><span class="s3">: </span><span class="s4">false</span>
+		<span class="s3">};</span>
+
+		<span class="s4">const </span><span class="s1">parsedIdentifier </span><span class="s3">= </span><span class="s1">parseIdentifier</span><span class="s3">(</span><span class="s1">identifier</span><span class="s3">);</span>
+
+		<span class="s4">if </span><span class="s3">(!</span><span class="s1">parsedIdentifier</span><span class="s3">) </span><span class="s4">return </span><span class="s1">part</span><span class="s3">;</span>
+
+		<span class="s3">[</span><span class="s1">part</span><span class="s3">.</span><span class="s1">request</span><span class="s3">, </span><span class="s1">part</span><span class="s3">.</span><span class="s1">query</span><span class="s3">, </span><span class="s1">part</span><span class="s3">.</span><span class="s1">fragment</span><span class="s3">] = </span><span class="s1">parsedIdentifier</span><span class="s3">;</span>
+
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">part</span><span class="s3">.</span><span class="s1">request</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s8">0</span><span class="s3">) {</span>
+			<span class="s1">part</span><span class="s3">.</span><span class="s1">internal </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">isPrivate</span><span class="s3">(</span><span class="s1">identifier</span><span class="s3">);</span>
+			<span class="s1">part</span><span class="s3">.</span><span class="s1">module </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">isModule</span><span class="s3">(</span><span class="s1">part</span><span class="s3">.</span><span class="s1">request</span><span class="s3">);</span>
+			<span class="s1">part</span><span class="s3">.</span><span class="s1">directory </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">isDirectory</span><span class="s3">(</span><span class="s1">part</span><span class="s3">.</span><span class="s1">request</span><span class="s3">);</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">part</span><span class="s3">.</span><span class="s1">directory</span><span class="s3">) {</span>
+				<span class="s1">part</span><span class="s3">.</span><span class="s1">request </span><span class="s3">= </span><span class="s1">part</span><span class="s3">.</span><span class="s1">request</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s8">0</span><span class="s3">, -</span><span class="s8">1</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+
+		<span class="s4">return </span><span class="s1">part</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} path path</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} true, if the path is a module</span>
+	 <span class="s5">*/</span>
+	<span class="s1">isModule</span><span class="s3">(</span><span class="s1">path</span><span class="s3">) {</span>
+		<span class="s4">return </span><span class="s1">getType</span><span class="s3">(</span><span class="s1">path</span><span class="s3">) === </span><span class="s1">PathType</span><span class="s3">.</span><span class="s1">Normal</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} path path</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} true, if the path is private</span>
+	 <span class="s5">*/</span>
+	<span class="s1">isPrivate</span><span class="s3">(</span><span class="s1">path</span><span class="s3">) {</span>
+		<span class="s4">return </span><span class="s1">getType</span><span class="s3">(</span><span class="s1">path</span><span class="s3">) === </span><span class="s1">PathType</span><span class="s3">.</span><span class="s1">Internal</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} path a path</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} true, if the path is a directory path</span>
+	 <span class="s5">*/</span>
+	<span class="s1">isDirectory</span><span class="s3">(</span><span class="s1">path</span><span class="s3">) {</span>
+		<span class="s4">return </span><span class="s1">path</span><span class="s3">.</span><span class="s1">endsWith</span><span class="s3">(</span><span class="s2">&quot;/&quot;</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} path path</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} request request</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{string} joined path</span>
+	 <span class="s5">*/</span>
+	<span class="s1">join</span><span class="s3">(</span><span class="s1">path</span><span class="s3">, </span><span class="s1">request</span><span class="s3">) {</span>
+		<span class="s4">return </span><span class="s1">join</span><span class="s3">(</span><span class="s1">path</span><span class="s3">, </span><span class="s1">request</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} path path</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{string} normalized path</span>
+	 <span class="s5">*/</span>
+	<span class="s1">normalize</span><span class="s3">(</span><span class="s1">path</span><span class="s3">) {</span>
+		<span class="s4">return </span><span class="s1">normalize</span><span class="s3">(</span><span class="s1">path</span><span class="s3">);</span>
+	<span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">Resolver</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

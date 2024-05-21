@@ -1,0 +1,99 @@
+<html>
+<head>
+<title>mergeRules.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #7a7e85;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+mergeRules.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">hasAllProps </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./hasAllProps.js'</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">getDecls </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./getDecls.js'</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">getRules </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./getRules.js'</span><span class="s1">);</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{import('postcss').Declaration} propA</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{import('postcss').Declaration} propB</span>
+ <span class="s4">* </span><span class="s5">@return </span><span class="s4">{boolean}</span>
+ <span class="s4">*/</span>
+<span class="s3">function </span><span class="s2">isConflictingProp</span><span class="s1">(</span><span class="s2">propA</span><span class="s1">, </span><span class="s2">propB</span><span class="s1">) {</span>
+  <span class="s3">if </span><span class="s1">(</span>
+    <span class="s1">!</span><span class="s2">propB</span><span class="s1">.</span><span class="s2">prop </span><span class="s1">||</span>
+    <span class="s2">propB</span><span class="s1">.</span><span class="s2">important </span><span class="s1">!== </span><span class="s2">propA</span><span class="s1">.</span><span class="s2">important </span><span class="s1">||</span>
+    <span class="s2">propA</span><span class="s1">.</span><span class="s2">prop </span><span class="s1">=== </span><span class="s2">propB</span><span class="s1">.</span><span class="s2">prop</span>
+  <span class="s1">) {</span>
+    <span class="s3">return false</span><span class="s1">;</span>
+  <span class="s1">}</span>
+
+  <span class="s3">const </span><span class="s2">partsA </span><span class="s1">= </span><span class="s2">propA</span><span class="s1">.</span><span class="s2">prop</span><span class="s1">.</span><span class="s2">split</span><span class="s1">(</span><span class="s0">'-'</span><span class="s1">);</span>
+  <span class="s3">const </span><span class="s2">partsB </span><span class="s1">= </span><span class="s2">propB</span><span class="s1">.</span><span class="s2">prop</span><span class="s1">.</span><span class="s2">split</span><span class="s1">(</span><span class="s0">'-'</span><span class="s1">);</span>
+
+  <span class="s6">/* Be safe: check that the first part matches. So we don't try to 
+   * combine e.g. border-color and color. 
+   */</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s2">partsA</span><span class="s1">[</span><span class="s7">0</span><span class="s1">] !== </span><span class="s2">partsB</span><span class="s1">[</span><span class="s7">0</span><span class="s1">]) {</span>
+    <span class="s3">return false</span><span class="s1">;</span>
+  <span class="s1">}</span>
+
+  <span class="s3">const </span><span class="s2">partsASet </span><span class="s1">= </span><span class="s3">new </span><span class="s2">Set</span><span class="s1">(</span><span class="s2">partsA</span><span class="s1">);</span>
+  <span class="s3">return </span><span class="s2">partsB</span><span class="s1">.</span><span class="s2">every</span><span class="s1">((</span><span class="s2">partB</span><span class="s1">) =&gt; </span><span class="s2">partsASet</span><span class="s1">.</span><span class="s2">has</span><span class="s1">(</span><span class="s2">partB</span><span class="s1">));</span>
+<span class="s1">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{import('postcss').Declaration[]} match</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{import('postcss').Declaration[]} nodes</span>
+ <span class="s4">* </span><span class="s5">@return </span><span class="s4">{boolean}</span>
+ <span class="s4">*/</span>
+<span class="s3">function </span><span class="s2">hasConflicts</span><span class="s1">(</span><span class="s2">match</span><span class="s1">, </span><span class="s2">nodes</span><span class="s1">) {</span>
+  <span class="s3">const </span><span class="s2">firstNode </span><span class="s1">= </span><span class="s2">Math</span><span class="s1">.</span><span class="s2">min</span><span class="s1">(</span><span class="s2">...match</span><span class="s1">.</span><span class="s2">map</span><span class="s1">((</span><span class="s2">n</span><span class="s1">) =&gt; </span><span class="s2">nodes</span><span class="s1">.</span><span class="s2">indexOf</span><span class="s1">(</span><span class="s2">n</span><span class="s1">)));</span>
+  <span class="s3">const </span><span class="s2">lastNode </span><span class="s1">= </span><span class="s2">Math</span><span class="s1">.</span><span class="s2">max</span><span class="s1">(</span><span class="s2">...match</span><span class="s1">.</span><span class="s2">map</span><span class="s1">((</span><span class="s2">n</span><span class="s1">) =&gt; </span><span class="s2">nodes</span><span class="s1">.</span><span class="s2">indexOf</span><span class="s1">(</span><span class="s2">n</span><span class="s1">)));</span>
+  <span class="s3">const </span><span class="s2">between </span><span class="s1">= </span><span class="s2">nodes</span><span class="s1">.</span><span class="s2">slice</span><span class="s1">(</span><span class="s2">firstNode </span><span class="s1">+ </span><span class="s7">1</span><span class="s1">, </span><span class="s2">lastNode</span><span class="s1">);</span>
+
+  <span class="s3">return </span><span class="s2">match</span><span class="s1">.</span><span class="s2">some</span><span class="s1">((</span><span class="s2">a</span><span class="s1">) =&gt; </span><span class="s2">between</span><span class="s1">.</span><span class="s2">some</span><span class="s1">((</span><span class="s2">b</span><span class="s1">) =&gt; </span><span class="s2">isConflictingProp</span><span class="s1">(</span><span class="s2">a</span><span class="s1">, </span><span class="s2">b</span><span class="s1">)));</span>
+<span class="s1">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{import('postcss').Rule} rule</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string[]} properties</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{(rules: import('postcss').Declaration[], last: import('postcss').Declaration, props: import('postcss').Declaration[]) =&gt; boolean} callback</span>
+ <span class="s4">* </span><span class="s5">@return </span><span class="s4">{void}</span>
+ <span class="s4">*/</span>
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= </span><span class="s3">function </span><span class="s2">mergeRules</span><span class="s1">(</span><span class="s2">rule</span><span class="s1">, </span><span class="s2">properties</span><span class="s1">, </span><span class="s2">callback</span><span class="s1">) {</span>
+  <span class="s3">let </span><span class="s2">decls </span><span class="s1">= </span><span class="s2">getDecls</span><span class="s1">(</span><span class="s2">rule</span><span class="s1">, </span><span class="s2">properties</span><span class="s1">);</span>
+
+  <span class="s3">while </span><span class="s1">(</span><span class="s2">decls</span><span class="s1">.</span><span class="s2">length</span><span class="s1">) {</span>
+    <span class="s3">const </span><span class="s2">last </span><span class="s1">= </span><span class="s2">decls</span><span class="s1">[</span><span class="s2">decls</span><span class="s1">.</span><span class="s2">length </span><span class="s1">- </span><span class="s7">1</span><span class="s1">];</span>
+    <span class="s3">const </span><span class="s2">props </span><span class="s1">= </span><span class="s2">decls</span><span class="s1">.</span><span class="s2">filter</span><span class="s1">((</span><span class="s2">node</span><span class="s1">) =&gt; </span><span class="s2">node</span><span class="s1">.</span><span class="s2">important </span><span class="s1">=== </span><span class="s2">last</span><span class="s1">.</span><span class="s2">important</span><span class="s1">);</span>
+    <span class="s3">const </span><span class="s2">rules </span><span class="s1">= </span><span class="s2">getRules</span><span class="s1">(</span><span class="s2">props</span><span class="s1">, </span><span class="s2">properties</span><span class="s1">);</span>
+
+    <span class="s3">if </span><span class="s1">(</span>
+      <span class="s2">hasAllProps</span><span class="s1">(</span><span class="s2">rules</span><span class="s1">, </span><span class="s2">...properties</span><span class="s1">) &amp;&amp;</span>
+      <span class="s1">!</span><span class="s2">hasConflicts</span><span class="s1">(</span>
+        <span class="s2">rules</span><span class="s1">,</span>
+        <span class="s4">/** </span><span class="s5">@type </span><span class="s4">import('postcss').Declaration[]*/ </span><span class="s1">(</span><span class="s2">rule</span><span class="s1">.</span><span class="s2">nodes</span><span class="s1">)</span>
+      <span class="s1">)</span>
+    <span class="s1">) {</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">callback</span><span class="s1">(</span><span class="s2">rules</span><span class="s1">, </span><span class="s2">last</span><span class="s1">, </span><span class="s2">props</span><span class="s1">)) {</span>
+        <span class="s2">decls </span><span class="s1">= </span><span class="s2">decls</span><span class="s1">.</span><span class="s2">filter</span><span class="s1">((</span><span class="s2">node</span><span class="s1">) =&gt; !</span><span class="s2">rules</span><span class="s1">.</span><span class="s2">includes</span><span class="s1">(</span><span class="s2">node</span><span class="s1">));</span>
+      <span class="s1">}</span>
+    <span class="s1">}</span>
+
+    <span class="s2">decls </span><span class="s1">= </span><span class="s2">decls</span><span class="s1">.</span><span class="s2">filter</span><span class="s1">((</span><span class="s2">node</span><span class="s1">) =&gt; </span><span class="s2">node </span><span class="s1">!== </span><span class="s2">last</span><span class="s1">);</span>
+  <span class="s1">}</span>
+<span class="s1">};</span>
+</pre>
+</body>
+</html>

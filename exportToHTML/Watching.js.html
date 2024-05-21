@@ -1,0 +1,540 @@
+<html>
+<head>
+<title>Watching.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #67a37c; font-style: italic;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+Watching.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+    MIT License http://www.opensource.org/licenses/mit-license.php 
+    Author Tobias Koppers @sokra 
+*/</span>
+
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">const </span><span class="s1">Stats </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./Stats&quot;</span><span class="s3">);</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;../declarations/WebpackOptions&quot;).WatchOptions} WatchOptions */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Compilation&quot;)} Compilation */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Compiler&quot;)} Compiler */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./FileSystemInfo&quot;).FileSystemInfoEntry} FileSystemInfoEntry */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./WebpackError&quot;)} WebpackError */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./logging/Logger&quot;).Logger} Logger */</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@template </span><span class="s5">T</span>
+ <span class="s5">* </span><span class="s6">@callback </span><span class="s5">Callback</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{(Error | null)=} err</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{T=} result</span>
+ <span class="s5">*/</span>
+
+<span class="s4">class </span><span class="s1">Watching </span><span class="s3">{</span>
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Compiler} compiler the compiler</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{WatchOptions} watchOptions options</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Callback&lt;Stats&gt;} handler completion handler</span>
+	 <span class="s5">*/</span>
+	<span class="s1">constructor</span><span class="s3">(</span><span class="s1">compiler</span><span class="s3">, </span><span class="s1">watchOptions</span><span class="s3">, </span><span class="s1">handler</span><span class="s3">) {</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">startTime </span><span class="s3">= </span><span class="s4">null</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">invalid </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">handler </span><span class="s3">= </span><span class="s1">handler</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Callback&lt;void&gt;[]} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">callbacks </span><span class="s3">= [];</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Callback&lt;void&gt;[] | undefined} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_closeCallbacks </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">closed </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">suspended </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">blocked </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_isBlocked </span><span class="s3">= () =&gt; </span><span class="s4">false</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_onChange </span><span class="s3">= () =&gt; {};</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_onInvalid </span><span class="s3">= () =&gt; {};</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">watchOptions </span><span class="s3">=== </span><span class="s2">&quot;number&quot;</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">watchOptions </span><span class="s3">= {</span>
+				<span class="s1">aggregateTimeout</span><span class="s3">: </span><span class="s1">watchOptions</span>
+			<span class="s3">};</span>
+		<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">watchOptions </span><span class="s3">&amp;&amp; </span><span class="s4">typeof </span><span class="s1">watchOptions </span><span class="s3">=== </span><span class="s2">&quot;object&quot;</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">watchOptions </span><span class="s3">= { </span><span class="s1">...watchOptions </span><span class="s3">};</span>
+		<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">watchOptions </span><span class="s3">= {};</span>
+		<span class="s3">}</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">typeof this</span><span class="s3">.</span><span class="s1">watchOptions</span><span class="s3">.</span><span class="s1">aggregateTimeout </span><span class="s3">!== </span><span class="s2">&quot;number&quot;</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">watchOptions</span><span class="s3">.</span><span class="s1">aggregateTimeout </span><span class="s3">= </span><span class="s7">20</span><span class="s3">;</span>
+		<span class="s3">}</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler </span><span class="s3">= </span><span class="s1">compiler</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">running </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_initial </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_invalidReported </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_needRecords </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">watcher </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">pausedWatcher </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Set&lt;string&gt; | undefined} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_collectedChangedFiles </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Set&lt;string&gt; | undefined} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_collectedRemovedFiles </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_done </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_done</span><span class="s3">.</span><span class="s1">bind</span><span class="s3">(</span><span class="s4">this</span><span class="s3">);</span>
+		<span class="s1">process</span><span class="s3">.</span><span class="s1">nextTick</span><span class="s3">(() =&gt; {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_initial</span><span class="s3">) </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_invalidate</span><span class="s3">();</span>
+		<span class="s3">});</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ReadonlySet&lt;string&gt;=} changedFiles changed files</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ReadonlySet&lt;string&gt;=} removedFiles removed files</span>
+	 <span class="s5">*/</span>
+	<span class="s1">_mergeWithCollected</span><span class="s3">(</span><span class="s1">changedFiles</span><span class="s3">, </span><span class="s1">removedFiles</span><span class="s3">) {</span>
+		<span class="s4">if </span><span class="s3">(!</span><span class="s1">changedFiles</span><span class="s3">) </span><span class="s4">return</span><span class="s3">;</span>
+		<span class="s4">if </span><span class="s3">(!</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_collectedChangedFiles</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_collectedChangedFiles </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">(</span><span class="s1">changedFiles</span><span class="s3">);</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_collectedRemovedFiles </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">(</span><span class="s1">removedFiles</span><span class="s3">);</span>
+		<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">file of changedFiles</span><span class="s3">) {</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">_collectedChangedFiles</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">file</span><span class="s3">);</span>
+				<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Set&lt;string&gt;} */</span>
+				<span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_collectedRemovedFiles</span><span class="s3">).</span><span class="s1">delete</span><span class="s3">(</span><span class="s1">file</span><span class="s3">);</span>
+			<span class="s3">}</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">file of </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ReadonlySet&lt;string&gt;} */ </span><span class="s3">(</span><span class="s1">removedFiles</span><span class="s3">)) {</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">_collectedChangedFiles</span><span class="s3">.</span><span class="s1">delete</span><span class="s3">(</span><span class="s1">file</span><span class="s3">);</span>
+				<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Set&lt;string&gt;} */</span>
+				<span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_collectedRemovedFiles</span><span class="s3">).</span><span class="s1">add</span><span class="s3">(</span><span class="s1">file</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ReadonlyMap&lt;string, FileSystemInfoEntry | &quot;ignore&quot;&gt;=} fileTimeInfoEntries info for files</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ReadonlyMap&lt;string, FileSystemInfoEntry | &quot;ignore&quot;&gt;=} contextTimeInfoEntries info for directories</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ReadonlySet&lt;string&gt;=} changedFiles changed files</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ReadonlySet&lt;string&gt;=} removedFiles removed files</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">_go</span><span class="s3">(</span><span class="s1">fileTimeInfoEntries</span><span class="s3">, </span><span class="s1">contextTimeInfoEntries</span><span class="s3">, </span><span class="s1">changedFiles</span><span class="s3">, </span><span class="s1">removedFiles</span><span class="s3">) {</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_initial </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">startTime </span><span class="s3">=== </span><span class="s4">null</span><span class="s3">) </span><span class="s4">this</span><span class="s3">.</span><span class="s1">startTime </span><span class="s3">= </span><span class="s1">Date</span><span class="s3">.</span><span class="s1">now</span><span class="s3">();</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">running </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">watcher</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">pausedWatcher </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">watcher</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">lastWatcherStartTime </span><span class="s3">= </span><span class="s1">Date</span><span class="s3">.</span><span class="s1">now</span><span class="s3">();</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">watcher</span><span class="s3">.</span><span class="s1">pause</span><span class="s3">();</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">watcher </span><span class="s3">= </span><span class="s4">null</span><span class="s3">;</span>
+		<span class="s3">} </span><span class="s4">else if </span><span class="s3">(!</span><span class="s4">this</span><span class="s3">.</span><span class="s1">lastWatcherStartTime</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">lastWatcherStartTime </span><span class="s3">= </span><span class="s1">Date</span><span class="s3">.</span><span class="s1">now</span><span class="s3">();</span>
+		<span class="s3">}</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">fsStartTime </span><span class="s3">= </span><span class="s1">Date</span><span class="s3">.</span><span class="s1">now</span><span class="s3">();</span>
+		<span class="s4">if </span><span class="s3">(</span>
+			<span class="s1">changedFiles </span><span class="s3">&amp;&amp;</span>
+			<span class="s1">removedFiles </span><span class="s3">&amp;&amp;</span>
+			<span class="s1">fileTimeInfoEntries </span><span class="s3">&amp;&amp;</span>
+			<span class="s1">contextTimeInfoEntries</span>
+		<span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_mergeWithCollected</span><span class="s3">(</span><span class="s1">changedFiles</span><span class="s3">, </span><span class="s1">removedFiles</span><span class="s3">);</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">fileTimestamps </span><span class="s3">= </span><span class="s1">fileTimeInfoEntries</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">contextTimestamps </span><span class="s3">= </span><span class="s1">contextTimeInfoEntries</span><span class="s3">;</span>
+		<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">pausedWatcher</span><span class="s3">) {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">pausedWatcher</span><span class="s3">.</span><span class="s1">getInfo</span><span class="s3">) {</span>
+				<span class="s4">const </span><span class="s3">{</span>
+					<span class="s1">changes</span><span class="s3">,</span>
+					<span class="s1">removals</span><span class="s3">,</span>
+					<span class="s1">fileTimeInfoEntries</span><span class="s3">,</span>
+					<span class="s1">contextTimeInfoEntries</span>
+				<span class="s3">} = </span><span class="s4">this</span><span class="s3">.</span><span class="s1">pausedWatcher</span><span class="s3">.</span><span class="s1">getInfo</span><span class="s3">();</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">_mergeWithCollected</span><span class="s3">(</span><span class="s1">changes</span><span class="s3">, </span><span class="s1">removals</span><span class="s3">);</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">fileTimestamps </span><span class="s3">= </span><span class="s1">fileTimeInfoEntries</span><span class="s3">;</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">contextTimestamps </span><span class="s3">= </span><span class="s1">contextTimeInfoEntries</span><span class="s3">;</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">_mergeWithCollected</span><span class="s3">(</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">pausedWatcher</span><span class="s3">.</span><span class="s1">getAggregatedChanges </span><span class="s3">&amp;&amp;</span>
+						<span class="s4">this</span><span class="s3">.</span><span class="s1">pausedWatcher</span><span class="s3">.</span><span class="s1">getAggregatedChanges</span><span class="s3">(),</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">pausedWatcher</span><span class="s3">.</span><span class="s1">getAggregatedRemovals </span><span class="s3">&amp;&amp;</span>
+						<span class="s4">this</span><span class="s3">.</span><span class="s1">pausedWatcher</span><span class="s3">.</span><span class="s1">getAggregatedRemovals</span><span class="s3">()</span>
+				<span class="s3">);</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">fileTimestamps </span><span class="s3">=</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">pausedWatcher</span><span class="s3">.</span><span class="s1">getFileTimeInfoEntries</span><span class="s3">();</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">contextTimestamps </span><span class="s3">=</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">pausedWatcher</span><span class="s3">.</span><span class="s1">getContextTimeInfoEntries</span><span class="s3">();</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">modifiedFiles </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_collectedChangedFiles</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_collectedChangedFiles </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">removedFiles </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_collectedRemovedFiles</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_collectedRemovedFiles </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+
+		<span class="s4">const </span><span class="s1">run </span><span class="s3">= () =&gt; {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">idle</span><span class="s3">) {</span>
+				<span class="s4">return this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">cache</span><span class="s3">.</span><span class="s1">endIdle</span><span class="s3">(</span><span class="s1">err </span><span class="s3">=&gt; {</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return this</span><span class="s3">.</span><span class="s1">_done</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">idle </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+					<span class="s1">run</span><span class="s3">();</span>
+				<span class="s3">});</span>
+			<span class="s3">}</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_needRecords</span><span class="s3">) {</span>
+				<span class="s4">return this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">readRecords</span><span class="s3">(</span><span class="s1">err </span><span class="s3">=&gt; {</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return this</span><span class="s3">.</span><span class="s1">_done</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">_needRecords </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+					<span class="s1">run</span><span class="s3">();</span>
+				<span class="s3">});</span>
+			<span class="s3">}</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">invalid </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_invalidReported </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">watchRun</span><span class="s3">.</span><span class="s1">callAsync</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">, </span><span class="s1">err </span><span class="s3">=&gt; {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return this</span><span class="s3">.</span><span class="s1">_done</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+				<span class="s4">const </span><span class="s1">onCompiled </span><span class="s3">= (</span><span class="s1">err</span><span class="s3">, </span><span class="s1">compilation</span><span class="s3">) =&gt; {</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return this</span><span class="s3">.</span><span class="s1">_done</span><span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">compilation</span><span class="s3">);</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">invalid</span><span class="s3">) </span><span class="s4">return this</span><span class="s3">.</span><span class="s1">_done</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, </span><span class="s1">compilation</span><span class="s3">);</span>
+
+					<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">shouldEmit</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">compilation</span><span class="s3">) === </span><span class="s4">false</span><span class="s3">) {</span>
+						<span class="s4">return this</span><span class="s3">.</span><span class="s1">_done</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, </span><span class="s1">compilation</span><span class="s3">);</span>
+					<span class="s3">}</span>
+
+					<span class="s1">process</span><span class="s3">.</span><span class="s1">nextTick</span><span class="s3">(() =&gt; {</span>
+						<span class="s4">const </span><span class="s1">logger </span><span class="s3">= </span><span class="s1">compilation</span><span class="s3">.</span><span class="s1">getLogger</span><span class="s3">(</span><span class="s2">&quot;webpack.Compiler&quot;</span><span class="s3">);</span>
+						<span class="s1">logger</span><span class="s3">.</span><span class="s1">time</span><span class="s3">(</span><span class="s2">&quot;emitAssets&quot;</span><span class="s3">);</span>
+						<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">emitAssets</span><span class="s3">(</span><span class="s1">compilation</span><span class="s3">, </span><span class="s1">err </span><span class="s3">=&gt; {</span>
+							<span class="s1">logger</span><span class="s3">.</span><span class="s1">timeEnd</span><span class="s3">(</span><span class="s2">&quot;emitAssets&quot;</span><span class="s3">);</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return this</span><span class="s3">.</span><span class="s1">_done</span><span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">compilation</span><span class="s3">);</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">invalid</span><span class="s3">) </span><span class="s4">return this</span><span class="s3">.</span><span class="s1">_done</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, </span><span class="s1">compilation</span><span class="s3">);</span>
+
+							<span class="s1">logger</span><span class="s3">.</span><span class="s1">time</span><span class="s3">(</span><span class="s2">&quot;emitRecords&quot;</span><span class="s3">);</span>
+							<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">emitRecords</span><span class="s3">(</span><span class="s1">err </span><span class="s3">=&gt; {</span>
+								<span class="s1">logger</span><span class="s3">.</span><span class="s1">timeEnd</span><span class="s3">(</span><span class="s2">&quot;emitRecords&quot;</span><span class="s3">);</span>
+								<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return this</span><span class="s3">.</span><span class="s1">_done</span><span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">compilation</span><span class="s3">);</span>
+
+								<span class="s4">if </span><span class="s3">(</span><span class="s1">compilation</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">needAdditionalPass</span><span class="s3">.</span><span class="s1">call</span><span class="s3">()) {</span>
+									<span class="s1">compilation</span><span class="s3">.</span><span class="s1">needAdditionalPass </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+
+									<span class="s1">compilation</span><span class="s3">.</span><span class="s1">startTime </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">startTime</span><span class="s3">;</span>
+									<span class="s1">compilation</span><span class="s3">.</span><span class="s1">endTime </span><span class="s3">= </span><span class="s1">Date</span><span class="s3">.</span><span class="s1">now</span><span class="s3">();</span>
+									<span class="s1">logger</span><span class="s3">.</span><span class="s1">time</span><span class="s3">(</span><span class="s2">&quot;done hook&quot;</span><span class="s3">);</span>
+									<span class="s4">const </span><span class="s1">stats </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Stats</span><span class="s3">(</span><span class="s1">compilation</span><span class="s3">);</span>
+									<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">done</span><span class="s3">.</span><span class="s1">callAsync</span><span class="s3">(</span><span class="s1">stats</span><span class="s3">, </span><span class="s1">err </span><span class="s3">=&gt; {</span>
+										<span class="s1">logger</span><span class="s3">.</span><span class="s1">timeEnd</span><span class="s3">(</span><span class="s2">&quot;done hook&quot;</span><span class="s3">);</span>
+										<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return this</span><span class="s3">.</span><span class="s1">_done</span><span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">compilation</span><span class="s3">);</span>
+
+										<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">additionalPass</span><span class="s3">.</span><span class="s1">callAsync</span><span class="s3">(</span><span class="s1">err </span><span class="s3">=&gt; {</span>
+											<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return this</span><span class="s3">.</span><span class="s1">_done</span><span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">compilation</span><span class="s3">);</span>
+											<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">compile</span><span class="s3">(</span><span class="s1">onCompiled</span><span class="s3">);</span>
+										<span class="s3">});</span>
+									<span class="s3">});</span>
+									<span class="s4">return</span><span class="s3">;</span>
+								<span class="s3">}</span>
+								<span class="s4">return this</span><span class="s3">.</span><span class="s1">_done</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, </span><span class="s1">compilation</span><span class="s3">);</span>
+							<span class="s3">});</span>
+						<span class="s3">});</span>
+					<span class="s3">});</span>
+				<span class="s3">};</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">compile</span><span class="s3">(</span><span class="s1">onCompiled</span><span class="s3">);</span>
+			<span class="s3">});</span>
+		<span class="s3">};</span>
+
+		<span class="s1">run</span><span class="s3">();</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Compilation} compilation the compilation</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{Stats} the compilation stats</span>
+	 <span class="s5">*/</span>
+	<span class="s1">_getStats</span><span class="s3">(</span><span class="s1">compilation</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s1">stats </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Stats</span><span class="s3">(</span><span class="s1">compilation</span><span class="s3">);</span>
+		<span class="s4">return </span><span class="s1">stats</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{(Error | null)=} err an optional error</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Compilation=} compilation the compilation</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">_done</span><span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">compilation</span><span class="s3">) {</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">running </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+
+		<span class="s4">const </span><span class="s1">logger </span><span class="s3">= </span><span class="s1">compilation </span><span class="s3">&amp;&amp; </span><span class="s1">compilation</span><span class="s3">.</span><span class="s1">getLogger</span><span class="s3">(</span><span class="s2">&quot;webpack.Watching&quot;</span><span class="s3">);</span>
+
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Stats | null} */</span>
+		<span class="s4">let </span><span class="s1">stats </span><span class="s3">= </span><span class="s4">null</span><span class="s3">;</span>
+
+		<span class="s5">/**</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Error} err error</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Callback&lt;void&gt;[]=} cbs callbacks</span>
+		 <span class="s5">*/</span>
+		<span class="s4">const </span><span class="s1">handleError </span><span class="s3">= (</span><span class="s1">err</span><span class="s3">, </span><span class="s1">cbs</span><span class="s3">) =&gt; {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">failed</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">cache</span><span class="s3">.</span><span class="s1">beginIdle</span><span class="s3">();</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">idle </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">handler</span><span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Stats} */ </span><span class="s3">(</span><span class="s1">stats</span><span class="s3">));</span>
+			<span class="s4">if </span><span class="s3">(!</span><span class="s1">cbs</span><span class="s3">) {</span>
+				<span class="s1">cbs </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">callbacks</span><span class="s3">;</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">callbacks </span><span class="s3">= [];</span>
+			<span class="s3">}</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">cb of cbs</span><span class="s3">) </span><span class="s1">cb</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+		<span class="s3">};</span>
+
+		<span class="s4">if </span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">invalid </span><span class="s3">&amp;&amp;</span>
+			<span class="s3">!</span><span class="s4">this</span><span class="s3">.</span><span class="s1">suspended </span><span class="s3">&amp;&amp;</span>
+			<span class="s3">!</span><span class="s4">this</span><span class="s3">.</span><span class="s1">blocked </span><span class="s3">&amp;&amp;</span>
+			<span class="s3">!(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_isBlocked</span><span class="s3">() &amp;&amp; (</span><span class="s4">this</span><span class="s3">.</span><span class="s1">blocked </span><span class="s3">= </span><span class="s4">true</span><span class="s3">))</span>
+		<span class="s3">) {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">compilation</span><span class="s3">) {</span>
+				<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Logger} */</span>
+				<span class="s3">(</span><span class="s1">logger</span><span class="s3">).</span><span class="s1">time</span><span class="s3">(</span><span class="s2">&quot;storeBuildDependencies&quot;</span><span class="s3">);</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">cache</span><span class="s3">.</span><span class="s1">storeBuildDependencies</span><span class="s3">(</span>
+					<span class="s1">compilation</span><span class="s3">.</span><span class="s1">buildDependencies</span><span class="s3">,</span>
+					<span class="s1">err </span><span class="s3">=&gt; {</span>
+						<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Logger} */</span>
+						<span class="s3">(</span><span class="s1">logger</span><span class="s3">).</span><span class="s1">timeEnd</span><span class="s3">(</span><span class="s2">&quot;storeBuildDependencies&quot;</span><span class="s3">);</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return </span><span class="s1">handleError</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+						<span class="s4">this</span><span class="s3">.</span><span class="s1">_go</span><span class="s3">();</span>
+					<span class="s3">}</span>
+				<span class="s3">);</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">_go</span><span class="s3">();</span>
+			<span class="s3">}</span>
+			<span class="s4">return</span><span class="s3">;</span>
+		<span class="s3">}</span>
+
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">compilation</span><span class="s3">) {</span>
+			<span class="s1">compilation</span><span class="s3">.</span><span class="s1">startTime </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">startTime</span><span class="s3">;</span>
+			<span class="s1">compilation</span><span class="s3">.</span><span class="s1">endTime </span><span class="s3">= </span><span class="s1">Date</span><span class="s3">.</span><span class="s1">now</span><span class="s3">();</span>
+			<span class="s1">stats </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Stats</span><span class="s3">(</span><span class="s1">compilation</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">startTime </span><span class="s3">= </span><span class="s4">null</span><span class="s3">;</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return </span><span class="s1">handleError</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+
+		<span class="s4">const </span><span class="s1">cbs </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">callbacks</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">callbacks </span><span class="s3">= [];</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Logger} */</span>
+		<span class="s3">(</span><span class="s1">logger</span><span class="s3">).</span><span class="s1">time</span><span class="s3">(</span><span class="s2">&quot;done hook&quot;</span><span class="s3">);</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">done</span><span class="s3">.</span><span class="s1">callAsync</span><span class="s3">(</span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Stats} */ </span><span class="s3">(</span><span class="s1">stats</span><span class="s3">), </span><span class="s1">err </span><span class="s3">=&gt; {</span>
+			<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Logger} */</span>
+			<span class="s3">(</span><span class="s1">logger</span><span class="s3">).</span><span class="s1">timeEnd</span><span class="s3">(</span><span class="s2">&quot;done hook&quot;</span><span class="s3">);</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return </span><span class="s1">handleError</span><span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">cbs</span><span class="s3">);</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">handler</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Stats} */ </span><span class="s3">(</span><span class="s1">stats</span><span class="s3">));</span>
+			<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Logger} */</span>
+			<span class="s3">(</span><span class="s1">logger</span><span class="s3">).</span><span class="s1">time</span><span class="s3">(</span><span class="s2">&quot;storeBuildDependencies&quot;</span><span class="s3">);</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">cache</span><span class="s3">.</span><span class="s1">storeBuildDependencies</span><span class="s3">(</span>
+				<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Compilation} */</span>
+				<span class="s3">(</span><span class="s1">compilation</span><span class="s3">).</span><span class="s1">buildDependencies</span><span class="s3">,</span>
+				<span class="s1">err </span><span class="s3">=&gt; {</span>
+					<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Logger} */</span>
+					<span class="s3">(</span><span class="s1">logger</span><span class="s3">).</span><span class="s1">timeEnd</span><span class="s3">(</span><span class="s2">&quot;storeBuildDependencies&quot;</span><span class="s3">);</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return </span><span class="s1">handleError</span><span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">cbs</span><span class="s3">);</span>
+					<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Logger} */</span>
+					<span class="s3">(</span><span class="s1">logger</span><span class="s3">).</span><span class="s1">time</span><span class="s3">(</span><span class="s2">&quot;beginIdle&quot;</span><span class="s3">);</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">cache</span><span class="s3">.</span><span class="s1">beginIdle</span><span class="s3">();</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">idle </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+					<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Logger} */</span>
+					<span class="s3">(</span><span class="s1">logger</span><span class="s3">).</span><span class="s1">timeEnd</span><span class="s3">(</span><span class="s2">&quot;beginIdle&quot;</span><span class="s3">);</span>
+					<span class="s1">process</span><span class="s3">.</span><span class="s1">nextTick</span><span class="s3">(() =&gt; {</span>
+						<span class="s4">if </span><span class="s3">(!</span><span class="s4">this</span><span class="s3">.</span><span class="s1">closed</span><span class="s3">) {</span>
+							<span class="s4">this</span><span class="s3">.</span><span class="s1">watch</span><span class="s3">(</span>
+								<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Compilation} */</span>
+								<span class="s3">(</span><span class="s1">compilation</span><span class="s3">).</span><span class="s1">fileDependencies</span><span class="s3">,</span>
+								<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Compilation} */</span>
+								<span class="s3">(</span><span class="s1">compilation</span><span class="s3">).</span><span class="s1">contextDependencies</span><span class="s3">,</span>
+								<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Compilation} */</span>
+								<span class="s3">(</span><span class="s1">compilation</span><span class="s3">).</span><span class="s1">missingDependencies</span>
+							<span class="s3">);</span>
+						<span class="s3">}</span>
+					<span class="s3">});</span>
+					<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">cb of cbs</span><span class="s3">) </span><span class="s1">cb</span><span class="s3">(</span><span class="s4">null</span><span class="s3">);</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">afterDone</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Stats} */ </span><span class="s3">(</span><span class="s1">stats</span><span class="s3">));</span>
+				<span class="s3">}</span>
+			<span class="s3">);</span>
+		<span class="s3">});</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Iterable&lt;string&gt;} files watched files</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Iterable&lt;string&gt;} dirs watched directories</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Iterable&lt;string&gt;} missing watched existence entries</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">watch</span><span class="s3">(</span><span class="s1">files</span><span class="s3">, </span><span class="s1">dirs</span><span class="s3">, </span><span class="s1">missing</span><span class="s3">) {</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">pausedWatcher </span><span class="s3">= </span><span class="s4">null</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">watcher </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">watchFileSystem</span><span class="s3">.</span><span class="s1">watch</span><span class="s3">(</span>
+			<span class="s1">files</span><span class="s3">,</span>
+			<span class="s1">dirs</span><span class="s3">,</span>
+			<span class="s1">missing</span><span class="s3">,</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">lastWatcherStartTime</span><span class="s3">,</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">watchOptions</span><span class="s3">,</span>
+			<span class="s3">(</span>
+				<span class="s1">err</span><span class="s3">,</span>
+				<span class="s1">fileTimeInfoEntries</span><span class="s3">,</span>
+				<span class="s1">contextTimeInfoEntries</span><span class="s3">,</span>
+				<span class="s1">changedFiles</span><span class="s3">,</span>
+				<span class="s1">removedFiles</span>
+			<span class="s3">) =&gt; {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">modifiedFiles </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">removedFiles </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">fileTimestamps </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">contextTimestamps </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">fsStartTime </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+					<span class="s4">return this</span><span class="s3">.</span><span class="s1">handler</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+				<span class="s3">}</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">_invalidate</span><span class="s3">(</span>
+					<span class="s1">fileTimeInfoEntries</span><span class="s3">,</span>
+					<span class="s1">contextTimeInfoEntries</span><span class="s3">,</span>
+					<span class="s1">changedFiles</span><span class="s3">,</span>
+					<span class="s1">removedFiles</span>
+				<span class="s3">);</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">_onChange</span><span class="s3">();</span>
+			<span class="s3">},</span>
+			<span class="s3">(</span><span class="s1">fileName</span><span class="s3">, </span><span class="s1">changeTime</span><span class="s3">) =&gt; {</span>
+				<span class="s4">if </span><span class="s3">(!</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_invalidReported</span><span class="s3">) {</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">_invalidReported </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">invalid</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">fileName</span><span class="s3">, </span><span class="s1">changeTime</span><span class="s3">);</span>
+				<span class="s3">}</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">_onInvalid</span><span class="s3">();</span>
+			<span class="s3">}</span>
+		<span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Callback&lt;void&gt;=} callback signals when the build has completed again</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">invalidate</span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">callback</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s4">if </span><span class="s3">(!</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_invalidReported</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_invalidReported </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">invalid</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, </span><span class="s1">Date</span><span class="s3">.</span><span class="s1">now</span><span class="s3">());</span>
+		<span class="s3">}</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_onChange</span><span class="s3">();</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_invalidate</span><span class="s3">();</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ReadonlyMap&lt;string, FileSystemInfoEntry | &quot;ignore&quot;&gt;=} fileTimeInfoEntries info for files</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ReadonlyMap&lt;string, FileSystemInfoEntry | &quot;ignore&quot;&gt;=} contextTimeInfoEntries info for directories</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ReadonlySet&lt;string&gt;=} changedFiles changed files</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ReadonlySet&lt;string&gt;=} removedFiles removed files</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">_invalidate</span><span class="s3">(</span>
+		<span class="s1">fileTimeInfoEntries</span><span class="s3">,</span>
+		<span class="s1">contextTimeInfoEntries</span><span class="s3">,</span>
+		<span class="s1">changedFiles</span><span class="s3">,</span>
+		<span class="s1">removedFiles</span>
+	<span class="s3">) {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">suspended </span><span class="s3">|| (</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_isBlocked</span><span class="s3">() &amp;&amp; (</span><span class="s4">this</span><span class="s3">.</span><span class="s1">blocked </span><span class="s3">= </span><span class="s4">true</span><span class="s3">))) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_mergeWithCollected</span><span class="s3">(</span><span class="s1">changedFiles</span><span class="s3">, </span><span class="s1">removedFiles</span><span class="s3">);</span>
+			<span class="s4">return</span><span class="s3">;</span>
+		<span class="s3">}</span>
+
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">running</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_mergeWithCollected</span><span class="s3">(</span><span class="s1">changedFiles</span><span class="s3">, </span><span class="s1">removedFiles</span><span class="s3">);</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">invalid </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+		<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_go</span><span class="s3">(</span>
+				<span class="s1">fileTimeInfoEntries</span><span class="s3">,</span>
+				<span class="s1">contextTimeInfoEntries</span><span class="s3">,</span>
+				<span class="s1">changedFiles</span><span class="s3">,</span>
+				<span class="s1">removedFiles</span>
+			<span class="s3">);</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+
+	<span class="s1">suspend</span><span class="s3">() {</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">suspended </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s1">resume</span><span class="s3">() {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">suspended</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">suspended </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_invalidate</span><span class="s3">();</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Callback&lt;void&gt;} callback signals when the watcher is closed</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">close</span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_closeCallbacks</span><span class="s3">) {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">_closeCallbacks</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">callback</span><span class="s3">);</span>
+			<span class="s3">}</span>
+			<span class="s4">return</span><span class="s3">;</span>
+		<span class="s3">}</span>
+		<span class="s5">/**</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{(WebpackError | null)=} err error if any</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Compilation=} compilation compilation if any</span>
+		 <span class="s5">*/</span>
+		<span class="s4">const </span><span class="s1">finalCallback </span><span class="s3">= (</span><span class="s1">err</span><span class="s3">, </span><span class="s1">compilation</span><span class="s3">) =&gt; {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">running </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">running </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">watching </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">watchMode </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">modifiedFiles </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">removedFiles </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">fileTimestamps </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">contextTimestamps </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">fsStartTime </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+			<span class="s5">/**</span>
+			 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{(WebpackError | null)=} err error if any</span>
+			 <span class="s5">*/</span>
+			<span class="s4">const </span><span class="s1">shutdown </span><span class="s3">= </span><span class="s1">err </span><span class="s3">=&gt; {</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">hooks</span><span class="s3">.</span><span class="s1">watchClose</span><span class="s3">.</span><span class="s1">call</span><span class="s3">();</span>
+				<span class="s4">const </span><span class="s1">closeCallbacks </span><span class="s3">=</span>
+					<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Callback&lt;void&gt;[]} */</span>
+					<span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_closeCallbacks</span><span class="s3">);</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">_closeCallbacks </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+				<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">cb of closeCallbacks</span><span class="s3">) </span><span class="s1">cb</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+			<span class="s3">};</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">compilation</span><span class="s3">) {</span>
+				<span class="s4">const </span><span class="s1">logger </span><span class="s3">= </span><span class="s1">compilation</span><span class="s3">.</span><span class="s1">getLogger</span><span class="s3">(</span><span class="s2">&quot;webpack.Watching&quot;</span><span class="s3">);</span>
+				<span class="s1">logger</span><span class="s3">.</span><span class="s1">time</span><span class="s3">(</span><span class="s2">&quot;storeBuildDependencies&quot;</span><span class="s3">);</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">compiler</span><span class="s3">.</span><span class="s1">cache</span><span class="s3">.</span><span class="s1">storeBuildDependencies</span><span class="s3">(</span>
+					<span class="s1">compilation</span><span class="s3">.</span><span class="s1">buildDependencies</span><span class="s3">,</span>
+					<span class="s1">err2 </span><span class="s3">=&gt; {</span>
+						<span class="s1">logger</span><span class="s3">.</span><span class="s1">timeEnd</span><span class="s3">(</span><span class="s2">&quot;storeBuildDependencies&quot;</span><span class="s3">);</span>
+						<span class="s1">shutdown</span><span class="s3">(</span><span class="s1">err </span><span class="s3">|| </span><span class="s1">err2</span><span class="s3">);</span>
+					<span class="s3">}</span>
+				<span class="s3">);</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s1">shutdown</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">};</span>
+
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">closed </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">watcher</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">watcher</span><span class="s3">.</span><span class="s1">close</span><span class="s3">();</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">watcher </span><span class="s3">= </span><span class="s4">null</span><span class="s3">;</span>
+		<span class="s3">}</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">pausedWatcher</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">pausedWatcher</span><span class="s3">.</span><span class="s1">close</span><span class="s3">();</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">pausedWatcher </span><span class="s3">= </span><span class="s4">null</span><span class="s3">;</span>
+		<span class="s3">}</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_closeCallbacks </span><span class="s3">= [];</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_closeCallbacks</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">callback</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">running</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">invalid </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_done </span><span class="s3">= </span><span class="s1">finalCallback</span><span class="s3">;</span>
+		<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+			<span class="s1">finalCallback</span><span class="s3">();</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">Watching</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

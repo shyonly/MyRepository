@@ -1,0 +1,133 @@
+<html>
+<head>
+<title>runtime-with-compiler.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+.s6 { color: #5f826b; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+runtime-with-compiler.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">config from </span><span class="s2">'core/config'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">warn</span><span class="s3">, </span><span class="s1">cached </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'core/util/index'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">mark</span><span class="s3">, </span><span class="s1">measure </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'core/util/perf'</span>
+
+<span class="s0">import </span><span class="s1">Vue from </span><span class="s2">'./runtime/index'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">query </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./util/index'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">compileToFunctions </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./compiler/index'</span>
+<span class="s0">import </span><span class="s3">{</span>
+  <span class="s1">shouldDecodeNewlines</span><span class="s3">,</span>
+  <span class="s1">shouldDecodeNewlinesForHref</span>
+<span class="s3">} </span><span class="s1">from </span><span class="s2">'./util/compat'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s3">{ </span><span class="s1">Component </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'types/component'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s3">{ </span><span class="s1">GlobalAPI </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'types/global-api'</span>
+
+<span class="s0">const </span><span class="s1">idToTemplate </span><span class="s3">= </span><span class="s1">cached</span><span class="s3">(</span><span class="s1">id </span><span class="s3">=&gt; {</span>
+  <span class="s0">const </span><span class="s1">el </span><span class="s3">= </span><span class="s1">query</span><span class="s3">(</span><span class="s1">id</span><span class="s3">)</span>
+  <span class="s0">return </span><span class="s1">el </span><span class="s3">&amp;&amp; </span><span class="s1">el</span><span class="s3">.</span><span class="s1">innerHTML</span>
+<span class="s3">})</span>
+
+<span class="s0">const </span><span class="s1">mount </span><span class="s3">= </span><span class="s1">Vue</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">$mount</span>
+<span class="s1">Vue</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">$mount </span><span class="s3">= </span><span class="s0">function </span><span class="s3">(</span>
+  <span class="s1">el</span><span class="s3">?: </span><span class="s1">string </span><span class="s3">| </span><span class="s1">Element</span><span class="s3">,</span>
+  <span class="s1">hydrating</span><span class="s3">?: </span><span class="s1">boolean</span>
+<span class="s3">): </span><span class="s1">Component </span><span class="s3">{</span>
+  <span class="s1">el </span><span class="s3">= </span><span class="s1">el </span><span class="s3">&amp;&amp; </span><span class="s1">query</span><span class="s3">(</span><span class="s1">el</span><span class="s3">)</span>
+
+  <span class="s4">/* istanbul ignore if */</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">el </span><span class="s3">=== </span><span class="s1">document</span><span class="s3">.</span><span class="s1">body </span><span class="s3">|| </span><span class="s1">el </span><span class="s3">=== </span><span class="s1">document</span><span class="s3">.</span><span class="s1">documentElement</span><span class="s3">) {</span>
+    <span class="s1">__DEV__ </span><span class="s3">&amp;&amp;</span>
+      <span class="s1">warn</span><span class="s3">(</span>
+        <span class="s2">`Do not mount Vue to &lt;html&gt; or &lt;body&gt; - mount to normal elements instead.`</span>
+      <span class="s3">)</span>
+    <span class="s0">return this</span>
+  <span class="s3">}</span>
+
+  <span class="s0">const </span><span class="s1">options </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">$options</span>
+  <span class="s4">// resolve template/el and convert to render function</span>
+  <span class="s0">if </span><span class="s3">(!</span><span class="s1">options</span><span class="s3">.</span><span class="s1">render</span><span class="s3">) {</span>
+    <span class="s0">let </span><span class="s1">template </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">template</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">template</span><span class="s3">) {</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s0">typeof </span><span class="s1">template </span><span class="s3">=== </span><span class="s2">'string'</span><span class="s3">) {</span>
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">template</span><span class="s3">.</span><span class="s1">charAt</span><span class="s3">(</span><span class="s5">0</span><span class="s3">) === </span><span class="s2">'#'</span><span class="s3">) {</span>
+          <span class="s1">template </span><span class="s3">= </span><span class="s1">idToTemplate</span><span class="s3">(</span><span class="s1">template</span><span class="s3">)</span>
+          <span class="s4">/* istanbul ignore if */</span>
+          <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__ </span><span class="s3">&amp;&amp; !</span><span class="s1">template</span><span class="s3">) {</span>
+            <span class="s1">warn</span><span class="s3">(</span>
+              <span class="s2">`Template element not found or is empty: </span><span class="s1">$</span><span class="s3">{</span><span class="s1">options</span><span class="s3">.</span><span class="s1">template</span><span class="s3">}</span><span class="s2">`</span><span class="s3">,</span>
+              <span class="s0">this</span>
+            <span class="s3">)</span>
+          <span class="s3">}</span>
+        <span class="s3">}</span>
+      <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s1">template</span><span class="s3">.</span><span class="s1">nodeType</span><span class="s3">) {</span>
+        <span class="s1">template </span><span class="s3">= </span><span class="s1">template</span><span class="s3">.</span><span class="s1">innerHTML</span>
+      <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__</span><span class="s3">) {</span>
+          <span class="s1">warn</span><span class="s3">(</span><span class="s2">'invalid template option:' </span><span class="s3">+ </span><span class="s1">template</span><span class="s3">, </span><span class="s0">this</span><span class="s3">)</span>
+        <span class="s3">}</span>
+        <span class="s0">return this</span>
+      <span class="s3">}</span>
+    <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s1">el</span><span class="s3">) {</span>
+      <span class="s4">// @ts-expect-error</span>
+      <span class="s1">template </span><span class="s3">= </span><span class="s1">getOuterHTML</span><span class="s3">(</span><span class="s1">el</span><span class="s3">)</span>
+    <span class="s3">}</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">template</span><span class="s3">) {</span>
+      <span class="s4">/* istanbul ignore if */</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__ </span><span class="s3">&amp;&amp; </span><span class="s1">config</span><span class="s3">.</span><span class="s1">performance </span><span class="s3">&amp;&amp; </span><span class="s1">mark</span><span class="s3">) {</span>
+        <span class="s1">mark</span><span class="s3">(</span><span class="s2">'compile'</span><span class="s3">)</span>
+      <span class="s3">}</span>
+
+      <span class="s0">const </span><span class="s3">{ </span><span class="s1">render</span><span class="s3">, </span><span class="s1">staticRenderFns </span><span class="s3">} = </span><span class="s1">compileToFunctions</span><span class="s3">(</span>
+        <span class="s1">template</span><span class="s3">,</span>
+        <span class="s3">{</span>
+          <span class="s1">outputSourceRange</span><span class="s3">: </span><span class="s1">__DEV__</span><span class="s3">,</span>
+          <span class="s1">shouldDecodeNewlines</span><span class="s3">,</span>
+          <span class="s1">shouldDecodeNewlinesForHref</span><span class="s3">,</span>
+          <span class="s1">delimiters</span><span class="s3">: </span><span class="s1">options</span><span class="s3">.</span><span class="s1">delimiters</span><span class="s3">,</span>
+          <span class="s1">comments</span><span class="s3">: </span><span class="s1">options</span><span class="s3">.</span><span class="s1">comments</span>
+        <span class="s3">},</span>
+        <span class="s0">this</span>
+      <span class="s3">)</span>
+      <span class="s1">options</span><span class="s3">.</span><span class="s1">render </span><span class="s3">= </span><span class="s1">render</span>
+      <span class="s1">options</span><span class="s3">.</span><span class="s1">staticRenderFns </span><span class="s3">= </span><span class="s1">staticRenderFns</span>
+
+      <span class="s4">/* istanbul ignore if */</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__ </span><span class="s3">&amp;&amp; </span><span class="s1">config</span><span class="s3">.</span><span class="s1">performance </span><span class="s3">&amp;&amp; </span><span class="s1">mark</span><span class="s3">) {</span>
+        <span class="s1">mark</span><span class="s3">(</span><span class="s2">'compile end'</span><span class="s3">)</span>
+        <span class="s1">measure</span><span class="s3">(</span><span class="s2">`vue </span><span class="s1">$</span><span class="s3">{</span><span class="s0">this</span><span class="s3">.</span><span class="s1">_name</span><span class="s3">} </span><span class="s2">compile`</span><span class="s3">, </span><span class="s2">'compile'</span><span class="s3">, </span><span class="s2">'compile end'</span><span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+  <span class="s0">return </span><span class="s1">mount</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s0">this</span><span class="s3">, </span><span class="s1">el</span><span class="s3">, </span><span class="s1">hydrating</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Get outerHTML of elements, taking care</span>
+ <span class="s6">* of SVG elements in IE as well.</span>
+ <span class="s6">*/</span>
+<span class="s0">function </span><span class="s1">getOuterHTML</span><span class="s3">(</span><span class="s1">el</span><span class="s3">: </span><span class="s1">Element</span><span class="s3">): </span><span class="s1">string </span><span class="s3">{</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">el</span><span class="s3">.</span><span class="s1">outerHTML</span><span class="s3">) {</span>
+    <span class="s0">return </span><span class="s1">el</span><span class="s3">.</span><span class="s1">outerHTML</span>
+  <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+    <span class="s0">const </span><span class="s1">container </span><span class="s3">= </span><span class="s1">document</span><span class="s3">.</span><span class="s1">createElement</span><span class="s3">(</span><span class="s2">'div'</span><span class="s3">)</span>
+    <span class="s1">container</span><span class="s3">.</span><span class="s1">appendChild</span><span class="s3">(</span><span class="s1">el</span><span class="s3">.</span><span class="s1">cloneNode</span><span class="s3">(</span><span class="s0">true</span><span class="s3">))</span>
+    <span class="s0">return </span><span class="s1">container</span><span class="s3">.</span><span class="s1">innerHTML</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">Vue</span><span class="s3">.</span><span class="s1">compile </span><span class="s3">= </span><span class="s1">compileToFunctions</span>
+
+<span class="s0">export default </span><span class="s1">Vue </span><span class="s3">as </span><span class="s1">GlobalAPI</span>
+</pre>
+</body>
+</html>

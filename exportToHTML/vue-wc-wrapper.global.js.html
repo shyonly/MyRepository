@@ -1,0 +1,295 @@
+<html>
+<head>
+<title>vue-wc-wrapper.global.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #42c3d4;}
+.s5 { color: #2aacb8;}
+.s6 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+vue-wc-wrapper.global.js</font>
+</center></td></tr></table>
+<pre><span class="s0">var </span><span class="s1">wrapVueWebComponent </span><span class="s2">= (</span><span class="s0">function </span><span class="s2">() {</span>
+<span class="s3">'use strict'</span><span class="s2">;</span>
+
+<span class="s0">const </span><span class="s1">camelizeRE </span><span class="s2">= </span><span class="s4">/-(\w)/g</span><span class="s2">;</span>
+<span class="s0">const </span><span class="s1">camelize </span><span class="s2">= </span><span class="s1">str </span><span class="s2">=&gt; {</span>
+  <span class="s0">return </span><span class="s1">str</span><span class="s2">.</span><span class="s1">replace</span><span class="s2">(</span><span class="s1">camelizeRE</span><span class="s2">, (</span><span class="s1">_</span><span class="s2">, </span><span class="s1">c</span><span class="s2">) =&gt; </span><span class="s1">c </span><span class="s2">? </span><span class="s1">c</span><span class="s2">.</span><span class="s1">toUpperCase</span><span class="s2">() : </span><span class="s3">''</span><span class="s2">)</span>
+<span class="s2">};</span>
+
+<span class="s0">const </span><span class="s1">hyphenateRE </span><span class="s2">= </span><span class="s4">/\B([A-Z])/g</span><span class="s2">;</span>
+<span class="s0">const </span><span class="s1">hyphenate </span><span class="s2">= </span><span class="s1">str </span><span class="s2">=&gt; {</span>
+  <span class="s0">return </span><span class="s1">str</span><span class="s2">.</span><span class="s1">replace</span><span class="s2">(</span><span class="s1">hyphenateRE</span><span class="s2">, </span><span class="s3">'-$1'</span><span class="s2">).</span><span class="s1">toLowerCase</span><span class="s2">()</span>
+<span class="s2">};</span>
+
+<span class="s0">function </span><span class="s1">getInitialProps </span><span class="s2">(</span><span class="s1">propsList</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">res </span><span class="s2">= {};</span>
+  <span class="s1">propsList</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">key </span><span class="s2">=&gt; {</span>
+    <span class="s1">res</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = </span><span class="s1">undefined</span><span class="s2">;</span>
+  <span class="s2">});</span>
+  <span class="s0">return </span><span class="s1">res</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">injectHook </span><span class="s2">(</span><span class="s1">options</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">hook</span><span class="s2">) {</span>
+  <span class="s1">options</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = [].</span><span class="s1">concat</span><span class="s2">(</span><span class="s1">options</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] || []);</span>
+  <span class="s1">options</span><span class="s2">[</span><span class="s1">key</span><span class="s2">].</span><span class="s1">unshift</span><span class="s2">(</span><span class="s1">hook</span><span class="s2">);</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">callHooks </span><span class="s2">(</span><span class="s1">vm</span><span class="s2">, </span><span class="s1">hook</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">vm</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">hooks </span><span class="s2">= </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$options</span><span class="s2">[</span><span class="s1">hook</span><span class="s2">] || [];</span>
+    <span class="s1">hooks</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">hook </span><span class="s2">=&gt; {</span>
+      <span class="s1">hook</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">);</span>
+    <span class="s2">});</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">createCustomEvent </span><span class="s2">(</span><span class="s1">name</span><span class="s2">, </span><span class="s1">args</span><span class="s2">) {</span>
+  <span class="s0">return new </span><span class="s1">CustomEvent</span><span class="s2">(</span><span class="s1">name</span><span class="s2">, {</span>
+    <span class="s1">bubbles</span><span class="s2">: </span><span class="s0">false</span><span class="s2">,</span>
+    <span class="s1">cancelable</span><span class="s2">: </span><span class="s0">false</span><span class="s2">,</span>
+    <span class="s1">detail</span><span class="s2">: </span><span class="s1">args</span>
+  <span class="s2">})</span>
+<span class="s2">}</span>
+
+<span class="s0">const </span><span class="s1">isBoolean </span><span class="s2">= </span><span class="s1">val </span><span class="s2">=&gt; </span><span class="s4">/function Boolean/</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">String</span><span class="s2">(</span><span class="s1">val</span><span class="s2">));</span>
+<span class="s0">const </span><span class="s1">isNumber </span><span class="s2">= </span><span class="s1">val </span><span class="s2">=&gt; </span><span class="s4">/function Number/</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">String</span><span class="s2">(</span><span class="s1">val</span><span class="s2">));</span>
+
+<span class="s0">function </span><span class="s1">convertAttributeValue </span><span class="s2">(</span><span class="s1">value</span><span class="s2">, </span><span class="s1">name</span><span class="s2">, { </span><span class="s1">type </span><span class="s2">} = {}) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isBoolean</span><span class="s2">(</span><span class="s1">type</span><span class="s2">)) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">value </span><span class="s2">=== </span><span class="s3">'true' </span><span class="s2">|| </span><span class="s1">value </span><span class="s2">=== </span><span class="s3">'false'</span><span class="s2">) {</span>
+      <span class="s0">return </span><span class="s1">value </span><span class="s2">=== </span><span class="s3">'true'</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">value </span><span class="s2">=== </span><span class="s3">'' </span><span class="s2">|| </span><span class="s1">value </span><span class="s2">=== </span><span class="s1">name </span><span class="s2">|| </span><span class="s1">value </span><span class="s2">!= </span><span class="s0">null</span><span class="s2">) {</span>
+      <span class="s0">return true</span>
+    <span class="s2">}</span>
+    <span class="s0">return </span><span class="s1">value</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isNumber</span><span class="s2">(</span><span class="s1">type</span><span class="s2">)) {</span>
+    <span class="s0">const </span><span class="s1">parsed </span><span class="s2">= </span><span class="s1">parseFloat</span><span class="s2">(</span><span class="s1">value</span><span class="s2">, </span><span class="s5">10</span><span class="s2">);</span>
+    <span class="s0">return </span><span class="s1">isNaN</span><span class="s2">(</span><span class="s1">parsed</span><span class="s2">) ? </span><span class="s1">value </span><span class="s2">: </span><span class="s1">parsed</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s0">return </span><span class="s1">value</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">toVNodes </span><span class="s2">(</span><span class="s1">h</span><span class="s2">, </span><span class="s1">children</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">res </span><span class="s2">= [];</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s5">0</span><span class="s2">, </span><span class="s1">l </span><span class="s2">= </span><span class="s1">children</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">l</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+    <span class="s1">res</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">toVNode</span><span class="s2">(</span><span class="s1">h</span><span class="s2">, </span><span class="s1">children</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]));</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s1">res</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">toVNode </span><span class="s2">(</span><span class="s1">h</span><span class="s2">, </span><span class="s1">node</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">nodeType </span><span class="s2">=== </span><span class="s5">3</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">node</span><span class="s2">.</span><span class="s1">data</span><span class="s2">.</span><span class="s1">trim</span><span class="s2">() ? </span><span class="s1">node</span><span class="s2">.</span><span class="s1">data </span><span class="s2">: </span><span class="s0">null</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">nodeType </span><span class="s2">=== </span><span class="s5">1</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">data </span><span class="s2">= {</span>
+      <span class="s1">attrs</span><span class="s2">: </span><span class="s1">getAttributes</span><span class="s2">(</span><span class="s1">node</span><span class="s2">),</span>
+      <span class="s1">domProps</span><span class="s2">: {</span>
+        <span class="s1">innerHTML</span><span class="s2">: </span><span class="s1">node</span><span class="s2">.</span><span class="s1">innerHTML</span>
+      <span class="s2">}</span>
+    <span class="s2">};</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">slot</span><span class="s2">) {</span>
+      <span class="s1">data</span><span class="s2">.</span><span class="s1">slot </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">slot</span><span class="s2">;</span>
+      <span class="s0">delete </span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">slot</span><span class="s2">;</span>
+    <span class="s2">}</span>
+    <span class="s0">return </span><span class="s1">h</span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">tagName</span><span class="s2">, </span><span class="s1">data</span><span class="s2">)</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s0">return null</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">getAttributes </span><span class="s2">(</span><span class="s1">node</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">res </span><span class="s2">= {};</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s5">0</span><span class="s2">, </span><span class="s1">l </span><span class="s2">= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">attributes</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">l</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+    <span class="s0">const </span><span class="s1">attr </span><span class="s2">= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">attributes</span><span class="s2">[</span><span class="s1">i</span><span class="s2">];</span>
+    <span class="s1">res</span><span class="s2">[</span><span class="s1">attr</span><span class="s2">.</span><span class="s1">nodeName</span><span class="s2">] = </span><span class="s1">attr</span><span class="s2">.</span><span class="s1">nodeValue</span><span class="s2">;</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s1">res</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">wrap </span><span class="s2">(</span><span class="s1">Vue</span><span class="s2">, </span><span class="s1">Component</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">isAsync </span><span class="s2">= </span><span class="s0">typeof </span><span class="s1">Component </span><span class="s2">=== </span><span class="s3">'function' </span><span class="s2">&amp;&amp; !</span><span class="s1">Component</span><span class="s2">.</span><span class="s1">cid</span><span class="s2">;</span>
+  <span class="s0">let </span><span class="s1">isInitialized </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+  <span class="s0">let </span><span class="s1">hyphenatedPropsList</span><span class="s2">;</span>
+  <span class="s0">let </span><span class="s1">camelizedPropsList</span><span class="s2">;</span>
+  <span class="s0">let </span><span class="s1">camelizedPropsMap</span><span class="s2">;</span>
+
+  <span class="s0">function </span><span class="s1">initialize </span><span class="s2">(</span><span class="s1">Component</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isInitialized</span><span class="s2">) </span><span class="s0">return</span>
+
+    <span class="s0">const </span><span class="s1">options </span><span class="s2">= </span><span class="s0">typeof </span><span class="s1">Component </span><span class="s2">=== </span><span class="s3">'function'</span>
+      <span class="s2">? </span><span class="s1">Component</span><span class="s2">.</span><span class="s1">options</span>
+      <span class="s2">: </span><span class="s1">Component</span><span class="s2">;</span>
+
+    <span class="s6">// extract props info</span>
+    <span class="s0">const </span><span class="s1">propsList </span><span class="s2">= </span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">options</span><span class="s2">.</span><span class="s1">props</span><span class="s2">)</span>
+      <span class="s2">? </span><span class="s1">options</span><span class="s2">.</span><span class="s1">props</span>
+      <span class="s2">: </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">options</span><span class="s2">.</span><span class="s1">props </span><span class="s2">|| {});</span>
+    <span class="s1">hyphenatedPropsList </span><span class="s2">= </span><span class="s1">propsList</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">hyphenate</span><span class="s2">);</span>
+    <span class="s1">camelizedPropsList </span><span class="s2">= </span><span class="s1">propsList</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">camelize</span><span class="s2">);</span>
+    <span class="s0">const </span><span class="s1">originalPropsAsObject </span><span class="s2">= </span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">options</span><span class="s2">.</span><span class="s1">props</span><span class="s2">) ? {} : </span><span class="s1">options</span><span class="s2">.</span><span class="s1">props </span><span class="s2">|| {};</span>
+    <span class="s1">camelizedPropsMap </span><span class="s2">= </span><span class="s1">camelizedPropsList</span><span class="s2">.</span><span class="s1">reduce</span><span class="s2">((</span><span class="s1">map</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">i</span><span class="s2">) =&gt; {</span>
+      <span class="s1">map</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = </span><span class="s1">originalPropsAsObject</span><span class="s2">[</span><span class="s1">propsList</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]];</span>
+      <span class="s0">return </span><span class="s1">map</span>
+    <span class="s2">}, {});</span>
+
+    <span class="s6">// proxy $emit to native DOM events</span>
+    <span class="s1">injectHook</span><span class="s2">(</span><span class="s1">options</span><span class="s2">, </span><span class="s3">'beforeCreate'</span><span class="s2">, </span><span class="s0">function </span><span class="s2">() {</span>
+      <span class="s0">const </span><span class="s1">emit </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">$emit</span><span class="s2">;</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">$emit </span><span class="s2">= (</span><span class="s1">name</span><span class="s2">, </span><span class="s1">...args</span><span class="s2">) =&gt; {</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">$root</span><span class="s2">.</span><span class="s1">$options</span><span class="s2">.</span><span class="s1">customElement</span><span class="s2">.</span><span class="s1">dispatchEvent</span><span class="s2">(</span><span class="s1">createCustomEvent</span><span class="s2">(</span><span class="s1">name</span><span class="s2">, </span><span class="s1">args</span><span class="s2">));</span>
+        <span class="s0">return </span><span class="s1">emit</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s0">this</span><span class="s2">, </span><span class="s1">name</span><span class="s2">, </span><span class="s1">...args</span><span class="s2">)</span>
+      <span class="s2">};</span>
+    <span class="s2">});</span>
+
+    <span class="s1">injectHook</span><span class="s2">(</span><span class="s1">options</span><span class="s2">, </span><span class="s3">'created'</span><span class="s2">, </span><span class="s0">function </span><span class="s2">() {</span>
+      <span class="s6">// sync default props values to wrapper on created</span>
+      <span class="s1">camelizedPropsList</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">key </span><span class="s2">=&gt; {</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">$root</span><span class="s2">.</span><span class="s1">props</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = </span><span class="s0">this</span><span class="s2">[</span><span class="s1">key</span><span class="s2">];</span>
+      <span class="s2">});</span>
+    <span class="s2">});</span>
+
+    <span class="s6">// proxy props as Element properties</span>
+    <span class="s1">camelizedPropsList</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">key </span><span class="s2">=&gt; {</span>
+      <span class="s1">Object</span><span class="s2">.</span><span class="s1">defineProperty</span><span class="s2">(</span><span class="s1">CustomElement</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, {</span>
+        <span class="s1">get </span><span class="s2">() {</span>
+          <span class="s0">return this</span><span class="s2">.</span><span class="s1">_wrapper</span><span class="s2">.</span><span class="s1">props</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+        <span class="s2">},</span>
+        <span class="s1">set </span><span class="s2">(</span><span class="s1">newVal</span><span class="s2">) {</span>
+          <span class="s0">this</span><span class="s2">.</span><span class="s1">_wrapper</span><span class="s2">.</span><span class="s1">props</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = </span><span class="s1">newVal</span><span class="s2">;</span>
+        <span class="s2">},</span>
+        <span class="s1">enumerable</span><span class="s2">: </span><span class="s0">false</span><span class="s2">,</span>
+        <span class="s1">configurable</span><span class="s2">: </span><span class="s0">true</span>
+      <span class="s2">});</span>
+    <span class="s2">});</span>
+
+    <span class="s1">isInitialized </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+  <span class="s2">}</span>
+
+  <span class="s0">function </span><span class="s1">syncAttribute </span><span class="s2">(</span><span class="s1">el</span><span class="s2">, </span><span class="s1">key</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">camelized </span><span class="s2">= </span><span class="s1">camelize</span><span class="s2">(</span><span class="s1">key</span><span class="s2">);</span>
+    <span class="s0">const </span><span class="s1">value </span><span class="s2">= </span><span class="s1">el</span><span class="s2">.</span><span class="s1">hasAttribute</span><span class="s2">(</span><span class="s1">key</span><span class="s2">) ? </span><span class="s1">el</span><span class="s2">.</span><span class="s1">getAttribute</span><span class="s2">(</span><span class="s1">key</span><span class="s2">) : </span><span class="s1">undefined</span><span class="s2">;</span>
+    <span class="s1">el</span><span class="s2">.</span><span class="s1">_wrapper</span><span class="s2">.</span><span class="s1">props</span><span class="s2">[</span><span class="s1">camelized</span><span class="s2">] = </span><span class="s1">convertAttributeValue</span><span class="s2">(</span>
+      <span class="s1">value</span><span class="s2">,</span>
+      <span class="s1">key</span><span class="s2">,</span>
+      <span class="s1">camelizedPropsMap</span><span class="s2">[</span><span class="s1">camelized</span><span class="s2">]</span>
+    <span class="s2">);</span>
+  <span class="s2">}</span>
+
+  <span class="s0">class </span><span class="s1">CustomElement </span><span class="s0">extends </span><span class="s1">HTMLElement </span><span class="s2">{</span>
+    <span class="s1">constructor </span><span class="s2">() {</span>
+      <span class="s0">const </span><span class="s1">self </span><span class="s2">= </span><span class="s0">super</span><span class="s2">();</span>
+      <span class="s1">self</span><span class="s2">.</span><span class="s1">attachShadow</span><span class="s2">({ </span><span class="s1">mode</span><span class="s2">: </span><span class="s3">'open' </span><span class="s2">});</span>
+
+      <span class="s0">const </span><span class="s1">wrapper </span><span class="s2">= </span><span class="s1">self</span><span class="s2">.</span><span class="s1">_wrapper </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Vue</span><span class="s2">({</span>
+        <span class="s1">name</span><span class="s2">: </span><span class="s3">'shadow-root'</span><span class="s2">,</span>
+        <span class="s1">customElement</span><span class="s2">: </span><span class="s1">self</span><span class="s2">,</span>
+        <span class="s1">shadowRoot</span><span class="s2">: </span><span class="s1">self</span><span class="s2">.</span><span class="s1">shadowRoot</span><span class="s2">,</span>
+        <span class="s1">data </span><span class="s2">() {</span>
+          <span class="s0">return </span><span class="s2">{</span>
+            <span class="s1">props</span><span class="s2">: {},</span>
+            <span class="s1">slotChildren</span><span class="s2">: []</span>
+          <span class="s2">}</span>
+        <span class="s2">},</span>
+        <span class="s1">render </span><span class="s2">(</span><span class="s1">h</span><span class="s2">) {</span>
+          <span class="s0">return </span><span class="s1">h</span><span class="s2">(</span><span class="s1">Component</span><span class="s2">, {</span>
+            <span class="s1">ref</span><span class="s2">: </span><span class="s3">'inner'</span><span class="s2">,</span>
+            <span class="s1">props</span><span class="s2">: </span><span class="s0">this</span><span class="s2">.</span><span class="s1">props</span>
+          <span class="s2">}, </span><span class="s0">this</span><span class="s2">.</span><span class="s1">slotChildren</span><span class="s2">)</span>
+        <span class="s2">}</span>
+      <span class="s2">});</span>
+
+      <span class="s6">// Use MutationObserver to react to future attribute &amp; slot content change</span>
+      <span class="s0">const </span><span class="s1">observer </span><span class="s2">= </span><span class="s0">new </span><span class="s1">MutationObserver</span><span class="s2">(</span><span class="s1">mutations </span><span class="s2">=&gt; {</span>
+        <span class="s0">let </span><span class="s1">hasChildrenChange </span><span class="s2">= </span><span class="s0">false</span><span class="s2">;</span>
+        <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s5">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">mutations</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+          <span class="s0">const </span><span class="s1">m </span><span class="s2">= </span><span class="s1">mutations</span><span class="s2">[</span><span class="s1">i</span><span class="s2">];</span>
+          <span class="s0">if </span><span class="s2">(</span><span class="s1">isInitialized </span><span class="s2">&amp;&amp; </span><span class="s1">m</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'attributes' </span><span class="s2">&amp;&amp; </span><span class="s1">m</span><span class="s2">.</span><span class="s1">target </span><span class="s2">=== </span><span class="s1">self</span><span class="s2">) {</span>
+            <span class="s1">syncAttribute</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, </span><span class="s1">m</span><span class="s2">.</span><span class="s1">attributeName</span><span class="s2">);</span>
+          <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+            <span class="s1">hasChildrenChange </span><span class="s2">= </span><span class="s0">true</span><span class="s2">;</span>
+          <span class="s2">}</span>
+        <span class="s2">}</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">hasChildrenChange</span><span class="s2">) {</span>
+          <span class="s1">wrapper</span><span class="s2">.</span><span class="s1">slotChildren </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">freeze</span><span class="s2">(</span><span class="s1">toVNodes</span><span class="s2">(</span>
+            <span class="s1">wrapper</span><span class="s2">.</span><span class="s1">$createElement</span><span class="s2">,</span>
+            <span class="s1">self</span><span class="s2">.</span><span class="s1">childNodes</span>
+          <span class="s2">));</span>
+        <span class="s2">}</span>
+      <span class="s2">});</span>
+      <span class="s1">observer</span><span class="s2">.</span><span class="s1">observe</span><span class="s2">(</span><span class="s1">self</span><span class="s2">, {</span>
+        <span class="s1">childList</span><span class="s2">: </span><span class="s0">true</span><span class="s2">,</span>
+        <span class="s1">subtree</span><span class="s2">: </span><span class="s0">true</span><span class="s2">,</span>
+        <span class="s1">characterData</span><span class="s2">: </span><span class="s0">true</span><span class="s2">,</span>
+        <span class="s1">attributes</span><span class="s2">: </span><span class="s0">true</span>
+      <span class="s2">});</span>
+    <span class="s2">}</span>
+
+    <span class="s1">get vueComponent </span><span class="s2">() {</span>
+      <span class="s0">return this</span><span class="s2">.</span><span class="s1">_wrapper</span><span class="s2">.</span><span class="s1">$refs</span><span class="s2">.</span><span class="s1">inner</span>
+    <span class="s2">}</span>
+
+    <span class="s1">connectedCallback </span><span class="s2">() {</span>
+      <span class="s0">const </span><span class="s1">wrapper </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_wrapper</span><span class="s2">;</span>
+      <span class="s0">if </span><span class="s2">(!</span><span class="s1">wrapper</span><span class="s2">.</span><span class="s1">_isMounted</span><span class="s2">) {</span>
+        <span class="s6">// initialize attributes</span>
+        <span class="s0">const </span><span class="s1">syncInitialAttributes </span><span class="s2">= () =&gt; {</span>
+          <span class="s1">wrapper</span><span class="s2">.</span><span class="s1">props </span><span class="s2">= </span><span class="s1">getInitialProps</span><span class="s2">(</span><span class="s1">camelizedPropsList</span><span class="s2">);</span>
+          <span class="s1">hyphenatedPropsList</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">key </span><span class="s2">=&gt; {</span>
+            <span class="s1">syncAttribute</span><span class="s2">(</span><span class="s0">this</span><span class="s2">, </span><span class="s1">key</span><span class="s2">);</span>
+          <span class="s2">});</span>
+        <span class="s2">};</span>
+
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">isInitialized</span><span class="s2">) {</span>
+          <span class="s1">syncInitialAttributes</span><span class="s2">();</span>
+        <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+          <span class="s6">// async &amp; unresolved</span>
+          <span class="s1">Component</span><span class="s2">().</span><span class="s1">then</span><span class="s2">(</span><span class="s1">resolved </span><span class="s2">=&gt; {</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s1">resolved</span><span class="s2">.</span><span class="s1">__esModule </span><span class="s2">|| </span><span class="s1">resolved</span><span class="s2">[</span><span class="s1">Symbol</span><span class="s2">.</span><span class="s1">toStringTag</span><span class="s2">] === </span><span class="s3">'Module'</span><span class="s2">) {</span>
+              <span class="s1">resolved </span><span class="s2">= </span><span class="s1">resolved</span><span class="s2">.</span><span class="s1">default</span><span class="s2">;</span>
+            <span class="s2">}</span>
+            <span class="s1">initialize</span><span class="s2">(</span><span class="s1">resolved</span><span class="s2">);</span>
+            <span class="s1">syncInitialAttributes</span><span class="s2">();</span>
+          <span class="s2">});</span>
+        <span class="s2">}</span>
+        <span class="s6">// initialize children</span>
+        <span class="s1">wrapper</span><span class="s2">.</span><span class="s1">slotChildren </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">freeze</span><span class="s2">(</span><span class="s1">toVNodes</span><span class="s2">(</span>
+          <span class="s1">wrapper</span><span class="s2">.</span><span class="s1">$createElement</span><span class="s2">,</span>
+          <span class="s0">this</span><span class="s2">.</span><span class="s1">childNodes</span>
+        <span class="s2">));</span>
+        <span class="s1">wrapper</span><span class="s2">.</span><span class="s1">$mount</span><span class="s2">();</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">shadowRoot</span><span class="s2">.</span><span class="s1">appendChild</span><span class="s2">(</span><span class="s1">wrapper</span><span class="s2">.</span><span class="s1">$el</span><span class="s2">);</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s1">callHooks</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">vueComponent</span><span class="s2">, </span><span class="s3">'activated'</span><span class="s2">);</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s1">disconnectedCallback </span><span class="s2">() {</span>
+      <span class="s1">callHooks</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">vueComponent</span><span class="s2">, </span><span class="s3">'deactivated'</span><span class="s2">);</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">isAsync</span><span class="s2">) {</span>
+    <span class="s1">initialize</span><span class="s2">(</span><span class="s1">Component</span><span class="s2">);</span>
+  <span class="s2">}</span>
+
+  <span class="s0">return </span><span class="s1">CustomElement</span>
+<span class="s2">}</span>
+
+<span class="s0">return </span><span class="s1">wrap</span><span class="s2">;</span>
+
+<span class="s2">}());</span>
+</pre>
+</body>
+</html>

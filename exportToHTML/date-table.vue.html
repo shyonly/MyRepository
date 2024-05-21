@@ -1,0 +1,464 @@
+<html>
+<head>
+<title>date-table.vue</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #d5b778;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bababa;}
+.s3 { color: #6aab73;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #2aacb8;}
+.s6 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+date-table.vue</font>
+</center></td></tr></table>
+<pre><span class="s0">&lt;template&gt;</span>
+  <span class="s0">&lt;table</span>
+    <span class="s2">cellspacing</span><span class="s3">=&quot;0&quot;</span>
+    <span class="s2">cellpadding</span><span class="s3">=&quot;0&quot;</span>
+    <span class="s2">class</span><span class="s3">=&quot;el-date-table&quot;</span>
+    <span class="s2">@click</span><span class="s3">=&quot;</span><span class="s1">handleClick</span><span class="s3">&quot;</span>
+    <span class="s2">@mousemove</span><span class="s3">=&quot;</span><span class="s1">handleMouseMove</span><span class="s3">&quot;</span>
+    <span class="s2">:class</span><span class="s3">=&quot;</span><span class="s1">{ </span><span class="s3">'is-week-mode'</span><span class="s1">: selectionMode === </span><span class="s3">'week' </span><span class="s1">}</span><span class="s3">&quot;</span><span class="s0">&gt;</span>
+    <span class="s0">&lt;tbody&gt;</span>
+    <span class="s0">&lt;tr&gt;</span>
+      <span class="s0">&lt;th </span><span class="s2">v-if</span><span class="s3">=&quot;</span><span class="s1">showWeekNumber</span><span class="s3">&quot;</span><span class="s0">&gt;</span><span class="s1">{{ t('el.datepicker.week') }}</span><span class="s0">&lt;/th&gt;</span>
+      <span class="s0">&lt;th </span><span class="s2">v-for</span><span class="s3">=&quot;</span><span class="s1">(week, key) </span><span class="s4">in </span><span class="s1">WEEKS</span><span class="s3">&quot; </span><span class="s2">:key</span><span class="s3">=&quot;</span><span class="s1">key</span><span class="s3">&quot;</span><span class="s0">&gt;</span><span class="s1">{{ t('el.datepicker.weeks.' + week) }}</span><span class="s0">&lt;/th&gt;</span>
+    <span class="s0">&lt;/tr&gt;</span>
+    <span class="s0">&lt;tr</span>
+      <span class="s2">class</span><span class="s3">=&quot;el-date-table__row&quot;</span>
+      <span class="s2">v-for</span><span class="s3">=&quot;</span><span class="s1">(row, key) </span><span class="s4">in </span><span class="s1">rows</span><span class="s3">&quot;</span>
+      <span class="s2">:class</span><span class="s3">=&quot;</span><span class="s1">{ current: isWeekActive(row[</span><span class="s5">1</span><span class="s1">]) }</span><span class="s3">&quot;</span>
+      <span class="s2">:key</span><span class="s3">=&quot;</span><span class="s1">key</span><span class="s3">&quot;</span><span class="s0">&gt;</span>
+      <span class="s0">&lt;td</span>
+        <span class="s2">v-for</span><span class="s3">=&quot;</span><span class="s1">(cell, key) </span><span class="s4">in </span><span class="s1">row</span><span class="s3">&quot;</span>
+        <span class="s2">:class</span><span class="s3">=&quot;</span><span class="s1">getCellClasses(cell)</span><span class="s3">&quot;</span>
+        <span class="s2">:key</span><span class="s3">=&quot;</span><span class="s1">key</span><span class="s3">&quot;</span><span class="s0">&gt;</span>
+        <span class="s0">&lt;div&gt;</span>
+          <span class="s0">&lt;span&gt;</span>
+            <span class="s1">{{ cell.text }}</span>
+          <span class="s0">&lt;/span&gt;</span>
+        <span class="s0">&lt;/div&gt;</span>
+      <span class="s0">&lt;/td&gt;</span>
+    <span class="s0">&lt;/tr&gt;</span>
+    <span class="s0">&lt;/tbody&gt;</span>
+  <span class="s0">&lt;/table&gt;</span>
+<span class="s0">&lt;/template&gt;</span>
+
+<span class="s0">&lt;script&gt;</span>
+  <span class="s4">import </span><span class="s1">{ getFirstDayOfMonth, getDayCountOfMonth, getWeekNumber, getStartDateOfMonth, prevDate, nextDate, isDate, clearTime </span><span class="s4">as </span><span class="s1">_clearTime} from </span><span class="s3">'element-ui/src/utils/date-util'</span><span class="s1">;</span>
+  <span class="s4">import </span><span class="s1">Locale from </span><span class="s3">'element-ui/src/mixins/locale'</span><span class="s1">;</span>
+  <span class="s4">import </span><span class="s1">{ arrayFindIndex, arrayFind, coerceTruthyValueToArray } from </span><span class="s3">'element-ui/src/utils/util'</span><span class="s1">;</span>
+
+  <span class="s4">const </span><span class="s1">WEEKS = [</span><span class="s3">'sun'</span><span class="s1">, </span><span class="s3">'mon'</span><span class="s1">, </span><span class="s3">'tue'</span><span class="s1">, </span><span class="s3">'wed'</span><span class="s1">, </span><span class="s3">'thu'</span><span class="s1">, </span><span class="s3">'fri'</span><span class="s1">, </span><span class="s3">'sat'</span><span class="s1">];</span>
+  <span class="s4">const </span><span class="s1">getDateTimestamp = </span><span class="s4">function</span><span class="s1">(time) {</span>
+    <span class="s4">if </span><span class="s1">(</span><span class="s4">typeof </span><span class="s1">time === </span><span class="s3">'number' </span><span class="s1">|| </span><span class="s4">typeof </span><span class="s1">time === </span><span class="s3">'string'</span><span class="s1">) {</span>
+      <span class="s4">return </span><span class="s1">_clearTime(</span><span class="s4">new </span><span class="s1">Date(time)).getTime();</span>
+    <span class="s1">} </span><span class="s4">else if </span><span class="s1">(time </span><span class="s4">instanceof </span><span class="s1">Date) {</span>
+      <span class="s4">return </span><span class="s1">_clearTime(time).getTime();</span>
+    <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+      <span class="s4">return </span><span class="s1">NaN;</span>
+    <span class="s1">}</span>
+  <span class="s1">};</span>
+
+  <span class="s6">// remove the first element that satisfies `pred` from arr</span>
+  <span class="s6">// return a new array if modification occurs</span>
+  <span class="s6">// return the original array otherwise</span>
+  <span class="s4">const </span><span class="s1">removeFromArray = </span><span class="s4">function</span><span class="s1">(arr, pred) {</span>
+    <span class="s4">const </span><span class="s1">idx = </span><span class="s4">typeof </span><span class="s1">pred === </span><span class="s3">'function' </span><span class="s1">? arrayFindIndex(arr, pred) : arr.indexOf(pred);</span>
+    <span class="s4">return </span><span class="s1">idx &gt;= </span><span class="s5">0 </span><span class="s1">? [...arr.slice(</span><span class="s5">0</span><span class="s1">, idx), ...arr.slice(idx + </span><span class="s5">1</span><span class="s1">)] : arr;</span>
+  <span class="s1">};</span>
+
+  <span class="s4">export default </span><span class="s1">{</span>
+    <span class="s1">mixins: [Locale],</span>
+
+    <span class="s1">props: {</span>
+      <span class="s1">firstDayOfWeek: {</span>
+        <span class="s4">default</span><span class="s1">: </span><span class="s5">7</span><span class="s1">,</span>
+        <span class="s1">type: Number,</span>
+        <span class="s1">validator: val =&gt; val &gt;= </span><span class="s5">1 </span><span class="s1">&amp;&amp; val &lt;= </span><span class="s5">7</span>
+      <span class="s1">},</span>
+
+      <span class="s1">value: {},</span>
+
+      <span class="s1">defaultValue: {</span>
+        <span class="s1">validator(val) {</span>
+          <span class="s6">// either: null, valid Date object, Array of valid Date objects</span>
+          <span class="s4">return </span><span class="s1">val === </span><span class="s4">null </span><span class="s1">|| isDate(val) || (Array.isArray(val) &amp;&amp; val.every(isDate));</span>
+        <span class="s1">}</span>
+      <span class="s1">},</span>
+
+      <span class="s1">date: {},</span>
+
+      <span class="s1">selectionMode: {</span>
+        <span class="s4">default</span><span class="s1">: </span><span class="s3">'day'</span>
+      <span class="s1">},</span>
+
+      <span class="s1">showWeekNumber: {</span>
+        <span class="s1">type: Boolean,</span>
+        <span class="s4">default</span><span class="s1">: </span><span class="s4">false</span>
+      <span class="s1">},</span>
+
+      <span class="s1">disabledDate: {},</span>
+  
+      <span class="s1">cellClassName: {},</span>
+
+      <span class="s1">minDate: {},</span>
+
+      <span class="s1">maxDate: {},</span>
+
+      <span class="s1">rangeState: {</span>
+        <span class="s4">default</span><span class="s1">() {</span>
+          <span class="s4">return </span><span class="s1">{</span>
+            <span class="s1">endDate: </span><span class="s4">null</span><span class="s1">,</span>
+            <span class="s1">selecting: </span><span class="s4">false</span>
+          <span class="s1">};</span>
+        <span class="s1">}</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+
+    <span class="s1">computed: {</span>
+      <span class="s1">offsetDay() {</span>
+        <span class="s4">const </span><span class="s1">week = </span><span class="s4">this</span><span class="s1">.firstDayOfWeek;</span>
+        <span class="s6">// 周日为界限，左右偏移的天数，3217654 例如周一就是 -1，目的是调整前两行日期的位置</span>
+        <span class="s4">return </span><span class="s1">week &gt; </span><span class="s5">3 </span><span class="s1">? </span><span class="s5">7 </span><span class="s1">- week : -week;</span>
+      <span class="s1">},</span>
+
+      <span class="s1">WEEKS() {</span>
+        <span class="s4">const </span><span class="s1">week = </span><span class="s4">this</span><span class="s1">.firstDayOfWeek;</span>
+        <span class="s4">return </span><span class="s1">WEEKS.concat(WEEKS).slice(week, week + </span><span class="s5">7</span><span class="s1">);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">year() {</span>
+        <span class="s4">return this</span><span class="s1">.date.getFullYear();</span>
+      <span class="s1">},</span>
+
+      <span class="s1">month() {</span>
+        <span class="s4">return this</span><span class="s1">.date.getMonth();</span>
+      <span class="s1">},</span>
+
+      <span class="s1">startDate() {</span>
+        <span class="s4">return </span><span class="s1">getStartDateOfMonth(</span><span class="s4">this</span><span class="s1">.year, </span><span class="s4">this</span><span class="s1">.month);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">rows() {</span>
+        <span class="s6">// TODO: refactory rows / getCellClasses</span>
+        <span class="s4">const </span><span class="s1">date = </span><span class="s4">new </span><span class="s1">Date(</span><span class="s4">this</span><span class="s1">.year, </span><span class="s4">this</span><span class="s1">.month, </span><span class="s5">1</span><span class="s1">);</span>
+        <span class="s4">let </span><span class="s1">day = getFirstDayOfMonth(date); </span><span class="s6">// day of first day</span>
+        <span class="s4">const </span><span class="s1">dateCountOfMonth = getDayCountOfMonth(date.getFullYear(), date.getMonth());</span>
+        <span class="s4">const </span><span class="s1">dateCountOfLastMonth = getDayCountOfMonth(date.getFullYear(), (date.getMonth() === </span><span class="s5">0 </span><span class="s1">? </span><span class="s5">11 </span><span class="s1">: date.getMonth() - </span><span class="s5">1</span><span class="s1">));</span>
+
+        <span class="s1">day = (day === </span><span class="s5">0 </span><span class="s1">? </span><span class="s5">7 </span><span class="s1">: day);</span>
+
+        <span class="s4">const </span><span class="s1">offset = </span><span class="s4">this</span><span class="s1">.offsetDay;</span>
+        <span class="s4">const </span><span class="s1">rows = </span><span class="s4">this</span><span class="s1">.tableRows;</span>
+        <span class="s4">let </span><span class="s1">count = </span><span class="s5">1</span><span class="s1">;</span>
+
+        <span class="s4">const </span><span class="s1">startDate = </span><span class="s4">this</span><span class="s1">.startDate;</span>
+        <span class="s4">const </span><span class="s1">disabledDate = </span><span class="s4">this</span><span class="s1">.disabledDate;</span>
+        <span class="s4">const </span><span class="s1">cellClassName = </span><span class="s4">this</span><span class="s1">.cellClassName;</span>
+        <span class="s4">const </span><span class="s1">selectedDate = </span><span class="s4">this</span><span class="s1">.selectionMode === </span><span class="s3">'dates' </span><span class="s1">? coerceTruthyValueToArray(</span><span class="s4">this</span><span class="s1">.value) : [];</span>
+        <span class="s4">const </span><span class="s1">now = getDateTimestamp(</span><span class="s4">new </span><span class="s1">Date());</span>
+
+        <span class="s4">for </span><span class="s1">(</span><span class="s4">let </span><span class="s1">i = </span><span class="s5">0</span><span class="s1">; i &lt; </span><span class="s5">6</span><span class="s1">; i++) {</span>
+          <span class="s4">const </span><span class="s1">row = rows[i];</span>
+
+          <span class="s4">if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.showWeekNumber) {</span>
+            <span class="s4">if </span><span class="s1">(!row[</span><span class="s5">0</span><span class="s1">]) {</span>
+              <span class="s1">row[</span><span class="s5">0</span><span class="s1">] = { type: </span><span class="s3">'week'</span><span class="s1">, text: getWeekNumber(nextDate(startDate, i * </span><span class="s5">7 </span><span class="s1">+ </span><span class="s5">1</span><span class="s1">)) };</span>
+            <span class="s1">}</span>
+          <span class="s1">}</span>
+
+          <span class="s4">for </span><span class="s1">(</span><span class="s4">let </span><span class="s1">j = </span><span class="s5">0</span><span class="s1">; j &lt; </span><span class="s5">7</span><span class="s1">; j++) {</span>
+            <span class="s4">let </span><span class="s1">cell = row[</span><span class="s4">this</span><span class="s1">.showWeekNumber ? j + </span><span class="s5">1 </span><span class="s1">: j];</span>
+            <span class="s4">if </span><span class="s1">(!cell) {</span>
+              <span class="s1">cell = { row: i, column: j, type: </span><span class="s3">'normal'</span><span class="s1">, inRange: </span><span class="s4">false</span><span class="s1">, start: </span><span class="s4">false</span><span class="s1">, end: </span><span class="s4">false </span><span class="s1">};</span>
+            <span class="s1">}</span>
+
+            <span class="s1">cell.type = </span><span class="s3">'normal'</span><span class="s1">;</span>
+
+            <span class="s4">const </span><span class="s1">index = i * </span><span class="s5">7 </span><span class="s1">+ j;</span>
+            <span class="s4">const </span><span class="s1">time = nextDate(startDate, index - offset).getTime();</span>
+            <span class="s1">cell.inRange = time &gt;= getDateTimestamp(</span><span class="s4">this</span><span class="s1">.minDate) &amp;&amp; time &lt;= getDateTimestamp(</span><span class="s4">this</span><span class="s1">.maxDate);</span>
+            <span class="s1">cell.start = </span><span class="s4">this</span><span class="s1">.minDate &amp;&amp; time === getDateTimestamp(</span><span class="s4">this</span><span class="s1">.minDate);</span>
+            <span class="s1">cell.end = </span><span class="s4">this</span><span class="s1">.maxDate &amp;&amp; time === getDateTimestamp(</span><span class="s4">this</span><span class="s1">.maxDate);</span>
+            <span class="s4">const </span><span class="s1">isToday = time === now;</span>
+
+            <span class="s4">if </span><span class="s1">(isToday) {</span>
+              <span class="s1">cell.type = </span><span class="s3">'today'</span><span class="s1">;</span>
+            <span class="s1">}</span>
+
+            <span class="s4">if </span><span class="s1">(i &gt;= </span><span class="s5">0 </span><span class="s1">&amp;&amp; i &lt;= </span><span class="s5">1</span><span class="s1">) {</span>
+              <span class="s4">const </span><span class="s1">numberOfDaysFromPreviousMonth = day + offset &lt; </span><span class="s5">0 </span><span class="s1">? </span><span class="s5">7 </span><span class="s1">+ day + offset : day + offset;</span>
+
+              <span class="s4">if </span><span class="s1">(j + i * </span><span class="s5">7 </span><span class="s1">&gt;= numberOfDaysFromPreviousMonth) {</span>
+                <span class="s1">cell.text = count++;</span>
+              <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+                <span class="s1">cell.text = dateCountOfLastMonth - (numberOfDaysFromPreviousMonth - j % </span><span class="s5">7</span><span class="s1">) + </span><span class="s5">1 </span><span class="s1">+ i * </span><span class="s5">7</span><span class="s1">;</span>
+                <span class="s1">cell.type = </span><span class="s3">'prev-month'</span><span class="s1">;</span>
+              <span class="s1">}</span>
+            <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+              <span class="s4">if </span><span class="s1">(count &lt;= dateCountOfMonth) {</span>
+                <span class="s1">cell.text = count++;</span>
+              <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+                <span class="s1">cell.text = count++ - dateCountOfMonth;</span>
+                <span class="s1">cell.type = </span><span class="s3">'next-month'</span><span class="s1">;</span>
+              <span class="s1">}</span>
+            <span class="s1">}</span>
+
+            <span class="s4">let </span><span class="s1">cellDate = </span><span class="s4">new </span><span class="s1">Date(time);</span>
+            <span class="s1">cell.disabled = </span><span class="s4">typeof </span><span class="s1">disabledDate === </span><span class="s3">'function' </span><span class="s1">&amp;&amp; disabledDate(cellDate);</span>
+            <span class="s1">cell.selected = arrayFind(selectedDate, date =&gt; date.getTime() === cellDate.getTime());</span>
+            <span class="s1">cell.customClass = </span><span class="s4">typeof </span><span class="s1">cellClassName === </span><span class="s3">'function' </span><span class="s1">&amp;&amp; cellClassName(cellDate);</span>
+            <span class="s4">this</span><span class="s1">.$set(row, </span><span class="s4">this</span><span class="s1">.showWeekNumber ? j + </span><span class="s5">1 </span><span class="s1">: j, cell);</span>
+          <span class="s1">}</span>
+
+          <span class="s4">if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.selectionMode === </span><span class="s3">'week'</span><span class="s1">) {</span>
+            <span class="s4">const </span><span class="s1">start = </span><span class="s4">this</span><span class="s1">.showWeekNumber ? </span><span class="s5">1 </span><span class="s1">: </span><span class="s5">0</span><span class="s1">;</span>
+            <span class="s4">const </span><span class="s1">end = </span><span class="s4">this</span><span class="s1">.showWeekNumber ? </span><span class="s5">7 </span><span class="s1">: </span><span class="s5">6</span><span class="s1">;</span>
+            <span class="s4">const </span><span class="s1">isWeekActive = </span><span class="s4">this</span><span class="s1">.isWeekActive(row[start + </span><span class="s5">1</span><span class="s1">]);</span>
+
+            <span class="s1">row[start].inRange = isWeekActive;</span>
+            <span class="s1">row[start].start = isWeekActive;</span>
+            <span class="s1">row[end].inRange = isWeekActive;</span>
+            <span class="s1">row[end].end = isWeekActive;</span>
+          <span class="s1">}</span>
+        <span class="s1">}</span>
+
+        <span class="s4">return </span><span class="s1">rows;</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+
+    <span class="s1">watch: {</span>
+      <span class="s3">'rangeState.endDate'</span><span class="s1">(newVal) {</span>
+        <span class="s4">this</span><span class="s1">.markRange(</span><span class="s4">this</span><span class="s1">.minDate, newVal);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">minDate(newVal, oldVal) {</span>
+        <span class="s4">if </span><span class="s1">(getDateTimestamp(newVal) !== getDateTimestamp(oldVal)) {</span>
+          <span class="s4">this</span><span class="s1">.markRange(</span><span class="s4">this</span><span class="s1">.minDate, </span><span class="s4">this</span><span class="s1">.maxDate);</span>
+        <span class="s1">}</span>
+      <span class="s1">},</span>
+
+      <span class="s1">maxDate(newVal, oldVal) {</span>
+        <span class="s4">if </span><span class="s1">(getDateTimestamp(newVal) !== getDateTimestamp(oldVal)) {</span>
+          <span class="s4">this</span><span class="s1">.markRange(</span><span class="s4">this</span><span class="s1">.minDate, </span><span class="s4">this</span><span class="s1">.maxDate);</span>
+        <span class="s1">}</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+
+    <span class="s1">data() {</span>
+      <span class="s4">return </span><span class="s1">{</span>
+        <span class="s1">tableRows: [ [], [], [], [], [], [] ],</span>
+        <span class="s1">lastRow: </span><span class="s4">null</span><span class="s1">,</span>
+        <span class="s1">lastColumn: </span><span class="s4">null</span>
+      <span class="s1">};</span>
+    <span class="s1">},</span>
+
+    <span class="s1">methods: {</span>
+      <span class="s1">cellMatchesDate(cell, date) {</span>
+        <span class="s4">const </span><span class="s1">value = </span><span class="s4">new </span><span class="s1">Date(date);</span>
+        <span class="s4">return this</span><span class="s1">.year === value.getFullYear() &amp;&amp;</span>
+          <span class="s4">this</span><span class="s1">.month === value.getMonth() &amp;&amp;</span>
+          <span class="s1">Number(cell.text) === value.getDate();</span>
+      <span class="s1">},</span>
+
+      <span class="s1">getCellClasses(cell) {</span>
+        <span class="s4">const </span><span class="s1">selectionMode = </span><span class="s4">this</span><span class="s1">.selectionMode;</span>
+        <span class="s4">const </span><span class="s1">defaultValue = </span><span class="s4">this</span><span class="s1">.defaultValue ? Array.isArray(</span><span class="s4">this</span><span class="s1">.defaultValue) ? </span><span class="s4">this</span><span class="s1">.defaultValue : [</span><span class="s4">this</span><span class="s1">.defaultValue] : [];</span>
+
+        <span class="s4">let </span><span class="s1">classes = [];</span>
+        <span class="s4">if </span><span class="s1">((cell.type === </span><span class="s3">'normal' </span><span class="s1">|| cell.type === </span><span class="s3">'today'</span><span class="s1">) &amp;&amp; !cell.disabled) {</span>
+          <span class="s1">classes.push(</span><span class="s3">'available'</span><span class="s1">);</span>
+          <span class="s4">if </span><span class="s1">(cell.type === </span><span class="s3">'today'</span><span class="s1">) {</span>
+            <span class="s1">classes.push(</span><span class="s3">'today'</span><span class="s1">);</span>
+          <span class="s1">}</span>
+        <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+          <span class="s1">classes.push(cell.type);</span>
+        <span class="s1">}</span>
+
+        <span class="s4">if </span><span class="s1">(cell.type === </span><span class="s3">'normal' </span><span class="s1">&amp;&amp; defaultValue.some(date =&gt; </span><span class="s4">this</span><span class="s1">.cellMatchesDate(cell, date))) {</span>
+          <span class="s1">classes.push(</span><span class="s3">'default'</span><span class="s1">);</span>
+        <span class="s1">}</span>
+
+        <span class="s4">if </span><span class="s1">(selectionMode === </span><span class="s3">'day' </span><span class="s1">&amp;&amp; (cell.type === </span><span class="s3">'normal' </span><span class="s1">|| cell.type === </span><span class="s3">'today'</span><span class="s1">) &amp;&amp; </span><span class="s4">this</span><span class="s1">.cellMatchesDate(cell, </span><span class="s4">this</span><span class="s1">.value)) {</span>
+          <span class="s1">classes.push(</span><span class="s3">'current'</span><span class="s1">);</span>
+        <span class="s1">}</span>
+
+        <span class="s4">if </span><span class="s1">(cell.inRange &amp;&amp; ((cell.type === </span><span class="s3">'normal' </span><span class="s1">|| cell.type === </span><span class="s3">'today'</span><span class="s1">) || </span><span class="s4">this</span><span class="s1">.selectionMode === </span><span class="s3">'week'</span><span class="s1">)) {</span>
+          <span class="s1">classes.push(</span><span class="s3">'in-range'</span><span class="s1">);</span>
+
+          <span class="s4">if </span><span class="s1">(cell.start) {</span>
+            <span class="s1">classes.push(</span><span class="s3">'start-date'</span><span class="s1">);</span>
+          <span class="s1">}</span>
+
+          <span class="s4">if </span><span class="s1">(cell.end) {</span>
+            <span class="s1">classes.push(</span><span class="s3">'end-date'</span><span class="s1">);</span>
+          <span class="s1">}</span>
+        <span class="s1">}</span>
+
+        <span class="s4">if </span><span class="s1">(cell.disabled) {</span>
+          <span class="s1">classes.push(</span><span class="s3">'disabled'</span><span class="s1">);</span>
+        <span class="s1">}</span>
+
+        <span class="s4">if </span><span class="s1">(cell.selected) {</span>
+          <span class="s1">classes.push(</span><span class="s3">'selected'</span><span class="s1">);</span>
+        <span class="s1">}</span>
+
+        <span class="s4">if </span><span class="s1">(cell.customClass) {</span>
+          <span class="s1">classes.push(cell.customClass);</span>
+        <span class="s1">}</span>
+
+        <span class="s4">return </span><span class="s1">classes.join(</span><span class="s3">' '</span><span class="s1">);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">getDateOfCell(row, column) {</span>
+        <span class="s4">const </span><span class="s1">offsetFromStart = row * </span><span class="s5">7 </span><span class="s1">+ (column - (</span><span class="s4">this</span><span class="s1">.showWeekNumber ? </span><span class="s5">1 </span><span class="s1">: </span><span class="s5">0</span><span class="s1">)) - </span><span class="s4">this</span><span class="s1">.offsetDay;</span>
+        <span class="s4">return </span><span class="s1">nextDate(</span><span class="s4">this</span><span class="s1">.startDate, offsetFromStart);</span>
+      <span class="s1">},</span>
+
+      <span class="s1">isWeekActive(cell) {</span>
+        <span class="s4">if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.selectionMode !== </span><span class="s3">'week'</span><span class="s1">) </span><span class="s4">return false</span><span class="s1">;</span>
+        <span class="s4">const </span><span class="s1">newDate = </span><span class="s4">new </span><span class="s1">Date(</span><span class="s4">this</span><span class="s1">.year, </span><span class="s4">this</span><span class="s1">.month, </span><span class="s5">1</span><span class="s1">);</span>
+        <span class="s4">const </span><span class="s1">year = newDate.getFullYear();</span>
+        <span class="s4">const </span><span class="s1">month = newDate.getMonth();</span>
+
+        <span class="s4">if </span><span class="s1">(cell.type === </span><span class="s3">'prev-month'</span><span class="s1">) {</span>
+          <span class="s1">newDate.setMonth(month === </span><span class="s5">0 </span><span class="s1">? </span><span class="s5">11 </span><span class="s1">: month - </span><span class="s5">1</span><span class="s1">);</span>
+          <span class="s1">newDate.setFullYear(month === </span><span class="s5">0 </span><span class="s1">? year - </span><span class="s5">1 </span><span class="s1">: year);</span>
+        <span class="s1">}</span>
+
+        <span class="s4">if </span><span class="s1">(cell.type === </span><span class="s3">'next-month'</span><span class="s1">) {</span>
+          <span class="s1">newDate.setMonth(month === </span><span class="s5">11 </span><span class="s1">? </span><span class="s5">0 </span><span class="s1">: month + </span><span class="s5">1</span><span class="s1">);</span>
+          <span class="s1">newDate.setFullYear(month === </span><span class="s5">11 </span><span class="s1">? year + </span><span class="s5">1 </span><span class="s1">: year);</span>
+        <span class="s1">}</span>
+
+        <span class="s1">newDate.setDate(parseInt(cell.text, </span><span class="s5">10</span><span class="s1">));</span>
+
+        <span class="s4">if </span><span class="s1">(isDate(</span><span class="s4">this</span><span class="s1">.value)) {</span>
+          <span class="s4">const </span><span class="s1">dayOffset = (</span><span class="s4">this</span><span class="s1">.value.getDay() - </span><span class="s4">this</span><span class="s1">.firstDayOfWeek + </span><span class="s5">7</span><span class="s1">) % </span><span class="s5">7 </span><span class="s1">- </span><span class="s5">1</span><span class="s1">;</span>
+          <span class="s4">const </span><span class="s1">weekDate = prevDate(</span><span class="s4">this</span><span class="s1">.value, dayOffset);</span>
+          <span class="s4">return </span><span class="s1">weekDate.getTime() === newDate.getTime();</span>
+        <span class="s1">}</span>
+        <span class="s4">return false</span><span class="s1">;</span>
+      <span class="s1">},</span>
+
+      <span class="s1">markRange(minDate, maxDate) {</span>
+        <span class="s1">minDate = getDateTimestamp(minDate);</span>
+        <span class="s1">maxDate = getDateTimestamp(maxDate) || minDate;</span>
+        <span class="s1">[minDate, maxDate] = [Math.min(minDate, maxDate), Math.max(minDate, maxDate)];</span>
+
+        <span class="s4">const </span><span class="s1">startDate = </span><span class="s4">this</span><span class="s1">.startDate;</span>
+        <span class="s4">const </span><span class="s1">rows = </span><span class="s4">this</span><span class="s1">.rows;</span>
+        <span class="s4">for </span><span class="s1">(</span><span class="s4">let </span><span class="s1">i = </span><span class="s5">0</span><span class="s1">, k = rows.length; i &lt; k; i++) {</span>
+          <span class="s4">const </span><span class="s1">row = rows[i];</span>
+          <span class="s4">for </span><span class="s1">(</span><span class="s4">let </span><span class="s1">j = </span><span class="s5">0</span><span class="s1">, l = row.length; j &lt; l; j++) {</span>
+            <span class="s4">if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.showWeekNumber &amp;&amp; j === </span><span class="s5">0</span><span class="s1">) </span><span class="s4">continue</span><span class="s1">;</span>
+
+            <span class="s4">const </span><span class="s1">cell = row[j];</span>
+            <span class="s4">const </span><span class="s1">index = i * </span><span class="s5">7 </span><span class="s1">+ j + (</span><span class="s4">this</span><span class="s1">.showWeekNumber ? -</span><span class="s5">1 </span><span class="s1">: </span><span class="s5">0</span><span class="s1">);</span>
+            <span class="s4">const </span><span class="s1">time = nextDate(startDate, index - </span><span class="s4">this</span><span class="s1">.offsetDay).getTime();</span>
+
+            <span class="s1">cell.inRange = minDate &amp;&amp; time &gt;= minDate &amp;&amp; time &lt;= maxDate;</span>
+            <span class="s1">cell.start = minDate &amp;&amp; time === minDate;</span>
+            <span class="s1">cell.end = maxDate &amp;&amp; time === maxDate;</span>
+          <span class="s1">}</span>
+        <span class="s1">}</span>
+      <span class="s1">},</span>
+
+      <span class="s1">handleMouseMove(event) {</span>
+        <span class="s4">if </span><span class="s1">(!</span><span class="s4">this</span><span class="s1">.rangeState.selecting) </span><span class="s4">return</span><span class="s1">;</span>
+
+        <span class="s4">let </span><span class="s1">target = event.target;</span>
+        <span class="s4">if </span><span class="s1">(target.tagName === </span><span class="s3">'SPAN'</span><span class="s1">) {</span>
+          <span class="s1">target = target.parentNode.parentNode;</span>
+        <span class="s1">}</span>
+        <span class="s4">if </span><span class="s1">(target.tagName === </span><span class="s3">'DIV'</span><span class="s1">) {</span>
+          <span class="s1">target = target.parentNode;</span>
+        <span class="s1">}</span>
+        <span class="s4">if </span><span class="s1">(target.tagName !== </span><span class="s3">'TD'</span><span class="s1">) </span><span class="s4">return</span><span class="s1">;</span>
+
+        <span class="s4">const </span><span class="s1">row = target.parentNode.rowIndex - </span><span class="s5">1</span><span class="s1">;</span>
+        <span class="s4">const </span><span class="s1">column = target.cellIndex;</span>
+
+        <span class="s6">// can not select disabled date</span>
+        <span class="s4">if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.rows[row][column].disabled) </span><span class="s4">return</span><span class="s1">;</span>
+
+        <span class="s6">// only update rangeState when mouse moves to a new cell</span>
+        <span class="s6">// this avoids frequent Date object creation and improves performance</span>
+        <span class="s4">if </span><span class="s1">(row !== </span><span class="s4">this</span><span class="s1">.lastRow || column !== </span><span class="s4">this</span><span class="s1">.lastColumn) {</span>
+          <span class="s4">this</span><span class="s1">.lastRow = row;</span>
+          <span class="s4">this</span><span class="s1">.lastColumn = column;</span>
+          <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'changerange'</span><span class="s1">, {</span>
+            <span class="s1">minDate: </span><span class="s4">this</span><span class="s1">.minDate,</span>
+            <span class="s1">maxDate: </span><span class="s4">this</span><span class="s1">.maxDate,</span>
+            <span class="s1">rangeState: {</span>
+              <span class="s1">selecting: </span><span class="s4">true</span><span class="s1">,</span>
+              <span class="s1">endDate: </span><span class="s4">this</span><span class="s1">.getDateOfCell(row, column)</span>
+            <span class="s1">}</span>
+          <span class="s1">});</span>
+        <span class="s1">}</span>
+      <span class="s1">},</span>
+
+      <span class="s1">handleClick(event) {</span>
+        <span class="s4">let </span><span class="s1">target = event.target;</span>
+        <span class="s4">if </span><span class="s1">(target.tagName === </span><span class="s3">'SPAN'</span><span class="s1">) {</span>
+          <span class="s1">target = target.parentNode.parentNode;</span>
+        <span class="s1">}</span>
+        <span class="s4">if </span><span class="s1">(target.tagName === </span><span class="s3">'DIV'</span><span class="s1">) {</span>
+          <span class="s1">target = target.parentNode;</span>
+        <span class="s1">}</span>
+
+        <span class="s4">if </span><span class="s1">(target.tagName !== </span><span class="s3">'TD'</span><span class="s1">) </span><span class="s4">return</span><span class="s1">;</span>
+
+        <span class="s4">const </span><span class="s1">row = target.parentNode.rowIndex - </span><span class="s5">1</span><span class="s1">;</span>
+        <span class="s4">const </span><span class="s1">column = </span><span class="s4">this</span><span class="s1">.selectionMode === </span><span class="s3">'week' </span><span class="s1">? </span><span class="s5">1 </span><span class="s1">: target.cellIndex;</span>
+        <span class="s4">const </span><span class="s1">cell = </span><span class="s4">this</span><span class="s1">.rows[row][column];</span>
+
+        <span class="s4">if </span><span class="s1">(cell.disabled || cell.type === </span><span class="s3">'week'</span><span class="s1">) </span><span class="s4">return</span><span class="s1">;</span>
+
+        <span class="s4">const </span><span class="s1">newDate = </span><span class="s4">this</span><span class="s1">.getDateOfCell(row, column);</span>
+
+        <span class="s4">if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.selectionMode === </span><span class="s3">'range'</span><span class="s1">) {</span>
+          <span class="s4">if </span><span class="s1">(!</span><span class="s4">this</span><span class="s1">.rangeState.selecting) {</span>
+            <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'pick'</span><span class="s1">, {minDate: newDate, maxDate: </span><span class="s4">null</span><span class="s1">});</span>
+            <span class="s4">this</span><span class="s1">.rangeState.selecting = </span><span class="s4">true</span><span class="s1">;</span>
+          <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+            <span class="s4">if </span><span class="s1">(newDate &gt;= </span><span class="s4">this</span><span class="s1">.minDate) {</span>
+              <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'pick'</span><span class="s1">, {minDate: </span><span class="s4">this</span><span class="s1">.minDate, maxDate: newDate});</span>
+            <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+              <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'pick'</span><span class="s1">, {minDate: newDate, maxDate: </span><span class="s4">this</span><span class="s1">.minDate});</span>
+            <span class="s1">}</span>
+            <span class="s4">this</span><span class="s1">.rangeState.selecting = </span><span class="s4">false</span><span class="s1">;</span>
+          <span class="s1">}</span>
+        <span class="s1">} </span><span class="s4">else if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.selectionMode === </span><span class="s3">'day'</span><span class="s1">) {</span>
+          <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'pick'</span><span class="s1">, newDate);</span>
+        <span class="s1">} </span><span class="s4">else if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.selectionMode === </span><span class="s3">'week'</span><span class="s1">) {</span>
+          <span class="s4">const </span><span class="s1">weekNumber = getWeekNumber(newDate);</span>
+          <span class="s4">const </span><span class="s1">value = newDate.getFullYear() + </span><span class="s3">'w' </span><span class="s1">+ weekNumber;</span>
+          <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'pick'</span><span class="s1">, {</span>
+            <span class="s1">year: newDate.getFullYear(),</span>
+            <span class="s1">week: weekNumber,</span>
+            <span class="s1">value: value,</span>
+            <span class="s1">date: newDate</span>
+          <span class="s1">});</span>
+        <span class="s1">} </span><span class="s4">else if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.selectionMode === </span><span class="s3">'dates'</span><span class="s1">) {</span>
+          <span class="s4">const </span><span class="s1">value = </span><span class="s4">this</span><span class="s1">.value || [];</span>
+          <span class="s4">const </span><span class="s1">newValue = cell.selected</span>
+            <span class="s1">? removeFromArray(value, date =&gt; date.getTime() === newDate.getTime())</span>
+            <span class="s1">: [...value, newDate];</span>
+          <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'pick'</span><span class="s1">, newValue);</span>
+        <span class="s1">}</span>
+      <span class="s1">}</span>
+    <span class="s1">}</span>
+  <span class="s1">};</span>
+<span class="s0">&lt;/script&gt;</span>
+</pre>
+</body>
+</html>

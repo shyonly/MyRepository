@@ -1,0 +1,119 @@
+<html>
+<head>
+<title>route.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+route.js</font>
+</center></td></tr></table>
+<pre><span class="s0">var </span><span class="s1">conversions </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./conversions'</span><span class="s2">);</span>
+
+<span class="s4">/* 
+    this function routes a model to all other models. 
+ 
+    all functions that are routed have a property `.conversion` attached 
+    to the returned synthetic function. This property is an array 
+    of strings, each with the steps in between the 'from' and 'to' 
+    color models (inclusive). 
+ 
+    conversions that are not possible simply are not included. 
+*/</span>
+
+<span class="s0">function </span><span class="s1">buildGraph</span><span class="s2">() {</span>
+	<span class="s0">var </span><span class="s1">graph </span><span class="s2">= {};</span>
+	<span class="s4">// https://jsperf.com/object-keys-vs-for-in-with-closure/3</span>
+	<span class="s0">var </span><span class="s1">models </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">conversions</span><span class="s2">);</span>
+
+	<span class="s0">for </span><span class="s2">(</span><span class="s0">var </span><span class="s1">len </span><span class="s2">= </span><span class="s1">models</span><span class="s2">.</span><span class="s1">length</span><span class="s2">, </span><span class="s1">i </span><span class="s2">= </span><span class="s5">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">len</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+		<span class="s1">graph</span><span class="s2">[</span><span class="s1">models</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]] = {</span>
+			<span class="s4">// http://jsperf.com/1-vs-infinity</span>
+			<span class="s4">// micro-opt, but this is simple.</span>
+			<span class="s1">distance</span><span class="s2">: -</span><span class="s5">1</span><span class="s2">,</span>
+			<span class="s1">parent</span><span class="s2">: </span><span class="s0">null</span>
+		<span class="s2">};</span>
+	<span class="s2">}</span>
+
+	<span class="s0">return </span><span class="s1">graph</span><span class="s2">;</span>
+<span class="s2">}</span>
+
+<span class="s4">// https://en.wikipedia.org/wiki/Breadth-first_search</span>
+<span class="s0">function </span><span class="s1">deriveBFS</span><span class="s2">(</span><span class="s1">fromModel</span><span class="s2">) {</span>
+	<span class="s0">var </span><span class="s1">graph </span><span class="s2">= </span><span class="s1">buildGraph</span><span class="s2">();</span>
+	<span class="s0">var </span><span class="s1">queue </span><span class="s2">= [</span><span class="s1">fromModel</span><span class="s2">]; </span><span class="s4">// unshift -&gt; queue -&gt; pop</span>
+
+	<span class="s1">graph</span><span class="s2">[</span><span class="s1">fromModel</span><span class="s2">].</span><span class="s1">distance </span><span class="s2">= </span><span class="s5">0</span><span class="s2">;</span>
+
+	<span class="s0">while </span><span class="s2">(</span><span class="s1">queue</span><span class="s2">.</span><span class="s1">length</span><span class="s2">) {</span>
+		<span class="s0">var </span><span class="s1">current </span><span class="s2">= </span><span class="s1">queue</span><span class="s2">.</span><span class="s1">pop</span><span class="s2">();</span>
+		<span class="s0">var </span><span class="s1">adjacents </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">conversions</span><span class="s2">[</span><span class="s1">current</span><span class="s2">]);</span>
+
+		<span class="s0">for </span><span class="s2">(</span><span class="s0">var </span><span class="s1">len </span><span class="s2">= </span><span class="s1">adjacents</span><span class="s2">.</span><span class="s1">length</span><span class="s2">, </span><span class="s1">i </span><span class="s2">= </span><span class="s5">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">len</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+			<span class="s0">var </span><span class="s1">adjacent </span><span class="s2">= </span><span class="s1">adjacents</span><span class="s2">[</span><span class="s1">i</span><span class="s2">];</span>
+			<span class="s0">var </span><span class="s1">node </span><span class="s2">= </span><span class="s1">graph</span><span class="s2">[</span><span class="s1">adjacent</span><span class="s2">];</span>
+
+			<span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">distance </span><span class="s2">=== -</span><span class="s5">1</span><span class="s2">) {</span>
+				<span class="s1">node</span><span class="s2">.</span><span class="s1">distance </span><span class="s2">= </span><span class="s1">graph</span><span class="s2">[</span><span class="s1">current</span><span class="s2">].</span><span class="s1">distance </span><span class="s2">+ </span><span class="s5">1</span><span class="s2">;</span>
+				<span class="s1">node</span><span class="s2">.</span><span class="s1">parent </span><span class="s2">= </span><span class="s1">current</span><span class="s2">;</span>
+				<span class="s1">queue</span><span class="s2">.</span><span class="s1">unshift</span><span class="s2">(</span><span class="s1">adjacent</span><span class="s2">);</span>
+			<span class="s2">}</span>
+		<span class="s2">}</span>
+	<span class="s2">}</span>
+
+	<span class="s0">return </span><span class="s1">graph</span><span class="s2">;</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">link</span><span class="s2">(</span><span class="s1">from</span><span class="s2">, </span><span class="s1">to</span><span class="s2">) {</span>
+	<span class="s0">return function </span><span class="s2">(</span><span class="s1">args</span><span class="s2">) {</span>
+		<span class="s0">return </span><span class="s1">to</span><span class="s2">(</span><span class="s1">from</span><span class="s2">(</span><span class="s1">args</span><span class="s2">));</span>
+	<span class="s2">};</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">wrapConversion</span><span class="s2">(</span><span class="s1">toModel</span><span class="s2">, </span><span class="s1">graph</span><span class="s2">) {</span>
+	<span class="s0">var </span><span class="s1">path </span><span class="s2">= [</span><span class="s1">graph</span><span class="s2">[</span><span class="s1">toModel</span><span class="s2">].</span><span class="s1">parent</span><span class="s2">, </span><span class="s1">toModel</span><span class="s2">];</span>
+	<span class="s0">var </span><span class="s1">fn </span><span class="s2">= </span><span class="s1">conversions</span><span class="s2">[</span><span class="s1">graph</span><span class="s2">[</span><span class="s1">toModel</span><span class="s2">].</span><span class="s1">parent</span><span class="s2">][</span><span class="s1">toModel</span><span class="s2">];</span>
+
+	<span class="s0">var </span><span class="s1">cur </span><span class="s2">= </span><span class="s1">graph</span><span class="s2">[</span><span class="s1">toModel</span><span class="s2">].</span><span class="s1">parent</span><span class="s2">;</span>
+	<span class="s0">while </span><span class="s2">(</span><span class="s1">graph</span><span class="s2">[</span><span class="s1">cur</span><span class="s2">].</span><span class="s1">parent</span><span class="s2">) {</span>
+		<span class="s1">path</span><span class="s2">.</span><span class="s1">unshift</span><span class="s2">(</span><span class="s1">graph</span><span class="s2">[</span><span class="s1">cur</span><span class="s2">].</span><span class="s1">parent</span><span class="s2">);</span>
+		<span class="s1">fn </span><span class="s2">= </span><span class="s1">link</span><span class="s2">(</span><span class="s1">conversions</span><span class="s2">[</span><span class="s1">graph</span><span class="s2">[</span><span class="s1">cur</span><span class="s2">].</span><span class="s1">parent</span><span class="s2">][</span><span class="s1">cur</span><span class="s2">], </span><span class="s1">fn</span><span class="s2">);</span>
+		<span class="s1">cur </span><span class="s2">= </span><span class="s1">graph</span><span class="s2">[</span><span class="s1">cur</span><span class="s2">].</span><span class="s1">parent</span><span class="s2">;</span>
+	<span class="s2">}</span>
+
+	<span class="s1">fn</span><span class="s2">.</span><span class="s1">conversion </span><span class="s2">= </span><span class="s1">path</span><span class="s2">;</span>
+	<span class="s0">return </span><span class="s1">fn</span><span class="s2">;</span>
+<span class="s2">}</span>
+
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= </span><span class="s0">function </span><span class="s2">(</span><span class="s1">fromModel</span><span class="s2">) {</span>
+	<span class="s0">var </span><span class="s1">graph </span><span class="s2">= </span><span class="s1">deriveBFS</span><span class="s2">(</span><span class="s1">fromModel</span><span class="s2">);</span>
+	<span class="s0">var </span><span class="s1">conversion </span><span class="s2">= {};</span>
+
+	<span class="s0">var </span><span class="s1">models </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">graph</span><span class="s2">);</span>
+	<span class="s0">for </span><span class="s2">(</span><span class="s0">var </span><span class="s1">len </span><span class="s2">= </span><span class="s1">models</span><span class="s2">.</span><span class="s1">length</span><span class="s2">, </span><span class="s1">i </span><span class="s2">= </span><span class="s5">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">len</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+		<span class="s0">var </span><span class="s1">toModel </span><span class="s2">= </span><span class="s1">models</span><span class="s2">[</span><span class="s1">i</span><span class="s2">];</span>
+		<span class="s0">var </span><span class="s1">node </span><span class="s2">= </span><span class="s1">graph</span><span class="s2">[</span><span class="s1">toModel</span><span class="s2">];</span>
+
+		<span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">parent </span><span class="s2">=== </span><span class="s0">null</span><span class="s2">) {</span>
+			<span class="s4">// no possible conversion, or this node is the source model.</span>
+			<span class="s0">continue</span><span class="s2">;</span>
+		<span class="s2">}</span>
+
+		<span class="s1">conversion</span><span class="s2">[</span><span class="s1">toModel</span><span class="s2">] = </span><span class="s1">wrapConversion</span><span class="s2">(</span><span class="s1">toModel</span><span class="s2">, </span><span class="s1">graph</span><span class="s2">);</span>
+	<span class="s2">}</span>
+
+	<span class="s0">return </span><span class="s1">conversion</span><span class="s2">;</span>
+<span class="s2">};</span>
+
+</pre>
+</body>
+</html>

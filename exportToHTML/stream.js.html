@@ -1,0 +1,183 @@
+<html>
+<head>
+<title>stream.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #2aacb8;}
+.s7 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+stream.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s1">{ </span><span class="s2">Duplex </span><span class="s1">} = </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'stream'</span><span class="s1">);</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* Emits the `'close'` event on a stream.</span>
+ <span class="s4">*</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Duplex} stream The stream.</span>
+ <span class="s4">* </span><span class="s5">@private</span>
+ <span class="s4">*/</span>
+<span class="s3">function </span><span class="s2">emitClose</span><span class="s1">(</span><span class="s2">stream</span><span class="s1">) {</span>
+  <span class="s2">stream</span><span class="s1">.</span><span class="s2">emit</span><span class="s1">(</span><span class="s0">'close'</span><span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* The listener of the `'end'` event.</span>
+ <span class="s4">*</span>
+ <span class="s4">* </span><span class="s5">@private</span>
+ <span class="s4">*/</span>
+<span class="s3">function </span><span class="s2">duplexOnEnd</span><span class="s1">() {</span>
+  <span class="s3">if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">destroyed </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_writableState</span><span class="s1">.</span><span class="s2">finished</span><span class="s1">) {</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">destroy</span><span class="s1">();</span>
+  <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* The listener of the `'error'` event.</span>
+ <span class="s4">*</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Error} err The error</span>
+ <span class="s4">* </span><span class="s5">@private</span>
+ <span class="s4">*/</span>
+<span class="s3">function </span><span class="s2">duplexOnError</span><span class="s1">(</span><span class="s2">err</span><span class="s1">) {</span>
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">removeListener</span><span class="s1">(</span><span class="s0">'error'</span><span class="s1">, </span><span class="s2">duplexOnError</span><span class="s1">);</span>
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">destroy</span><span class="s1">();</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">listenerCount</span><span class="s1">(</span><span class="s0">'error'</span><span class="s1">) === </span><span class="s6">0</span><span class="s1">) {</span>
+    <span class="s7">// Do not suppress the throwing behavior.</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">emit</span><span class="s1">(</span><span class="s0">'error'</span><span class="s1">, </span><span class="s2">err</span><span class="s1">);</span>
+  <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* Wraps a `WebSocket` in a duplex stream.</span>
+ <span class="s4">*</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{WebSocket} ws The `WebSocket` to wrap</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Object} [options] The options for the `Duplex` constructor</span>
+ <span class="s4">* </span><span class="s5">@return </span><span class="s4">{Duplex} The duplex stream</span>
+ <span class="s4">* </span><span class="s5">@public</span>
+ <span class="s4">*/</span>
+<span class="s3">function </span><span class="s2">createWebSocketStream</span><span class="s1">(</span><span class="s2">ws</span><span class="s1">, </span><span class="s2">options</span><span class="s1">) {</span>
+  <span class="s3">let </span><span class="s2">terminateOnDestroy </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+
+  <span class="s3">const </span><span class="s2">duplex </span><span class="s1">= </span><span class="s3">new </span><span class="s2">Duplex</span><span class="s1">({</span>
+    <span class="s2">...options</span><span class="s1">,</span>
+    <span class="s2">autoDestroy</span><span class="s1">: </span><span class="s3">false</span><span class="s1">,</span>
+    <span class="s2">emitClose</span><span class="s1">: </span><span class="s3">false</span><span class="s1">,</span>
+    <span class="s2">objectMode</span><span class="s1">: </span><span class="s3">false</span><span class="s1">,</span>
+    <span class="s2">writableObjectMode</span><span class="s1">: </span><span class="s3">false</span>
+  <span class="s1">});</span>
+
+  <span class="s2">ws</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">'message'</span><span class="s1">, </span><span class="s3">function </span><span class="s2">message</span><span class="s1">(</span><span class="s2">msg</span><span class="s1">, </span><span class="s2">isBinary</span><span class="s1">) {</span>
+    <span class="s3">const </span><span class="s2">data </span><span class="s1">=</span>
+      <span class="s1">!</span><span class="s2">isBinary </span><span class="s1">&amp;&amp; </span><span class="s2">duplex</span><span class="s1">.</span><span class="s2">_readableState</span><span class="s1">.</span><span class="s2">objectMode </span><span class="s1">? </span><span class="s2">msg</span><span class="s1">.</span><span class="s2">toString</span><span class="s1">() : </span><span class="s2">msg</span><span class="s1">;</span>
+
+    <span class="s3">if </span><span class="s1">(!</span><span class="s2">duplex</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(</span><span class="s2">data</span><span class="s1">)) </span><span class="s2">ws</span><span class="s1">.</span><span class="s2">pause</span><span class="s1">();</span>
+  <span class="s1">});</span>
+
+  <span class="s2">ws</span><span class="s1">.</span><span class="s2">once</span><span class="s1">(</span><span class="s0">'error'</span><span class="s1">, </span><span class="s3">function </span><span class="s2">error</span><span class="s1">(</span><span class="s2">err</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">duplex</span><span class="s1">.</span><span class="s2">destroyed</span><span class="s1">) </span><span class="s3">return</span><span class="s1">;</span>
+
+    <span class="s7">// Prevent `ws.terminate()` from being called by `duplex._destroy()`.</span>
+    <span class="s7">//</span>
+    <span class="s7">// - If the `'error'` event is emitted before the `'open'` event, then</span>
+    <span class="s7">//   `ws.terminate()` is a noop as no socket is assigned.</span>
+    <span class="s7">// - Otherwise, the error is re-emitted by the listener of the `'error'`</span>
+    <span class="s7">//   event of the `Receiver` object. The listener already closes the</span>
+    <span class="s7">//   connection by calling `ws.close()`. This allows a close frame to be</span>
+    <span class="s7">//   sent to the other peer. If `ws.terminate()` is called right after this,</span>
+    <span class="s7">//   then the close frame might not be sent.</span>
+    <span class="s2">terminateOnDestroy </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+    <span class="s2">duplex</span><span class="s1">.</span><span class="s2">destroy</span><span class="s1">(</span><span class="s2">err</span><span class="s1">);</span>
+  <span class="s1">});</span>
+
+  <span class="s2">ws</span><span class="s1">.</span><span class="s2">once</span><span class="s1">(</span><span class="s0">'close'</span><span class="s1">, </span><span class="s3">function </span><span class="s2">close</span><span class="s1">() {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">duplex</span><span class="s1">.</span><span class="s2">destroyed</span><span class="s1">) </span><span class="s3">return</span><span class="s1">;</span>
+
+    <span class="s2">duplex</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(</span><span class="s3">null</span><span class="s1">);</span>
+  <span class="s1">});</span>
+
+  <span class="s2">duplex</span><span class="s1">.</span><span class="s2">_destroy </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">err</span><span class="s1">, </span><span class="s2">callback</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">ws</span><span class="s1">.</span><span class="s2">readyState </span><span class="s1">=== </span><span class="s2">ws</span><span class="s1">.</span><span class="s2">CLOSED</span><span class="s1">) {</span>
+      <span class="s2">callback</span><span class="s1">(</span><span class="s2">err</span><span class="s1">);</span>
+      <span class="s2">process</span><span class="s1">.</span><span class="s2">nextTick</span><span class="s1">(</span><span class="s2">emitClose</span><span class="s1">, </span><span class="s2">duplex</span><span class="s1">);</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s3">let </span><span class="s2">called </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+
+    <span class="s2">ws</span><span class="s1">.</span><span class="s2">once</span><span class="s1">(</span><span class="s0">'error'</span><span class="s1">, </span><span class="s3">function </span><span class="s2">error</span><span class="s1">(</span><span class="s2">err</span><span class="s1">) {</span>
+      <span class="s2">called </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+      <span class="s2">callback</span><span class="s1">(</span><span class="s2">err</span><span class="s1">);</span>
+    <span class="s1">});</span>
+
+    <span class="s2">ws</span><span class="s1">.</span><span class="s2">once</span><span class="s1">(</span><span class="s0">'close'</span><span class="s1">, </span><span class="s3">function </span><span class="s2">close</span><span class="s1">() {</span>
+      <span class="s3">if </span><span class="s1">(!</span><span class="s2">called</span><span class="s1">) </span><span class="s2">callback</span><span class="s1">(</span><span class="s2">err</span><span class="s1">);</span>
+      <span class="s2">process</span><span class="s1">.</span><span class="s2">nextTick</span><span class="s1">(</span><span class="s2">emitClose</span><span class="s1">, </span><span class="s2">duplex</span><span class="s1">);</span>
+    <span class="s1">});</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">terminateOnDestroy</span><span class="s1">) </span><span class="s2">ws</span><span class="s1">.</span><span class="s2">terminate</span><span class="s1">();</span>
+  <span class="s1">};</span>
+
+  <span class="s2">duplex</span><span class="s1">.</span><span class="s2">_final </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">callback</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">ws</span><span class="s1">.</span><span class="s2">readyState </span><span class="s1">=== </span><span class="s2">ws</span><span class="s1">.</span><span class="s2">CONNECTING</span><span class="s1">) {</span>
+      <span class="s2">ws</span><span class="s1">.</span><span class="s2">once</span><span class="s1">(</span><span class="s0">'open'</span><span class="s1">, </span><span class="s3">function </span><span class="s2">open</span><span class="s1">() {</span>
+        <span class="s2">duplex</span><span class="s1">.</span><span class="s2">_final</span><span class="s1">(</span><span class="s2">callback</span><span class="s1">);</span>
+      <span class="s1">});</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s7">// If the value of the `_socket` property is `null` it means that `ws` is a</span>
+    <span class="s7">// client websocket and the handshake failed. In fact, when this happens, a</span>
+    <span class="s7">// socket is never assigned to the websocket. Wait for the `'error'` event</span>
+    <span class="s7">// that will be emitted by the websocket.</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">ws</span><span class="s1">.</span><span class="s2">_socket </span><span class="s1">=== </span><span class="s3">null</span><span class="s1">) </span><span class="s3">return</span><span class="s1">;</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">ws</span><span class="s1">.</span><span class="s2">_socket</span><span class="s1">.</span><span class="s2">_writableState</span><span class="s1">.</span><span class="s2">finished</span><span class="s1">) {</span>
+      <span class="s2">callback</span><span class="s1">();</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">duplex</span><span class="s1">.</span><span class="s2">_readableState</span><span class="s1">.</span><span class="s2">endEmitted</span><span class="s1">) </span><span class="s2">duplex</span><span class="s1">.</span><span class="s2">destroy</span><span class="s1">();</span>
+    <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+      <span class="s2">ws</span><span class="s1">.</span><span class="s2">_socket</span><span class="s1">.</span><span class="s2">once</span><span class="s1">(</span><span class="s0">'finish'</span><span class="s1">, </span><span class="s3">function </span><span class="s2">finish</span><span class="s1">() {</span>
+        <span class="s7">// `duplex` is not destroyed here because the `'end'` event will be</span>
+        <span class="s7">// emitted on `duplex` after this `'finish'` event. The EOF signaling</span>
+        <span class="s7">// `null` chunk is, in fact, pushed when the websocket emits `'close'`.</span>
+        <span class="s2">callback</span><span class="s1">();</span>
+      <span class="s1">});</span>
+      <span class="s2">ws</span><span class="s1">.</span><span class="s2">close</span><span class="s1">();</span>
+    <span class="s1">}</span>
+  <span class="s1">};</span>
+
+  <span class="s2">duplex</span><span class="s1">.</span><span class="s2">_read </span><span class="s1">= </span><span class="s3">function </span><span class="s1">() {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">ws</span><span class="s1">.</span><span class="s2">isPaused</span><span class="s1">) </span><span class="s2">ws</span><span class="s1">.</span><span class="s2">resume</span><span class="s1">();</span>
+  <span class="s1">};</span>
+
+  <span class="s2">duplex</span><span class="s1">.</span><span class="s2">_write </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">chunk</span><span class="s1">, </span><span class="s2">encoding</span><span class="s1">, </span><span class="s2">callback</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">ws</span><span class="s1">.</span><span class="s2">readyState </span><span class="s1">=== </span><span class="s2">ws</span><span class="s1">.</span><span class="s2">CONNECTING</span><span class="s1">) {</span>
+      <span class="s2">ws</span><span class="s1">.</span><span class="s2">once</span><span class="s1">(</span><span class="s0">'open'</span><span class="s1">, </span><span class="s3">function </span><span class="s2">open</span><span class="s1">() {</span>
+        <span class="s2">duplex</span><span class="s1">.</span><span class="s2">_write</span><span class="s1">(</span><span class="s2">chunk</span><span class="s1">, </span><span class="s2">encoding</span><span class="s1">, </span><span class="s2">callback</span><span class="s1">);</span>
+      <span class="s1">});</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s2">ws</span><span class="s1">.</span><span class="s2">send</span><span class="s1">(</span><span class="s2">chunk</span><span class="s1">, </span><span class="s2">callback</span><span class="s1">);</span>
+  <span class="s1">};</span>
+
+  <span class="s2">duplex</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">'end'</span><span class="s1">, </span><span class="s2">duplexOnEnd</span><span class="s1">);</span>
+  <span class="s2">duplex</span><span class="s1">.</span><span class="s2">on</span><span class="s1">(</span><span class="s0">'error'</span><span class="s1">, </span><span class="s2">duplexOnError</span><span class="s1">);</span>
+  <span class="s3">return </span><span class="s2">duplex</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= </span><span class="s2">createWebSocketStream</span><span class="s1">;</span>
+</pre>
+</body>
+</html>

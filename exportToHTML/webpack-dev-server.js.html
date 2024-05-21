@@ -1,0 +1,224 @@
+<html>
+<head>
+<title>webpack-dev-server.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #cf8e6d;}
+.s7 { color: #2aacb8;}
+.s8 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+webpack-dev-server.js</font>
+</center></td></tr></table>
+<pre><span class="s0">#!/usr/bin/env node</span>
+<span class="s0">/* Based on webpack/bin/webpack.js */</span>
+<span class="s0">/* eslint-disable no-console */</span>
+
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} command process to run</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string[]} args command line arguments</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{Promise&lt;void&gt;} promise</span>
+ <span class="s4">*/</span>
+<span class="s6">const </span><span class="s1">runCommand </span><span class="s3">= (</span><span class="s1">command</span><span class="s3">, </span><span class="s1">args</span><span class="s3">) =&gt; {</span>
+  <span class="s6">const </span><span class="s1">cp </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;child_process&quot;</span><span class="s3">);</span>
+  <span class="s6">return new </span><span class="s1">Promise</span><span class="s3">((</span><span class="s1">resolve</span><span class="s3">, </span><span class="s1">reject</span><span class="s3">) =&gt; {</span>
+    <span class="s6">const </span><span class="s1">executedCommand </span><span class="s3">= </span><span class="s1">cp</span><span class="s3">.</span><span class="s1">spawn</span><span class="s3">(</span><span class="s1">command</span><span class="s3">, </span><span class="s1">args</span><span class="s3">, {</span>
+      <span class="s1">stdio</span><span class="s3">: </span><span class="s2">&quot;inherit&quot;</span><span class="s3">,</span>
+      <span class="s1">shell</span><span class="s3">: </span><span class="s6">true</span><span class="s3">,</span>
+    <span class="s3">});</span>
+
+    <span class="s1">executedCommand</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s2">&quot;error&quot;</span><span class="s3">, (</span><span class="s1">error</span><span class="s3">) =&gt; {</span>
+      <span class="s1">reject</span><span class="s3">(</span><span class="s1">error</span><span class="s3">);</span>
+    <span class="s3">});</span>
+
+    <span class="s1">executedCommand</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s2">&quot;exit&quot;</span><span class="s3">, (</span><span class="s1">code</span><span class="s3">) =&gt; {</span>
+      <span class="s6">if </span><span class="s3">(</span><span class="s1">code </span><span class="s3">=== </span><span class="s7">0</span><span class="s3">) {</span>
+        <span class="s1">resolve</span><span class="s3">();</span>
+      <span class="s3">} </span><span class="s6">else </span><span class="s3">{</span>
+        <span class="s1">reject</span><span class="s3">();</span>
+      <span class="s3">}</span>
+    <span class="s3">});</span>
+  <span class="s3">});</span>
+<span class="s3">};</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} packageName name of the package</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{boolean} is the package installed?</span>
+ <span class="s4">*/</span>
+<span class="s6">const </span><span class="s1">isInstalled </span><span class="s3">= (</span><span class="s1">packageName</span><span class="s3">) =&gt; {</span>
+  <span class="s6">if </span><span class="s3">(</span><span class="s1">process</span><span class="s3">.</span><span class="s1">versions</span><span class="s3">.</span><span class="s1">pnp</span><span class="s3">) {</span>
+    <span class="s6">return true</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s6">const </span><span class="s1">path </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;path&quot;</span><span class="s3">);</span>
+  <span class="s6">const </span><span class="s1">fs </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;graceful-fs&quot;</span><span class="s3">);</span>
+
+  <span class="s6">let </span><span class="s1">dir </span><span class="s3">= </span><span class="s1">__dirname</span><span class="s3">;</span>
+
+  <span class="s6">do </span><span class="s3">{</span>
+    <span class="s6">try </span><span class="s3">{</span>
+      <span class="s6">if </span><span class="s3">(</span>
+        <span class="s1">fs</span><span class="s3">.</span><span class="s1">statSync</span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">dir</span><span class="s3">, </span><span class="s2">&quot;node_modules&quot;</span><span class="s3">, </span><span class="s1">packageName</span><span class="s3">)).</span><span class="s1">isDirectory</span><span class="s3">()</span>
+      <span class="s3">) {</span>
+        <span class="s6">return true</span><span class="s3">;</span>
+      <span class="s3">}</span>
+    <span class="s3">} </span><span class="s6">catch </span><span class="s3">(</span><span class="s1">_error</span><span class="s3">) {</span>
+      <span class="s0">// Nothing</span>
+    <span class="s3">}</span>
+    <span class="s0">// eslint-disable-next-line no-cond-assign</span>
+  <span class="s3">} </span><span class="s6">while </span><span class="s3">(</span><span class="s1">dir </span><span class="s3">!== (</span><span class="s1">dir </span><span class="s3">= </span><span class="s1">path</span><span class="s3">.</span><span class="s1">dirname</span><span class="s3">(</span><span class="s1">dir</span><span class="s3">)));</span>
+
+  <span class="s0">// https://github.com/nodejs/node/blob/v18.9.1/lib/internal/modules/cjs/loader.js#L1274</span>
+  <span class="s0">// @ts-ignore</span>
+  <span class="s6">for </span><span class="s3">(</span><span class="s6">const </span><span class="s1">internalPath of require</span><span class="s3">(</span><span class="s2">&quot;module&quot;</span><span class="s3">).</span><span class="s1">globalPaths</span><span class="s3">) {</span>
+    <span class="s6">try </span><span class="s3">{</span>
+      <span class="s6">if </span><span class="s3">(</span><span class="s1">fs</span><span class="s3">.</span><span class="s1">statSync</span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">internalPath</span><span class="s3">, </span><span class="s1">packageName</span><span class="s3">)).</span><span class="s1">isDirectory</span><span class="s3">()) {</span>
+        <span class="s6">return true</span><span class="s3">;</span>
+      <span class="s3">}</span>
+    <span class="s3">} </span><span class="s6">catch </span><span class="s3">(</span><span class="s1">_error</span><span class="s3">) {</span>
+      <span class="s0">// Nothing</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s6">return false</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{CliOption} cli options</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{void}</span>
+ <span class="s4">*/</span>
+<span class="s6">const </span><span class="s1">runCli </span><span class="s3">= (</span><span class="s1">cli</span><span class="s3">) =&gt; {</span>
+  <span class="s6">if </span><span class="s3">(</span><span class="s1">cli</span><span class="s3">.</span><span class="s1">preprocess</span><span class="s3">) {</span>
+    <span class="s1">cli</span><span class="s3">.</span><span class="s1">preprocess</span><span class="s3">();</span>
+  <span class="s3">}</span>
+  <span class="s6">const </span><span class="s1">path </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;path&quot;</span><span class="s3">);</span>
+  <span class="s6">const </span><span class="s1">pkgPath </span><span class="s3">= </span><span class="s1">require</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s2">`</span><span class="s1">$</span><span class="s3">{</span><span class="s1">cli</span><span class="s3">.</span><span class="s1">package</span><span class="s3">}</span><span class="s2">/package.json`</span><span class="s3">);</span>
+  <span class="s0">// eslint-disable-next-line import/no-dynamic-require</span>
+  <span class="s6">const </span><span class="s1">pkg </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s1">pkgPath</span><span class="s3">);</span>
+
+  <span class="s6">if </span><span class="s3">(</span><span class="s1">pkg</span><span class="s3">.</span><span class="s1">type </span><span class="s3">=== </span><span class="s2">&quot;module&quot; </span><span class="s3">|| </span><span class="s8">/\.mjs/i</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">pkg</span><span class="s3">.</span><span class="s1">bin</span><span class="s3">[</span><span class="s1">cli</span><span class="s3">.</span><span class="s1">binName</span><span class="s3">])) {</span>
+    <span class="s6">import</span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">dirname</span><span class="s3">(</span><span class="s1">pkgPath</span><span class="s3">), </span><span class="s1">pkg</span><span class="s3">.</span><span class="s1">bin</span><span class="s3">[</span><span class="s1">cli</span><span class="s3">.</span><span class="s1">binName</span><span class="s3">])).</span><span class="s1">catch</span><span class="s3">(</span>
+      <span class="s3">(</span><span class="s1">error</span><span class="s3">) =&gt; {</span>
+        <span class="s1">console</span><span class="s3">.</span><span class="s1">error</span><span class="s3">(</span><span class="s1">error</span><span class="s3">);</span>
+        <span class="s1">process</span><span class="s3">.</span><span class="s1">exitCode </span><span class="s3">= </span><span class="s7">1</span><span class="s3">;</span>
+      <span class="s3">}</span>
+    <span class="s3">);</span>
+  <span class="s3">} </span><span class="s6">else </span><span class="s3">{</span>
+    <span class="s0">// eslint-disable-next-line import/no-dynamic-require</span>
+    <span class="s1">require</span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">dirname</span><span class="s3">(</span><span class="s1">pkgPath</span><span class="s3">), </span><span class="s1">pkg</span><span class="s3">.</span><span class="s1">bin</span><span class="s3">[</span><span class="s1">cli</span><span class="s3">.</span><span class="s1">binName</span><span class="s3">]));</span>
+  <span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@typedef </span><span class="s4">{Object} CliOption</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{string} name display name</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{string} package npm package name</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{string} binName name of the executable file</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{boolean} installed currently installed?</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{string} url homepage</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function} preprocess preprocessor</span>
+ <span class="s4">*/</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CliOption} */</span>
+<span class="s6">const </span><span class="s1">cli </span><span class="s3">= {</span>
+  <span class="s1">name</span><span class="s3">: </span><span class="s2">&quot;webpack-cli&quot;</span><span class="s3">,</span>
+  <span class="s6">package</span><span class="s3">: </span><span class="s2">&quot;webpack-cli&quot;</span><span class="s3">,</span>
+  <span class="s1">binName</span><span class="s3">: </span><span class="s2">&quot;webpack-cli&quot;</span><span class="s3">,</span>
+  <span class="s1">installed</span><span class="s3">: </span><span class="s1">isInstalled</span><span class="s3">(</span><span class="s2">&quot;webpack-cli&quot;</span><span class="s3">),</span>
+  <span class="s1">url</span><span class="s3">: </span><span class="s2">&quot;https://github.com/webpack/webpack-cli&quot;</span><span class="s3">,</span>
+  <span class="s1">preprocess</span><span class="s3">() {</span>
+    <span class="s1">process</span><span class="s3">.</span><span class="s1">argv</span><span class="s3">.</span><span class="s1">splice</span><span class="s3">(</span><span class="s7">2</span><span class="s3">, </span><span class="s7">0</span><span class="s3">, </span><span class="s2">&quot;serve&quot;</span><span class="s3">);</span>
+  <span class="s3">},</span>
+<span class="s3">};</span>
+
+<span class="s6">if </span><span class="s3">(!</span><span class="s1">cli</span><span class="s3">.</span><span class="s1">installed</span><span class="s3">) {</span>
+  <span class="s6">const </span><span class="s1">path </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;path&quot;</span><span class="s3">);</span>
+  <span class="s6">const </span><span class="s1">fs </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;graceful-fs&quot;</span><span class="s3">);</span>
+  <span class="s6">const </span><span class="s1">readLine </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;readline&quot;</span><span class="s3">);</span>
+
+  <span class="s6">const </span><span class="s1">notify </span><span class="s3">= </span><span class="s2">`CLI for webpack must be installed.</span><span class="s6">\n  </span><span class="s1">$</span><span class="s3">{</span><span class="s1">cli</span><span class="s3">.</span><span class="s1">name</span><span class="s3">} </span><span class="s2">(</span><span class="s1">$</span><span class="s3">{</span><span class="s1">cli</span><span class="s3">.</span><span class="s1">url</span><span class="s3">}</span><span class="s2">)</span><span class="s6">\n</span><span class="s2">`</span><span class="s3">;</span>
+
+  <span class="s1">console</span><span class="s3">.</span><span class="s1">error</span><span class="s3">(</span><span class="s1">notify</span><span class="s3">);</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* </span><span class="s5">@type </span><span class="s4">{string}</span>
+   <span class="s4">*/</span>
+  <span class="s6">let </span><span class="s1">packageManager</span><span class="s3">;</span>
+
+  <span class="s6">if </span><span class="s3">(</span><span class="s1">fs</span><span class="s3">.</span><span class="s1">existsSync</span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s1">process</span><span class="s3">.</span><span class="s1">cwd</span><span class="s3">(), </span><span class="s2">&quot;yarn.lock&quot;</span><span class="s3">))) {</span>
+    <span class="s1">packageManager </span><span class="s3">= </span><span class="s2">&quot;yarn&quot;</span><span class="s3">;</span>
+  <span class="s3">} </span><span class="s6">else if </span><span class="s3">(</span><span class="s1">fs</span><span class="s3">.</span><span class="s1">existsSync</span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s1">process</span><span class="s3">.</span><span class="s1">cwd</span><span class="s3">(), </span><span class="s2">&quot;pnpm-lock.yaml&quot;</span><span class="s3">))) {</span>
+    <span class="s1">packageManager </span><span class="s3">= </span><span class="s2">&quot;pnpm&quot;</span><span class="s3">;</span>
+  <span class="s3">} </span><span class="s6">else </span><span class="s3">{</span>
+    <span class="s1">packageManager </span><span class="s3">= </span><span class="s2">&quot;npm&quot;</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s6">const </span><span class="s1">installOptions </span><span class="s3">= [</span><span class="s1">packageManager </span><span class="s3">=== </span><span class="s2">&quot;yarn&quot; </span><span class="s3">? </span><span class="s2">&quot;add&quot; </span><span class="s3">: </span><span class="s2">&quot;install&quot;</span><span class="s3">, </span><span class="s2">&quot;-D&quot;</span><span class="s3">];</span>
+
+  <span class="s1">console</span><span class="s3">.</span><span class="s1">error</span><span class="s3">(</span>
+    <span class="s2">`We will use &quot;</span><span class="s1">$</span><span class="s3">{</span><span class="s1">packageManager</span><span class="s3">}</span><span class="s2">&quot; to install the CLI via &quot;</span><span class="s1">$</span><span class="s3">{</span><span class="s1">packageManager</span><span class="s3">} </span><span class="s1">$</span><span class="s3">{</span><span class="s1">installOptions</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span>
+      <span class="s2">&quot; &quot;</span>
+    <span class="s3">)} </span><span class="s1">$</span><span class="s3">{</span><span class="s1">cli</span><span class="s3">.</span><span class="s1">package</span><span class="s3">}</span><span class="s2">&quot;.`</span>
+  <span class="s3">);</span>
+
+  <span class="s6">const </span><span class="s1">question </span><span class="s3">= </span><span class="s2">`Do you want to install 'webpack-cli' (yes/no): `</span><span class="s3">;</span>
+
+  <span class="s6">const </span><span class="s1">questionInterface </span><span class="s3">= </span><span class="s1">readLine</span><span class="s3">.</span><span class="s1">createInterface</span><span class="s3">({</span>
+    <span class="s1">input</span><span class="s3">: </span><span class="s1">process</span><span class="s3">.</span><span class="s1">stdin</span><span class="s3">,</span>
+    <span class="s1">output</span><span class="s3">: </span><span class="s1">process</span><span class="s3">.</span><span class="s1">stderr</span><span class="s3">,</span>
+  <span class="s3">});</span>
+
+  <span class="s0">// In certain scenarios (e.g. when STDIN is not in terminal mode), the callback function will not be</span>
+  <span class="s0">// executed. Setting the exit code here to ensure the script exits correctly in those cases. The callback</span>
+  <span class="s0">// function is responsible for clearing the exit code if the user wishes to install webpack-cli.</span>
+  <span class="s1">process</span><span class="s3">.</span><span class="s1">exitCode </span><span class="s3">= </span><span class="s7">1</span><span class="s3">;</span>
+  <span class="s1">questionInterface</span><span class="s3">.</span><span class="s1">question</span><span class="s3">(</span><span class="s1">question</span><span class="s3">, (</span><span class="s1">answer</span><span class="s3">) =&gt; {</span>
+    <span class="s1">questionInterface</span><span class="s3">.</span><span class="s1">close</span><span class="s3">();</span>
+
+    <span class="s6">const </span><span class="s1">normalizedAnswer </span><span class="s3">= </span><span class="s1">answer</span><span class="s3">.</span><span class="s1">toLowerCase</span><span class="s3">().</span><span class="s1">startsWith</span><span class="s3">(</span><span class="s2">&quot;y&quot;</span><span class="s3">);</span>
+
+    <span class="s6">if </span><span class="s3">(!</span><span class="s1">normalizedAnswer</span><span class="s3">) {</span>
+      <span class="s1">console</span><span class="s3">.</span><span class="s1">error</span><span class="s3">(</span>
+        <span class="s2">&quot;You need to install 'webpack-cli' to use webpack via CLI.</span><span class="s6">\n</span><span class="s2">&quot; </span><span class="s3">+</span>
+          <span class="s2">&quot;You can also install the CLI manually.&quot;</span>
+      <span class="s3">);</span>
+
+      <span class="s6">return</span><span class="s3">;</span>
+    <span class="s3">}</span>
+    <span class="s1">process</span><span class="s3">.</span><span class="s1">exitCode </span><span class="s3">= </span><span class="s7">0</span><span class="s3">;</span>
+
+    <span class="s1">console</span><span class="s3">.</span><span class="s1">log</span><span class="s3">(</span>
+      <span class="s2">`Installing '</span><span class="s1">$</span><span class="s3">{</span>
+        <span class="s1">cli</span><span class="s3">.</span><span class="s1">package</span>
+      <span class="s3">}</span><span class="s2">' (running '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">packageManager</span><span class="s3">} </span><span class="s1">$</span><span class="s3">{</span><span class="s1">installOptions</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s2">&quot; &quot;</span><span class="s3">)} </span><span class="s1">$</span><span class="s3">{</span>
+        <span class="s1">cli</span><span class="s3">.</span><span class="s1">package</span>
+      <span class="s3">}</span><span class="s2">')...`</span>
+    <span class="s3">);</span>
+
+    <span class="s1">runCommand</span><span class="s3">(</span><span class="s1">packageManager</span><span class="s3">, </span><span class="s1">installOptions</span><span class="s3">.</span><span class="s1">concat</span><span class="s3">(</span><span class="s1">cli</span><span class="s3">.</span><span class="s1">package</span><span class="s3">))</span>
+      <span class="s3">.</span><span class="s1">then</span><span class="s3">(() =&gt; {</span>
+        <span class="s1">runCli</span><span class="s3">(</span><span class="s1">cli</span><span class="s3">);</span>
+      <span class="s3">})</span>
+      <span class="s3">.</span><span class="s1">catch</span><span class="s3">((</span><span class="s1">error</span><span class="s3">) =&gt; {</span>
+        <span class="s1">console</span><span class="s3">.</span><span class="s1">error</span><span class="s3">(</span><span class="s1">error</span><span class="s3">);</span>
+        <span class="s1">process</span><span class="s3">.</span><span class="s1">exitCode </span><span class="s3">= </span><span class="s7">1</span><span class="s3">;</span>
+      <span class="s3">});</span>
+  <span class="s3">});</span>
+<span class="s3">} </span><span class="s6">else </span><span class="s3">{</span>
+  <span class="s1">runCli</span><span class="s3">(</span><span class="s1">cli</span><span class="s3">);</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

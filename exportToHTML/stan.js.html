@@ -1,0 +1,571 @@
+<html>
+<head>
+<title>stan.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #42c3d4;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+stan.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+Language: Stan 
+Description: The Stan probabilistic programming language 
+Author: Jeffrey B. Arnold &lt;jeffrey.arnold@gmail.com&gt; 
+Website: http://mc-stan.org/ 
+Category: scientific 
+*/</span>
+
+<span class="s2">function </span><span class="s1">stan</span><span class="s3">(</span><span class="s1">hljs</span><span class="s3">) {</span>
+  <span class="s0">// variable names cannot conflict with block identifiers</span>
+  <span class="s2">const </span><span class="s1">BLOCKS </span><span class="s3">= [</span>
+    <span class="s4">'functions'</span><span class="s3">,</span>
+    <span class="s4">'model'</span><span class="s3">,</span>
+    <span class="s4">'data'</span><span class="s3">,</span>
+    <span class="s4">'parameters'</span><span class="s3">,</span>
+    <span class="s4">'quantities'</span><span class="s3">,</span>
+    <span class="s4">'transformed'</span><span class="s3">,</span>
+    <span class="s4">'generated'</span>
+  <span class="s3">];</span>
+  <span class="s2">const </span><span class="s1">STATEMENTS </span><span class="s3">= [</span>
+    <span class="s4">'for'</span><span class="s3">,</span>
+    <span class="s4">'in'</span><span class="s3">,</span>
+    <span class="s4">'if'</span><span class="s3">,</span>
+    <span class="s4">'else'</span><span class="s3">,</span>
+    <span class="s4">'while'</span><span class="s3">,</span>
+    <span class="s4">'break'</span><span class="s3">,</span>
+    <span class="s4">'continue'</span><span class="s3">,</span>
+    <span class="s4">'return'</span>
+  <span class="s3">];</span>
+  <span class="s2">const </span><span class="s1">SPECIAL_FUNCTIONS </span><span class="s3">= [</span>
+    <span class="s4">'print'</span><span class="s3">,</span>
+    <span class="s4">'reject'</span><span class="s3">,</span>
+    <span class="s4">'increment_log_prob|10'</span><span class="s3">,</span>
+    <span class="s4">'integrate_ode|10'</span><span class="s3">,</span>
+    <span class="s4">'integrate_ode_rk45|10'</span><span class="s3">,</span>
+    <span class="s4">'integrate_ode_bdf|10'</span><span class="s3">,</span>
+    <span class="s4">'algebra_solver'</span>
+  <span class="s3">];</span>
+  <span class="s2">const </span><span class="s1">VAR_TYPES </span><span class="s3">= [</span>
+    <span class="s4">'int'</span><span class="s3">,</span>
+    <span class="s4">'real'</span><span class="s3">,</span>
+    <span class="s4">'vector'</span><span class="s3">,</span>
+    <span class="s4">'ordered'</span><span class="s3">,</span>
+    <span class="s4">'positive_ordered'</span><span class="s3">,</span>
+    <span class="s4">'simplex'</span><span class="s3">,</span>
+    <span class="s4">'unit_vector'</span><span class="s3">,</span>
+    <span class="s4">'row_vector'</span><span class="s3">,</span>
+    <span class="s4">'matrix'</span><span class="s3">,</span>
+    <span class="s4">'cholesky_factor_corr|10'</span><span class="s3">,</span>
+    <span class="s4">'cholesky_factor_cov|10'</span><span class="s3">,</span>
+    <span class="s4">'corr_matrix|10'</span><span class="s3">,</span>
+    <span class="s4">'cov_matrix|10'</span><span class="s3">,</span>
+    <span class="s4">'void'</span>
+  <span class="s3">];</span>
+  <span class="s2">const </span><span class="s1">FUNCTIONS </span><span class="s3">= [</span>
+    <span class="s4">'Phi'</span><span class="s3">,</span>
+    <span class="s4">'Phi_approx'</span><span class="s3">,</span>
+    <span class="s4">'abs'</span><span class="s3">,</span>
+    <span class="s4">'acos'</span><span class="s3">,</span>
+    <span class="s4">'acosh'</span><span class="s3">,</span>
+    <span class="s4">'algebra_solver'</span><span class="s3">,</span>
+    <span class="s4">'append_array'</span><span class="s3">,</span>
+    <span class="s4">'append_col'</span><span class="s3">,</span>
+    <span class="s4">'append_row'</span><span class="s3">,</span>
+    <span class="s4">'asin'</span><span class="s3">,</span>
+    <span class="s4">'asinh'</span><span class="s3">,</span>
+    <span class="s4">'atan'</span><span class="s3">,</span>
+    <span class="s4">'atan2'</span><span class="s3">,</span>
+    <span class="s4">'atanh'</span><span class="s3">,</span>
+    <span class="s4">'bernoulli_cdf'</span><span class="s3">,</span>
+    <span class="s4">'bernoulli_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'bernoulli_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'bernoulli_logit_lpmf'</span><span class="s3">,</span>
+    <span class="s4">'bernoulli_logit_rng'</span><span class="s3">,</span>
+    <span class="s4">'bernoulli_lpmf'</span><span class="s3">,</span>
+    <span class="s4">'bernoulli_rng'</span><span class="s3">,</span>
+    <span class="s4">'bessel_first_kind'</span><span class="s3">,</span>
+    <span class="s4">'bessel_second_kind'</span><span class="s3">,</span>
+    <span class="s4">'beta_binomial_cdf'</span><span class="s3">,</span>
+    <span class="s4">'beta_binomial_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'beta_binomial_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'beta_binomial_lpmf'</span><span class="s3">,</span>
+    <span class="s4">'beta_binomial_rng'</span><span class="s3">,</span>
+    <span class="s4">'beta_cdf'</span><span class="s3">,</span>
+    <span class="s4">'beta_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'beta_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'beta_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'beta_rng'</span><span class="s3">,</span>
+    <span class="s4">'binary_log_loss'</span><span class="s3">,</span>
+    <span class="s4">'binomial_cdf'</span><span class="s3">,</span>
+    <span class="s4">'binomial_coefficient_log'</span><span class="s3">,</span>
+    <span class="s4">'binomial_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'binomial_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'binomial_logit_lpmf'</span><span class="s3">,</span>
+    <span class="s4">'binomial_lpmf'</span><span class="s3">,</span>
+    <span class="s4">'binomial_rng'</span><span class="s3">,</span>
+    <span class="s4">'block'</span><span class="s3">,</span>
+    <span class="s4">'categorical_logit_lpmf'</span><span class="s3">,</span>
+    <span class="s4">'categorical_logit_rng'</span><span class="s3">,</span>
+    <span class="s4">'categorical_lpmf'</span><span class="s3">,</span>
+    <span class="s4">'categorical_rng'</span><span class="s3">,</span>
+    <span class="s4">'cauchy_cdf'</span><span class="s3">,</span>
+    <span class="s4">'cauchy_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'cauchy_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'cauchy_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'cauchy_rng'</span><span class="s3">,</span>
+    <span class="s4">'cbrt'</span><span class="s3">,</span>
+    <span class="s4">'ceil'</span><span class="s3">,</span>
+    <span class="s4">'chi_square_cdf'</span><span class="s3">,</span>
+    <span class="s4">'chi_square_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'chi_square_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'chi_square_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'chi_square_rng'</span><span class="s3">,</span>
+    <span class="s4">'cholesky_decompose'</span><span class="s3">,</span>
+    <span class="s4">'choose'</span><span class="s3">,</span>
+    <span class="s4">'col'</span><span class="s3">,</span>
+    <span class="s4">'cols'</span><span class="s3">,</span>
+    <span class="s4">'columns_dot_product'</span><span class="s3">,</span>
+    <span class="s4">'columns_dot_self'</span><span class="s3">,</span>
+    <span class="s4">'cos'</span><span class="s3">,</span>
+    <span class="s4">'cosh'</span><span class="s3">,</span>
+    <span class="s4">'cov_exp_quad'</span><span class="s3">,</span>
+    <span class="s4">'crossprod'</span><span class="s3">,</span>
+    <span class="s4">'csr_extract_u'</span><span class="s3">,</span>
+    <span class="s4">'csr_extract_v'</span><span class="s3">,</span>
+    <span class="s4">'csr_extract_w'</span><span class="s3">,</span>
+    <span class="s4">'csr_matrix_times_vector'</span><span class="s3">,</span>
+    <span class="s4">'csr_to_dense_matrix'</span><span class="s3">,</span>
+    <span class="s4">'cumulative_sum'</span><span class="s3">,</span>
+    <span class="s4">'determinant'</span><span class="s3">,</span>
+    <span class="s4">'diag_matrix'</span><span class="s3">,</span>
+    <span class="s4">'diag_post_multiply'</span><span class="s3">,</span>
+    <span class="s4">'diag_pre_multiply'</span><span class="s3">,</span>
+    <span class="s4">'diagonal'</span><span class="s3">,</span>
+    <span class="s4">'digamma'</span><span class="s3">,</span>
+    <span class="s4">'dims'</span><span class="s3">,</span>
+    <span class="s4">'dirichlet_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'dirichlet_rng'</span><span class="s3">,</span>
+    <span class="s4">'distance'</span><span class="s3">,</span>
+    <span class="s4">'dot_product'</span><span class="s3">,</span>
+    <span class="s4">'dot_self'</span><span class="s3">,</span>
+    <span class="s4">'double_exponential_cdf'</span><span class="s3">,</span>
+    <span class="s4">'double_exponential_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'double_exponential_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'double_exponential_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'double_exponential_rng'</span><span class="s3">,</span>
+    <span class="s4">'e'</span><span class="s3">,</span>
+    <span class="s4">'eigenvalues_sym'</span><span class="s3">,</span>
+    <span class="s4">'eigenvectors_sym'</span><span class="s3">,</span>
+    <span class="s4">'erf'</span><span class="s3">,</span>
+    <span class="s4">'erfc'</span><span class="s3">,</span>
+    <span class="s4">'exp'</span><span class="s3">,</span>
+    <span class="s4">'exp2'</span><span class="s3">,</span>
+    <span class="s4">'exp_mod_normal_cdf'</span><span class="s3">,</span>
+    <span class="s4">'exp_mod_normal_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'exp_mod_normal_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'exp_mod_normal_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'exp_mod_normal_rng'</span><span class="s3">,</span>
+    <span class="s4">'expm1'</span><span class="s3">,</span>
+    <span class="s4">'exponential_cdf'</span><span class="s3">,</span>
+    <span class="s4">'exponential_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'exponential_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'exponential_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'exponential_rng'</span><span class="s3">,</span>
+    <span class="s4">'fabs'</span><span class="s3">,</span>
+    <span class="s4">'falling_factorial'</span><span class="s3">,</span>
+    <span class="s4">'fdim'</span><span class="s3">,</span>
+    <span class="s4">'floor'</span><span class="s3">,</span>
+    <span class="s4">'fma'</span><span class="s3">,</span>
+    <span class="s4">'fmax'</span><span class="s3">,</span>
+    <span class="s4">'fmin'</span><span class="s3">,</span>
+    <span class="s4">'fmod'</span><span class="s3">,</span>
+    <span class="s4">'frechet_cdf'</span><span class="s3">,</span>
+    <span class="s4">'frechet_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'frechet_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'frechet_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'frechet_rng'</span><span class="s3">,</span>
+    <span class="s4">'gamma_cdf'</span><span class="s3">,</span>
+    <span class="s4">'gamma_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'gamma_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'gamma_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'gamma_p'</span><span class="s3">,</span>
+    <span class="s4">'gamma_q'</span><span class="s3">,</span>
+    <span class="s4">'gamma_rng'</span><span class="s3">,</span>
+    <span class="s4">'gaussian_dlm_obs_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'get_lp'</span><span class="s3">,</span>
+    <span class="s4">'gumbel_cdf'</span><span class="s3">,</span>
+    <span class="s4">'gumbel_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'gumbel_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'gumbel_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'gumbel_rng'</span><span class="s3">,</span>
+    <span class="s4">'head'</span><span class="s3">,</span>
+    <span class="s4">'hypergeometric_lpmf'</span><span class="s3">,</span>
+    <span class="s4">'hypergeometric_rng'</span><span class="s3">,</span>
+    <span class="s4">'hypot'</span><span class="s3">,</span>
+    <span class="s4">'inc_beta'</span><span class="s3">,</span>
+    <span class="s4">'int_step'</span><span class="s3">,</span>
+    <span class="s4">'integrate_ode'</span><span class="s3">,</span>
+    <span class="s4">'integrate_ode_bdf'</span><span class="s3">,</span>
+    <span class="s4">'integrate_ode_rk45'</span><span class="s3">,</span>
+    <span class="s4">'inv'</span><span class="s3">,</span>
+    <span class="s4">'inv_Phi'</span><span class="s3">,</span>
+    <span class="s4">'inv_chi_square_cdf'</span><span class="s3">,</span>
+    <span class="s4">'inv_chi_square_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'inv_chi_square_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'inv_chi_square_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'inv_chi_square_rng'</span><span class="s3">,</span>
+    <span class="s4">'inv_cloglog'</span><span class="s3">,</span>
+    <span class="s4">'inv_gamma_cdf'</span><span class="s3">,</span>
+    <span class="s4">'inv_gamma_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'inv_gamma_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'inv_gamma_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'inv_gamma_rng'</span><span class="s3">,</span>
+    <span class="s4">'inv_logit'</span><span class="s3">,</span>
+    <span class="s4">'inv_sqrt'</span><span class="s3">,</span>
+    <span class="s4">'inv_square'</span><span class="s3">,</span>
+    <span class="s4">'inv_wishart_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'inv_wishart_rng'</span><span class="s3">,</span>
+    <span class="s4">'inverse'</span><span class="s3">,</span>
+    <span class="s4">'inverse_spd'</span><span class="s3">,</span>
+    <span class="s4">'is_inf'</span><span class="s3">,</span>
+    <span class="s4">'is_nan'</span><span class="s3">,</span>
+    <span class="s4">'lbeta'</span><span class="s3">,</span>
+    <span class="s4">'lchoose'</span><span class="s3">,</span>
+    <span class="s4">'lgamma'</span><span class="s3">,</span>
+    <span class="s4">'lkj_corr_cholesky_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'lkj_corr_cholesky_rng'</span><span class="s3">,</span>
+    <span class="s4">'lkj_corr_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'lkj_corr_rng'</span><span class="s3">,</span>
+    <span class="s4">'lmgamma'</span><span class="s3">,</span>
+    <span class="s4">'lmultiply'</span><span class="s3">,</span>
+    <span class="s4">'log'</span><span class="s3">,</span>
+    <span class="s4">'log10'</span><span class="s3">,</span>
+    <span class="s4">'log1m'</span><span class="s3">,</span>
+    <span class="s4">'log1m_exp'</span><span class="s3">,</span>
+    <span class="s4">'log1m_inv_logit'</span><span class="s3">,</span>
+    <span class="s4">'log1p'</span><span class="s3">,</span>
+    <span class="s4">'log1p_exp'</span><span class="s3">,</span>
+    <span class="s4">'log2'</span><span class="s3">,</span>
+    <span class="s4">'log_determinant'</span><span class="s3">,</span>
+    <span class="s4">'log_diff_exp'</span><span class="s3">,</span>
+    <span class="s4">'log_falling_factorial'</span><span class="s3">,</span>
+    <span class="s4">'log_inv_logit'</span><span class="s3">,</span>
+    <span class="s4">'log_mix'</span><span class="s3">,</span>
+    <span class="s4">'log_rising_factorial'</span><span class="s3">,</span>
+    <span class="s4">'log_softmax'</span><span class="s3">,</span>
+    <span class="s4">'log_sum_exp'</span><span class="s3">,</span>
+    <span class="s4">'logistic_cdf'</span><span class="s3">,</span>
+    <span class="s4">'logistic_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'logistic_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'logistic_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'logistic_rng'</span><span class="s3">,</span>
+    <span class="s4">'logit'</span><span class="s3">,</span>
+    <span class="s4">'lognormal_cdf'</span><span class="s3">,</span>
+    <span class="s4">'lognormal_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'lognormal_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'lognormal_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'lognormal_rng'</span><span class="s3">,</span>
+    <span class="s4">'machine_precision'</span><span class="s3">,</span>
+    <span class="s4">'matrix_exp'</span><span class="s3">,</span>
+    <span class="s4">'max'</span><span class="s3">,</span>
+    <span class="s4">'mdivide_left_spd'</span><span class="s3">,</span>
+    <span class="s4">'mdivide_left_tri_low'</span><span class="s3">,</span>
+    <span class="s4">'mdivide_right_spd'</span><span class="s3">,</span>
+    <span class="s4">'mdivide_right_tri_low'</span><span class="s3">,</span>
+    <span class="s4">'mean'</span><span class="s3">,</span>
+    <span class="s4">'min'</span><span class="s3">,</span>
+    <span class="s4">'modified_bessel_first_kind'</span><span class="s3">,</span>
+    <span class="s4">'modified_bessel_second_kind'</span><span class="s3">,</span>
+    <span class="s4">'multi_gp_cholesky_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'multi_gp_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'multi_normal_cholesky_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'multi_normal_cholesky_rng'</span><span class="s3">,</span>
+    <span class="s4">'multi_normal_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'multi_normal_prec_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'multi_normal_rng'</span><span class="s3">,</span>
+    <span class="s4">'multi_student_t_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'multi_student_t_rng'</span><span class="s3">,</span>
+    <span class="s4">'multinomial_lpmf'</span><span class="s3">,</span>
+    <span class="s4">'multinomial_rng'</span><span class="s3">,</span>
+    <span class="s4">'multiply_log'</span><span class="s3">,</span>
+    <span class="s4">'multiply_lower_tri_self_transpose'</span><span class="s3">,</span>
+    <span class="s4">'neg_binomial_2_cdf'</span><span class="s3">,</span>
+    <span class="s4">'neg_binomial_2_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'neg_binomial_2_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'neg_binomial_2_log_lpmf'</span><span class="s3">,</span>
+    <span class="s4">'neg_binomial_2_log_rng'</span><span class="s3">,</span>
+    <span class="s4">'neg_binomial_2_lpmf'</span><span class="s3">,</span>
+    <span class="s4">'neg_binomial_2_rng'</span><span class="s3">,</span>
+    <span class="s4">'neg_binomial_cdf'</span><span class="s3">,</span>
+    <span class="s4">'neg_binomial_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'neg_binomial_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'neg_binomial_lpmf'</span><span class="s3">,</span>
+    <span class="s4">'neg_binomial_rng'</span><span class="s3">,</span>
+    <span class="s4">'negative_infinity'</span><span class="s3">,</span>
+    <span class="s4">'normal_cdf'</span><span class="s3">,</span>
+    <span class="s4">'normal_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'normal_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'normal_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'normal_rng'</span><span class="s3">,</span>
+    <span class="s4">'not_a_number'</span><span class="s3">,</span>
+    <span class="s4">'num_elements'</span><span class="s3">,</span>
+    <span class="s4">'ordered_logistic_lpmf'</span><span class="s3">,</span>
+    <span class="s4">'ordered_logistic_rng'</span><span class="s3">,</span>
+    <span class="s4">'owens_t'</span><span class="s3">,</span>
+    <span class="s4">'pareto_cdf'</span><span class="s3">,</span>
+    <span class="s4">'pareto_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'pareto_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'pareto_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'pareto_rng'</span><span class="s3">,</span>
+    <span class="s4">'pareto_type_2_cdf'</span><span class="s3">,</span>
+    <span class="s4">'pareto_type_2_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'pareto_type_2_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'pareto_type_2_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'pareto_type_2_rng'</span><span class="s3">,</span>
+    <span class="s4">'pi'</span><span class="s3">,</span>
+    <span class="s4">'poisson_cdf'</span><span class="s3">,</span>
+    <span class="s4">'poisson_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'poisson_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'poisson_log_lpmf'</span><span class="s3">,</span>
+    <span class="s4">'poisson_log_rng'</span><span class="s3">,</span>
+    <span class="s4">'poisson_lpmf'</span><span class="s3">,</span>
+    <span class="s4">'poisson_rng'</span><span class="s3">,</span>
+    <span class="s4">'positive_infinity'</span><span class="s3">,</span>
+    <span class="s4">'pow'</span><span class="s3">,</span>
+    <span class="s4">'print'</span><span class="s3">,</span>
+    <span class="s4">'prod'</span><span class="s3">,</span>
+    <span class="s4">'qr_Q'</span><span class="s3">,</span>
+    <span class="s4">'qr_R'</span><span class="s3">,</span>
+    <span class="s4">'quad_form'</span><span class="s3">,</span>
+    <span class="s4">'quad_form_diag'</span><span class="s3">,</span>
+    <span class="s4">'quad_form_sym'</span><span class="s3">,</span>
+    <span class="s4">'rank'</span><span class="s3">,</span>
+    <span class="s4">'rayleigh_cdf'</span><span class="s3">,</span>
+    <span class="s4">'rayleigh_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'rayleigh_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'rayleigh_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'rayleigh_rng'</span><span class="s3">,</span>
+    <span class="s4">'reject'</span><span class="s3">,</span>
+    <span class="s4">'rep_array'</span><span class="s3">,</span>
+    <span class="s4">'rep_matrix'</span><span class="s3">,</span>
+    <span class="s4">'rep_row_vector'</span><span class="s3">,</span>
+    <span class="s4">'rep_vector'</span><span class="s3">,</span>
+    <span class="s4">'rising_factorial'</span><span class="s3">,</span>
+    <span class="s4">'round'</span><span class="s3">,</span>
+    <span class="s4">'row'</span><span class="s3">,</span>
+    <span class="s4">'rows'</span><span class="s3">,</span>
+    <span class="s4">'rows_dot_product'</span><span class="s3">,</span>
+    <span class="s4">'rows_dot_self'</span><span class="s3">,</span>
+    <span class="s4">'scaled_inv_chi_square_cdf'</span><span class="s3">,</span>
+    <span class="s4">'scaled_inv_chi_square_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'scaled_inv_chi_square_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'scaled_inv_chi_square_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'scaled_inv_chi_square_rng'</span><span class="s3">,</span>
+    <span class="s4">'sd'</span><span class="s3">,</span>
+    <span class="s4">'segment'</span><span class="s3">,</span>
+    <span class="s4">'sin'</span><span class="s3">,</span>
+    <span class="s4">'singular_values'</span><span class="s3">,</span>
+    <span class="s4">'sinh'</span><span class="s3">,</span>
+    <span class="s4">'size'</span><span class="s3">,</span>
+    <span class="s4">'skew_normal_cdf'</span><span class="s3">,</span>
+    <span class="s4">'skew_normal_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'skew_normal_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'skew_normal_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'skew_normal_rng'</span><span class="s3">,</span>
+    <span class="s4">'softmax'</span><span class="s3">,</span>
+    <span class="s4">'sort_asc'</span><span class="s3">,</span>
+    <span class="s4">'sort_desc'</span><span class="s3">,</span>
+    <span class="s4">'sort_indices_asc'</span><span class="s3">,</span>
+    <span class="s4">'sort_indices_desc'</span><span class="s3">,</span>
+    <span class="s4">'sqrt'</span><span class="s3">,</span>
+    <span class="s4">'sqrt2'</span><span class="s3">,</span>
+    <span class="s4">'square'</span><span class="s3">,</span>
+    <span class="s4">'squared_distance'</span><span class="s3">,</span>
+    <span class="s4">'step'</span><span class="s3">,</span>
+    <span class="s4">'student_t_cdf'</span><span class="s3">,</span>
+    <span class="s4">'student_t_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'student_t_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'student_t_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'student_t_rng'</span><span class="s3">,</span>
+    <span class="s4">'sub_col'</span><span class="s3">,</span>
+    <span class="s4">'sub_row'</span><span class="s3">,</span>
+    <span class="s4">'sum'</span><span class="s3">,</span>
+    <span class="s4">'tail'</span><span class="s3">,</span>
+    <span class="s4">'tan'</span><span class="s3">,</span>
+    <span class="s4">'tanh'</span><span class="s3">,</span>
+    <span class="s4">'target'</span><span class="s3">,</span>
+    <span class="s4">'tcrossprod'</span><span class="s3">,</span>
+    <span class="s4">'tgamma'</span><span class="s3">,</span>
+    <span class="s4">'to_array_1d'</span><span class="s3">,</span>
+    <span class="s4">'to_array_2d'</span><span class="s3">,</span>
+    <span class="s4">'to_matrix'</span><span class="s3">,</span>
+    <span class="s4">'to_row_vector'</span><span class="s3">,</span>
+    <span class="s4">'to_vector'</span><span class="s3">,</span>
+    <span class="s4">'trace'</span><span class="s3">,</span>
+    <span class="s4">'trace_gen_quad_form'</span><span class="s3">,</span>
+    <span class="s4">'trace_quad_form'</span><span class="s3">,</span>
+    <span class="s4">'trigamma'</span><span class="s3">,</span>
+    <span class="s4">'trunc'</span><span class="s3">,</span>
+    <span class="s4">'uniform_cdf'</span><span class="s3">,</span>
+    <span class="s4">'uniform_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'uniform_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'uniform_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'uniform_rng'</span><span class="s3">,</span>
+    <span class="s4">'variance'</span><span class="s3">,</span>
+    <span class="s4">'von_mises_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'von_mises_rng'</span><span class="s3">,</span>
+    <span class="s4">'weibull_cdf'</span><span class="s3">,</span>
+    <span class="s4">'weibull_lccdf'</span><span class="s3">,</span>
+    <span class="s4">'weibull_lcdf'</span><span class="s3">,</span>
+    <span class="s4">'weibull_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'weibull_rng'</span><span class="s3">,</span>
+    <span class="s4">'wiener_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'wishart_lpdf'</span><span class="s3">,</span>
+    <span class="s4">'wishart_rng'</span>
+  <span class="s3">];</span>
+  <span class="s2">const </span><span class="s1">DISTRIBUTIONS </span><span class="s3">= [</span>
+    <span class="s4">'bernoulli'</span><span class="s3">,</span>
+    <span class="s4">'bernoulli_logit'</span><span class="s3">,</span>
+    <span class="s4">'beta'</span><span class="s3">,</span>
+    <span class="s4">'beta_binomial'</span><span class="s3">,</span>
+    <span class="s4">'binomial'</span><span class="s3">,</span>
+    <span class="s4">'binomial_logit'</span><span class="s3">,</span>
+    <span class="s4">'categorical'</span><span class="s3">,</span>
+    <span class="s4">'categorical_logit'</span><span class="s3">,</span>
+    <span class="s4">'cauchy'</span><span class="s3">,</span>
+    <span class="s4">'chi_square'</span><span class="s3">,</span>
+    <span class="s4">'dirichlet'</span><span class="s3">,</span>
+    <span class="s4">'double_exponential'</span><span class="s3">,</span>
+    <span class="s4">'exp_mod_normal'</span><span class="s3">,</span>
+    <span class="s4">'exponential'</span><span class="s3">,</span>
+    <span class="s4">'frechet'</span><span class="s3">,</span>
+    <span class="s4">'gamma'</span><span class="s3">,</span>
+    <span class="s4">'gaussian_dlm_obs'</span><span class="s3">,</span>
+    <span class="s4">'gumbel'</span><span class="s3">,</span>
+    <span class="s4">'hypergeometric'</span><span class="s3">,</span>
+    <span class="s4">'inv_chi_square'</span><span class="s3">,</span>
+    <span class="s4">'inv_gamma'</span><span class="s3">,</span>
+    <span class="s4">'inv_wishart'</span><span class="s3">,</span>
+    <span class="s4">'lkj_corr'</span><span class="s3">,</span>
+    <span class="s4">'lkj_corr_cholesky'</span><span class="s3">,</span>
+    <span class="s4">'logistic'</span><span class="s3">,</span>
+    <span class="s4">'lognormal'</span><span class="s3">,</span>
+    <span class="s4">'multi_gp'</span><span class="s3">,</span>
+    <span class="s4">'multi_gp_cholesky'</span><span class="s3">,</span>
+    <span class="s4">'multi_normal'</span><span class="s3">,</span>
+    <span class="s4">'multi_normal_cholesky'</span><span class="s3">,</span>
+    <span class="s4">'multi_normal_prec'</span><span class="s3">,</span>
+    <span class="s4">'multi_student_t'</span><span class="s3">,</span>
+    <span class="s4">'multinomial'</span><span class="s3">,</span>
+    <span class="s4">'neg_binomial'</span><span class="s3">,</span>
+    <span class="s4">'neg_binomial_2'</span><span class="s3">,</span>
+    <span class="s4">'neg_binomial_2_log'</span><span class="s3">,</span>
+    <span class="s4">'normal'</span><span class="s3">,</span>
+    <span class="s4">'ordered_logistic'</span><span class="s3">,</span>
+    <span class="s4">'pareto'</span><span class="s3">,</span>
+    <span class="s4">'pareto_type_2'</span><span class="s3">,</span>
+    <span class="s4">'poisson'</span><span class="s3">,</span>
+    <span class="s4">'poisson_log'</span><span class="s3">,</span>
+    <span class="s4">'rayleigh'</span><span class="s3">,</span>
+    <span class="s4">'scaled_inv_chi_square'</span><span class="s3">,</span>
+    <span class="s4">'skew_normal'</span><span class="s3">,</span>
+    <span class="s4">'student_t'</span><span class="s3">,</span>
+    <span class="s4">'uniform'</span><span class="s3">,</span>
+    <span class="s4">'von_mises'</span><span class="s3">,</span>
+    <span class="s4">'weibull'</span><span class="s3">,</span>
+    <span class="s4">'wiener'</span><span class="s3">,</span>
+    <span class="s4">'wishart'</span>
+  <span class="s3">];</span>
+
+  <span class="s2">return </span><span class="s3">{</span>
+    <span class="s1">name</span><span class="s3">: </span><span class="s4">'Stan'</span><span class="s3">,</span>
+    <span class="s1">aliases</span><span class="s3">: [ </span><span class="s4">'stanfuncs' </span><span class="s3">],</span>
+    <span class="s1">keywords</span><span class="s3">: {</span>
+      <span class="s1">$pattern</span><span class="s3">: </span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">IDENT_RE</span><span class="s3">,</span>
+      <span class="s1">title</span><span class="s3">: </span><span class="s1">BLOCKS</span><span class="s3">,</span>
+      <span class="s1">keyword</span><span class="s3">: </span><span class="s1">STATEMENTS</span><span class="s3">.</span><span class="s1">concat</span><span class="s3">(</span><span class="s1">VAR_TYPES</span><span class="s3">).</span><span class="s1">concat</span><span class="s3">(</span><span class="s1">SPECIAL_FUNCTIONS</span><span class="s3">),</span>
+      <span class="s1">built_in</span><span class="s3">: </span><span class="s1">FUNCTIONS</span>
+    <span class="s3">},</span>
+    <span class="s1">contains</span><span class="s3">: [</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">C_LINE_COMMENT_MODE</span><span class="s3">,</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">COMMENT</span><span class="s3">(</span>
+        <span class="s5">/#/</span><span class="s3">,</span>
+        <span class="s5">/$/</span><span class="s3">,</span>
+        <span class="s3">{</span>
+          <span class="s1">relevance</span><span class="s3">: </span><span class="s6">0</span><span class="s3">,</span>
+          <span class="s1">keywords</span><span class="s3">: {</span>
+            <span class="s4">'meta-keyword'</span><span class="s3">: </span><span class="s4">'include'</span>
+          <span class="s3">}</span>
+        <span class="s3">}</span>
+      <span class="s3">),</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">COMMENT</span><span class="s3">(</span>
+        <span class="s5">/\/\*/</span><span class="s3">,</span>
+        <span class="s5">/\*\//</span><span class="s3">,</span>
+        <span class="s3">{</span>
+          <span class="s1">relevance</span><span class="s3">: </span><span class="s6">0</span><span class="s3">,</span>
+          <span class="s0">// highlight doc strings mentioned in Stan reference</span>
+          <span class="s1">contains</span><span class="s3">: [</span>
+            <span class="s3">{</span>
+              <span class="s1">className</span><span class="s3">: </span><span class="s4">'doctag'</span><span class="s3">,</span>
+              <span class="s1">begin</span><span class="s3">: </span><span class="s5">/@(return|param)/</span>
+            <span class="s3">}</span>
+          <span class="s3">]</span>
+        <span class="s3">}</span>
+      <span class="s3">),</span>
+      <span class="s3">{</span>
+        <span class="s0">// hack: in range constraints, lower must follow &quot;&lt;&quot;</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s5">/&lt;\s*lower\s*=/</span><span class="s3">,</span>
+        <span class="s1">keywords</span><span class="s3">: </span><span class="s4">'lower'</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s0">// hack: in range constraints, upper must follow either , or &lt;</span>
+        <span class="s0">// &lt;lower = ..., upper = ...&gt; or &lt;upper = ...&gt;</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s5">/[&lt;,]\s*upper\s*=/</span><span class="s3">,</span>
+        <span class="s1">keywords</span><span class="s3">: </span><span class="s4">'upper'</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s1">className</span><span class="s3">: </span><span class="s4">'keyword'</span><span class="s3">,</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s5">/\btarget\s*\+=/</span><span class="s3">,</span>
+        <span class="s1">relevance</span><span class="s3">: </span><span class="s6">10</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s4">'~</span><span class="s2">\\</span><span class="s4">s*(' </span><span class="s3">+ </span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">IDENT_RE </span><span class="s3">+ </span><span class="s4">')</span><span class="s2">\\</span><span class="s4">s*</span><span class="s2">\\</span><span class="s4">('</span><span class="s3">,</span>
+        <span class="s1">keywords</span><span class="s3">: </span><span class="s1">DISTRIBUTIONS</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s1">className</span><span class="s3">: </span><span class="s4">'number'</span><span class="s3">,</span>
+        <span class="s1">variants</span><span class="s3">: [</span>
+          <span class="s3">{</span>
+            <span class="s1">begin</span><span class="s3">: </span><span class="s5">/\b\d+(?:\.\d*)?(?:[eE][+-]?\d+)?/</span>
+          <span class="s3">},</span>
+          <span class="s3">{</span>
+            <span class="s1">begin</span><span class="s3">: </span><span class="s5">/\.\d+(?:[eE][+-]?\d+)?\b/</span>
+          <span class="s3">}</span>
+        <span class="s3">],</span>
+        <span class="s1">relevance</span><span class="s3">: </span><span class="s6">0</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s1">className</span><span class="s3">: </span><span class="s4">'string'</span><span class="s3">,</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s4">'&quot;'</span><span class="s3">,</span>
+        <span class="s1">end</span><span class="s3">: </span><span class="s4">'&quot;'</span><span class="s3">,</span>
+        <span class="s1">relevance</span><span class="s3">: </span><span class="s6">0</span>
+      <span class="s3">}</span>
+    <span class="s3">]</span>
+  <span class="s3">};</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">stan</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

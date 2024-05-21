@@ -1,0 +1,145 @@
+<html>
+<head>
+<title>CancelToken.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #7a7e85;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+CancelToken.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span><span class="s1">;</span>
+
+<span class="s3">import </span><span class="s2">CanceledError from </span><span class="s0">'./CanceledError.js'</span><span class="s1">;</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* A `CancelToken` is an object that can be used to request cancellation of an operation.</span>
+ <span class="s4">*</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Function} executor The executor function.</span>
+ <span class="s4">*</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{CancelToken}</span>
+ <span class="s4">*/</span>
+<span class="s3">class </span><span class="s2">CancelToken </span><span class="s1">{</span>
+  <span class="s2">constructor</span><span class="s1">(</span><span class="s2">executor</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">executor </span><span class="s1">!== </span><span class="s0">'function'</span><span class="s1">) {</span>
+      <span class="s3">throw new </span><span class="s2">TypeError</span><span class="s1">(</span><span class="s0">'executor must be a function.'</span><span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s3">let </span><span class="s2">resolvePromise</span><span class="s1">;</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">promise </span><span class="s1">= </span><span class="s3">new </span><span class="s2">Promise</span><span class="s1">(</span><span class="s3">function </span><span class="s2">promiseExecutor</span><span class="s1">(</span><span class="s2">resolve</span><span class="s1">) {</span>
+      <span class="s2">resolvePromise </span><span class="s1">= </span><span class="s2">resolve</span><span class="s1">;</span>
+    <span class="s1">});</span>
+
+    <span class="s3">const </span><span class="s2">token </span><span class="s1">= </span><span class="s3">this</span><span class="s1">;</span>
+
+    <span class="s6">// eslint-disable-next-line func-names</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">promise</span><span class="s1">.</span><span class="s2">then</span><span class="s1">(</span><span class="s2">cancel </span><span class="s1">=&gt; {</span>
+      <span class="s3">if </span><span class="s1">(!</span><span class="s2">token</span><span class="s1">.</span><span class="s2">_listeners</span><span class="s1">) </span><span class="s3">return</span><span class="s1">;</span>
+
+      <span class="s3">let </span><span class="s2">i </span><span class="s1">= </span><span class="s2">token</span><span class="s1">.</span><span class="s2">_listeners</span><span class="s1">.</span><span class="s2">length</span><span class="s1">;</span>
+
+      <span class="s3">while </span><span class="s1">(</span><span class="s2">i</span><span class="s1">-- &gt; </span><span class="s7">0</span><span class="s1">) {</span>
+        <span class="s2">token</span><span class="s1">.</span><span class="s2">_listeners</span><span class="s1">[</span><span class="s2">i</span><span class="s1">](</span><span class="s2">cancel</span><span class="s1">);</span>
+      <span class="s1">}</span>
+      <span class="s2">token</span><span class="s1">.</span><span class="s2">_listeners </span><span class="s1">= </span><span class="s3">null</span><span class="s1">;</span>
+    <span class="s1">});</span>
+
+    <span class="s6">// eslint-disable-next-line func-names</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">promise</span><span class="s1">.</span><span class="s2">then </span><span class="s1">= </span><span class="s2">onfulfilled </span><span class="s1">=&gt; {</span>
+      <span class="s3">let </span><span class="s2">_resolve</span><span class="s1">;</span>
+      <span class="s6">// eslint-disable-next-line func-names</span>
+      <span class="s3">const </span><span class="s2">promise </span><span class="s1">= </span><span class="s3">new </span><span class="s2">Promise</span><span class="s1">(</span><span class="s2">resolve </span><span class="s1">=&gt; {</span>
+        <span class="s2">token</span><span class="s1">.</span><span class="s2">subscribe</span><span class="s1">(</span><span class="s2">resolve</span><span class="s1">);</span>
+        <span class="s2">_resolve </span><span class="s1">= </span><span class="s2">resolve</span><span class="s1">;</span>
+      <span class="s1">}).</span><span class="s2">then</span><span class="s1">(</span><span class="s2">onfulfilled</span><span class="s1">);</span>
+
+      <span class="s2">promise</span><span class="s1">.</span><span class="s2">cancel </span><span class="s1">= </span><span class="s3">function </span><span class="s2">reject</span><span class="s1">() {</span>
+        <span class="s2">token</span><span class="s1">.</span><span class="s2">unsubscribe</span><span class="s1">(</span><span class="s2">_resolve</span><span class="s1">);</span>
+      <span class="s1">};</span>
+
+      <span class="s3">return </span><span class="s2">promise</span><span class="s1">;</span>
+    <span class="s1">};</span>
+
+    <span class="s2">executor</span><span class="s1">(</span><span class="s3">function </span><span class="s2">cancel</span><span class="s1">(</span><span class="s2">message</span><span class="s1">, </span><span class="s2">config</span><span class="s1">, </span><span class="s2">request</span><span class="s1">) {</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">token</span><span class="s1">.</span><span class="s2">reason</span><span class="s1">) {</span>
+        <span class="s6">// Cancellation has already been requested</span>
+        <span class="s3">return</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s2">token</span><span class="s1">.</span><span class="s2">reason </span><span class="s1">= </span><span class="s3">new </span><span class="s2">CanceledError</span><span class="s1">(</span><span class="s2">message</span><span class="s1">, </span><span class="s2">config</span><span class="s1">, </span><span class="s2">request</span><span class="s1">);</span>
+      <span class="s2">resolvePromise</span><span class="s1">(</span><span class="s2">token</span><span class="s1">.</span><span class="s2">reason</span><span class="s1">);</span>
+    <span class="s1">});</span>
+  <span class="s1">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Throws a `CanceledError` if cancellation has been requested.</span>
+   <span class="s4">*/</span>
+  <span class="s2">throwIfRequested</span><span class="s1">() {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">reason</span><span class="s1">) {</span>
+      <span class="s3">throw this</span><span class="s1">.</span><span class="s2">reason</span><span class="s1">;</span>
+    <span class="s1">}</span>
+  <span class="s1">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Subscribe to the cancel signal</span>
+   <span class="s4">*/</span>
+
+  <span class="s2">subscribe</span><span class="s1">(</span><span class="s2">listener</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">reason</span><span class="s1">) {</span>
+      <span class="s2">listener</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">reason</span><span class="s1">);</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_listeners</span><span class="s1">) {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_listeners</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(</span><span class="s2">listener</span><span class="s1">);</span>
+    <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_listeners </span><span class="s1">= [</span><span class="s2">listener</span><span class="s1">];</span>
+    <span class="s1">}</span>
+  <span class="s1">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Unsubscribe from the cancel signal</span>
+   <span class="s4">*/</span>
+
+  <span class="s2">unsubscribe</span><span class="s1">(</span><span class="s2">listener</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_listeners</span><span class="s1">) {</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s3">const </span><span class="s2">index </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_listeners</span><span class="s1">.</span><span class="s2">indexOf</span><span class="s1">(</span><span class="s2">listener</span><span class="s1">);</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">index </span><span class="s1">!== -</span><span class="s7">1</span><span class="s1">) {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_listeners</span><span class="s1">.</span><span class="s2">splice</span><span class="s1">(</span><span class="s2">index</span><span class="s1">, </span><span class="s7">1</span><span class="s1">);</span>
+    <span class="s1">}</span>
+  <span class="s1">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* Returns an object that contains a new `CancelToken` and a function that, when called,</span>
+   <span class="s4">* cancels the `CancelToken`.</span>
+   <span class="s4">*/</span>
+  <span class="s3">static </span><span class="s2">source</span><span class="s1">() {</span>
+    <span class="s3">let </span><span class="s2">cancel</span><span class="s1">;</span>
+    <span class="s3">const </span><span class="s2">token </span><span class="s1">= </span><span class="s3">new </span><span class="s2">CancelToken</span><span class="s1">(</span><span class="s3">function </span><span class="s2">executor</span><span class="s1">(</span><span class="s2">c</span><span class="s1">) {</span>
+      <span class="s2">cancel </span><span class="s1">= </span><span class="s2">c</span><span class="s1">;</span>
+    <span class="s1">});</span>
+    <span class="s3">return </span><span class="s1">{</span>
+      <span class="s2">token</span><span class="s1">,</span>
+      <span class="s2">cancel</span>
+    <span class="s1">};</span>
+  <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s3">export default </span><span class="s2">CancelToken</span><span class="s1">;</span>
+</pre>
+</body>
+</html>

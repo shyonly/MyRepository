@@ -1,0 +1,341 @@
+<html>
+<head>
+<title>ConcatSource.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+ConcatSource.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+    MIT License http://www.opensource.org/licenses/mit-license.php 
+    Author Tobias Koppers @sokra 
+*/</span>
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">const </span><span class="s1">Source </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./Source&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">RawSource </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./RawSource&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">streamChunks </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./helpers/streamChunks&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s3">{ </span><span class="s1">getMap</span><span class="s3">, </span><span class="s1">getSourceAndMap </span><span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./helpers/getFromStreamChunks&quot;</span><span class="s3">);</span>
+
+<span class="s4">const </span><span class="s1">stringsAsRawSources </span><span class="s3">= </span><span class="s4">new </span><span class="s1">WeakSet</span><span class="s3">();</span>
+
+<span class="s4">class </span><span class="s1">ConcatSource </span><span class="s4">extends </span><span class="s1">Source </span><span class="s3">{</span>
+	<span class="s1">constructor</span><span class="s3">() {</span>
+		<span class="s4">super</span><span class="s3">();</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_children </span><span class="s3">= [];</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">let </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">arguments</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+			<span class="s4">const </span><span class="s1">item </span><span class="s3">= </span><span class="s1">arguments</span><span class="s3">[</span><span class="s1">i</span><span class="s3">];</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">item </span><span class="s4">instanceof </span><span class="s1">ConcatSource</span><span class="s3">) {</span>
+				<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">child of item</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">) {</span>
+					<span class="s4">this</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+				<span class="s3">}</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">item</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_isOptimized </span><span class="s3">= </span><span class="s1">arguments</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s5">0</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s1">getChildren</span><span class="s3">() {</span>
+		<span class="s4">if </span><span class="s3">(!</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_isOptimized</span><span class="s3">) </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_optimize</span><span class="s3">();</span>
+		<span class="s4">return this</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s1">add</span><span class="s3">(</span><span class="s1">item</span><span class="s3">) {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">item </span><span class="s4">instanceof </span><span class="s1">ConcatSource</span><span class="s3">) {</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">child of item</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">) {</span>
+				<span class="s4">this</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">item</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_isOptimized </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s1">addAllSkipOptimizing</span><span class="s3">(</span><span class="s1">items</span><span class="s3">) {</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">item of items</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">item</span><span class="s3">);</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+
+	<span class="s1">buffer</span><span class="s3">() {</span>
+		<span class="s4">if </span><span class="s3">(!</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_isOptimized</span><span class="s3">) </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_optimize</span><span class="s3">();</span>
+		<span class="s4">const </span><span class="s1">buffers </span><span class="s3">= [];</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">child of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">) {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">child</span><span class="s3">.</span><span class="s1">buffer </span><span class="s3">=== </span><span class="s2">&quot;function&quot;</span><span class="s3">) {</span>
+				<span class="s1">buffers</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">child</span><span class="s3">.</span><span class="s1">buffer</span><span class="s3">());</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s4">const </span><span class="s1">bufferOrString </span><span class="s3">= </span><span class="s1">child</span><span class="s3">.</span><span class="s1">source</span><span class="s3">();</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">Buffer</span><span class="s3">.</span><span class="s1">isBuffer</span><span class="s3">(</span><span class="s1">bufferOrString</span><span class="s3">)) {</span>
+					<span class="s1">buffers</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">bufferOrString</span><span class="s3">);</span>
+				<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+					<span class="s0">// This will not happen</span>
+					<span class="s1">buffers</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">Buffer</span><span class="s3">.</span><span class="s1">from</span><span class="s3">(</span><span class="s1">bufferOrString</span><span class="s3">, </span><span class="s2">&quot;utf-8&quot;</span><span class="s3">));</span>
+				<span class="s3">}</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+		<span class="s4">return </span><span class="s1">Buffer</span><span class="s3">.</span><span class="s1">concat</span><span class="s3">(</span><span class="s1">buffers</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s1">source</span><span class="s3">() {</span>
+		<span class="s4">if </span><span class="s3">(!</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_isOptimized</span><span class="s3">) </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_optimize</span><span class="s3">();</span>
+		<span class="s4">let </span><span class="s1">source </span><span class="s3">= </span><span class="s2">&quot;&quot;</span><span class="s3">;</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">child of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">) {</span>
+			<span class="s1">source </span><span class="s3">+= </span><span class="s1">child</span><span class="s3">.</span><span class="s1">source</span><span class="s3">();</span>
+		<span class="s3">}</span>
+		<span class="s4">return </span><span class="s1">source</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s1">size</span><span class="s3">() {</span>
+		<span class="s4">if </span><span class="s3">(!</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_isOptimized</span><span class="s3">) </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_optimize</span><span class="s3">();</span>
+		<span class="s4">let </span><span class="s1">size </span><span class="s3">= </span><span class="s5">0</span><span class="s3">;</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">child of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">) {</span>
+			<span class="s1">size </span><span class="s3">+= </span><span class="s1">child</span><span class="s3">.</span><span class="s1">size</span><span class="s3">();</span>
+		<span class="s3">}</span>
+		<span class="s4">return </span><span class="s1">size</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s1">map</span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+		<span class="s4">return </span><span class="s1">getMap</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">options</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s1">sourceAndMap</span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+		<span class="s4">return </span><span class="s1">getSourceAndMap</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">options</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s1">streamChunks</span><span class="s3">(</span><span class="s1">options</span><span class="s3">, </span><span class="s1">onChunk</span><span class="s3">, </span><span class="s1">onSource</span><span class="s3">, </span><span class="s1">onName</span><span class="s3">) {</span>
+		<span class="s4">if </span><span class="s3">(!</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_isOptimized</span><span class="s3">) </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_optimize</span><span class="s3">();</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s5">1</span><span class="s3">)</span>
+			<span class="s4">return this</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">streamChunks</span><span class="s3">(</span><span class="s1">options</span><span class="s3">, </span><span class="s1">onChunk</span><span class="s3">, </span><span class="s1">onSource</span><span class="s3">, </span><span class="s1">onName</span><span class="s3">);</span>
+		<span class="s4">let </span><span class="s1">currentLineOffset </span><span class="s3">= </span><span class="s5">0</span><span class="s3">;</span>
+		<span class="s4">let </span><span class="s1">currentColumnOffset </span><span class="s3">= </span><span class="s5">0</span><span class="s3">;</span>
+		<span class="s4">let </span><span class="s1">sourceMapping </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Map</span><span class="s3">();</span>
+		<span class="s4">let </span><span class="s1">nameMapping </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Map</span><span class="s3">();</span>
+		<span class="s4">const </span><span class="s1">finalSource </span><span class="s3">= !!(</span><span class="s1">options </span><span class="s3">&amp;&amp; </span><span class="s1">options</span><span class="s3">.</span><span class="s1">finalSource</span><span class="s3">);</span>
+		<span class="s4">let </span><span class="s1">code </span><span class="s3">= </span><span class="s2">&quot;&quot;</span><span class="s3">;</span>
+		<span class="s4">let </span><span class="s1">needToCloseMapping </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">item of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">) {</span>
+			<span class="s4">const </span><span class="s1">sourceIndexMapping </span><span class="s3">= [];</span>
+			<span class="s4">const </span><span class="s1">nameIndexMapping </span><span class="s3">= [];</span>
+			<span class="s4">let </span><span class="s1">lastMappingLine </span><span class="s3">= </span><span class="s5">0</span><span class="s3">;</span>
+			<span class="s4">const </span><span class="s3">{ </span><span class="s1">generatedLine</span><span class="s3">, </span><span class="s1">generatedColumn</span><span class="s3">, </span><span class="s1">source </span><span class="s3">} = </span><span class="s1">streamChunks</span><span class="s3">(</span>
+				<span class="s1">item</span><span class="s3">,</span>
+				<span class="s1">options</span><span class="s3">,</span>
+				<span class="s0">// eslint-disable-next-line no-loop-func</span>
+				<span class="s3">(</span>
+					<span class="s1">chunk</span><span class="s3">,</span>
+					<span class="s1">generatedLine</span><span class="s3">,</span>
+					<span class="s1">generatedColumn</span><span class="s3">,</span>
+					<span class="s1">sourceIndex</span><span class="s3">,</span>
+					<span class="s1">originalLine</span><span class="s3">,</span>
+					<span class="s1">originalColumn</span><span class="s3">,</span>
+					<span class="s1">nameIndex</span>
+				<span class="s3">) =&gt; {</span>
+					<span class="s4">const </span><span class="s1">line </span><span class="s3">= </span><span class="s1">generatedLine </span><span class="s3">+ </span><span class="s1">currentLineOffset</span><span class="s3">;</span>
+					<span class="s4">const </span><span class="s1">column </span><span class="s3">=</span>
+						<span class="s1">generatedLine </span><span class="s3">=== </span><span class="s5">1</span>
+							<span class="s3">? </span><span class="s1">generatedColumn </span><span class="s3">+ </span><span class="s1">currentColumnOffset</span>
+							<span class="s3">: </span><span class="s1">generatedColumn</span><span class="s3">;</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">needToCloseMapping</span><span class="s3">) {</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">generatedLine </span><span class="s3">!== </span><span class="s5">1 </span><span class="s3">|| </span><span class="s1">generatedColumn </span><span class="s3">!== </span><span class="s5">0</span><span class="s3">) {</span>
+							<span class="s1">onChunk</span><span class="s3">(</span>
+								<span class="s1">undefined</span><span class="s3">,</span>
+								<span class="s1">currentLineOffset </span><span class="s3">+ </span><span class="s5">1</span><span class="s3">,</span>
+								<span class="s1">currentColumnOffset</span><span class="s3">,</span>
+								<span class="s3">-</span><span class="s5">1</span><span class="s3">,</span>
+								<span class="s3">-</span><span class="s5">1</span><span class="s3">,</span>
+								<span class="s3">-</span><span class="s5">1</span><span class="s3">,</span>
+								<span class="s3">-</span><span class="s5">1</span>
+							<span class="s3">);</span>
+						<span class="s3">}</span>
+						<span class="s1">needToCloseMapping </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+					<span class="s3">}</span>
+					<span class="s4">const </span><span class="s1">resultSourceIndex </span><span class="s3">=</span>
+						<span class="s1">sourceIndex </span><span class="s3">&lt; </span><span class="s5">0 </span><span class="s3">|| </span><span class="s1">sourceIndex </span><span class="s3">&gt;= </span><span class="s1">sourceIndexMapping</span><span class="s3">.</span><span class="s1">length</span>
+							<span class="s3">? -</span><span class="s5">1</span>
+							<span class="s3">: </span><span class="s1">sourceIndexMapping</span><span class="s3">[</span><span class="s1">sourceIndex</span><span class="s3">];</span>
+					<span class="s4">const </span><span class="s1">resultNameIndex </span><span class="s3">=</span>
+						<span class="s1">nameIndex </span><span class="s3">&lt; </span><span class="s5">0 </span><span class="s3">|| </span><span class="s1">nameIndex </span><span class="s3">&gt;= </span><span class="s1">nameIndexMapping</span><span class="s3">.</span><span class="s1">length</span>
+							<span class="s3">? -</span><span class="s5">1</span>
+							<span class="s3">: </span><span class="s1">nameIndexMapping</span><span class="s3">[</span><span class="s1">nameIndex</span><span class="s3">];</span>
+					<span class="s1">lastMappingLine </span><span class="s3">= </span><span class="s1">resultSourceIndex </span><span class="s3">&lt; </span><span class="s5">0 </span><span class="s3">? </span><span class="s5">0 </span><span class="s3">: </span><span class="s1">generatedLine</span><span class="s3">;</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">finalSource</span><span class="s3">) {</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">chunk </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) </span><span class="s1">code </span><span class="s3">+= </span><span class="s1">chunk</span><span class="s3">;</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">resultSourceIndex </span><span class="s3">&gt;= </span><span class="s5">0</span><span class="s3">) {</span>
+							<span class="s1">onChunk</span><span class="s3">(</span>
+								<span class="s1">undefined</span><span class="s3">,</span>
+								<span class="s1">line</span><span class="s3">,</span>
+								<span class="s1">column</span><span class="s3">,</span>
+								<span class="s1">resultSourceIndex</span><span class="s3">,</span>
+								<span class="s1">originalLine</span><span class="s3">,</span>
+								<span class="s1">originalColumn</span><span class="s3">,</span>
+								<span class="s1">resultNameIndex</span>
+							<span class="s3">);</span>
+						<span class="s3">}</span>
+					<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">resultSourceIndex </span><span class="s3">&lt; </span><span class="s5">0</span><span class="s3">) {</span>
+							<span class="s1">onChunk</span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">, </span><span class="s1">line</span><span class="s3">, </span><span class="s1">column</span><span class="s3">, -</span><span class="s5">1</span><span class="s3">, -</span><span class="s5">1</span><span class="s3">, -</span><span class="s5">1</span><span class="s3">, -</span><span class="s5">1</span><span class="s3">);</span>
+						<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+							<span class="s1">onChunk</span><span class="s3">(</span>
+								<span class="s1">chunk</span><span class="s3">,</span>
+								<span class="s1">line</span><span class="s3">,</span>
+								<span class="s1">column</span><span class="s3">,</span>
+								<span class="s1">resultSourceIndex</span><span class="s3">,</span>
+								<span class="s1">originalLine</span><span class="s3">,</span>
+								<span class="s1">originalColumn</span><span class="s3">,</span>
+								<span class="s1">resultNameIndex</span>
+							<span class="s3">);</span>
+						<span class="s3">}</span>
+					<span class="s3">}</span>
+				<span class="s3">},</span>
+				<span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s1">source</span><span class="s3">, </span><span class="s1">sourceContent</span><span class="s3">) =&gt; {</span>
+					<span class="s4">let </span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">sourceMapping</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">source</span><span class="s3">);</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">globalIndex </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+						<span class="s1">sourceMapping</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">source</span><span class="s3">, (</span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">sourceMapping</span><span class="s3">.</span><span class="s1">size</span><span class="s3">));</span>
+						<span class="s1">onSource</span><span class="s3">(</span><span class="s1">globalIndex</span><span class="s3">, </span><span class="s1">source</span><span class="s3">, </span><span class="s1">sourceContent</span><span class="s3">);</span>
+					<span class="s3">}</span>
+					<span class="s1">sourceIndexMapping</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] = </span><span class="s1">globalIndex</span><span class="s3">;</span>
+				<span class="s3">},</span>
+				<span class="s3">(</span><span class="s1">i</span><span class="s3">, </span><span class="s1">name</span><span class="s3">) =&gt; {</span>
+					<span class="s4">let </span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">nameMapping</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">name</span><span class="s3">);</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">globalIndex </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+						<span class="s1">nameMapping</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">name</span><span class="s3">, (</span><span class="s1">globalIndex </span><span class="s3">= </span><span class="s1">nameMapping</span><span class="s3">.</span><span class="s1">size</span><span class="s3">));</span>
+						<span class="s1">onName</span><span class="s3">(</span><span class="s1">globalIndex</span><span class="s3">, </span><span class="s1">name</span><span class="s3">);</span>
+					<span class="s3">}</span>
+					<span class="s1">nameIndexMapping</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] = </span><span class="s1">globalIndex</span><span class="s3">;</span>
+				<span class="s3">}</span>
+			<span class="s3">);</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">source </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) </span><span class="s1">code </span><span class="s3">+= </span><span class="s1">source</span><span class="s3">;</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">needToCloseMapping</span><span class="s3">) {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">generatedLine </span><span class="s3">!== </span><span class="s5">1 </span><span class="s3">|| </span><span class="s1">generatedColumn </span><span class="s3">!== </span><span class="s5">0</span><span class="s3">) {</span>
+					<span class="s1">onChunk</span><span class="s3">(</span>
+						<span class="s1">undefined</span><span class="s3">,</span>
+						<span class="s1">currentLineOffset </span><span class="s3">+ </span><span class="s5">1</span><span class="s3">,</span>
+						<span class="s1">currentColumnOffset</span><span class="s3">,</span>
+						<span class="s3">-</span><span class="s5">1</span><span class="s3">,</span>
+						<span class="s3">-</span><span class="s5">1</span><span class="s3">,</span>
+						<span class="s3">-</span><span class="s5">1</span><span class="s3">,</span>
+						<span class="s3">-</span><span class="s5">1</span>
+					<span class="s3">);</span>
+					<span class="s1">needToCloseMapping </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+				<span class="s3">}</span>
+			<span class="s3">}</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">generatedLine </span><span class="s3">&gt; </span><span class="s5">1</span><span class="s3">) {</span>
+				<span class="s1">currentColumnOffset </span><span class="s3">= </span><span class="s1">generatedColumn</span><span class="s3">;</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s1">currentColumnOffset </span><span class="s3">+= </span><span class="s1">generatedColumn</span><span class="s3">;</span>
+			<span class="s3">}</span>
+			<span class="s1">needToCloseMapping </span><span class="s3">=</span>
+				<span class="s1">needToCloseMapping </span><span class="s3">||</span>
+				<span class="s3">(</span><span class="s1">finalSource </span><span class="s3">&amp;&amp; </span><span class="s1">lastMappingLine </span><span class="s3">=== </span><span class="s1">generatedLine</span><span class="s3">);</span>
+			<span class="s1">currentLineOffset </span><span class="s3">+= </span><span class="s1">generatedLine </span><span class="s3">- </span><span class="s5">1</span><span class="s3">;</span>
+		<span class="s3">}</span>
+		<span class="s4">return </span><span class="s3">{</span>
+			<span class="s1">generatedLine</span><span class="s3">: </span><span class="s1">currentLineOffset </span><span class="s3">+ </span><span class="s5">1</span><span class="s3">,</span>
+			<span class="s1">generatedColumn</span><span class="s3">: </span><span class="s1">currentColumnOffset</span><span class="s3">,</span>
+			<span class="s1">source</span><span class="s3">: </span><span class="s1">finalSource </span><span class="s3">? </span><span class="s1">code </span><span class="s3">: </span><span class="s1">undefined</span>
+		<span class="s3">};</span>
+	<span class="s3">}</span>
+
+	<span class="s1">updateHash</span><span class="s3">(</span><span class="s1">hash</span><span class="s3">) {</span>
+		<span class="s4">if </span><span class="s3">(!</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_isOptimized</span><span class="s3">) </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_optimize</span><span class="s3">();</span>
+		<span class="s1">hash</span><span class="s3">.</span><span class="s1">update</span><span class="s3">(</span><span class="s2">&quot;ConcatSource&quot;</span><span class="s3">);</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">item of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">) {</span>
+			<span class="s1">item</span><span class="s3">.</span><span class="s1">updateHash</span><span class="s3">(</span><span class="s1">hash</span><span class="s3">);</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+
+	<span class="s1">_optimize</span><span class="s3">() {</span>
+		<span class="s4">const </span><span class="s1">newChildren </span><span class="s3">= [];</span>
+		<span class="s4">let </span><span class="s1">currentString </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s4">let </span><span class="s1">currentRawSources </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s4">const </span><span class="s1">addStringToRawSources </span><span class="s3">= </span><span class="s1">string </span><span class="s3">=&gt; {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">currentRawSources </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+				<span class="s1">currentRawSources </span><span class="s3">= </span><span class="s1">string</span><span class="s3">;</span>
+			<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">Array</span><span class="s3">.</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">currentRawSources</span><span class="s3">)) {</span>
+				<span class="s1">currentRawSources</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">string</span><span class="s3">);</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s1">currentRawSources </span><span class="s3">= [</span>
+					<span class="s4">typeof </span><span class="s1">currentRawSources </span><span class="s3">=== </span><span class="s2">&quot;string&quot;</span>
+						<span class="s3">? </span><span class="s1">currentRawSources</span>
+						<span class="s3">: </span><span class="s1">currentRawSources</span><span class="s3">.</span><span class="s1">source</span><span class="s3">(),</span>
+					<span class="s1">string</span>
+				<span class="s3">];</span>
+			<span class="s3">}</span>
+		<span class="s3">};</span>
+		<span class="s4">const </span><span class="s1">addSourceToRawSources </span><span class="s3">= </span><span class="s1">source </span><span class="s3">=&gt; {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">currentRawSources </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+				<span class="s1">currentRawSources </span><span class="s3">= </span><span class="s1">source</span><span class="s3">;</span>
+			<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">Array</span><span class="s3">.</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">currentRawSources</span><span class="s3">)) {</span>
+				<span class="s1">currentRawSources</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">source</span><span class="s3">.</span><span class="s1">source</span><span class="s3">());</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s1">currentRawSources </span><span class="s3">= [</span>
+					<span class="s4">typeof </span><span class="s1">currentRawSources </span><span class="s3">=== </span><span class="s2">&quot;string&quot;</span>
+						<span class="s3">? </span><span class="s1">currentRawSources</span>
+						<span class="s3">: </span><span class="s1">currentRawSources</span><span class="s3">.</span><span class="s1">source</span><span class="s3">(),</span>
+					<span class="s1">source</span><span class="s3">.</span><span class="s1">source</span><span class="s3">()</span>
+				<span class="s3">];</span>
+			<span class="s3">}</span>
+		<span class="s3">};</span>
+		<span class="s4">const </span><span class="s1">mergeRawSources </span><span class="s3">= () =&gt; {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">Array</span><span class="s3">.</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">currentRawSources</span><span class="s3">)) {</span>
+				<span class="s4">const </span><span class="s1">rawSource </span><span class="s3">= </span><span class="s4">new </span><span class="s1">RawSource</span><span class="s3">(</span><span class="s1">currentRawSources</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s2">&quot;&quot;</span><span class="s3">));</span>
+				<span class="s1">stringsAsRawSources</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">rawSource</span><span class="s3">);</span>
+				<span class="s1">newChildren</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">rawSource</span><span class="s3">);</span>
+			<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">currentRawSources </span><span class="s3">=== </span><span class="s2">&quot;string&quot;</span><span class="s3">) {</span>
+				<span class="s4">const </span><span class="s1">rawSource </span><span class="s3">= </span><span class="s4">new </span><span class="s1">RawSource</span><span class="s3">(</span><span class="s1">currentRawSources</span><span class="s3">);</span>
+				<span class="s1">stringsAsRawSources</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">rawSource</span><span class="s3">);</span>
+				<span class="s1">newChildren</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">rawSource</span><span class="s3">);</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s1">newChildren</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">currentRawSources</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">};</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">child of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_children</span><span class="s3">) {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">child </span><span class="s3">=== </span><span class="s2">&quot;string&quot;</span><span class="s3">) {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">currentString </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+					<span class="s1">currentString </span><span class="s3">= </span><span class="s1">child</span><span class="s3">;</span>
+				<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+					<span class="s1">currentString </span><span class="s3">+= </span><span class="s1">child</span><span class="s3">;</span>
+				<span class="s3">}</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">currentString </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+					<span class="s1">addStringToRawSources</span><span class="s3">(</span><span class="s1">currentString</span><span class="s3">);</span>
+					<span class="s1">currentString </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+				<span class="s3">}</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">stringsAsRawSources</span><span class="s3">.</span><span class="s1">has</span><span class="s3">(</span><span class="s1">child</span><span class="s3">)) {</span>
+					<span class="s1">addSourceToRawSources</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+				<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">currentRawSources </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+						<span class="s1">mergeRawSources</span><span class="s3">();</span>
+						<span class="s1">currentRawSources </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+					<span class="s3">}</span>
+					<span class="s1">newChildren</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+				<span class="s3">}</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">currentString </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+			<span class="s1">addStringToRawSources</span><span class="s3">(</span><span class="s1">currentString</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">currentRawSources </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+			<span class="s1">mergeRawSources</span><span class="s3">();</span>
+		<span class="s3">}</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_children </span><span class="s3">= </span><span class="s1">newChildren</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_isOptimized </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+	<span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">ConcatSource</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

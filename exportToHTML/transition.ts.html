@@ -1,0 +1,228 @@
+<html>
+<head>
+<title>transition.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #42c3d4;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+transition.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">// Provides transition support for a single element/component.</span>
+<span class="s0">// supports transition mode (out-in / in-out)</span>
+
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">warn </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'core/util/index'</span>
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">camelize</span><span class="s3">, </span><span class="s1">extend</span><span class="s3">, </span><span class="s1">isPrimitive </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'shared/util'</span>
+<span class="s2">import </span><span class="s3">{</span>
+  <span class="s1">mergeVNodeHook</span><span class="s3">,</span>
+  <span class="s1">isAsyncPlaceholder</span><span class="s3">,</span>
+  <span class="s1">getFirstComponentChild</span>
+<span class="s3">} </span><span class="s1">from </span><span class="s4">'core/vdom/helpers/index'</span>
+<span class="s2">import </span><span class="s1">VNode from </span><span class="s4">'core/vdom/vnode'</span>
+<span class="s2">import </span><span class="s1">type </span><span class="s3">{ </span><span class="s1">Component </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'types/component'</span>
+
+<span class="s2">export const </span><span class="s1">transitionProps </span><span class="s3">= {</span>
+  <span class="s1">name</span><span class="s3">: </span><span class="s1">String</span><span class="s3">,</span>
+  <span class="s1">appear</span><span class="s3">: </span><span class="s1">Boolean</span><span class="s3">,</span>
+  <span class="s1">css</span><span class="s3">: </span><span class="s1">Boolean</span><span class="s3">,</span>
+  <span class="s1">mode</span><span class="s3">: </span><span class="s1">String</span><span class="s3">,</span>
+  <span class="s1">type</span><span class="s3">: </span><span class="s1">String</span><span class="s3">,</span>
+  <span class="s1">enterClass</span><span class="s3">: </span><span class="s1">String</span><span class="s3">,</span>
+  <span class="s1">leaveClass</span><span class="s3">: </span><span class="s1">String</span><span class="s3">,</span>
+  <span class="s1">enterToClass</span><span class="s3">: </span><span class="s1">String</span><span class="s3">,</span>
+  <span class="s1">leaveToClass</span><span class="s3">: </span><span class="s1">String</span><span class="s3">,</span>
+  <span class="s1">enterActiveClass</span><span class="s3">: </span><span class="s1">String</span><span class="s3">,</span>
+  <span class="s1">leaveActiveClass</span><span class="s3">: </span><span class="s1">String</span><span class="s3">,</span>
+  <span class="s1">appearClass</span><span class="s3">: </span><span class="s1">String</span><span class="s3">,</span>
+  <span class="s1">appearActiveClass</span><span class="s3">: </span><span class="s1">String</span><span class="s3">,</span>
+  <span class="s1">appearToClass</span><span class="s3">: </span><span class="s1">String</span><span class="s3">,</span>
+  <span class="s1">duration</span><span class="s3">: [</span><span class="s1">Number</span><span class="s3">, </span><span class="s1">String</span><span class="s3">, </span><span class="s1">Object</span><span class="s3">]</span>
+<span class="s3">}</span>
+
+<span class="s0">// in case the child is also an abstract component, e.g. &lt;keep-alive&gt;</span>
+<span class="s0">// we want to recursively retrieve the real component to be rendered</span>
+<span class="s2">function </span><span class="s1">getRealChild</span><span class="s3">(</span><span class="s1">vnode</span><span class="s3">?: </span><span class="s1">VNode</span><span class="s3">): </span><span class="s1">VNode </span><span class="s3">| </span><span class="s1">undefined </span><span class="s3">{</span>
+  <span class="s2">const </span><span class="s1">compOptions </span><span class="s3">= </span><span class="s1">vnode </span><span class="s3">&amp;&amp; </span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">componentOptions</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">compOptions </span><span class="s3">&amp;&amp; </span><span class="s1">compOptions</span><span class="s3">.</span><span class="s1">Ctor</span><span class="s3">.</span><span class="s1">options</span><span class="s3">.</span><span class="s1">abstract</span><span class="s3">) {</span>
+    <span class="s2">return </span><span class="s1">getRealChild</span><span class="s3">(</span><span class="s1">getFirstComponentChild</span><span class="s3">(</span><span class="s1">compOptions</span><span class="s3">.</span><span class="s1">children</span><span class="s3">))</span>
+  <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+    <span class="s2">return </span><span class="s1">vnode</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s2">export function </span><span class="s1">extractTransitionData</span><span class="s3">(</span><span class="s1">comp</span><span class="s3">: </span><span class="s1">Component</span><span class="s3">): </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt; {</span>
+  <span class="s2">const </span><span class="s1">data </span><span class="s3">= {}</span>
+  <span class="s2">const </span><span class="s1">options </span><span class="s3">= </span><span class="s1">comp</span><span class="s3">.</span><span class="s1">$options</span>
+  <span class="s0">// props</span>
+  <span class="s2">for </span><span class="s3">(</span><span class="s2">const </span><span class="s1">key </span><span class="s2">in </span><span class="s1">options</span><span class="s3">.</span><span class="s1">propsData</span><span class="s3">) {</span>
+    <span class="s1">data</span><span class="s3">[</span><span class="s1">key</span><span class="s3">] = </span><span class="s1">comp</span><span class="s3">[</span><span class="s1">key</span><span class="s3">]</span>
+  <span class="s3">}</span>
+  <span class="s0">// events.</span>
+  <span class="s0">// extract listeners and pass them directly to the transition methods</span>
+  <span class="s2">const </span><span class="s1">listeners </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">_parentListeners</span>
+  <span class="s2">for </span><span class="s3">(</span><span class="s2">const </span><span class="s1">key </span><span class="s2">in </span><span class="s1">listeners</span><span class="s3">) {</span>
+    <span class="s1">data</span><span class="s3">[</span><span class="s1">camelize</span><span class="s3">(</span><span class="s1">key</span><span class="s3">)] = </span><span class="s1">listeners</span><span class="s3">[</span><span class="s1">key</span><span class="s3">]</span>
+  <span class="s3">}</span>
+  <span class="s2">return </span><span class="s1">data</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">placeholder</span><span class="s3">(</span><span class="s1">h</span><span class="s3">: </span><span class="s1">Function</span><span class="s3">, </span><span class="s1">rawChild</span><span class="s3">: </span><span class="s1">VNode</span><span class="s3">): </span><span class="s1">VNode </span><span class="s3">| </span><span class="s1">undefined </span><span class="s3">{</span>
+  <span class="s0">// @ts-expect-error</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s5">/\d-keep-alive$/</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">rawChild</span><span class="s3">.</span><span class="s1">tag</span><span class="s3">)) {</span>
+    <span class="s2">return </span><span class="s1">h</span><span class="s3">(</span><span class="s4">'keep-alive'</span><span class="s3">, {</span>
+      <span class="s1">props</span><span class="s3">: </span><span class="s1">rawChild</span><span class="s3">.</span><span class="s1">componentOptions</span><span class="s3">!.</span><span class="s1">propsData</span>
+    <span class="s3">})</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">hasParentTransition</span><span class="s3">(</span><span class="s1">vnode</span><span class="s3">: </span><span class="s1">VNode</span><span class="s3">): </span><span class="s1">boolean </span><span class="s3">| </span><span class="s1">undefined </span><span class="s3">{</span>
+  <span class="s2">while </span><span class="s3">((</span><span class="s1">vnode </span><span class="s3">= </span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">!)) {</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">vnode</span><span class="s3">.</span><span class="s1">data</span><span class="s3">!.</span><span class="s1">transition</span><span class="s3">) {</span>
+      <span class="s2">return true</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">isSameChild</span><span class="s3">(</span><span class="s1">child</span><span class="s3">: </span><span class="s1">VNode</span><span class="s3">, </span><span class="s1">oldChild</span><span class="s3">: </span><span class="s1">VNode</span><span class="s3">): </span><span class="s1">boolean </span><span class="s3">{</span>
+  <span class="s2">return </span><span class="s1">oldChild</span><span class="s3">.</span><span class="s1">key </span><span class="s3">=== </span><span class="s1">child</span><span class="s3">.</span><span class="s1">key </span><span class="s3">&amp;&amp; </span><span class="s1">oldChild</span><span class="s3">.</span><span class="s1">tag </span><span class="s3">=== </span><span class="s1">child</span><span class="s3">.</span><span class="s1">tag</span>
+<span class="s3">}</span>
+
+<span class="s2">const </span><span class="s1">isNotTextNode </span><span class="s3">= (</span><span class="s1">c</span><span class="s3">: </span><span class="s1">VNode</span><span class="s3">) =&gt; </span><span class="s1">c</span><span class="s3">.</span><span class="s1">tag </span><span class="s3">|| </span><span class="s1">isAsyncPlaceholder</span><span class="s3">(</span><span class="s1">c</span><span class="s3">)</span>
+
+<span class="s2">const </span><span class="s1">isVShowDirective </span><span class="s3">= </span><span class="s1">d </span><span class="s3">=&gt; </span><span class="s1">d</span><span class="s3">.</span><span class="s1">name </span><span class="s3">=== </span><span class="s4">'show'</span>
+
+<span class="s2">export default </span><span class="s3">{</span>
+  <span class="s1">name</span><span class="s3">: </span><span class="s4">'transition'</span><span class="s3">,</span>
+  <span class="s1">props</span><span class="s3">: </span><span class="s1">transitionProps</span><span class="s3">,</span>
+  <span class="s1">abstract</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+
+  <span class="s1">render</span><span class="s3">(</span><span class="s1">h</span><span class="s3">: </span><span class="s1">Function</span><span class="s3">) {</span>
+    <span class="s2">let </span><span class="s1">children</span><span class="s3">: </span><span class="s1">any </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">$slots</span><span class="s3">.</span><span class="s1">default</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">children</span><span class="s3">) {</span>
+      <span class="s2">return</span>
+    <span class="s3">}</span>
+
+    <span class="s0">// filter out text nodes (possible whitespaces)</span>
+    <span class="s1">children </span><span class="s3">= </span><span class="s1">children</span><span class="s3">.</span><span class="s1">filter</span><span class="s3">(</span><span class="s1">isNotTextNode</span><span class="s3">)</span>
+    <span class="s0">/* istanbul ignore if */</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">children</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) {</span>
+      <span class="s2">return</span>
+    <span class="s3">}</span>
+
+    <span class="s0">// warn multiple elements</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">__DEV__ </span><span class="s3">&amp;&amp; </span><span class="s1">children</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s6">1</span><span class="s3">) {</span>
+      <span class="s1">warn</span><span class="s3">(</span>
+        <span class="s4">'&lt;transition&gt; can only be used on a single element. Use ' </span><span class="s3">+</span>
+          <span class="s4">'&lt;transition-group&gt; for lists.'</span><span class="s3">,</span>
+        <span class="s2">this</span><span class="s3">.</span><span class="s1">$parent</span>
+      <span class="s3">)</span>
+    <span class="s3">}</span>
+
+    <span class="s2">const </span><span class="s1">mode</span><span class="s3">: </span><span class="s1">string </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">mode</span>
+
+    <span class="s0">// warn invalid mode</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">__DEV__ </span><span class="s3">&amp;&amp; </span><span class="s1">mode </span><span class="s3">&amp;&amp; </span><span class="s1">mode </span><span class="s3">!== </span><span class="s4">'in-out' </span><span class="s3">&amp;&amp; </span><span class="s1">mode </span><span class="s3">!== </span><span class="s4">'out-in'</span><span class="s3">) {</span>
+      <span class="s1">warn</span><span class="s3">(</span><span class="s4">'invalid &lt;transition&gt; mode: ' </span><span class="s3">+ </span><span class="s1">mode</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">)</span>
+    <span class="s3">}</span>
+
+    <span class="s2">const </span><span class="s1">rawChild</span><span class="s3">: </span><span class="s1">VNode </span><span class="s3">= </span><span class="s1">children</span><span class="s3">[</span><span class="s6">0</span><span class="s3">]</span>
+
+    <span class="s0">// if this is a component root node and the component's</span>
+    <span class="s0">// parent container node also has transition, skip.</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">hasParentTransition</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">$vnode</span><span class="s3">)) {</span>
+      <span class="s2">return </span><span class="s1">rawChild</span>
+    <span class="s3">}</span>
+
+    <span class="s0">// apply transition data to child</span>
+    <span class="s0">// use getRealChild() to ignore abstract components e.g. keep-alive</span>
+    <span class="s2">const </span><span class="s1">child </span><span class="s3">= </span><span class="s1">getRealChild</span><span class="s3">(</span><span class="s1">rawChild</span><span class="s3">)</span>
+    <span class="s0">/* istanbul ignore if */</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">child</span><span class="s3">) {</span>
+      <span class="s2">return </span><span class="s1">rawChild</span>
+    <span class="s3">}</span>
+
+    <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">_leaving</span><span class="s3">) {</span>
+      <span class="s2">return </span><span class="s1">placeholder</span><span class="s3">(</span><span class="s1">h</span><span class="s3">, </span><span class="s1">rawChild</span><span class="s3">)</span>
+    <span class="s3">}</span>
+
+    <span class="s0">// ensure a key that is unique to the vnode type and to this transition</span>
+    <span class="s0">// component instance. This key will be used to remove pending leaving nodes</span>
+    <span class="s0">// during entering.</span>
+    <span class="s2">const </span><span class="s1">id</span><span class="s3">: </span><span class="s1">string </span><span class="s3">= </span><span class="s4">`__transition-</span><span class="s1">$</span><span class="s3">{</span><span class="s2">this</span><span class="s3">.</span><span class="s1">_uid</span><span class="s3">}</span><span class="s4">-`</span>
+    <span class="s1">child</span><span class="s3">.</span><span class="s1">key </span><span class="s3">=</span>
+      <span class="s1">child</span><span class="s3">.</span><span class="s1">key </span><span class="s3">== </span><span class="s2">null</span>
+        <span class="s3">? </span><span class="s1">child</span><span class="s3">.</span><span class="s1">isComment</span>
+          <span class="s3">? </span><span class="s1">id </span><span class="s3">+ </span><span class="s4">'comment'</span>
+          <span class="s3">: </span><span class="s1">id </span><span class="s3">+ </span><span class="s1">child</span><span class="s3">.</span><span class="s1">tag</span>
+        <span class="s3">: </span><span class="s1">isPrimitive</span><span class="s3">(</span><span class="s1">child</span><span class="s3">.</span><span class="s1">key</span><span class="s3">)</span>
+        <span class="s3">? </span><span class="s1">String</span><span class="s3">(</span><span class="s1">child</span><span class="s3">.</span><span class="s1">key</span><span class="s3">).</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s1">id</span><span class="s3">) === </span><span class="s6">0</span>
+          <span class="s3">? </span><span class="s1">child</span><span class="s3">.</span><span class="s1">key</span>
+          <span class="s3">: </span><span class="s1">id </span><span class="s3">+ </span><span class="s1">child</span><span class="s3">.</span><span class="s1">key</span>
+        <span class="s3">: </span><span class="s1">child</span><span class="s3">.</span><span class="s1">key</span>
+
+    <span class="s2">const </span><span class="s1">data</span><span class="s3">: </span><span class="s1">Object </span><span class="s3">= ((</span><span class="s1">child</span><span class="s3">.</span><span class="s1">data </span><span class="s3">|| (</span><span class="s1">child</span><span class="s3">.</span><span class="s1">data </span><span class="s3">= {})).</span><span class="s1">transition </span><span class="s3">=</span>
+      <span class="s1">extractTransitionData</span><span class="s3">(</span><span class="s2">this</span><span class="s3">))</span>
+    <span class="s2">const </span><span class="s1">oldRawChild</span><span class="s3">: </span><span class="s1">VNode </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_vnode</span>
+    <span class="s2">const </span><span class="s1">oldChild </span><span class="s3">= </span><span class="s1">getRealChild</span><span class="s3">(</span><span class="s1">oldRawChild</span><span class="s3">)</span>
+
+    <span class="s0">// mark v-show</span>
+    <span class="s0">// so that the transition module can hand over the control to the directive</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">child</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">directives </span><span class="s3">&amp;&amp; </span><span class="s1">child</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">directives</span><span class="s3">.</span><span class="s1">some</span><span class="s3">(</span><span class="s1">isVShowDirective</span><span class="s3">)) {</span>
+      <span class="s1">child</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">show </span><span class="s3">= </span><span class="s2">true</span>
+    <span class="s3">}</span>
+
+    <span class="s2">if </span><span class="s3">(</span>
+      <span class="s1">oldChild </span><span class="s3">&amp;&amp;</span>
+      <span class="s1">oldChild</span><span class="s3">.</span><span class="s1">data </span><span class="s3">&amp;&amp;</span>
+      <span class="s3">!</span><span class="s1">isSameChild</span><span class="s3">(</span><span class="s1">child</span><span class="s3">, </span><span class="s1">oldChild</span><span class="s3">) &amp;&amp;</span>
+      <span class="s3">!</span><span class="s1">isAsyncPlaceholder</span><span class="s3">(</span><span class="s1">oldChild</span><span class="s3">) &amp;&amp;</span>
+      <span class="s0">// #6687 component root is a comment node</span>
+      <span class="s3">!(</span>
+        <span class="s1">oldChild</span><span class="s3">.</span><span class="s1">componentInstance </span><span class="s3">&amp;&amp;</span>
+        <span class="s1">oldChild</span><span class="s3">.</span><span class="s1">componentInstance</span><span class="s3">.</span><span class="s1">_vnode</span><span class="s3">!.</span><span class="s1">isComment</span>
+      <span class="s3">)</span>
+    <span class="s3">) {</span>
+      <span class="s0">// replace old child transition data with fresh one</span>
+      <span class="s0">// important for dynamic transitions!</span>
+      <span class="s2">const </span><span class="s1">oldData</span><span class="s3">: </span><span class="s1">Object </span><span class="s3">= (</span><span class="s1">oldChild</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">transition </span><span class="s3">= </span><span class="s1">extend</span><span class="s3">({}, </span><span class="s1">data</span><span class="s3">))</span>
+      <span class="s0">// handle transition mode</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">mode </span><span class="s3">=== </span><span class="s4">'out-in'</span><span class="s3">) {</span>
+        <span class="s0">// return placeholder node and queue update when leave finishes</span>
+        <span class="s2">this</span><span class="s3">.</span><span class="s1">_leaving </span><span class="s3">= </span><span class="s2">true</span>
+        <span class="s1">mergeVNodeHook</span><span class="s3">(</span><span class="s1">oldData</span><span class="s3">, </span><span class="s4">'afterLeave'</span><span class="s3">, () =&gt; {</span>
+          <span class="s2">this</span><span class="s3">.</span><span class="s1">_leaving </span><span class="s3">= </span><span class="s2">false</span>
+          <span class="s2">this</span><span class="s3">.</span><span class="s1">$forceUpdate</span><span class="s3">()</span>
+        <span class="s3">})</span>
+        <span class="s2">return </span><span class="s1">placeholder</span><span class="s3">(</span><span class="s1">h</span><span class="s3">, </span><span class="s1">rawChild</span><span class="s3">)</span>
+      <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s1">mode </span><span class="s3">=== </span><span class="s4">'in-out'</span><span class="s3">) {</span>
+        <span class="s2">if </span><span class="s3">(</span><span class="s1">isAsyncPlaceholder</span><span class="s3">(</span><span class="s1">child</span><span class="s3">)) {</span>
+          <span class="s2">return </span><span class="s1">oldRawChild</span>
+        <span class="s3">}</span>
+        <span class="s2">let </span><span class="s1">delayedLeave</span>
+        <span class="s2">const </span><span class="s1">performLeave </span><span class="s3">= () =&gt; {</span>
+          <span class="s1">delayedLeave</span><span class="s3">()</span>
+        <span class="s3">}</span>
+        <span class="s1">mergeVNodeHook</span><span class="s3">(</span><span class="s1">data</span><span class="s3">, </span><span class="s4">'afterEnter'</span><span class="s3">, </span><span class="s1">performLeave</span><span class="s3">)</span>
+        <span class="s1">mergeVNodeHook</span><span class="s3">(</span><span class="s1">data</span><span class="s3">, </span><span class="s4">'enterCancelled'</span><span class="s3">, </span><span class="s1">performLeave</span><span class="s3">)</span>
+        <span class="s1">mergeVNodeHook</span><span class="s3">(</span><span class="s1">oldData</span><span class="s3">, </span><span class="s4">'delayLeave'</span><span class="s3">, </span><span class="s1">leave </span><span class="s3">=&gt; {</span>
+          <span class="s1">delayedLeave </span><span class="s3">= </span><span class="s1">leave</span>
+        <span class="s3">})</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s2">return </span><span class="s1">rawChild</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<html>
+<head>
+<title>_task.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+_task.js</font>
+</center></td></tr></table>
+<pre><span class="s0">var </span><span class="s1">ctx </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./_ctx'</span><span class="s2">);</span>
+<span class="s0">var </span><span class="s1">invoke </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./_invoke'</span><span class="s2">);</span>
+<span class="s0">var </span><span class="s1">html </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./_html'</span><span class="s2">);</span>
+<span class="s0">var </span><span class="s1">cel </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./_dom-create'</span><span class="s2">);</span>
+<span class="s0">var </span><span class="s1">global </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./_global'</span><span class="s2">);</span>
+<span class="s0">var </span><span class="s1">process </span><span class="s2">= </span><span class="s1">global</span><span class="s2">.</span><span class="s1">process</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">setTask </span><span class="s2">= </span><span class="s1">global</span><span class="s2">.</span><span class="s1">setImmediate</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">clearTask </span><span class="s2">= </span><span class="s1">global</span><span class="s2">.</span><span class="s1">clearImmediate</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">MessageChannel </span><span class="s2">= </span><span class="s1">global</span><span class="s2">.</span><span class="s1">MessageChannel</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">Dispatch </span><span class="s2">= </span><span class="s1">global</span><span class="s2">.</span><span class="s1">Dispatch</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">counter </span><span class="s2">= </span><span class="s4">0</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">queue </span><span class="s2">= {};</span>
+<span class="s0">var </span><span class="s1">ONREADYSTATECHANGE </span><span class="s2">= </span><span class="s3">'onreadystatechange'</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">defer</span><span class="s2">, </span><span class="s1">channel</span><span class="s2">, </span><span class="s1">port</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">run </span><span class="s2">= </span><span class="s0">function </span><span class="s2">() {</span>
+  <span class="s0">var </span><span class="s1">id </span><span class="s2">= +</span><span class="s0">this</span><span class="s2">;</span>
+  <span class="s5">// eslint-disable-next-line no-prototype-builtins</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">queue</span><span class="s2">.</span><span class="s1">hasOwnProperty</span><span class="s2">(</span><span class="s1">id</span><span class="s2">)) {</span>
+    <span class="s0">var </span><span class="s1">fn </span><span class="s2">= </span><span class="s1">queue</span><span class="s2">[</span><span class="s1">id</span><span class="s2">];</span>
+    <span class="s0">delete </span><span class="s1">queue</span><span class="s2">[</span><span class="s1">id</span><span class="s2">];</span>
+    <span class="s1">fn</span><span class="s2">();</span>
+  <span class="s2">}</span>
+<span class="s2">};</span>
+<span class="s0">var </span><span class="s1">listener </span><span class="s2">= </span><span class="s0">function </span><span class="s2">(</span><span class="s1">event</span><span class="s2">) {</span>
+  <span class="s1">run</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s1">event</span><span class="s2">.</span><span class="s1">data</span><span class="s2">);</span>
+<span class="s2">};</span>
+<span class="s5">// Node.js 0.9+ &amp; IE10+ has setImmediate, otherwise:</span>
+<span class="s0">if </span><span class="s2">(!</span><span class="s1">setTask </span><span class="s2">|| !</span><span class="s1">clearTask</span><span class="s2">) {</span>
+  <span class="s1">setTask </span><span class="s2">= </span><span class="s0">function </span><span class="s1">setImmediate</span><span class="s2">(</span><span class="s1">fn</span><span class="s2">) {</span>
+    <span class="s0">var </span><span class="s1">args </span><span class="s2">= [];</span>
+    <span class="s0">var </span><span class="s1">i </span><span class="s2">= </span><span class="s4">1</span><span class="s2">;</span>
+    <span class="s0">while </span><span class="s2">(</span><span class="s1">arguments</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s1">i</span><span class="s2">) </span><span class="s1">args</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">arguments</span><span class="s2">[</span><span class="s1">i</span><span class="s2">++]);</span>
+    <span class="s1">queue</span><span class="s2">[++</span><span class="s1">counter</span><span class="s2">] = </span><span class="s0">function </span><span class="s2">() {</span>
+      <span class="s5">// eslint-disable-next-line no-new-func</span>
+      <span class="s1">invoke</span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">fn </span><span class="s2">== </span><span class="s3">'function' </span><span class="s2">? </span><span class="s1">fn </span><span class="s2">: </span><span class="s1">Function</span><span class="s2">(</span><span class="s1">fn</span><span class="s2">), </span><span class="s1">args</span><span class="s2">);</span>
+    <span class="s2">};</span>
+    <span class="s1">defer</span><span class="s2">(</span><span class="s1">counter</span><span class="s2">);</span>
+    <span class="s0">return </span><span class="s1">counter</span><span class="s2">;</span>
+  <span class="s2">};</span>
+  <span class="s1">clearTask </span><span class="s2">= </span><span class="s0">function </span><span class="s1">clearImmediate</span><span class="s2">(</span><span class="s1">id</span><span class="s2">) {</span>
+    <span class="s0">delete </span><span class="s1">queue</span><span class="s2">[</span><span class="s1">id</span><span class="s2">];</span>
+  <span class="s2">};</span>
+  <span class="s5">// Node.js 0.8-</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./_cof'</span><span class="s2">)(</span><span class="s1">process</span><span class="s2">) == </span><span class="s3">'process'</span><span class="s2">) {</span>
+    <span class="s1">defer </span><span class="s2">= </span><span class="s0">function </span><span class="s2">(</span><span class="s1">id</span><span class="s2">) {</span>
+      <span class="s1">process</span><span class="s2">.</span><span class="s1">nextTick</span><span class="s2">(</span><span class="s1">ctx</span><span class="s2">(</span><span class="s1">run</span><span class="s2">, </span><span class="s1">id</span><span class="s2">, </span><span class="s4">1</span><span class="s2">));</span>
+    <span class="s2">};</span>
+  <span class="s5">// Sphere (JS game engine) Dispatch API</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">Dispatch </span><span class="s2">&amp;&amp; </span><span class="s1">Dispatch</span><span class="s2">.</span><span class="s1">now</span><span class="s2">) {</span>
+    <span class="s1">defer </span><span class="s2">= </span><span class="s0">function </span><span class="s2">(</span><span class="s1">id</span><span class="s2">) {</span>
+      <span class="s1">Dispatch</span><span class="s2">.</span><span class="s1">now</span><span class="s2">(</span><span class="s1">ctx</span><span class="s2">(</span><span class="s1">run</span><span class="s2">, </span><span class="s1">id</span><span class="s2">, </span><span class="s4">1</span><span class="s2">));</span>
+    <span class="s2">};</span>
+  <span class="s5">// Browsers with MessageChannel, includes WebWorkers</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">MessageChannel</span><span class="s2">) {</span>
+    <span class="s1">channel </span><span class="s2">= </span><span class="s0">new </span><span class="s1">MessageChannel</span><span class="s2">();</span>
+    <span class="s1">port </span><span class="s2">= </span><span class="s1">channel</span><span class="s2">.</span><span class="s1">port2</span><span class="s2">;</span>
+    <span class="s1">channel</span><span class="s2">.</span><span class="s1">port1</span><span class="s2">.</span><span class="s1">onmessage </span><span class="s2">= </span><span class="s1">listener</span><span class="s2">;</span>
+    <span class="s1">defer </span><span class="s2">= </span><span class="s1">ctx</span><span class="s2">(</span><span class="s1">port</span><span class="s2">.</span><span class="s1">postMessage</span><span class="s2">, </span><span class="s1">port</span><span class="s2">, </span><span class="s4">1</span><span class="s2">);</span>
+  <span class="s5">// Browsers with postMessage, skip WebWorkers</span>
+  <span class="s5">// IE8 has postMessage, but it's sync &amp; typeof its postMessage is 'object'</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">global</span><span class="s2">.</span><span class="s1">addEventListener </span><span class="s2">&amp;&amp; </span><span class="s0">typeof </span><span class="s1">postMessage </span><span class="s2">== </span><span class="s3">'function' </span><span class="s2">&amp;&amp; !</span><span class="s1">global</span><span class="s2">.</span><span class="s1">importScripts</span><span class="s2">) {</span>
+    <span class="s1">defer </span><span class="s2">= </span><span class="s0">function </span><span class="s2">(</span><span class="s1">id</span><span class="s2">) {</span>
+      <span class="s1">global</span><span class="s2">.</span><span class="s1">postMessage</span><span class="s2">(</span><span class="s1">id </span><span class="s2">+ </span><span class="s3">''</span><span class="s2">, </span><span class="s3">'*'</span><span class="s2">);</span>
+    <span class="s2">};</span>
+    <span class="s1">global</span><span class="s2">.</span><span class="s1">addEventListener</span><span class="s2">(</span><span class="s3">'message'</span><span class="s2">, </span><span class="s1">listener</span><span class="s2">, </span><span class="s0">false</span><span class="s2">);</span>
+  <span class="s5">// IE8-</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">ONREADYSTATECHANGE </span><span class="s0">in </span><span class="s1">cel</span><span class="s2">(</span><span class="s3">'script'</span><span class="s2">)) {</span>
+    <span class="s1">defer </span><span class="s2">= </span><span class="s0">function </span><span class="s2">(</span><span class="s1">id</span><span class="s2">) {</span>
+      <span class="s1">html</span><span class="s2">.</span><span class="s1">appendChild</span><span class="s2">(</span><span class="s1">cel</span><span class="s2">(</span><span class="s3">'script'</span><span class="s2">))[</span><span class="s1">ONREADYSTATECHANGE</span><span class="s2">] = </span><span class="s0">function </span><span class="s2">() {</span>
+        <span class="s1">html</span><span class="s2">.</span><span class="s1">removeChild</span><span class="s2">(</span><span class="s0">this</span><span class="s2">);</span>
+        <span class="s1">run</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s1">id</span><span class="s2">);</span>
+      <span class="s2">};</span>
+    <span class="s2">};</span>
+  <span class="s5">// Rest old browsers</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s1">defer </span><span class="s2">= </span><span class="s0">function </span><span class="s2">(</span><span class="s1">id</span><span class="s2">) {</span>
+      <span class="s1">setTimeout</span><span class="s2">(</span><span class="s1">ctx</span><span class="s2">(</span><span class="s1">run</span><span class="s2">, </span><span class="s1">id</span><span class="s2">, </span><span class="s4">1</span><span class="s2">), </span><span class="s4">0</span><span class="s2">);</span>
+    <span class="s2">};</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= {</span>
+  <span class="s1">set</span><span class="s2">: </span><span class="s1">setTask</span><span class="s2">,</span>
+  <span class="s1">clear</span><span class="s2">: </span><span class="s1">clearTask</span>
+<span class="s2">};</span>
+</pre>
+</body>
+</html>

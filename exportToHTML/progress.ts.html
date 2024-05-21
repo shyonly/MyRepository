@@ -1,0 +1,98 @@
+<html>
+<head>
+<title>progress.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #67a37c; font-style: italic;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #bcbec4;}
+.s5 { color: #6aab73;}
+.s6 { color: #2aacb8;}
+.s7 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+progress.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* </span><span class="s1">@description </span><span class="s0">上传进度条</span>
+ <span class="s0">* </span><span class="s1">@author </span><span class="s0">wangfupeng</span>
+ <span class="s0">*/</span>
+
+<span class="s3">import </span><span class="s2">$</span><span class="s4">, { </span><span class="s2">DomElement </span><span class="s4">} </span><span class="s2">from </span><span class="s5">'../../utils/dom-core'</span>
+<span class="s3">import </span><span class="s2">Editor from </span><span class="s5">'../../editor/index'</span>
+
+<span class="s3">class </span><span class="s2">Progress </span><span class="s4">{</span>
+    <span class="s3">private </span><span class="s2">editor</span><span class="s4">: </span><span class="s2">Editor</span>
+    <span class="s3">private </span><span class="s2">$bar</span><span class="s4">: </span><span class="s2">DomElement</span>
+    <span class="s3">private </span><span class="s2">$textContainer</span><span class="s4">: </span><span class="s2">DomElement</span>
+    <span class="s3">private </span><span class="s2">isShow</span><span class="s4">: </span><span class="s2">boolean</span>
+    <span class="s3">private </span><span class="s2">time</span><span class="s4">: </span><span class="s2">number</span>
+    <span class="s3">private </span><span class="s2">timeoutId</span><span class="s4">: </span><span class="s2">number</span>
+
+    <span class="s2">constructor</span><span class="s4">(</span><span class="s2">editor</span><span class="s4">: </span><span class="s2">Editor</span><span class="s4">) {</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">editor </span><span class="s4">= </span><span class="s2">editor</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">$textContainer </span><span class="s4">= </span><span class="s2">editor</span><span class="s4">.</span><span class="s2">$textContainerElem</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">$bar </span><span class="s4">= </span><span class="s2">$</span><span class="s4">(</span><span class="s5">'&lt;div class=&quot;w-e-progress&quot;&gt;&lt;/div&gt;'</span><span class="s4">)</span>
+
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">isShow </span><span class="s4">= </span><span class="s3">false</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">time </span><span class="s4">= </span><span class="s6">0</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">timeoutId </span><span class="s4">= </span><span class="s6">0</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 显示进度条</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">progress 进度百分比</span>
+     <span class="s0">*/</span>
+    <span class="s3">public </span><span class="s2">show</span><span class="s4">(</span><span class="s2">progress</span><span class="s4">: </span><span class="s2">number</span><span class="s4">): </span><span class="s3">void </span><span class="s4">{</span>
+        <span class="s7">// 不要重新显示</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s3">this</span><span class="s4">.</span><span class="s2">isShow</span><span class="s4">) {</span>
+            <span class="s3">return</span>
+        <span class="s4">}</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">isShow </span><span class="s4">= </span><span class="s3">true</span>
+
+        <span class="s7">// 渲染 $bar</span>
+        <span class="s3">const </span><span class="s2">$bar </span><span class="s4">= </span><span class="s3">this</span><span class="s4">.</span><span class="s2">$bar</span>
+        <span class="s3">const </span><span class="s2">$textContainer </span><span class="s4">= </span><span class="s3">this</span><span class="s4">.</span><span class="s2">$textContainer</span>
+        <span class="s2">$textContainer</span><span class="s4">.</span><span class="s2">append</span><span class="s4">(</span><span class="s2">$bar</span><span class="s4">)</span>
+
+        <span class="s7">// 改变进度条（防抖，100ms 渲染一次）</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">Date</span><span class="s4">.</span><span class="s2">now</span><span class="s4">() - </span><span class="s3">this</span><span class="s4">.</span><span class="s2">time </span><span class="s4">&gt; </span><span class="s6">100</span><span class="s4">) {</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">progress </span><span class="s4">&lt;= </span><span class="s6">1</span><span class="s4">) {</span>
+                <span class="s2">$bar</span><span class="s4">.</span><span class="s2">css</span><span class="s4">(</span><span class="s5">'width'</span><span class="s4">, </span><span class="s2">progress </span><span class="s4">* </span><span class="s6">100 </span><span class="s4">+ </span><span class="s5">'%'</span><span class="s4">)</span>
+                <span class="s3">this</span><span class="s4">.</span><span class="s2">time </span><span class="s4">= </span><span class="s2">Date</span><span class="s4">.</span><span class="s2">now</span><span class="s4">()</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+
+        <span class="s7">// 500ms 之后隐藏</span>
+        <span class="s3">let </span><span class="s2">timeoutId </span><span class="s4">= </span><span class="s3">this</span><span class="s4">.</span><span class="s2">timeoutId</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">timeoutId</span><span class="s4">) {</span>
+            <span class="s2">clearTimeout</span><span class="s4">(</span><span class="s2">timeoutId</span><span class="s4">)</span>
+        <span class="s4">}</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">timeoutId </span><span class="s4">= </span><span class="s2">window</span><span class="s4">.</span><span class="s2">setTimeout</span><span class="s4">(() =&gt; {</span>
+            <span class="s3">this</span><span class="s4">.</span><span class="s2">hide</span><span class="s4">()</span>
+        <span class="s4">}, </span><span class="s6">500</span><span class="s4">)</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 隐藏</span>
+     <span class="s0">*/</span>
+    <span class="s3">private </span><span class="s2">hide</span><span class="s4">() {</span>
+        <span class="s3">const </span><span class="s2">$bar </span><span class="s4">= </span><span class="s3">this</span><span class="s4">.</span><span class="s2">$bar</span>
+        <span class="s2">$bar</span><span class="s4">.</span><span class="s2">remove</span><span class="s4">()</span>
+
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">isShow </span><span class="s4">= </span><span class="s3">false</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">time </span><span class="s4">= </span><span class="s6">0</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">timeoutId </span><span class="s4">= </span><span class="s6">0</span>
+    <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s3">export default </span><span class="s2">Progress</span>
+</pre>
+</body>
+</html>

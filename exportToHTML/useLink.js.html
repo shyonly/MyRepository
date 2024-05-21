@@ -1,0 +1,135 @@
+<html>
+<head>
+<title>useLink.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+useLink.js</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">computed</span><span class="s2">, </span><span class="s1">unref </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'vue'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">guardEvent </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../components/link'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">throwNoCurrentInstance </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./utils'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">useRouter</span><span class="s2">, </span><span class="s1">useRoute </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./globals'</span>
+
+<span class="s0">function </span><span class="s1">includesParams </span><span class="s2">(</span><span class="s1">outer</span><span class="s2">, </span><span class="s1">inner</span><span class="s2">) {</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">inner</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">innerValue </span><span class="s2">= </span><span class="s1">inner</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+    <span class="s0">const </span><span class="s1">outerValue </span><span class="s2">= </span><span class="s1">outer</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">innerValue </span><span class="s2">=== </span><span class="s3">'string'</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">innerValue </span><span class="s2">!== </span><span class="s1">outerValue</span><span class="s2">) </span><span class="s0">return false</span>
+    <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+      <span class="s0">if </span><span class="s2">(</span>
+        <span class="s2">!</span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">outerValue</span><span class="s2">) ||</span>
+        <span class="s1">outerValue</span><span class="s2">.</span><span class="s1">length </span><span class="s2">!== </span><span class="s1">innerValue</span><span class="s2">.</span><span class="s1">length </span><span class="s2">||</span>
+        <span class="s1">innerValue</span><span class="s2">.</span><span class="s1">some</span><span class="s2">((</span><span class="s1">value</span><span class="s2">, </span><span class="s1">i</span><span class="s2">) =&gt; </span><span class="s1">value </span><span class="s2">!== </span><span class="s1">outerValue</span><span class="s2">[</span><span class="s1">i</span><span class="s2">])</span>
+      <span class="s2">) {</span>
+        <span class="s0">return false</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+  <span class="s0">return true</span>
+<span class="s2">}</span>
+
+<span class="s4">// helpers from vue router 4</span>
+
+<span class="s0">function </span><span class="s1">isSameRouteLocationParamsValue </span><span class="s2">(</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">) {</span>
+  <span class="s0">return </span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">a</span><span class="s2">)</span>
+    <span class="s2">? </span><span class="s1">isEquivalentArray</span><span class="s2">(</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">)</span>
+    <span class="s2">: </span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">b</span><span class="s2">)</span>
+      <span class="s2">? </span><span class="s1">isEquivalentArray</span><span class="s2">(</span><span class="s1">b</span><span class="s2">, </span><span class="s1">a</span><span class="s2">)</span>
+      <span class="s2">: </span><span class="s1">a </span><span class="s2">=== </span><span class="s1">b</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">isEquivalentArray </span><span class="s2">(</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">) {</span>
+  <span class="s0">return </span><span class="s1">Array</span><span class="s2">.</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">b</span><span class="s2">)</span>
+    <span class="s2">? </span><span class="s1">a</span><span class="s2">.</span><span class="s1">length </span><span class="s2">=== </span><span class="s1">b</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&amp;&amp; </span><span class="s1">a</span><span class="s2">.</span><span class="s1">every</span><span class="s2">((</span><span class="s1">value</span><span class="s2">, </span><span class="s1">i</span><span class="s2">) =&gt; </span><span class="s1">value </span><span class="s2">=== </span><span class="s1">b</span><span class="s2">[</span><span class="s1">i</span><span class="s2">])</span>
+    <span class="s2">: </span><span class="s1">a</span><span class="s2">.</span><span class="s1">length </span><span class="s2">=== </span><span class="s5">1 </span><span class="s2">&amp;&amp; </span><span class="s1">a</span><span class="s2">[</span><span class="s5">0</span><span class="s2">] === </span><span class="s1">b</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">isSameRouteLocationParams </span><span class="s2">(</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">a</span><span class="s2">).</span><span class="s1">length </span><span class="s2">!== </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">b</span><span class="s2">).</span><span class="s1">length</span><span class="s2">) </span><span class="s0">return false</span>
+
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">a</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">isSameRouteLocationParamsValue</span><span class="s2">(</span><span class="s1">a</span><span class="s2">[</span><span class="s1">key</span><span class="s2">], </span><span class="s1">b</span><span class="s2">[</span><span class="s1">key</span><span class="s2">])) </span><span class="s0">return false</span>
+  <span class="s2">}</span>
+
+  <span class="s0">return true</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">useLink </span><span class="s2">(</span><span class="s1">props</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">NODE_ENV </span><span class="s2">!== </span><span class="s3">'production'</span><span class="s2">) {</span>
+    <span class="s1">throwNoCurrentInstance</span><span class="s2">(</span><span class="s3">'useLink'</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s0">const </span><span class="s1">router </span><span class="s2">= </span><span class="s1">useRouter</span><span class="s2">()</span>
+  <span class="s0">const </span><span class="s1">currentRoute </span><span class="s2">= </span><span class="s1">useRoute</span><span class="s2">()</span>
+
+  <span class="s0">const </span><span class="s1">resolvedRoute </span><span class="s2">= </span><span class="s1">computed</span><span class="s2">(() =&gt; </span><span class="s1">router</span><span class="s2">.</span><span class="s1">resolve</span><span class="s2">(</span><span class="s1">unref</span><span class="s2">(</span><span class="s1">props</span><span class="s2">.</span><span class="s1">to</span><span class="s2">), </span><span class="s1">currentRoute</span><span class="s2">))</span>
+
+  <span class="s0">const </span><span class="s1">activeRecordIndex </span><span class="s2">= </span><span class="s1">computed</span><span class="s2">(() =&gt; {</span>
+    <span class="s0">const </span><span class="s1">route </span><span class="s2">= </span><span class="s1">resolvedRoute</span><span class="s2">.</span><span class="s1">value</span><span class="s2">.</span><span class="s1">route</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">matched </span><span class="s2">} = </span><span class="s1">route</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">length </span><span class="s2">} = </span><span class="s1">matched</span>
+    <span class="s0">const </span><span class="s1">routeMatched </span><span class="s2">= </span><span class="s1">matched</span><span class="s2">[</span><span class="s1">length </span><span class="s2">- </span><span class="s5">1</span><span class="s2">]</span>
+    <span class="s0">const </span><span class="s1">currentMatched </span><span class="s2">= </span><span class="s1">currentRoute</span><span class="s2">.</span><span class="s1">matched</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">routeMatched </span><span class="s2">|| !</span><span class="s1">currentMatched</span><span class="s2">.</span><span class="s1">length</span><span class="s2">) </span><span class="s0">return </span><span class="s2">-</span><span class="s5">1</span>
+    <span class="s0">const </span><span class="s1">index </span><span class="s2">= </span><span class="s1">currentMatched</span><span class="s2">.</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s1">routeMatched</span><span class="s2">)</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">index </span><span class="s2">&gt; -</span><span class="s5">1</span><span class="s2">) </span><span class="s0">return </span><span class="s1">index</span>
+    <span class="s4">// possible parent record</span>
+    <span class="s0">const </span><span class="s1">parentRecord </span><span class="s2">= </span><span class="s1">currentMatched</span><span class="s2">[</span><span class="s1">currentMatched</span><span class="s2">.</span><span class="s1">length </span><span class="s2">- </span><span class="s5">2</span><span class="s2">]</span>
+
+    <span class="s0">return </span><span class="s2">(</span>
+      <span class="s4">// we are dealing with nested routes</span>
+      <span class="s1">length </span><span class="s2">&gt; </span><span class="s5">1 </span><span class="s2">&amp;&amp;</span>
+        <span class="s4">// if the parent and matched route have the same path, this link is</span>
+        <span class="s4">// referring to the empty child. Or we currently are on a different</span>
+        <span class="s4">// child of the same parent</span>
+        <span class="s1">parentRecord </span><span class="s2">&amp;&amp; </span><span class="s1">parentRecord </span><span class="s2">=== </span><span class="s1">routeMatched</span><span class="s2">.</span><span class="s1">parent</span>
+    <span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s0">const </span><span class="s1">isActive </span><span class="s2">= </span><span class="s1">computed</span><span class="s2">(</span>
+    <span class="s2">() =&gt;</span>
+      <span class="s1">activeRecordIndex</span><span class="s2">.</span><span class="s1">value </span><span class="s2">&gt; -</span><span class="s5">1 </span><span class="s2">&amp;&amp;</span>
+      <span class="s1">includesParams</span><span class="s2">(</span><span class="s1">currentRoute</span><span class="s2">.</span><span class="s1">params</span><span class="s2">, </span><span class="s1">resolvedRoute</span><span class="s2">.</span><span class="s1">value</span><span class="s2">.</span><span class="s1">route</span><span class="s2">.</span><span class="s1">params</span><span class="s2">)</span>
+  <span class="s2">)</span>
+  <span class="s0">const </span><span class="s1">isExactActive </span><span class="s2">= </span><span class="s1">computed</span><span class="s2">(</span>
+    <span class="s2">() =&gt;</span>
+      <span class="s1">activeRecordIndex</span><span class="s2">.</span><span class="s1">value </span><span class="s2">&gt; -</span><span class="s5">1 </span><span class="s2">&amp;&amp;</span>
+      <span class="s1">activeRecordIndex</span><span class="s2">.</span><span class="s1">value </span><span class="s2">=== </span><span class="s1">currentRoute</span><span class="s2">.</span><span class="s1">matched</span><span class="s2">.</span><span class="s1">length </span><span class="s2">- </span><span class="s5">1 </span><span class="s2">&amp;&amp;</span>
+      <span class="s1">isSameRouteLocationParams</span><span class="s2">(</span><span class="s1">currentRoute</span><span class="s2">.</span><span class="s1">params</span><span class="s2">, </span><span class="s1">resolvedRoute</span><span class="s2">.</span><span class="s1">value</span><span class="s2">.</span><span class="s1">route</span><span class="s2">.</span><span class="s1">params</span><span class="s2">)</span>
+  <span class="s2">)</span>
+
+  <span class="s0">const </span><span class="s1">navigate </span><span class="s2">= </span><span class="s1">e </span><span class="s2">=&gt; {</span>
+    <span class="s0">const </span><span class="s1">href </span><span class="s2">= </span><span class="s1">resolvedRoute</span><span class="s2">.</span><span class="s1">value</span><span class="s2">.</span><span class="s1">route</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">guardEvent</span><span class="s2">(</span><span class="s1">e</span><span class="s2">)) {</span>
+      <span class="s0">return </span><span class="s1">props</span><span class="s2">.</span><span class="s1">replace</span>
+        <span class="s2">? </span><span class="s1">router</span><span class="s2">.</span><span class="s1">replace</span><span class="s2">(</span><span class="s1">href</span><span class="s2">)</span>
+        <span class="s2">: </span><span class="s1">router</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">href</span><span class="s2">)</span>
+    <span class="s2">}</span>
+    <span class="s0">return </span><span class="s1">Promise</span><span class="s2">.</span><span class="s1">resolve</span><span class="s2">()</span>
+  <span class="s2">}</span>
+
+  <span class="s0">return </span><span class="s2">{</span>
+    <span class="s1">href</span><span class="s2">: </span><span class="s1">computed</span><span class="s2">(() =&gt; </span><span class="s1">resolvedRoute</span><span class="s2">.</span><span class="s1">value</span><span class="s2">.</span><span class="s1">href</span><span class="s2">),</span>
+    <span class="s1">route</span><span class="s2">: </span><span class="s1">computed</span><span class="s2">(() =&gt; </span><span class="s1">resolvedRoute</span><span class="s2">.</span><span class="s1">value</span><span class="s2">.</span><span class="s1">route</span><span class="s2">),</span>
+    <span class="s1">isExactActive</span><span class="s2">,</span>
+    <span class="s1">isActive</span><span class="s2">,</span>
+    <span class="s1">navigate</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

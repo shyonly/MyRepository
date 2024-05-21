@@ -1,0 +1,273 @@
+<html>
+<head>
+<title>deceiver.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #42c3d4;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+deceiver.js</font>
+</center></td></tr></table>
+<pre><span class="s0">var </span><span class="s1">assert </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'assert'</span><span class="s2">);</span>
+<span class="s0">var </span><span class="s1">util </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'util'</span><span class="s2">);</span>
+
+<span class="s0">var </span><span class="s1">Buffer </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'buffer'</span><span class="s2">).</span><span class="s1">Buffer</span><span class="s2">;</span>
+
+<span class="s4">// Node.js version</span>
+<span class="s0">var </span><span class="s1">mode </span><span class="s2">= </span><span class="s5">/^v0\.8\./</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">version</span><span class="s2">) ? </span><span class="s3">'rusty' </span><span class="s2">:</span>
+           <span class="s5">/^v0\.(9|10)\./</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">version</span><span class="s2">) ? </span><span class="s3">'old' </span><span class="s2">:</span>
+           <span class="s5">/^v0\.12\./</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">version</span><span class="s2">) ? </span><span class="s3">'normal' </span><span class="s2">:</span>
+           <span class="s3">'modern'</span><span class="s2">;</span>
+
+<span class="s0">var </span><span class="s1">HTTPParser</span><span class="s2">;</span>
+
+<span class="s0">var </span><span class="s1">methods</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">reverseMethods</span><span class="s2">;</span>
+
+<span class="s0">var </span><span class="s1">kOnHeaders</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">kOnHeadersComplete</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">kOnMessageComplete</span><span class="s2">;</span>
+<span class="s0">var </span><span class="s1">kOnBody</span><span class="s2">;</span>
+<span class="s0">if </span><span class="s2">(</span><span class="s1">mode </span><span class="s2">=== </span><span class="s3">'normal' </span><span class="s2">|| </span><span class="s1">mode </span><span class="s2">=== </span><span class="s3">'modern'</span><span class="s2">) {</span>
+  <span class="s1">HTTPParser </span><span class="s2">= </span><span class="s1">process</span><span class="s2">.</span><span class="s1">binding</span><span class="s2">(</span><span class="s3">'http_parser'</span><span class="s2">).</span><span class="s1">HTTPParser</span><span class="s2">;</span>
+  <span class="s1">methods </span><span class="s2">= </span><span class="s1">HTTPParser</span><span class="s2">.</span><span class="s1">methods</span><span class="s2">;</span>
+
+  <span class="s4">// v6</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">methods</span><span class="s2">)</span>
+    <span class="s1">methods </span><span class="s2">= </span><span class="s1">process</span><span class="s2">.</span><span class="s1">binding</span><span class="s2">(</span><span class="s3">'http_parser'</span><span class="s2">).</span><span class="s1">methods</span><span class="s2">;</span>
+
+  <span class="s1">reverseMethods </span><span class="s2">= {};</span>
+
+  <span class="s1">methods</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s0">function</span><span class="s2">(</span><span class="s1">method</span><span class="s2">, </span><span class="s1">index</span><span class="s2">) {</span>
+    <span class="s1">reverseMethods</span><span class="s2">[</span><span class="s1">method</span><span class="s2">] = </span><span class="s1">index</span><span class="s2">;</span>
+  <span class="s2">});</span>
+
+  <span class="s1">kOnHeaders </span><span class="s2">= </span><span class="s1">HTTPParser</span><span class="s2">.</span><span class="s1">kOnHeaders </span><span class="s2">| </span><span class="s6">0</span><span class="s2">;</span>
+  <span class="s1">kOnHeadersComplete </span><span class="s2">= </span><span class="s1">HTTPParser</span><span class="s2">.</span><span class="s1">kOnHeadersComplete </span><span class="s2">| </span><span class="s6">0</span><span class="s2">;</span>
+  <span class="s1">kOnMessageComplete </span><span class="s2">= </span><span class="s1">HTTPParser</span><span class="s2">.</span><span class="s1">kOnMessageComplete </span><span class="s2">| </span><span class="s6">0</span><span class="s2">;</span>
+  <span class="s1">kOnBody </span><span class="s2">= </span><span class="s1">HTTPParser</span><span class="s2">.</span><span class="s1">kOnBody </span><span class="s2">| </span><span class="s6">0</span><span class="s2">;</span>
+<span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+  <span class="s1">kOnHeaders </span><span class="s2">= </span><span class="s3">'onHeaders'</span><span class="s2">;</span>
+  <span class="s1">kOnHeadersComplete </span><span class="s2">= </span><span class="s3">'onHeadersComplete'</span><span class="s2">;</span>
+  <span class="s1">kOnMessageComplete </span><span class="s2">= </span><span class="s3">'onMessageComplete'</span><span class="s2">;</span>
+  <span class="s1">kOnBody </span><span class="s2">= </span><span class="s3">'onBody'</span><span class="s2">;</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">Deceiver</span><span class="s2">(</span><span class="s1">socket</span><span class="s2">, </span><span class="s1">options</span><span class="s2">) {</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">socket </span><span class="s2">= </span><span class="s1">socket</span><span class="s2">;</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">options </span><span class="s2">= </span><span class="s1">options </span><span class="s2">|| {};</span>
+  <span class="s0">this</span><span class="s2">.</span><span class="s1">isClient </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">isClient</span><span class="s2">;</span>
+<span class="s2">}</span>
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= </span><span class="s1">Deceiver</span><span class="s2">;</span>
+
+<span class="s1">Deceiver</span><span class="s2">.</span><span class="s1">create </span><span class="s2">= </span><span class="s0">function </span><span class="s1">create</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">, </span><span class="s1">options</span><span class="s2">) {</span>
+  <span class="s0">return new </span><span class="s1">Deceiver</span><span class="s2">(</span><span class="s1">stream</span><span class="s2">, </span><span class="s1">options</span><span class="s2">);</span>
+<span class="s2">};</span>
+
+<span class="s1">Deceiver</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">_toHeaderList </span><span class="s2">= </span><span class="s0">function </span><span class="s1">_toHeaderList</span><span class="s2">(</span><span class="s1">object</span><span class="s2">) {</span>
+  <span class="s0">var </span><span class="s1">out </span><span class="s2">= [];</span>
+  <span class="s0">var </span><span class="s1">keys </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">object</span><span class="s2">);</span>
+
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">var </span><span class="s1">i </span><span class="s2">= </span><span class="s6">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">keys</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++)</span>
+    <span class="s1">out</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">keys</span><span class="s2">[</span><span class="s1">i</span><span class="s2">], </span><span class="s1">object</span><span class="s2">[</span><span class="s1">keys</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]]);</span>
+
+  <span class="s0">return </span><span class="s1">out</span><span class="s2">;</span>
+<span class="s2">};</span>
+
+<span class="s1">Deceiver</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">_isUpgrade </span><span class="s2">= </span><span class="s0">function </span><span class="s1">_isUpgrade</span><span class="s2">(</span><span class="s1">request</span><span class="s2">) {</span>
+  <span class="s0">return </span><span class="s1">request</span><span class="s2">.</span><span class="s1">method </span><span class="s2">=== </span><span class="s3">'CONNECT' </span><span class="s2">||</span>
+         <span class="s1">request</span><span class="s2">.</span><span class="s1">headers</span><span class="s2">.</span><span class="s1">upgrade </span><span class="s2">||</span>
+         <span class="s1">request</span><span class="s2">.</span><span class="s1">headers</span><span class="s2">.</span><span class="s1">connection </span><span class="s2">&amp;&amp;</span>
+            <span class="s5">/(^|\W)upgrade(\W|$)/i</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">request</span><span class="s2">.</span><span class="s1">headers</span><span class="s2">.</span><span class="s1">connection</span><span class="s2">);</span>
+<span class="s2">};</span>
+
+<span class="s4">// TODO(indutny): support CONNECT</span>
+<span class="s0">if </span><span class="s2">(</span><span class="s1">mode </span><span class="s2">=== </span><span class="s3">'modern'</span><span class="s2">) {</span>
+  <span class="s4">/* 
+  function parserOnHeadersComplete(versionMajor, versionMinor, headers, method, 
+                                   url, statusCode, statusMessage, upgrade, 
+                                   shouldKeepAlive) { 
+   */</span>
+  <span class="s1">Deceiver</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">emitRequest </span><span class="s2">= </span><span class="s0">function </span><span class="s1">emitRequest</span><span class="s2">(</span><span class="s1">request</span><span class="s2">) {</span>
+    <span class="s0">var </span><span class="s1">parser </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">socket</span><span class="s2">.</span><span class="s1">parser</span><span class="s2">;</span>
+    <span class="s1">assert</span><span class="s2">(</span><span class="s1">parser</span><span class="s2">, </span><span class="s3">'No parser present'</span><span class="s2">);</span>
+
+    <span class="s1">parser</span><span class="s2">.</span><span class="s1">execute </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+
+    <span class="s0">var </span><span class="s1">self </span><span class="s2">= </span><span class="s0">this</span><span class="s2">;</span>
+    <span class="s0">var </span><span class="s1">method </span><span class="s2">= </span><span class="s1">reverseMethods</span><span class="s2">[</span><span class="s1">request</span><span class="s2">.</span><span class="s1">method</span><span class="s2">];</span>
+    <span class="s1">parser</span><span class="s2">.</span><span class="s1">execute </span><span class="s2">= </span><span class="s0">function </span><span class="s1">execute</span><span class="s2">() {</span>
+      <span class="s1">self</span><span class="s2">.</span><span class="s1">_skipExecute</span><span class="s2">(</span><span class="s0">this</span><span class="s2">);</span>
+      <span class="s0">this</span><span class="s2">[</span><span class="s1">kOnHeadersComplete</span><span class="s2">](</span><span class="s6">1</span><span class="s2">,</span>
+                               <span class="s6">1</span><span class="s2">,</span>
+                               <span class="s1">self</span><span class="s2">.</span><span class="s1">_toHeaderList</span><span class="s2">(</span><span class="s1">request</span><span class="s2">.</span><span class="s1">headers</span><span class="s2">),</span>
+                               <span class="s1">method</span><span class="s2">,</span>
+                               <span class="s1">request</span><span class="s2">.</span><span class="s1">path</span><span class="s2">,</span>
+                               <span class="s6">0</span><span class="s2">,</span>
+                               <span class="s3">''</span><span class="s2">,</span>
+                               <span class="s1">self</span><span class="s2">.</span><span class="s1">_isUpgrade</span><span class="s2">(</span><span class="s1">request</span><span class="s2">),</span>
+                               <span class="s0">true</span><span class="s2">);</span>
+      <span class="s0">return </span><span class="s6">0</span><span class="s2">;</span>
+    <span class="s2">};</span>
+
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">_emitEmpty</span><span class="s2">();</span>
+  <span class="s2">};</span>
+
+  <span class="s1">Deceiver</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">emitResponse </span><span class="s2">= </span><span class="s0">function </span><span class="s1">emitResponse</span><span class="s2">(</span><span class="s1">response</span><span class="s2">) {</span>
+    <span class="s0">var </span><span class="s1">parser </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">socket</span><span class="s2">.</span><span class="s1">parser</span><span class="s2">;</span>
+    <span class="s1">assert</span><span class="s2">(</span><span class="s1">parser</span><span class="s2">, </span><span class="s3">'No parser present'</span><span class="s2">);</span>
+
+    <span class="s1">parser</span><span class="s2">.</span><span class="s1">execute </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+
+    <span class="s0">var </span><span class="s1">self </span><span class="s2">= </span><span class="s0">this</span><span class="s2">;</span>
+    <span class="s1">parser</span><span class="s2">.</span><span class="s1">execute </span><span class="s2">= </span><span class="s0">function </span><span class="s1">execute</span><span class="s2">() {</span>
+      <span class="s1">self</span><span class="s2">.</span><span class="s1">_skipExecute</span><span class="s2">(</span><span class="s0">this</span><span class="s2">);</span>
+      <span class="s0">this</span><span class="s2">[</span><span class="s1">kOnHeadersComplete</span><span class="s2">](</span><span class="s6">1</span><span class="s2">,</span>
+                               <span class="s6">1</span><span class="s2">,</span>
+                               <span class="s1">self</span><span class="s2">.</span><span class="s1">_toHeaderList</span><span class="s2">(</span><span class="s1">response</span><span class="s2">.</span><span class="s1">headers</span><span class="s2">),</span>
+                               <span class="s1">response</span><span class="s2">.</span><span class="s1">path</span><span class="s2">,</span>
+                               <span class="s1">response</span><span class="s2">.</span><span class="s1">code</span><span class="s2">,</span>
+                               <span class="s1">response</span><span class="s2">.</span><span class="s1">status</span><span class="s2">,</span>
+                               <span class="s1">response</span><span class="s2">.</span><span class="s1">reason </span><span class="s2">|| </span><span class="s3">''</span><span class="s2">,</span>
+                               <span class="s1">self</span><span class="s2">.</span><span class="s1">_isUpgrade</span><span class="s2">(</span><span class="s1">response</span><span class="s2">),</span>
+                               <span class="s0">true</span><span class="s2">);</span>
+      <span class="s0">return </span><span class="s6">0</span><span class="s2">;</span>
+    <span class="s2">};</span>
+
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">_emitEmpty</span><span class="s2">();</span>
+  <span class="s2">};</span>
+<span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+  <span class="s4">/* 
+    `function parserOnHeadersComplete(info) {` 
+ 
+    info = { .versionMajor, .versionMinor, .url, .headers, .method, 
+             .statusCode, .statusMessage, .upgrade, .shouldKeepAlive } 
+   */</span>
+  <span class="s1">Deceiver</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">emitRequest </span><span class="s2">= </span><span class="s0">function </span><span class="s1">emitRequest</span><span class="s2">(</span><span class="s1">request</span><span class="s2">) {</span>
+    <span class="s0">var </span><span class="s1">parser </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">socket</span><span class="s2">.</span><span class="s1">parser</span><span class="s2">;</span>
+    <span class="s1">assert</span><span class="s2">(</span><span class="s1">parser</span><span class="s2">, </span><span class="s3">'No parser present'</span><span class="s2">);</span>
+
+    <span class="s0">var </span><span class="s1">method </span><span class="s2">= </span><span class="s1">request</span><span class="s2">.</span><span class="s1">method</span><span class="s2">;</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">reverseMethods</span><span class="s2">)</span>
+      <span class="s1">method </span><span class="s2">= </span><span class="s1">reverseMethods</span><span class="s2">[</span><span class="s1">method</span><span class="s2">];</span>
+
+    <span class="s0">var </span><span class="s1">info </span><span class="s2">= {</span>
+      <span class="s1">versionMajor</span><span class="s2">: </span><span class="s6">1</span><span class="s2">,</span>
+      <span class="s1">versionMinor</span><span class="s2">: </span><span class="s6">1</span><span class="s2">,</span>
+      <span class="s1">url</span><span class="s2">: </span><span class="s1">request</span><span class="s2">.</span><span class="s1">path</span><span class="s2">,</span>
+      <span class="s1">headers</span><span class="s2">: </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_toHeaderList</span><span class="s2">(</span><span class="s1">request</span><span class="s2">.</span><span class="s1">headers</span><span class="s2">),</span>
+      <span class="s1">method</span><span class="s2">: </span><span class="s1">method</span><span class="s2">,</span>
+      <span class="s1">statusCode</span><span class="s2">: </span><span class="s6">0</span><span class="s2">,</span>
+      <span class="s1">statusMessage</span><span class="s2">: </span><span class="s3">''</span><span class="s2">,</span>
+      <span class="s1">upgrade</span><span class="s2">: </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_isUpgrade</span><span class="s2">(</span><span class="s1">request</span><span class="s2">),</span>
+      <span class="s1">shouldKeepAlive</span><span class="s2">: </span><span class="s0">true</span>
+    <span class="s2">};</span>
+
+    <span class="s0">var </span><span class="s1">self </span><span class="s2">= </span><span class="s0">this</span><span class="s2">;</span>
+    <span class="s1">parser</span><span class="s2">.</span><span class="s1">execute </span><span class="s2">= </span><span class="s0">function </span><span class="s1">execute</span><span class="s2">() {</span>
+      <span class="s1">self</span><span class="s2">.</span><span class="s1">_skipExecute</span><span class="s2">(</span><span class="s0">this</span><span class="s2">);</span>
+      <span class="s0">this</span><span class="s2">[</span><span class="s1">kOnHeadersComplete</span><span class="s2">](</span><span class="s1">info</span><span class="s2">);</span>
+      <span class="s0">return </span><span class="s6">0</span><span class="s2">;</span>
+    <span class="s2">};</span>
+
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">_emitEmpty</span><span class="s2">();</span>
+  <span class="s2">};</span>
+
+  <span class="s1">Deceiver</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">emitResponse </span><span class="s2">= </span><span class="s0">function </span><span class="s1">emitResponse</span><span class="s2">(</span><span class="s1">response</span><span class="s2">) {</span>
+    <span class="s0">var </span><span class="s1">parser </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">socket</span><span class="s2">.</span><span class="s1">parser</span><span class="s2">;</span>
+    <span class="s1">assert</span><span class="s2">(</span><span class="s1">parser</span><span class="s2">, </span><span class="s3">'No parser present'</span><span class="s2">);</span>
+
+    <span class="s0">var </span><span class="s1">info </span><span class="s2">= {</span>
+      <span class="s1">versionMajor</span><span class="s2">: </span><span class="s6">1</span><span class="s2">,</span>
+      <span class="s1">versionMinor</span><span class="s2">: </span><span class="s6">1</span><span class="s2">,</span>
+      <span class="s1">url</span><span class="s2">: </span><span class="s1">response</span><span class="s2">.</span><span class="s1">path</span><span class="s2">,</span>
+      <span class="s1">headers</span><span class="s2">: </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_toHeaderList</span><span class="s2">(</span><span class="s1">response</span><span class="s2">.</span><span class="s1">headers</span><span class="s2">),</span>
+      <span class="s1">method</span><span class="s2">: </span><span class="s0">false</span><span class="s2">,</span>
+      <span class="s1">statusCode</span><span class="s2">: </span><span class="s1">response</span><span class="s2">.</span><span class="s1">status</span><span class="s2">,</span>
+      <span class="s1">statusMessage</span><span class="s2">: </span><span class="s1">response</span><span class="s2">.</span><span class="s1">reason </span><span class="s2">|| </span><span class="s3">''</span><span class="s2">,</span>
+      <span class="s1">upgrade</span><span class="s2">: </span><span class="s0">this</span><span class="s2">.</span><span class="s1">_isUpgrade</span><span class="s2">(</span><span class="s1">response</span><span class="s2">),</span>
+      <span class="s1">shouldKeepAlive</span><span class="s2">: </span><span class="s0">true</span>
+    <span class="s2">};</span>
+
+    <span class="s0">var </span><span class="s1">self </span><span class="s2">= </span><span class="s0">this</span><span class="s2">;</span>
+    <span class="s1">parser</span><span class="s2">.</span><span class="s1">execute </span><span class="s2">= </span><span class="s0">function </span><span class="s1">execute</span><span class="s2">() {</span>
+      <span class="s1">self</span><span class="s2">.</span><span class="s1">_skipExecute</span><span class="s2">(</span><span class="s0">this</span><span class="s2">);</span>
+      <span class="s0">this</span><span class="s2">[</span><span class="s1">kOnHeadersComplete</span><span class="s2">](</span><span class="s1">info</span><span class="s2">);</span>
+      <span class="s0">return </span><span class="s6">0</span><span class="s2">;</span>
+    <span class="s2">};</span>
+
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">_emitEmpty</span><span class="s2">();</span>
+  <span class="s2">};</span>
+<span class="s2">}</span>
+
+<span class="s1">Deceiver</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">_skipExecute </span><span class="s2">= </span><span class="s0">function </span><span class="s1">_skipExecute</span><span class="s2">(</span><span class="s1">parser</span><span class="s2">) {</span>
+  <span class="s0">var </span><span class="s1">self </span><span class="s2">= </span><span class="s0">this</span><span class="s2">;</span>
+  <span class="s0">var </span><span class="s1">oldExecute </span><span class="s2">= </span><span class="s1">parser</span><span class="s2">.</span><span class="s1">constructor</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">execute</span><span class="s2">;</span>
+  <span class="s0">var </span><span class="s1">oldFinish </span><span class="s2">= </span><span class="s1">parser</span><span class="s2">.</span><span class="s1">constructor</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">finish</span><span class="s2">;</span>
+
+  <span class="s1">parser</span><span class="s2">.</span><span class="s1">execute </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+  <span class="s1">parser</span><span class="s2">.</span><span class="s1">finish </span><span class="s2">= </span><span class="s0">null</span><span class="s2">;</span>
+
+  <span class="s1">parser</span><span class="s2">.</span><span class="s1">execute </span><span class="s2">= </span><span class="s0">function </span><span class="s1">execute</span><span class="s2">(</span><span class="s1">buffer</span><span class="s2">, </span><span class="s1">start</span><span class="s2">, </span><span class="s1">len</span><span class="s2">) {</span>
+    <span class="s4">// Parser reuse</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">socket </span><span class="s2">!== </span><span class="s1">self</span><span class="s2">.</span><span class="s1">socket</span><span class="s2">) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">execute </span><span class="s2">= </span><span class="s1">oldExecute</span><span class="s2">;</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">finish </span><span class="s2">= </span><span class="s1">oldFinish</span><span class="s2">;</span>
+      <span class="s0">return this</span><span class="s2">.</span><span class="s1">execute</span><span class="s2">(</span><span class="s1">buffer</span><span class="s2">, </span><span class="s1">start</span><span class="s2">, </span><span class="s1">len</span><span class="s2">);</span>
+    <span class="s2">}</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">start </span><span class="s2">!== </span><span class="s1">undefined</span><span class="s2">)</span>
+      <span class="s1">buffer </span><span class="s2">= </span><span class="s1">buffer</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s1">start</span><span class="s2">, </span><span class="s1">start </span><span class="s2">+ </span><span class="s1">len</span><span class="s2">);</span>
+    <span class="s1">self</span><span class="s2">.</span><span class="s1">emitBody</span><span class="s2">(</span><span class="s1">buffer</span><span class="s2">);</span>
+    <span class="s0">return </span><span class="s1">len</span><span class="s2">;</span>
+  <span class="s2">};</span>
+
+  <span class="s1">parser</span><span class="s2">.</span><span class="s1">finish </span><span class="s2">= </span><span class="s0">function </span><span class="s1">finish</span><span class="s2">() {</span>
+    <span class="s4">// Parser reuse</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">socket </span><span class="s2">!== </span><span class="s1">self</span><span class="s2">.</span><span class="s1">socket</span><span class="s2">) {</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">execute </span><span class="s2">= </span><span class="s1">oldExecute</span><span class="s2">;</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">finish </span><span class="s2">= </span><span class="s1">oldFinish</span><span class="s2">;</span>
+      <span class="s0">return this</span><span class="s2">.</span><span class="s1">finish</span><span class="s2">();</span>
+    <span class="s2">}</span>
+
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">execute </span><span class="s2">= </span><span class="s1">oldExecute</span><span class="s2">;</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">finish </span><span class="s2">= </span><span class="s1">oldFinish</span><span class="s2">;</span>
+    <span class="s1">self</span><span class="s2">.</span><span class="s1">emitMessageComplete</span><span class="s2">();</span>
+  <span class="s2">};</span>
+<span class="s2">};</span>
+
+<span class="s1">Deceiver</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">emitBody </span><span class="s2">= </span><span class="s0">function </span><span class="s1">emitBody</span><span class="s2">(</span><span class="s1">buffer</span><span class="s2">) {</span>
+  <span class="s0">var </span><span class="s1">parser </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">socket</span><span class="s2">.</span><span class="s1">parser</span><span class="s2">;</span>
+  <span class="s1">assert</span><span class="s2">(</span><span class="s1">parser</span><span class="s2">, </span><span class="s3">'No parser present'</span><span class="s2">);</span>
+
+  <span class="s1">parser</span><span class="s2">[</span><span class="s1">kOnBody</span><span class="s2">](</span><span class="s1">buffer</span><span class="s2">, </span><span class="s6">0</span><span class="s2">, </span><span class="s1">buffer</span><span class="s2">.</span><span class="s1">length</span><span class="s2">);</span>
+<span class="s2">};</span>
+
+<span class="s1">Deceiver</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">_emitEmpty </span><span class="s2">= </span><span class="s0">function </span><span class="s1">_emitEmpty</span><span class="s2">() {</span>
+  <span class="s4">// Emit data to force out handling of UPGRADE</span>
+  <span class="s0">var </span><span class="s1">empty </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Buffer</span><span class="s2">(</span><span class="s6">0</span><span class="s2">);</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">socket</span><span class="s2">.</span><span class="s1">ondata</span><span class="s2">)</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">socket</span><span class="s2">.</span><span class="s1">ondata</span><span class="s2">(</span><span class="s1">empty</span><span class="s2">, </span><span class="s6">0</span><span class="s2">, </span><span class="s6">0</span><span class="s2">);</span>
+  <span class="s0">else</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">socket</span><span class="s2">.</span><span class="s1">emit</span><span class="s2">(</span><span class="s3">'data'</span><span class="s2">, </span><span class="s1">empty</span><span class="s2">);</span>
+<span class="s2">};</span>
+
+<span class="s1">Deceiver</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">emitMessageComplete </span><span class="s2">= </span><span class="s0">function </span><span class="s1">emitMessageComplete</span><span class="s2">() {</span>
+  <span class="s0">var </span><span class="s1">parser </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">socket</span><span class="s2">.</span><span class="s1">parser</span><span class="s2">;</span>
+  <span class="s1">assert</span><span class="s2">(</span><span class="s1">parser</span><span class="s2">, </span><span class="s3">'No parser present'</span><span class="s2">);</span>
+
+  <span class="s1">parser</span><span class="s2">[</span><span class="s1">kOnMessageComplete</span><span class="s2">]();</span>
+<span class="s2">};</span>
+</pre>
+</body>
+</html>

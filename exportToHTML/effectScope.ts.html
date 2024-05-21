@@ -1,0 +1,161 @@
+<html>
+<head>
+<title>effectScope.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #2aacb8;}
+.s7 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+effectScope.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">Watcher from </span><span class="s2">'core/observer/watcher'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">warn </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'core/util'</span>
+
+<span class="s0">export let </span><span class="s1">activeEffectScope</span><span class="s3">: </span><span class="s1">EffectScope </span><span class="s3">| </span><span class="s1">undefined</span>
+
+<span class="s0">export class </span><span class="s1">EffectScope </span><span class="s3">{</span>
+  <span class="s4">/**</span>
+   <span class="s4">* </span><span class="s5">@internal</span>
+   <span class="s4">*/</span>
+  <span class="s1">active </span><span class="s3">= </span><span class="s0">true</span>
+  <span class="s4">/**</span>
+   <span class="s4">* </span><span class="s5">@internal</span>
+   <span class="s4">*/</span>
+  <span class="s1">effects</span><span class="s3">: </span><span class="s1">Watcher</span><span class="s3">[] = []</span>
+  <span class="s4">/**</span>
+   <span class="s4">* </span><span class="s5">@internal</span>
+   <span class="s4">*/</span>
+  <span class="s1">cleanups</span><span class="s3">: (() =&gt; </span><span class="s0">void</span><span class="s3">)[] = []</span>
+  <span class="s4">/**</span>
+   <span class="s4">* </span><span class="s5">@internal</span>
+   <span class="s4">*/</span>
+  <span class="s1">parent</span><span class="s3">: </span><span class="s1">EffectScope </span><span class="s3">| </span><span class="s1">undefined</span>
+  <span class="s4">/**</span>
+   <span class="s4">* record undetached scopes</span>
+   <span class="s4">* </span><span class="s5">@internal</span>
+   <span class="s4">*/</span>
+  <span class="s1">scopes</span><span class="s3">: </span><span class="s1">EffectScope</span><span class="s3">[] | </span><span class="s1">undefined</span>
+  <span class="s4">/**</span>
+   <span class="s4">* indicates this being a component root scope</span>
+   <span class="s4">* </span><span class="s5">@internal</span>
+   <span class="s4">*/</span>
+  <span class="s1">_vm</span><span class="s3">?: </span><span class="s1">boolean</span>
+  <span class="s4">/**</span>
+   <span class="s4">* track a child scope's index in its parent's scopes array for optimized</span>
+   <span class="s4">* removal</span>
+   <span class="s4">*/</span>
+  <span class="s0">private </span><span class="s1">index</span><span class="s3">: </span><span class="s1">number </span><span class="s3">| </span><span class="s1">undefined</span>
+
+  <span class="s1">constructor</span><span class="s3">(</span><span class="s0">public </span><span class="s1">detached </span><span class="s3">= </span><span class="s0">false</span><span class="s3">) {</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">parent </span><span class="s3">= </span><span class="s1">activeEffectScope</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">detached </span><span class="s3">&amp;&amp; </span><span class="s1">activeEffectScope</span><span class="s3">) {</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">index </span><span class="s3">=</span>
+        <span class="s3">(</span><span class="s1">activeEffectScope</span><span class="s3">.</span><span class="s1">scopes </span><span class="s3">|| (</span><span class="s1">activeEffectScope</span><span class="s3">.</span><span class="s1">scopes </span><span class="s3">= [])).</span><span class="s1">push</span><span class="s3">(</span>
+          <span class="s0">this</span>
+        <span class="s3">) - </span><span class="s6">1</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">run</span><span class="s3">&lt;</span><span class="s1">T</span><span class="s3">&gt;(</span><span class="s1">fn</span><span class="s3">: () =&gt; </span><span class="s1">T</span><span class="s3">): </span><span class="s1">T </span><span class="s3">| </span><span class="s1">undefined </span><span class="s3">{</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">active</span><span class="s3">) {</span>
+      <span class="s0">const </span><span class="s1">currentEffectScope </span><span class="s3">= </span><span class="s1">activeEffectScope</span>
+      <span class="s0">try </span><span class="s3">{</span>
+        <span class="s1">activeEffectScope </span><span class="s3">= </span><span class="s0">this</span>
+        <span class="s0">return </span><span class="s1">fn</span><span class="s3">()</span>
+      <span class="s3">} </span><span class="s0">finally </span><span class="s3">{</span>
+        <span class="s1">activeEffectScope </span><span class="s3">= </span><span class="s1">currentEffectScope</span>
+      <span class="s3">}</span>
+    <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s1">__DEV__</span><span class="s3">) {</span>
+      <span class="s1">warn</span><span class="s3">(</span><span class="s2">`cannot run an inactive effect scope.`</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* This should only be called on non-detached scopes</span>
+   <span class="s4">* </span><span class="s5">@internal</span>
+   <span class="s4">*/</span>
+  <span class="s1">on</span><span class="s3">() {</span>
+    <span class="s1">activeEffectScope </span><span class="s3">= </span><span class="s0">this</span>
+  <span class="s3">}</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* This should only be called on non-detached scopes</span>
+   <span class="s4">* </span><span class="s5">@internal</span>
+   <span class="s4">*/</span>
+  <span class="s1">off</span><span class="s3">() {</span>
+    <span class="s1">activeEffectScope </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">parent</span>
+  <span class="s3">}</span>
+
+  <span class="s1">stop</span><span class="s3">(</span><span class="s1">fromParent</span><span class="s3">?: </span><span class="s1">boolean</span><span class="s3">) {</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">active</span><span class="s3">) {</span>
+      <span class="s0">let </span><span class="s1">i</span><span class="s3">, </span><span class="s1">l</span>
+      <span class="s0">for </span><span class="s3">(</span><span class="s1">i </span><span class="s3">= </span><span class="s6">0</span><span class="s3">, </span><span class="s1">l </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">effects</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">l</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">effects</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">teardown</span><span class="s3">()</span>
+      <span class="s3">}</span>
+      <span class="s0">for </span><span class="s3">(</span><span class="s1">i </span><span class="s3">= </span><span class="s6">0</span><span class="s3">, </span><span class="s1">l </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">cleanups</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">l</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+        <span class="s0">this</span><span class="s3">.</span><span class="s1">cleanups</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]()</span>
+      <span class="s3">}</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s0">this</span><span class="s3">.</span><span class="s1">scopes</span><span class="s3">) {</span>
+        <span class="s0">for </span><span class="s3">(</span><span class="s1">i </span><span class="s3">= </span><span class="s6">0</span><span class="s3">, </span><span class="s1">l </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">scopes</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">l</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+          <span class="s0">this</span><span class="s3">.</span><span class="s1">scopes</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">stop</span><span class="s3">(</span><span class="s0">true</span><span class="s3">)</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+      <span class="s7">// nested scope, dereference from parent to avoid memory leaks</span>
+      <span class="s0">if </span><span class="s3">(!</span><span class="s0">this</span><span class="s3">.</span><span class="s1">detached </span><span class="s3">&amp;&amp; </span><span class="s0">this</span><span class="s3">.</span><span class="s1">parent </span><span class="s3">&amp;&amp; !</span><span class="s1">fromParent</span><span class="s3">) {</span>
+        <span class="s7">// optimized O(1) removal</span>
+        <span class="s0">const </span><span class="s1">last </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">.</span><span class="s1">scopes</span><span class="s3">!.</span><span class="s1">pop</span><span class="s3">()</span>
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">last </span><span class="s3">&amp;&amp; </span><span class="s1">last </span><span class="s3">!== </span><span class="s0">this</span><span class="s3">) {</span>
+          <span class="s0">this</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">.</span><span class="s1">scopes</span><span class="s3">![</span><span class="s0">this</span><span class="s3">.</span><span class="s1">index</span><span class="s3">!] = </span><span class="s1">last</span>
+          <span class="s1">last</span><span class="s3">.</span><span class="s1">index </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">index</span><span class="s3">!</span>
+        <span class="s3">}</span>
+      <span class="s3">}</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">parent </span><span class="s3">= </span><span class="s1">undefined</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">active </span><span class="s3">= </span><span class="s0">false</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">export function </span><span class="s1">effectScope</span><span class="s3">(</span><span class="s1">detached</span><span class="s3">?: </span><span class="s1">boolean</span><span class="s3">) {</span>
+  <span class="s0">return new </span><span class="s1">EffectScope</span><span class="s3">(</span><span class="s1">detached</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@internal</span>
+ <span class="s4">*/</span>
+<span class="s0">export function </span><span class="s1">recordEffectScope</span><span class="s3">(</span>
+  <span class="s1">effect</span><span class="s3">: </span><span class="s1">Watcher</span><span class="s3">,</span>
+  <span class="s1">scope</span><span class="s3">: </span><span class="s1">EffectScope </span><span class="s3">| </span><span class="s1">undefined </span><span class="s3">= </span><span class="s1">activeEffectScope</span>
+<span class="s3">) {</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">scope </span><span class="s3">&amp;&amp; </span><span class="s1">scope</span><span class="s3">.</span><span class="s1">active</span><span class="s3">) {</span>
+    <span class="s1">scope</span><span class="s3">.</span><span class="s1">effects</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">effect</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">export function </span><span class="s1">getCurrentScope</span><span class="s3">() {</span>
+  <span class="s0">return </span><span class="s1">activeEffectScope</span>
+<span class="s3">}</span>
+
+<span class="s0">export function </span><span class="s1">onScopeDispose</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">: () =&gt; </span><span class="s0">void</span><span class="s3">) {</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">activeEffectScope</span><span class="s3">) {</span>
+    <span class="s1">activeEffectScope</span><span class="s3">.</span><span class="s1">cleanups</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">fn</span><span class="s3">)</span>
+  <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s1">__DEV__</span><span class="s3">) {</span>
+    <span class="s1">warn</span><span class="s3">(</span>
+      <span class="s2">`onScopeDispose() is called when there is no active effect scope` </span><span class="s3">+</span>
+        <span class="s2">` to be associated with.`</span>
+    <span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

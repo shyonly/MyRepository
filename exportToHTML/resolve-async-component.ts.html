@@ -1,0 +1,179 @@
+<html>
+<head>
+<title>resolve-async-component.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+resolve-async-component.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{</span>
+  <span class="s1">warn</span><span class="s2">,</span>
+  <span class="s1">once</span><span class="s2">,</span>
+  <span class="s1">isDef</span><span class="s2">,</span>
+  <span class="s1">isUndef</span><span class="s2">,</span>
+  <span class="s1">isTrue</span><span class="s2">,</span>
+  <span class="s1">isObject</span><span class="s2">,</span>
+  <span class="s1">hasSymbol</span><span class="s2">,</span>
+  <span class="s1">isPromise</span><span class="s2">,</span>
+  <span class="s1">remove</span>
+<span class="s2">} </span><span class="s1">from </span><span class="s3">'core/util/index'</span>
+
+<span class="s0">import </span><span class="s1">VNode</span><span class="s2">, { </span><span class="s1">createEmptyVNode </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'core/vdom/vnode'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">currentRenderingInstance </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'core/instance/render'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">VNodeData </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/vnode'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">Component </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/component'</span>
+
+<span class="s0">function </span><span class="s1">ensureCtor</span><span class="s2">(</span><span class="s1">comp</span><span class="s2">: </span><span class="s1">any</span><span class="s2">, </span><span class="s1">base</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">comp</span><span class="s2">.</span><span class="s1">__esModule </span><span class="s2">|| (</span><span class="s1">hasSymbol </span><span class="s2">&amp;&amp; </span><span class="s1">comp</span><span class="s2">[</span><span class="s1">Symbol</span><span class="s2">.</span><span class="s1">toStringTag</span><span class="s2">] === </span><span class="s3">'Module'</span><span class="s2">)) {</span>
+    <span class="s1">comp </span><span class="s2">= </span><span class="s1">comp</span><span class="s2">.</span><span class="s1">default</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s1">isObject</span><span class="s2">(</span><span class="s1">comp</span><span class="s2">) ? </span><span class="s1">base</span><span class="s2">.</span><span class="s1">extend</span><span class="s2">(</span><span class="s1">comp</span><span class="s2">) : </span><span class="s1">comp</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">createAsyncPlaceholder</span><span class="s2">(</span>
+  <span class="s1">factory</span><span class="s2">: </span><span class="s1">Function</span><span class="s2">,</span>
+  <span class="s1">data</span><span class="s2">: </span><span class="s1">VNodeData </span><span class="s2">| </span><span class="s1">undefined</span><span class="s2">,</span>
+  <span class="s1">context</span><span class="s2">: </span><span class="s1">Component</span><span class="s2">,</span>
+  <span class="s1">children</span><span class="s2">: </span><span class="s1">Array</span><span class="s2">&lt;</span><span class="s1">VNode</span><span class="s2">&gt; | </span><span class="s1">undefined</span><span class="s2">,</span>
+  <span class="s1">tag</span><span class="s2">?: </span><span class="s1">string</span>
+<span class="s2">): </span><span class="s1">VNode </span><span class="s2">{</span>
+  <span class="s0">const </span><span class="s1">node </span><span class="s2">= </span><span class="s1">createEmptyVNode</span><span class="s2">()</span>
+  <span class="s1">node</span><span class="s2">.</span><span class="s1">asyncFactory </span><span class="s2">= </span><span class="s1">factory</span>
+  <span class="s1">node</span><span class="s2">.</span><span class="s1">asyncMeta </span><span class="s2">= { </span><span class="s1">data</span><span class="s2">, </span><span class="s1">context</span><span class="s2">, </span><span class="s1">children</span><span class="s2">, </span><span class="s1">tag </span><span class="s2">}</span>
+  <span class="s0">return </span><span class="s1">node</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">resolveAsyncComponent</span><span class="s2">(</span>
+  <span class="s1">factory</span><span class="s2">: { (</span><span class="s1">...args</span><span class="s2">: </span><span class="s1">any</span><span class="s2">[]): </span><span class="s1">any</span><span class="s2">; [</span><span class="s1">keye</span><span class="s2">: </span><span class="s1">string</span><span class="s2">]: </span><span class="s1">any </span><span class="s2">},</span>
+  <span class="s1">baseCtor</span><span class="s2">: </span><span class="s0">typeof </span><span class="s1">Component</span>
+<span class="s2">): </span><span class="s0">typeof </span><span class="s1">Component </span><span class="s2">| </span><span class="s0">void </span><span class="s2">{</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isTrue</span><span class="s2">(</span><span class="s1">factory</span><span class="s2">.</span><span class="s1">error</span><span class="s2">) &amp;&amp; </span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">factory</span><span class="s2">.</span><span class="s1">errorComp</span><span class="s2">)) {</span>
+    <span class="s0">return </span><span class="s1">factory</span><span class="s2">.</span><span class="s1">errorComp</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">factory</span><span class="s2">.</span><span class="s1">resolved</span><span class="s2">)) {</span>
+    <span class="s0">return </span><span class="s1">factory</span><span class="s2">.</span><span class="s1">resolved</span>
+  <span class="s2">}</span>
+
+  <span class="s0">const </span><span class="s1">owner </span><span class="s2">= </span><span class="s1">currentRenderingInstance</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">owner </span><span class="s2">&amp;&amp; </span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">factory</span><span class="s2">.</span><span class="s1">owners</span><span class="s2">) &amp;&amp; </span><span class="s1">factory</span><span class="s2">.</span><span class="s1">owners</span><span class="s2">.</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s1">owner</span><span class="s2">) === -</span><span class="s4">1</span><span class="s2">) {</span>
+    <span class="s5">// already pending</span>
+    <span class="s1">factory</span><span class="s2">.</span><span class="s1">owners</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">owner</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isTrue</span><span class="s2">(</span><span class="s1">factory</span><span class="s2">.</span><span class="s1">loading</span><span class="s2">) &amp;&amp; </span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">factory</span><span class="s2">.</span><span class="s1">loadingComp</span><span class="s2">)) {</span>
+    <span class="s0">return </span><span class="s1">factory</span><span class="s2">.</span><span class="s1">loadingComp</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">owner </span><span class="s2">&amp;&amp; !</span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">factory</span><span class="s2">.</span><span class="s1">owners</span><span class="s2">)) {</span>
+    <span class="s0">const </span><span class="s1">owners </span><span class="s2">= (</span><span class="s1">factory</span><span class="s2">.</span><span class="s1">owners </span><span class="s2">= [</span><span class="s1">owner</span><span class="s2">])</span>
+    <span class="s0">let </span><span class="s1">sync </span><span class="s2">= </span><span class="s0">true</span>
+    <span class="s0">let </span><span class="s1">timerLoading</span><span class="s2">: </span><span class="s1">number </span><span class="s2">| </span><span class="s0">null </span><span class="s2">= </span><span class="s0">null</span>
+    <span class="s0">let </span><span class="s1">timerTimeout</span><span class="s2">: </span><span class="s1">number </span><span class="s2">| </span><span class="s0">null </span><span class="s2">= </span><span class="s0">null</span>
+
+    <span class="s1">owner</span><span class="s2">.</span><span class="s1">$on</span><span class="s2">(</span><span class="s3">'hook:destroyed'</span><span class="s2">, () =&gt; </span><span class="s1">remove</span><span class="s2">(</span><span class="s1">owners</span><span class="s2">, </span><span class="s1">owner</span><span class="s2">))</span>
+
+    <span class="s0">const </span><span class="s1">forceRender </span><span class="s2">= (</span><span class="s1">renderCompleted</span><span class="s2">: </span><span class="s1">boolean</span><span class="s2">) =&gt; {</span>
+      <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s4">0</span><span class="s2">, </span><span class="s1">l </span><span class="s2">= </span><span class="s1">owners</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">l</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+        <span class="s1">owners</span><span class="s2">[</span><span class="s1">i</span><span class="s2">].</span><span class="s1">$forceUpdate</span><span class="s2">()</span>
+      <span class="s2">}</span>
+
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">renderCompleted</span><span class="s2">) {</span>
+        <span class="s1">owners</span><span class="s2">.</span><span class="s1">length </span><span class="s2">= </span><span class="s4">0</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">timerLoading </span><span class="s2">!== </span><span class="s0">null</span><span class="s2">) {</span>
+          <span class="s1">clearTimeout</span><span class="s2">(</span><span class="s1">timerLoading</span><span class="s2">)</span>
+          <span class="s1">timerLoading </span><span class="s2">= </span><span class="s0">null</span>
+        <span class="s2">}</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">timerTimeout </span><span class="s2">!== </span><span class="s0">null</span><span class="s2">) {</span>
+          <span class="s1">clearTimeout</span><span class="s2">(</span><span class="s1">timerTimeout</span><span class="s2">)</span>
+          <span class="s1">timerTimeout </span><span class="s2">= </span><span class="s0">null</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s0">const </span><span class="s1">resolve </span><span class="s2">= </span><span class="s1">once</span><span class="s2">((</span><span class="s1">res</span><span class="s2">: </span><span class="s1">Object </span><span class="s2">| </span><span class="s1">Component</span><span class="s2">) =&gt; {</span>
+      <span class="s5">// cache resolved</span>
+      <span class="s1">factory</span><span class="s2">.</span><span class="s1">resolved </span><span class="s2">= </span><span class="s1">ensureCtor</span><span class="s2">(</span><span class="s1">res</span><span class="s2">, </span><span class="s1">baseCtor</span><span class="s2">)</span>
+      <span class="s5">// invoke callbacks only if this is not a synchronous resolve</span>
+      <span class="s5">// (async resolves are shimmed as synchronous during SSR)</span>
+      <span class="s0">if </span><span class="s2">(!</span><span class="s1">sync</span><span class="s2">) {</span>
+        <span class="s1">forceRender</span><span class="s2">(</span><span class="s0">true</span><span class="s2">)</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s1">owners</span><span class="s2">.</span><span class="s1">length </span><span class="s2">= </span><span class="s4">0</span>
+      <span class="s2">}</span>
+    <span class="s2">})</span>
+
+    <span class="s0">const </span><span class="s1">reject </span><span class="s2">= </span><span class="s1">once</span><span class="s2">(</span><span class="s1">reason </span><span class="s2">=&gt; {</span>
+      <span class="s1">__DEV__ </span><span class="s2">&amp;&amp;</span>
+        <span class="s1">warn</span><span class="s2">(</span>
+          <span class="s3">`Failed to resolve async component: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">String</span><span class="s2">(</span><span class="s1">factory</span><span class="s2">)}</span><span class="s3">` </span><span class="s2">+</span>
+            <span class="s2">(</span><span class="s1">reason </span><span class="s2">? </span><span class="s3">`</span><span class="s0">\n</span><span class="s3">Reason: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">reason</span><span class="s2">}</span><span class="s3">` </span><span class="s2">: </span><span class="s3">''</span><span class="s2">)</span>
+        <span class="s2">)</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">factory</span><span class="s2">.</span><span class="s1">errorComp</span><span class="s2">)) {</span>
+        <span class="s1">factory</span><span class="s2">.</span><span class="s1">error </span><span class="s2">= </span><span class="s0">true</span>
+        <span class="s1">forceRender</span><span class="s2">(</span><span class="s0">true</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">})</span>
+
+    <span class="s0">const </span><span class="s1">res </span><span class="s2">= </span><span class="s1">factory</span><span class="s2">(</span><span class="s1">resolve</span><span class="s2">, </span><span class="s1">reject</span><span class="s2">)</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isObject</span><span class="s2">(</span><span class="s1">res</span><span class="s2">)) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">isPromise</span><span class="s2">(</span><span class="s1">res</span><span class="s2">)) {</span>
+        <span class="s5">// () =&gt; Promise</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">isUndef</span><span class="s2">(</span><span class="s1">factory</span><span class="s2">.</span><span class="s1">resolved</span><span class="s2">)) {</span>
+          <span class="s1">res</span><span class="s2">.</span><span class="s1">then</span><span class="s2">(</span><span class="s1">resolve</span><span class="s2">, </span><span class="s1">reject</span><span class="s2">)</span>
+        <span class="s2">}</span>
+      <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isPromise</span><span class="s2">(</span><span class="s1">res</span><span class="s2">.</span><span class="s1">component</span><span class="s2">)) {</span>
+        <span class="s1">res</span><span class="s2">.</span><span class="s1">component</span><span class="s2">.</span><span class="s1">then</span><span class="s2">(</span><span class="s1">resolve</span><span class="s2">, </span><span class="s1">reject</span><span class="s2">)</span>
+
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">res</span><span class="s2">.</span><span class="s1">error</span><span class="s2">)) {</span>
+          <span class="s1">factory</span><span class="s2">.</span><span class="s1">errorComp </span><span class="s2">= </span><span class="s1">ensureCtor</span><span class="s2">(</span><span class="s1">res</span><span class="s2">.</span><span class="s1">error</span><span class="s2">, </span><span class="s1">baseCtor</span><span class="s2">)</span>
+        <span class="s2">}</span>
+
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">res</span><span class="s2">.</span><span class="s1">loading</span><span class="s2">)) {</span>
+          <span class="s1">factory</span><span class="s2">.</span><span class="s1">loadingComp </span><span class="s2">= </span><span class="s1">ensureCtor</span><span class="s2">(</span><span class="s1">res</span><span class="s2">.</span><span class="s1">loading</span><span class="s2">, </span><span class="s1">baseCtor</span><span class="s2">)</span>
+          <span class="s0">if </span><span class="s2">(</span><span class="s1">res</span><span class="s2">.</span><span class="s1">delay </span><span class="s2">=== </span><span class="s4">0</span><span class="s2">) {</span>
+            <span class="s1">factory</span><span class="s2">.</span><span class="s1">loading </span><span class="s2">= </span><span class="s0">true</span>
+          <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+            <span class="s5">// @ts-expect-error NodeJS timeout type</span>
+            <span class="s1">timerLoading </span><span class="s2">= </span><span class="s1">setTimeout</span><span class="s2">(() =&gt; {</span>
+              <span class="s1">timerLoading </span><span class="s2">= </span><span class="s0">null</span>
+              <span class="s0">if </span><span class="s2">(</span><span class="s1">isUndef</span><span class="s2">(</span><span class="s1">factory</span><span class="s2">.</span><span class="s1">resolved</span><span class="s2">) &amp;&amp; </span><span class="s1">isUndef</span><span class="s2">(</span><span class="s1">factory</span><span class="s2">.</span><span class="s1">error</span><span class="s2">)) {</span>
+                <span class="s1">factory</span><span class="s2">.</span><span class="s1">loading </span><span class="s2">= </span><span class="s0">true</span>
+                <span class="s1">forceRender</span><span class="s2">(</span><span class="s0">false</span><span class="s2">)</span>
+              <span class="s2">}</span>
+            <span class="s2">}, </span><span class="s1">res</span><span class="s2">.</span><span class="s1">delay </span><span class="s2">|| </span><span class="s4">200</span><span class="s2">)</span>
+          <span class="s2">}</span>
+        <span class="s2">}</span>
+
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">res</span><span class="s2">.</span><span class="s1">timeout</span><span class="s2">)) {</span>
+          <span class="s5">// @ts-expect-error NodeJS timeout type</span>
+          <span class="s1">timerTimeout </span><span class="s2">= </span><span class="s1">setTimeout</span><span class="s2">(() =&gt; {</span>
+            <span class="s1">timerTimeout </span><span class="s2">= </span><span class="s0">null</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s1">isUndef</span><span class="s2">(</span><span class="s1">factory</span><span class="s2">.</span><span class="s1">resolved</span><span class="s2">)) {</span>
+              <span class="s1">reject</span><span class="s2">(</span><span class="s1">__DEV__ </span><span class="s2">? </span><span class="s3">`timeout (</span><span class="s1">$</span><span class="s2">{</span><span class="s1">res</span><span class="s2">.</span><span class="s1">timeout</span><span class="s2">}</span><span class="s3">ms)` </span><span class="s2">: </span><span class="s0">null</span><span class="s2">)</span>
+            <span class="s2">}</span>
+          <span class="s2">}, </span><span class="s1">res</span><span class="s2">.</span><span class="s1">timeout</span><span class="s2">)</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s1">sync </span><span class="s2">= </span><span class="s0">false</span>
+    <span class="s5">// return in case resolved synchronously</span>
+    <span class="s0">return </span><span class="s1">factory</span><span class="s2">.</span><span class="s1">loading </span><span class="s2">? </span><span class="s1">factory</span><span class="s2">.</span><span class="s1">loadingComp </span><span class="s2">: </span><span class="s1">factory</span><span class="s2">.</span><span class="s1">resolved</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

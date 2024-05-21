@@ -1,0 +1,87 @@
+<html>
+<head>
+<title>zlib-pool.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+zlib-pool.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span>
+
+<span class="s2">var </span><span class="s1">zlibpool </span><span class="s3">= </span><span class="s1">exports</span>
+<span class="s2">var </span><span class="s1">zlib </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'zlib'</span><span class="s3">)</span>
+
+<span class="s2">var </span><span class="s1">transport </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'../../../spdy-transport'</span><span class="s3">)</span>
+
+<span class="s4">// TODO(indutny): think about it, why has it always been Z_SYNC_FLUSH here.</span>
+<span class="s4">// It should be possible to manually flush stuff after the write instead</span>
+<span class="s2">function </span><span class="s1">createDeflate </span><span class="s3">(</span><span class="s1">version</span><span class="s3">, </span><span class="s1">compression</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">deflate </span><span class="s3">= </span><span class="s1">zlib</span><span class="s3">.</span><span class="s1">createDeflate</span><span class="s3">({</span>
+    <span class="s1">dictionary</span><span class="s3">: </span><span class="s1">transport</span><span class="s3">.</span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">spdy</span><span class="s3">.</span><span class="s1">dictionary</span><span class="s3">[</span><span class="s1">version</span><span class="s3">],</span>
+    <span class="s1">flush</span><span class="s3">: </span><span class="s1">zlib</span><span class="s3">.</span><span class="s1">Z_SYNC_FLUSH</span><span class="s3">,</span>
+    <span class="s1">windowBits</span><span class="s3">: </span><span class="s5">11</span><span class="s3">,</span>
+    <span class="s1">level</span><span class="s3">: </span><span class="s1">compression </span><span class="s3">? </span><span class="s1">zlib</span><span class="s3">.</span><span class="s1">Z_DEFAULT_COMPRESSION </span><span class="s3">: </span><span class="s1">zlib</span><span class="s3">.</span><span class="s1">Z_NO_COMPRESSION</span>
+  <span class="s3">})</span>
+
+  <span class="s4">// For node.js v0.8</span>
+  <span class="s1">deflate</span><span class="s3">.</span><span class="s1">_flush </span><span class="s3">= </span><span class="s1">zlib</span><span class="s3">.</span><span class="s1">Z_SYNC_FLUSH</span>
+
+  <span class="s2">return </span><span class="s1">deflate</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">createInflate </span><span class="s3">(</span><span class="s1">version</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">inflate </span><span class="s3">= </span><span class="s1">zlib</span><span class="s3">.</span><span class="s1">createInflate</span><span class="s3">({</span>
+    <span class="s1">dictionary</span><span class="s3">: </span><span class="s1">transport</span><span class="s3">.</span><span class="s1">protocol</span><span class="s3">.</span><span class="s1">spdy</span><span class="s3">.</span><span class="s1">dictionary</span><span class="s3">[</span><span class="s1">version</span><span class="s3">],</span>
+    <span class="s1">flush</span><span class="s3">: </span><span class="s1">zlib</span><span class="s3">.</span><span class="s1">Z_SYNC_FLUSH</span>
+  <span class="s3">})</span>
+
+  <span class="s4">// For node.js v0.8</span>
+  <span class="s1">inflate</span><span class="s3">.</span><span class="s1">_flush </span><span class="s3">= </span><span class="s1">zlib</span><span class="s3">.</span><span class="s1">Z_SYNC_FLUSH</span>
+
+  <span class="s2">return </span><span class="s1">inflate</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">Pool </span><span class="s3">(</span><span class="s1">compression</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">compression </span><span class="s3">= </span><span class="s1">compression</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">pool </span><span class="s3">= {</span>
+    <span class="s5">2</span><span class="s3">: [],</span>
+    <span class="s5">3</span><span class="s3">: [],</span>
+    <span class="s5">3.1</span><span class="s3">: []</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">zlibpool</span><span class="s3">.</span><span class="s1">create </span><span class="s3">= </span><span class="s2">function </span><span class="s1">create </span><span class="s3">(</span><span class="s1">compression</span><span class="s3">) {</span>
+  <span class="s2">return new </span><span class="s1">Pool</span><span class="s3">(</span><span class="s1">compression</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">Pool</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">get </span><span class="s3">= </span><span class="s2">function </span><span class="s1">get </span><span class="s3">(</span><span class="s1">version</span><span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">pool</span><span class="s3">[</span><span class="s1">version</span><span class="s3">].</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s5">0</span><span class="s3">) {</span>
+    <span class="s2">return this</span><span class="s3">.</span><span class="s1">pool</span><span class="s3">[</span><span class="s1">version</span><span class="s3">].</span><span class="s1">pop</span><span class="s3">()</span>
+  <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+    <span class="s2">var </span><span class="s1">id </span><span class="s3">= </span><span class="s1">version</span>
+
+    <span class="s2">return </span><span class="s3">{</span>
+      <span class="s1">version</span><span class="s3">: </span><span class="s1">version</span><span class="s3">,</span>
+      <span class="s1">compress</span><span class="s3">: </span><span class="s1">createDeflate</span><span class="s3">(</span><span class="s1">id</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">compression</span><span class="s3">),</span>
+      <span class="s1">decompress</span><span class="s3">: </span><span class="s1">createInflate</span><span class="s3">(</span><span class="s1">id</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">Pool</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">put </span><span class="s3">= </span><span class="s2">function </span><span class="s1">put </span><span class="s3">(</span><span class="s1">pair</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">pool</span><span class="s3">[</span><span class="s1">pair</span><span class="s3">.</span><span class="s1">version</span><span class="s3">].</span><span class="s1">push</span><span class="s3">(</span><span class="s1">pair</span><span class="s3">)</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

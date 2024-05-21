@@ -1,0 +1,225 @@
+<html>
+<head>
+<title>compileTemplate.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+compileTemplate.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{</span>
+  <span class="s1">VueTemplateCompiler</span><span class="s2">,</span>
+  <span class="s1">VueTemplateCompilerOptions</span><span class="s2">,</span>
+  <span class="s1">ErrorWithRange</span>
+<span class="s2">} </span><span class="s1">from </span><span class="s3">'./types'</span>
+
+<span class="s0">import </span><span class="s1">assetUrlsModule</span><span class="s2">, {</span>
+  <span class="s1">AssetURLOptions</span><span class="s2">,</span>
+  <span class="s1">TransformAssetUrlsOptions</span>
+<span class="s2">} </span><span class="s1">from </span><span class="s3">'./templateCompilerModules/assetUrl'</span>
+<span class="s0">import </span><span class="s1">srcsetModule from </span><span class="s3">'./templateCompilerModules/srcset'</span>
+
+<span class="s0">const </span><span class="s1">consolidate </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'consolidate'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s1">transpile </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'vue-template-es2015-compiler'</span><span class="s2">)</span>
+
+<span class="s0">export interface </span><span class="s1">TemplateCompileOptions </span><span class="s2">{</span>
+  <span class="s1">source</span><span class="s2">: </span><span class="s1">string</span>
+  <span class="s1">filename</span><span class="s2">: </span><span class="s1">string</span>
+  <span class="s1">compiler</span><span class="s2">: </span><span class="s1">VueTemplateCompiler</span>
+  <span class="s1">compilerOptions</span><span class="s2">?: </span><span class="s1">VueTemplateCompilerOptions</span>
+  <span class="s1">transformAssetUrls</span><span class="s2">?: </span><span class="s1">AssetURLOptions </span><span class="s2">| </span><span class="s1">boolean</span>
+  <span class="s1">transformAssetUrlsOptions</span><span class="s2">?: </span><span class="s1">TransformAssetUrlsOptions</span>
+  <span class="s1">preprocessLang</span><span class="s2">?: </span><span class="s1">string</span>
+  <span class="s1">preprocessOptions</span><span class="s2">?: </span><span class="s1">any</span>
+  <span class="s1">transpileOptions</span><span class="s2">?: </span><span class="s1">any</span>
+  <span class="s1">isProduction</span><span class="s2">?: </span><span class="s1">boolean</span>
+  <span class="s1">isFunctional</span><span class="s2">?: </span><span class="s1">boolean</span>
+  <span class="s1">optimizeSSR</span><span class="s2">?: </span><span class="s1">boolean</span>
+  <span class="s1">prettify</span><span class="s2">?: </span><span class="s1">boolean</span>
+<span class="s2">}</span>
+
+<span class="s0">export interface </span><span class="s1">TemplateCompileResult </span><span class="s2">{</span>
+  <span class="s1">ast</span><span class="s2">: </span><span class="s1">Object </span><span class="s2">| </span><span class="s1">undefined</span>
+  <span class="s1">code</span><span class="s2">: </span><span class="s1">string</span>
+  <span class="s1">source</span><span class="s2">: </span><span class="s1">string</span>
+  <span class="s1">tips</span><span class="s2">: (</span><span class="s1">string </span><span class="s2">| </span><span class="s1">ErrorWithRange</span><span class="s2">)[]</span>
+  <span class="s1">errors</span><span class="s2">: (</span><span class="s1">string </span><span class="s2">| </span><span class="s1">ErrorWithRange</span><span class="s2">)[]</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">compileTemplate</span><span class="s2">(</span>
+  <span class="s1">options</span><span class="s2">: </span><span class="s1">TemplateCompileOptions</span>
+<span class="s2">): </span><span class="s1">TemplateCompileResult </span><span class="s2">{</span>
+  <span class="s0">const </span><span class="s2">{ </span><span class="s1">preprocessLang </span><span class="s2">} = </span><span class="s1">options</span>
+  <span class="s0">const </span><span class="s1">preprocessor </span><span class="s2">= </span><span class="s1">preprocessLang </span><span class="s2">&amp;&amp; </span><span class="s1">consolidate</span><span class="s2">[</span><span class="s1">preprocessLang</span><span class="s2">]</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">preprocessor</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">actuallyCompile</span><span class="s2">(</span>
+      <span class="s1">Object</span><span class="s2">.</span><span class="s1">assign</span><span class="s2">({}, </span><span class="s1">options</span><span class="s2">, {</span>
+        <span class="s1">source</span><span class="s2">: </span><span class="s1">preprocess</span><span class="s2">(</span><span class="s1">options</span><span class="s2">, </span><span class="s1">preprocessor</span><span class="s2">)</span>
+      <span class="s2">})</span>
+    <span class="s2">)</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">preprocessLang</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s2">{</span>
+      <span class="s1">ast</span><span class="s2">: {},</span>
+      <span class="s1">code</span><span class="s2">: </span><span class="s3">`var render = function () {}</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+ </span><span class="s3">`var staticRenderFns = []</span><span class="s0">\n</span><span class="s3">`</span><span class="s2">,</span>
+      <span class="s1">source</span><span class="s2">: </span><span class="s1">options</span><span class="s2">.</span><span class="s1">source</span><span class="s2">,</span>
+      <span class="s1">tips</span><span class="s2">: [</span>
+        <span class="s3">`Component </span><span class="s1">$</span><span class="s2">{</span><span class="s1">options</span><span class="s2">.</span><span class="s1">filename</span><span class="s2">} </span><span class="s3">uses lang </span><span class="s1">$</span><span class="s2">{</span><span class="s1">preprocessLang</span><span class="s2">} </span><span class="s3">for template. Please install the language preprocessor.`</span>
+      <span class="s2">],</span>
+      <span class="s1">errors</span><span class="s2">: [</span>
+        <span class="s3">`Component </span><span class="s1">$</span><span class="s2">{</span><span class="s1">options</span><span class="s2">.</span><span class="s1">filename</span><span class="s2">} </span><span class="s3">uses lang </span><span class="s1">$</span><span class="s2">{</span><span class="s1">preprocessLang</span><span class="s2">} </span><span class="s3">for template, however it is not installed.`</span>
+      <span class="s2">]</span>
+    <span class="s2">}</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s0">return </span><span class="s1">actuallyCompile</span><span class="s2">(</span><span class="s1">options</span><span class="s2">)</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">preprocess</span><span class="s2">(</span>
+  <span class="s1">options</span><span class="s2">: </span><span class="s1">TemplateCompileOptions</span><span class="s2">,</span>
+  <span class="s1">preprocessor</span><span class="s2">: </span><span class="s1">any</span>
+<span class="s2">): </span><span class="s1">string </span><span class="s2">{</span>
+  <span class="s0">const </span><span class="s2">{ </span><span class="s1">source</span><span class="s2">, </span><span class="s1">filename</span><span class="s2">, </span><span class="s1">preprocessOptions </span><span class="s2">} = </span><span class="s1">options</span>
+
+  <span class="s0">const </span><span class="s1">finalPreprocessOptions </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">assign</span><span class="s2">(</span>
+    <span class="s2">{</span>
+      <span class="s1">filename</span>
+    <span class="s2">},</span>
+    <span class="s1">preprocessOptions</span>
+  <span class="s2">)</span>
+
+  <span class="s4">// Consolidate exposes a callback based API, but the callback is in fact</span>
+  <span class="s4">// called synchronously for most templating engines. In our case, we have to</span>
+  <span class="s4">// expose a synchronous API so that it is usable in Jest transforms (which</span>
+  <span class="s4">// have to be sync because they are applied via Node.js require hooks)</span>
+  <span class="s0">let </span><span class="s1">res</span><span class="s2">: </span><span class="s1">any</span><span class="s2">, </span><span class="s1">err</span>
+  <span class="s1">preprocessor</span><span class="s2">.</span><span class="s1">render</span><span class="s2">(</span>
+    <span class="s1">source</span><span class="s2">,</span>
+    <span class="s1">finalPreprocessOptions</span><span class="s2">,</span>
+    <span class="s2">(</span><span class="s1">_err</span><span class="s2">: </span><span class="s1">Error </span><span class="s2">| </span><span class="s0">null</span><span class="s2">, </span><span class="s1">_res</span><span class="s2">: </span><span class="s1">string</span><span class="s2">) =&gt; {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">_err</span><span class="s2">) </span><span class="s1">err </span><span class="s2">= </span><span class="s1">_err</span>
+      <span class="s1">res </span><span class="s2">= </span><span class="s1">_res</span>
+    <span class="s2">}</span>
+  <span class="s2">)</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">err</span><span class="s2">) </span><span class="s0">throw </span><span class="s1">err</span>
+  <span class="s0">return </span><span class="s1">res</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">actuallyCompile</span><span class="s2">(</span>
+  <span class="s1">options</span><span class="s2">: </span><span class="s1">TemplateCompileOptions</span>
+<span class="s2">): </span><span class="s1">TemplateCompileResult </span><span class="s2">{</span>
+  <span class="s0">const </span><span class="s2">{</span>
+    <span class="s1">source</span><span class="s2">,</span>
+    <span class="s1">compiler</span><span class="s2">,</span>
+    <span class="s1">compilerOptions </span><span class="s2">= {},</span>
+    <span class="s1">transpileOptions </span><span class="s2">= {},</span>
+    <span class="s1">transformAssetUrls</span><span class="s2">,</span>
+    <span class="s1">transformAssetUrlsOptions</span><span class="s2">,</span>
+    <span class="s1">isProduction </span><span class="s2">= </span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">NODE_ENV </span><span class="s2">=== </span><span class="s3">'production'</span><span class="s2">,</span>
+    <span class="s1">isFunctional </span><span class="s2">= </span><span class="s0">false</span><span class="s2">,</span>
+    <span class="s1">optimizeSSR </span><span class="s2">= </span><span class="s0">false</span><span class="s2">,</span>
+    <span class="s1">prettify </span><span class="s2">= </span><span class="s0">true</span>
+  <span class="s2">} = </span><span class="s1">options</span>
+
+  <span class="s0">const </span><span class="s1">compile </span><span class="s2">=</span>
+    <span class="s1">optimizeSSR </span><span class="s2">&amp;&amp; </span><span class="s1">compiler</span><span class="s2">.</span><span class="s1">ssrCompile </span><span class="s2">? </span><span class="s1">compiler</span><span class="s2">.</span><span class="s1">ssrCompile </span><span class="s2">: </span><span class="s1">compiler</span><span class="s2">.</span><span class="s1">compile</span>
+
+  <span class="s0">let </span><span class="s1">finalCompilerOptions </span><span class="s2">= </span><span class="s1">compilerOptions</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">transformAssetUrls</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">builtInModules </span><span class="s2">= [</span>
+      <span class="s1">transformAssetUrls </span><span class="s2">=== </span><span class="s0">true</span>
+        <span class="s2">? </span><span class="s1">assetUrlsModule</span><span class="s2">(</span><span class="s1">undefined</span><span class="s2">, </span><span class="s1">transformAssetUrlsOptions</span><span class="s2">)</span>
+        <span class="s2">: </span><span class="s1">assetUrlsModule</span><span class="s2">(</span><span class="s1">transformAssetUrls</span><span class="s2">, </span><span class="s1">transformAssetUrlsOptions</span><span class="s2">),</span>
+      <span class="s1">srcsetModule</span><span class="s2">(</span><span class="s1">transformAssetUrlsOptions</span><span class="s2">)</span>
+    <span class="s2">]</span>
+    <span class="s1">finalCompilerOptions </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">assign</span><span class="s2">({}, </span><span class="s1">compilerOptions</span><span class="s2">, {</span>
+      <span class="s1">modules</span><span class="s2">: [</span><span class="s1">...builtInModules</span><span class="s2">, </span><span class="s1">...</span><span class="s2">(</span><span class="s1">compilerOptions</span><span class="s2">.</span><span class="s1">modules </span><span class="s2">|| [])],</span>
+      <span class="s1">filename</span><span class="s2">: </span><span class="s1">options</span><span class="s2">.</span><span class="s1">filename</span>
+    <span class="s2">})</span>
+  <span class="s2">}</span>
+
+  <span class="s0">const </span><span class="s2">{ </span><span class="s1">ast</span><span class="s2">, </span><span class="s1">render</span><span class="s2">, </span><span class="s1">staticRenderFns</span><span class="s2">, </span><span class="s1">tips</span><span class="s2">, </span><span class="s1">errors </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span>
+    <span class="s1">source</span><span class="s2">,</span>
+    <span class="s1">finalCompilerOptions</span>
+  <span class="s2">)</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">errors </span><span class="s2">&amp;&amp; </span><span class="s1">errors</span><span class="s2">.</span><span class="s1">length</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s2">{</span>
+      <span class="s1">ast</span><span class="s2">,</span>
+      <span class="s1">code</span><span class="s2">: </span><span class="s3">`var render = function () {}</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+ </span><span class="s3">`var staticRenderFns = []</span><span class="s0">\n</span><span class="s3">`</span><span class="s2">,</span>
+      <span class="s1">source</span><span class="s2">,</span>
+      <span class="s1">tips</span><span class="s2">,</span>
+      <span class="s1">errors</span>
+    <span class="s2">}</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s0">const </span><span class="s1">finalTranspileOptions </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">assign</span><span class="s2">({}, </span><span class="s1">transpileOptions</span><span class="s2">, {</span>
+      <span class="s1">transforms</span><span class="s2">: </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">assign</span><span class="s2">({}, </span><span class="s1">transpileOptions</span><span class="s2">.</span><span class="s1">transforms</span><span class="s2">, {</span>
+        <span class="s1">stripWithFunctional</span><span class="s2">: </span><span class="s1">isFunctional</span>
+      <span class="s2">})</span>
+    <span class="s2">})</span>
+
+    <span class="s0">const </span><span class="s1">toFunction </span><span class="s2">= (</span><span class="s1">code</span><span class="s2">: </span><span class="s1">string</span><span class="s2">): </span><span class="s1">string </span><span class="s2">=&gt; {</span>
+      <span class="s0">return </span><span class="s3">`function (</span><span class="s1">$</span><span class="s2">{</span><span class="s1">isFunctional </span><span class="s2">? </span><span class="s3">`_h,_vm` </span><span class="s2">: </span><span class="s3">``</span><span class="s2">}</span><span class="s3">) {</span><span class="s1">$</span><span class="s2">{</span><span class="s1">code</span><span class="s2">}</span><span class="s3">}`</span>
+    <span class="s2">}</span>
+
+    <span class="s4">// transpile code with vue-template-es2015-compiler, which is a forked</span>
+    <span class="s4">// version of Buble that applies ES2015 transforms + stripping `with` usage</span>
+    <span class="s0">let </span><span class="s1">code </span><span class="s2">=</span>
+      <span class="s1">transpile</span><span class="s2">(</span>
+        <span class="s3">`var __render__ = </span><span class="s1">$</span><span class="s2">{</span><span class="s1">toFunction</span><span class="s2">(</span><span class="s1">render</span><span class="s2">)}</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+          <span class="s3">`var __staticRenderFns__ = [</span><span class="s1">$</span><span class="s2">{</span><span class="s1">staticRenderFns</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">toFunction</span><span class="s2">)}</span><span class="s3">]`</span><span class="s2">,</span>
+        <span class="s1">finalTranspileOptions</span>
+      <span class="s2">) + </span><span class="s3">`</span><span class="s0">\n</span><span class="s3">`</span>
+
+    <span class="s4">// #23 we use __render__ to avoid `render` not being prefixed by the</span>
+    <span class="s4">// transpiler when stripping with, but revert it back to `render` to</span>
+    <span class="s4">// maintain backwards compat</span>
+    <span class="s1">code </span><span class="s2">= </span><span class="s1">code</span><span class="s2">.</span><span class="s1">replace</span><span class="s2">(</span><span class="s5">/\s__(render|staticRenderFns)__\s/g</span><span class="s2">, </span><span class="s3">' $1 '</span><span class="s2">)</span>
+
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">isProduction</span><span class="s2">) {</span>
+      <span class="s4">// mark with stripped (this enables Vue to use correct runtime proxy</span>
+      <span class="s4">// detection)</span>
+      <span class="s1">code </span><span class="s2">+= </span><span class="s3">`render._withStripped = true`</span>
+
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">prettify</span><span class="s2">) {</span>
+        <span class="s0">try </span><span class="s2">{</span>
+          <span class="s1">code </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'prettier'</span><span class="s2">).</span><span class="s1">format</span><span class="s2">(</span><span class="s1">code</span><span class="s2">, {</span>
+            <span class="s1">semi</span><span class="s2">: </span><span class="s0">false</span><span class="s2">,</span>
+            <span class="s1">parser</span><span class="s2">: </span><span class="s3">'babel'</span>
+          <span class="s2">})</span>
+        <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">e</span><span class="s2">) {</span>
+          <span class="s0">if </span><span class="s2">(</span><span class="s1">e</span><span class="s2">.</span><span class="s1">code </span><span class="s2">=== </span><span class="s3">'MODULE_NOT_FOUND'</span><span class="s2">) {</span>
+            <span class="s1">tips</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span>
+              <span class="s3">'The `prettify` option is on, but the dependency `prettier` is not found.</span><span class="s0">\n</span><span class="s3">' </span><span class="s2">+</span>
+                <span class="s3">'Please either turn off `prettify` or manually install `prettier`.'</span>
+            <span class="s2">)</span>
+          <span class="s2">}</span>
+          <span class="s1">tips</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span>
+            <span class="s3">`Failed to prettify component </span><span class="s1">$</span><span class="s2">{</span><span class="s1">options</span><span class="s2">.</span><span class="s1">filename</span><span class="s2">} </span><span class="s3">template source after compilation.`</span>
+          <span class="s2">)</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s0">return </span><span class="s2">{</span>
+      <span class="s1">ast</span><span class="s2">,</span>
+      <span class="s1">code</span><span class="s2">,</span>
+      <span class="s1">source</span><span class="s2">,</span>
+      <span class="s1">tips</span><span class="s2">,</span>
+      <span class="s1">errors</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

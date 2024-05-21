@@ -1,0 +1,160 @@
+<html>
+<head>
+<title>getFilenameFromUrl.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #2aacb8;}
+.s7 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+getFilenameFromUrl.js</font>
+</center></td></tr></table>
+<pre><span class="s0">&quot;use strict&quot;</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s2">path </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;path&quot;</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s1">{</span>
+  <span class="s2">parse</span>
+<span class="s1">} = </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;url&quot;</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s2">querystring </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;querystring&quot;</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s2">getPaths </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./getPaths&quot;</span><span class="s1">);</span>
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;../index.js&quot;).IncomingMessage} IncomingMessage */</span>
+
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;../index.js&quot;).ServerResponse} ServerResponse */</span>
+
+
+<span class="s3">const </span><span class="s2">cacheStore </span><span class="s1">= </span><span class="s3">new </span><span class="s2">WeakMap</span><span class="s1">();</span>
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Function} fn</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{{ cache?: Map&lt;any, any&gt; }} [cache]</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{any}</span>
+ <span class="s4">*/</span>
+
+<span class="s3">const </span><span class="s2">mem </span><span class="s1">= (</span><span class="s2">fn</span><span class="s1">, {</span>
+  <span class="s2">cache </span><span class="s1">= </span><span class="s3">new </span><span class="s2">Map</span><span class="s1">()</span>
+<span class="s1">} = {}) =&gt; {</span>
+  <span class="s4">/**</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{any} arguments_</span>
+   <span class="s4">* </span><span class="s5">@return </span><span class="s4">{any}</span>
+   <span class="s4">*/</span>
+  <span class="s3">const </span><span class="s2">memoized </span><span class="s1">= (</span><span class="s2">...arguments_</span><span class="s1">) =&gt; {</span>
+    <span class="s3">const </span><span class="s1">[</span><span class="s2">key</span><span class="s1">] = </span><span class="s2">arguments_</span><span class="s1">;</span>
+    <span class="s3">const </span><span class="s2">cacheItem </span><span class="s1">= </span><span class="s2">cache</span><span class="s1">.</span><span class="s2">get</span><span class="s1">(</span><span class="s2">key</span><span class="s1">);</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">cacheItem</span><span class="s1">) {</span>
+      <span class="s3">return </span><span class="s2">cacheItem</span><span class="s1">.</span><span class="s2">data</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s3">const </span><span class="s2">result </span><span class="s1">= </span><span class="s2">fn</span><span class="s1">.</span><span class="s2">apply</span><span class="s1">(</span><span class="s3">void </span><span class="s6">0</span><span class="s1">, </span><span class="s2">arguments_</span><span class="s1">);</span>
+    <span class="s2">cache</span><span class="s1">.</span><span class="s2">set</span><span class="s1">(</span><span class="s2">key</span><span class="s1">, {</span>
+      <span class="s2">data</span><span class="s1">: </span><span class="s2">result</span>
+    <span class="s1">});</span>
+    <span class="s3">return </span><span class="s2">result</span><span class="s1">;</span>
+  <span class="s1">};</span>
+
+  <span class="s2">cacheStore</span><span class="s1">.</span><span class="s2">set</span><span class="s1">(</span><span class="s2">memoized</span><span class="s1">, </span><span class="s2">cache</span><span class="s1">);</span>
+  <span class="s3">return </span><span class="s2">memoized</span><span class="s1">;</span>
+<span class="s1">};</span>
+
+<span class="s3">const </span><span class="s2">memoizedParse </span><span class="s1">= </span><span class="s2">mem</span><span class="s1">(</span><span class="s2">parse</span><span class="s1">);</span>
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@template </span><span class="s4">{IncomingMessage} Request</span>
+ <span class="s4">* </span><span class="s5">@template </span><span class="s4">{ServerResponse} Response</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{import(&quot;../index.js&quot;).Context&lt;Request, Response&gt;} context</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} url</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{string | undefined}</span>
+ <span class="s4">*/</span>
+
+<span class="s3">function </span><span class="s2">getFilenameFromUrl</span><span class="s1">(</span><span class="s2">context</span><span class="s1">, </span><span class="s2">url</span><span class="s1">) {</span>
+  <span class="s3">const </span><span class="s1">{</span>
+    <span class="s2">options</span>
+  <span class="s1">} = </span><span class="s2">context</span><span class="s1">;</span>
+  <span class="s3">const </span><span class="s2">paths </span><span class="s1">= </span><span class="s2">getPaths</span><span class="s1">(</span><span class="s2">context</span><span class="s1">);</span>
+  <span class="s3">let </span><span class="s2">foundFilename</span><span class="s1">;</span>
+  <span class="s3">let </span><span class="s2">urlObject</span><span class="s1">;</span>
+
+  <span class="s3">try </span><span class="s1">{</span>
+    <span class="s7">// The `url` property of the `request` is contains only  `pathname`, `search` and `hash`</span>
+    <span class="s2">urlObject </span><span class="s1">= </span><span class="s2">memoizedParse</span><span class="s1">(</span><span class="s2">url</span><span class="s1">, </span><span class="s3">false</span><span class="s1">, </span><span class="s3">true</span><span class="s1">);</span>
+  <span class="s1">} </span><span class="s3">catch </span><span class="s1">(</span><span class="s2">_ignoreError</span><span class="s1">) {</span>
+    <span class="s3">return</span><span class="s1">;</span>
+  <span class="s1">}</span>
+
+  <span class="s3">for </span><span class="s1">(</span><span class="s3">const </span><span class="s1">{</span>
+    <span class="s2">publicPath</span><span class="s1">,</span>
+    <span class="s2">outputPath</span>
+  <span class="s1">} </span><span class="s2">of paths</span><span class="s1">) {</span>
+    <span class="s3">let </span><span class="s2">filename</span><span class="s1">;</span>
+    <span class="s3">let </span><span class="s2">publicPathObject</span><span class="s1">;</span>
+
+    <span class="s3">try </span><span class="s1">{</span>
+      <span class="s2">publicPathObject </span><span class="s1">= </span><span class="s2">memoizedParse</span><span class="s1">(</span><span class="s2">publicPath </span><span class="s1">!== </span><span class="s0">&quot;auto&quot; </span><span class="s1">&amp;&amp; </span><span class="s2">publicPath </span><span class="s1">? </span><span class="s2">publicPath </span><span class="s1">: </span><span class="s0">&quot;/&quot;</span><span class="s1">, </span><span class="s3">false</span><span class="s1">, </span><span class="s3">true</span><span class="s1">);</span>
+    <span class="s1">} </span><span class="s3">catch </span><span class="s1">(</span><span class="s2">_ignoreError</span><span class="s1">) {</span>
+      <span class="s7">// eslint-disable-next-line no-continue</span>
+      <span class="s3">continue</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">urlObject</span><span class="s1">.</span><span class="s2">pathname </span><span class="s1">&amp;&amp; </span><span class="s2">urlObject</span><span class="s1">.</span><span class="s2">pathname</span><span class="s1">.</span><span class="s2">startsWith</span><span class="s1">(</span><span class="s2">publicPathObject</span><span class="s1">.</span><span class="s2">pathname</span><span class="s1">)) {</span>
+      <span class="s2">filename </span><span class="s1">= </span><span class="s2">outputPath</span><span class="s1">; </span><span class="s7">// Strip the `pathname` property from the `publicPath` option from the start of requested url</span>
+      <span class="s7">// `/complex/foo.js` =&gt; `foo.js`</span>
+
+      <span class="s3">const </span><span class="s2">pathname </span><span class="s1">= </span><span class="s2">urlObject</span><span class="s1">.</span><span class="s2">pathname</span><span class="s1">.</span><span class="s2">slice</span><span class="s1">(</span><span class="s2">publicPathObject</span><span class="s1">.</span><span class="s2">pathname</span><span class="s1">.</span><span class="s2">length</span><span class="s1">);</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">pathname</span><span class="s1">) {</span>
+        <span class="s2">filename </span><span class="s1">= </span><span class="s2">path</span><span class="s1">.</span><span class="s2">join</span><span class="s1">(</span><span class="s2">outputPath</span><span class="s1">, </span><span class="s2">querystring</span><span class="s1">.</span><span class="s2">unescape</span><span class="s1">(</span><span class="s2">pathname</span><span class="s1">));</span>
+      <span class="s1">}</span>
+
+      <span class="s3">let </span><span class="s2">fsStats</span><span class="s1">;</span>
+
+      <span class="s3">try </span><span class="s1">{</span>
+        <span class="s2">fsStats </span><span class="s1">=</span>
+        <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{import(&quot;fs&quot;).statSync} */</span>
+        <span class="s2">context</span><span class="s1">.</span><span class="s2">outputFileSystem</span><span class="s1">.</span><span class="s2">statSync</span><span class="s1">(</span><span class="s2">filename</span><span class="s1">);</span>
+      <span class="s1">} </span><span class="s3">catch </span><span class="s1">(</span><span class="s2">_ignoreError</span><span class="s1">) {</span>
+        <span class="s7">// eslint-disable-next-line no-continue</span>
+        <span class="s3">continue</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">fsStats</span><span class="s1">.</span><span class="s2">isFile</span><span class="s1">()) {</span>
+        <span class="s2">foundFilename </span><span class="s1">= </span><span class="s2">filename</span><span class="s1">;</span>
+        <span class="s3">break</span><span class="s1">;</span>
+      <span class="s1">} </span><span class="s3">else if </span><span class="s1">(</span><span class="s2">fsStats</span><span class="s1">.</span><span class="s2">isDirectory</span><span class="s1">() &amp;&amp; (</span><span class="s3">typeof </span><span class="s2">options</span><span class="s1">.</span><span class="s2">index </span><span class="s1">=== </span><span class="s0">&quot;undefined&quot; </span><span class="s1">|| </span><span class="s2">options</span><span class="s1">.</span><span class="s2">index</span><span class="s1">)) {</span>
+        <span class="s3">const </span><span class="s2">indexValue </span><span class="s1">= </span><span class="s3">typeof </span><span class="s2">options</span><span class="s1">.</span><span class="s2">index </span><span class="s1">=== </span><span class="s0">&quot;undefined&quot; </span><span class="s1">|| </span><span class="s3">typeof </span><span class="s2">options</span><span class="s1">.</span><span class="s2">index </span><span class="s1">=== </span><span class="s0">&quot;boolean&quot; </span><span class="s1">? </span><span class="s0">&quot;index.html&quot; </span><span class="s1">: </span><span class="s2">options</span><span class="s1">.</span><span class="s2">index</span><span class="s1">;</span>
+        <span class="s2">filename </span><span class="s1">= </span><span class="s2">path</span><span class="s1">.</span><span class="s2">join</span><span class="s1">(</span><span class="s2">filename</span><span class="s1">, </span><span class="s2">indexValue</span><span class="s1">);</span>
+
+        <span class="s3">try </span><span class="s1">{</span>
+          <span class="s2">fsStats </span><span class="s1">=</span>
+          <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{import(&quot;fs&quot;).statSync} */</span>
+          <span class="s2">context</span><span class="s1">.</span><span class="s2">outputFileSystem</span><span class="s1">.</span><span class="s2">statSync</span><span class="s1">(</span><span class="s2">filename</span><span class="s1">);</span>
+        <span class="s1">} </span><span class="s3">catch </span><span class="s1">(</span><span class="s2">__ignoreError</span><span class="s1">) {</span>
+          <span class="s7">// eslint-disable-next-line no-continue</span>
+          <span class="s3">continue</span><span class="s1">;</span>
+        <span class="s1">}</span>
+
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">fsStats</span><span class="s1">.</span><span class="s2">isFile</span><span class="s1">()) {</span>
+          <span class="s2">foundFilename </span><span class="s1">= </span><span class="s2">filename</span><span class="s1">;</span>
+          <span class="s3">break</span><span class="s1">;</span>
+        <span class="s1">}</span>
+      <span class="s1">}</span>
+    <span class="s1">}</span>
+  <span class="s1">} </span><span class="s7">// eslint-disable-next-line consistent-return</span>
+
+
+  <span class="s3">return </span><span class="s2">foundFilename</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= </span><span class="s2">getFilenameFromUrl</span><span class="s1">;</span></pre>
+</body>
+</html>

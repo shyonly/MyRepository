@@ -1,0 +1,210 @@
+<html>
+<head>
+<title>priority.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+priority.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span>
+
+<span class="s2">var </span><span class="s1">transport </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'../spdy-transport'</span><span class="s3">)</span>
+<span class="s2">var </span><span class="s1">utils </span><span class="s3">= </span><span class="s1">transport</span><span class="s3">.</span><span class="s1">utils</span>
+
+<span class="s2">var </span><span class="s1">assert </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'assert'</span><span class="s3">)</span>
+<span class="s2">var </span><span class="s1">debug </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s0">'debug'</span><span class="s3">)(</span><span class="s0">'spdy:priority'</span><span class="s3">)</span>
+
+<span class="s2">function </span><span class="s1">PriorityNode </span><span class="s3">(</span><span class="s1">tree</span><span class="s3">, </span><span class="s1">options</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">tree </span><span class="s3">= </span><span class="s1">tree</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">id </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">id</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">parent </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">parent</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">weight </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">weight</span>
+
+  <span class="s4">// To be calculated in `addChild`</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">priorityFrom </span><span class="s3">= </span><span class="s5">0</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">priorityTo </span><span class="s3">= </span><span class="s5">1</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">priority </span><span class="s3">= </span><span class="s5">1</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">children </span><span class="s3">= {</span>
+    <span class="s1">list</span><span class="s3">: [],</span>
+    <span class="s1">weight</span><span class="s3">: </span><span class="s5">0</span>
+  <span class="s3">}</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">parent </span><span class="s3">!== </span><span class="s2">null</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">.</span><span class="s1">addChild</span><span class="s3">(</span><span class="s2">this</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">compareChildren </span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">) {</span>
+  <span class="s2">return </span><span class="s1">a</span><span class="s3">.</span><span class="s1">weight </span><span class="s3">=== </span><span class="s1">b</span><span class="s3">.</span><span class="s1">weight </span><span class="s3">? </span><span class="s1">a</span><span class="s3">.</span><span class="s1">id </span><span class="s3">- </span><span class="s1">b</span><span class="s3">.</span><span class="s1">id </span><span class="s3">: </span><span class="s1">a</span><span class="s3">.</span><span class="s1">weight </span><span class="s3">- </span><span class="s1">b</span><span class="s3">.</span><span class="s1">weight</span>
+<span class="s3">}</span>
+
+<span class="s1">PriorityNode</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">toJSON </span><span class="s3">= </span><span class="s2">function </span><span class="s1">toJSON </span><span class="s3">() {</span>
+  <span class="s2">return </span><span class="s3">{</span>
+    <span class="s1">parent</span><span class="s3">: </span><span class="s2">this</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">,</span>
+    <span class="s1">weight</span><span class="s3">: </span><span class="s2">this</span><span class="s3">.</span><span class="s1">weight</span><span class="s3">,</span>
+    <span class="s1">exclusive</span><span class="s3">: </span><span class="s2">this</span><span class="s3">.</span><span class="s1">exclusive</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">PriorityNode</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">getPriority </span><span class="s3">= </span><span class="s2">function </span><span class="s1">getPriority </span><span class="s3">() {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">priority</span>
+<span class="s3">}</span>
+
+<span class="s1">PriorityNode</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">getPriorityRange </span><span class="s3">= </span><span class="s2">function </span><span class="s1">getPriorityRange </span><span class="s3">() {</span>
+  <span class="s2">return </span><span class="s3">{ </span><span class="s1">from</span><span class="s3">: </span><span class="s2">this</span><span class="s3">.</span><span class="s1">priorityFrom</span><span class="s3">, </span><span class="s1">to</span><span class="s3">: </span><span class="s2">this</span><span class="s3">.</span><span class="s1">priorityTo </span><span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">PriorityNode</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">addChild </span><span class="s3">= </span><span class="s2">function </span><span class="s1">addChild </span><span class="s3">(</span><span class="s1">child</span><span class="s3">) {</span>
+  <span class="s1">child</span><span class="s3">.</span><span class="s1">parent </span><span class="s3">= </span><span class="s2">this</span>
+  <span class="s1">utils</span><span class="s3">.</span><span class="s1">binaryInsert</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">list</span><span class="s3">, </span><span class="s1">child</span><span class="s3">, </span><span class="s1">compareChildren</span><span class="s3">)</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">weight </span><span class="s3">+= </span><span class="s1">child</span><span class="s3">.</span><span class="s1">weight</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">_updatePriority</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">priorityFrom</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">priorityTo</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">PriorityNode</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">remove </span><span class="s3">= </span><span class="s2">function </span><span class="s1">remove </span><span class="s3">() {</span>
+  <span class="s1">assert</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">, </span><span class="s0">'Can</span><span class="s2">\'</span><span class="s0">t remove root node'</span><span class="s3">)</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">.</span><span class="s1">removeChild</span><span class="s3">(</span><span class="s2">this</span><span class="s3">)</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">tree</span><span class="s3">.</span><span class="s1">_removeNode</span><span class="s3">(</span><span class="s2">this</span><span class="s3">)</span>
+
+  <span class="s4">// Move all children to the parent</span>
+  <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">list</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">.</span><span class="s1">addChild</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">list</span><span class="s3">[</span><span class="s1">i</span><span class="s3">])</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">PriorityNode</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">removeChild </span><span class="s3">= </span><span class="s2">function </span><span class="s1">removeChild </span><span class="s3">(</span><span class="s1">child</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">weight </span><span class="s3">-= </span><span class="s1">child</span><span class="s3">.</span><span class="s1">weight</span>
+  <span class="s2">var </span><span class="s1">index </span><span class="s3">= </span><span class="s1">utils</span><span class="s3">.</span><span class="s1">binarySearch</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">list</span><span class="s3">, </span><span class="s1">child</span><span class="s3">, </span><span class="s1">compareChildren</span><span class="s3">)</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">index </span><span class="s3">!== -</span><span class="s5">1 </span><span class="s3">&amp;&amp; </span><span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">list</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt;= </span><span class="s1">index</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">list</span><span class="s3">.</span><span class="s1">splice</span><span class="s3">(</span><span class="s1">index</span><span class="s3">, </span><span class="s5">1</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">PriorityNode</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">removeChildren </span><span class="s3">= </span><span class="s2">function </span><span class="s1">removeChildren </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">children </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">list</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">list </span><span class="s3">= []</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">weight </span><span class="s3">= </span><span class="s5">0</span>
+  <span class="s2">return </span><span class="s1">children</span>
+<span class="s3">}</span>
+
+<span class="s1">PriorityNode</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_updatePriority </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_updatePriority </span><span class="s3">(</span><span class="s1">from</span><span class="s3">, </span><span class="s1">to</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">priority </span><span class="s3">= </span><span class="s1">to </span><span class="s3">- </span><span class="s1">from</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">priorityFrom </span><span class="s3">= </span><span class="s1">from</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">priorityTo </span><span class="s3">= </span><span class="s1">to</span>
+
+  <span class="s2">var </span><span class="s1">weight </span><span class="s3">= </span><span class="s5">0</span>
+  <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">list</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+    <span class="s2">var </span><span class="s1">node </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">list</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+    <span class="s2">var </span><span class="s1">nextWeight </span><span class="s3">= </span><span class="s1">weight </span><span class="s3">+ </span><span class="s1">node</span><span class="s3">.</span><span class="s1">weight</span>
+
+    <span class="s1">node</span><span class="s3">.</span><span class="s1">_updatePriority</span><span class="s3">(</span>
+      <span class="s1">from </span><span class="s3">+ </span><span class="s2">this</span><span class="s3">.</span><span class="s1">priority </span><span class="s3">* (</span><span class="s1">weight </span><span class="s3">/ </span><span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">weight</span><span class="s3">),</span>
+      <span class="s1">from </span><span class="s3">+ </span><span class="s2">this</span><span class="s3">.</span><span class="s1">priority </span><span class="s3">* (</span><span class="s1">nextWeight </span><span class="s3">/ </span><span class="s2">this</span><span class="s3">.</span><span class="s1">children</span><span class="s3">.</span><span class="s1">weight</span><span class="s3">)</span>
+    <span class="s3">)</span>
+    <span class="s1">weight </span><span class="s3">= </span><span class="s1">nextWeight</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">PriorityTree </span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">map </span><span class="s3">= {}</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">list </span><span class="s3">= []</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">defaultWeight </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">defaultWeight </span><span class="s3">|| </span><span class="s5">16</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">count </span><span class="s3">= </span><span class="s5">0</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">maxCount </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">maxCount</span>
+
+  <span class="s4">// Root</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">root </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">add</span><span class="s3">({</span>
+    <span class="s1">id</span><span class="s3">: </span><span class="s5">0</span><span class="s3">,</span>
+    <span class="s1">parent</span><span class="s3">: </span><span class="s2">null</span><span class="s3">,</span>
+    <span class="s1">weight</span><span class="s3">: </span><span class="s5">1</span>
+  <span class="s3">})</span>
+<span class="s3">}</span>
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">PriorityTree</span>
+
+<span class="s1">PriorityTree</span><span class="s3">.</span><span class="s1">create </span><span class="s3">= </span><span class="s2">function </span><span class="s1">create </span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+  <span class="s2">return new </span><span class="s1">PriorityTree</span><span class="s3">(</span><span class="s1">options</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">PriorityTree</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">add </span><span class="s3">= </span><span class="s2">function </span><span class="s1">add </span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">options</span><span class="s3">.</span><span class="s1">id </span><span class="s3">=== </span><span class="s1">options</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">) {</span>
+    <span class="s2">return this</span><span class="s3">.</span><span class="s1">addDefault</span><span class="s3">(</span><span class="s1">options</span><span class="s3">.</span><span class="s1">id</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s2">var </span><span class="s1">parent </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">parent </span><span class="s3">=== </span><span class="s2">null </span><span class="s3">? </span><span class="s2">null </span><span class="s3">: </span><span class="s2">this</span><span class="s3">.</span><span class="s1">map</span><span class="s3">[</span><span class="s1">options</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">]</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">parent </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+    <span class="s2">return this</span><span class="s3">.</span><span class="s1">addDefault</span><span class="s3">(</span><span class="s1">options</span><span class="s3">.</span><span class="s1">id</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s1">debug</span><span class="s3">(</span><span class="s0">'add node=%d parent=%d weight=%d exclusive=%d'</span><span class="s3">,</span>
+    <span class="s1">options</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+    <span class="s1">options</span><span class="s3">.</span><span class="s1">parent </span><span class="s3">=== </span><span class="s2">null </span><span class="s3">? -</span><span class="s5">1 </span><span class="s3">: </span><span class="s1">options</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">,</span>
+    <span class="s1">options</span><span class="s3">.</span><span class="s1">weight </span><span class="s3">|| </span><span class="s2">this</span><span class="s3">.</span><span class="s1">defaultWeight</span><span class="s3">,</span>
+    <span class="s1">options</span><span class="s3">.</span><span class="s1">exclusive </span><span class="s3">? </span><span class="s5">1 </span><span class="s3">: </span><span class="s5">0</span><span class="s3">)</span>
+
+  <span class="s2">var </span><span class="s1">children</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">options</span><span class="s3">.</span><span class="s1">exclusive</span><span class="s3">) {</span>
+    <span class="s1">children </span><span class="s3">= </span><span class="s1">parent</span><span class="s3">.</span><span class="s1">removeChildren</span><span class="s3">()</span>
+  <span class="s3">}</span>
+
+  <span class="s2">var </span><span class="s1">node </span><span class="s3">= </span><span class="s2">new </span><span class="s1">PriorityNode</span><span class="s3">(</span><span class="s2">this</span><span class="s3">, {</span>
+    <span class="s1">id</span><span class="s3">: </span><span class="s1">options</span><span class="s3">.</span><span class="s1">id</span><span class="s3">,</span>
+    <span class="s1">parent</span><span class="s3">: </span><span class="s1">parent</span><span class="s3">,</span>
+    <span class="s1">weight</span><span class="s3">: </span><span class="s1">options</span><span class="s3">.</span><span class="s1">weight </span><span class="s3">|| </span><span class="s2">this</span><span class="s3">.</span><span class="s1">defaultWeight</span>
+  <span class="s3">})</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">map</span><span class="s3">[</span><span class="s1">options</span><span class="s3">.</span><span class="s1">id</span><span class="s3">] = </span><span class="s1">node</span>
+
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">options</span><span class="s3">.</span><span class="s1">exclusive</span><span class="s3">) {</span>
+    <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">children</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+      <span class="s1">node</span><span class="s3">.</span><span class="s1">addChild</span><span class="s3">(</span><span class="s1">children</span><span class="s3">[</span><span class="s1">i</span><span class="s3">])</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">count</span><span class="s3">++</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">count </span><span class="s3">&gt; </span><span class="s2">this</span><span class="s3">.</span><span class="s1">maxCount</span><span class="s3">) {</span>
+    <span class="s1">debug</span><span class="s3">(</span><span class="s0">'hit maximum remove id=%d'</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">list</span><span class="s3">[</span><span class="s5">0</span><span class="s3">].</span><span class="s1">id</span><span class="s3">)</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">list</span><span class="s3">.</span><span class="s1">shift</span><span class="s3">().</span><span class="s1">remove</span><span class="s3">()</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// Root node is not subject to removal</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">parent </span><span class="s3">!== </span><span class="s2">null</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">list</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">node</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s2">return </span><span class="s1">node</span>
+<span class="s3">}</span>
+
+<span class="s4">// Only for testing, should use `node`'s methods</span>
+<span class="s1">PriorityTree</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">get </span><span class="s3">= </span><span class="s2">function </span><span class="s1">get </span><span class="s3">(</span><span class="s1">id</span><span class="s3">) {</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">map</span><span class="s3">[</span><span class="s1">id</span><span class="s3">]</span>
+<span class="s3">}</span>
+
+<span class="s1">PriorityTree</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">addDefault </span><span class="s3">= </span><span class="s2">function </span><span class="s1">addDefault </span><span class="s3">(</span><span class="s1">id</span><span class="s3">) {</span>
+  <span class="s1">debug</span><span class="s3">(</span><span class="s0">'creating default node'</span><span class="s3">)</span>
+  <span class="s2">return this</span><span class="s3">.</span><span class="s1">add</span><span class="s3">({ </span><span class="s1">id</span><span class="s3">: </span><span class="s1">id</span><span class="s3">, </span><span class="s1">parent</span><span class="s3">: </span><span class="s5">0</span><span class="s3">, </span><span class="s1">weight</span><span class="s3">: </span><span class="s2">this</span><span class="s3">.</span><span class="s1">defaultWeight </span><span class="s3">})</span>
+<span class="s3">}</span>
+
+<span class="s1">PriorityTree</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_removeNode </span><span class="s3">= </span><span class="s2">function </span><span class="s1">_removeNode </span><span class="s3">(</span><span class="s1">node</span><span class="s3">) {</span>
+  <span class="s2">delete this</span><span class="s3">.</span><span class="s1">map</span><span class="s3">[</span><span class="s1">node</span><span class="s3">.</span><span class="s1">id</span><span class="s3">]</span>
+  <span class="s2">var </span><span class="s1">index </span><span class="s3">= </span><span class="s1">utils</span><span class="s3">.</span><span class="s1">binarySearch</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">list</span><span class="s3">, </span><span class="s1">node</span><span class="s3">, </span><span class="s1">compareChildren</span><span class="s3">)</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">list</span><span class="s3">.</span><span class="s1">splice</span><span class="s3">(</span><span class="s1">index</span><span class="s3">, </span><span class="s5">1</span><span class="s3">)</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">count</span><span class="s3">--</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,1616 @@
+<html>
+<head>
+<title>compileScript.spec.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+compileScript.spec.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">BindingTypes </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../src/types'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">compile</span><span class="s2">, </span><span class="s1">assertCode </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./util'</span>
+
+<span class="s1">describe</span><span class="s2">(</span><span class="s3">'SFC compile &lt;script setup&gt;'</span><span class="s2">, () =&gt; {</span>
+  <span class="s1">test</span><span class="s2">(</span><span class="s3">'should expose top level declarations'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">content</span><span class="s2">, </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup&gt; 
+      import { x } from './x' 
+      let a = 1 
+      const b = 2 
+      function c() {} 
+      class d {} 
+      &lt;/script&gt; 
+ 
+      &lt;script&gt; 
+      import { xx } from './x' 
+      let aa = 1 
+      const bb = 2 
+      function cc() {} 
+      class dd {} 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">'return { aa, bb, cc, dd, a, b, c, d, xx, x }'</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+      <span class="s1">x</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_MAYBE_REF</span><span class="s2">,</span>
+      <span class="s1">a</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_LET</span><span class="s2">,</span>
+      <span class="s1">b</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span><span class="s2">,</span>
+      <span class="s1">c</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span><span class="s2">,</span>
+      <span class="s1">d</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span><span class="s2">,</span>
+      <span class="s1">xx</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_MAYBE_REF</span><span class="s2">,</span>
+      <span class="s1">aa</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_LET</span><span class="s2">,</span>
+      <span class="s1">bb</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span><span class="s2">,</span>
+      <span class="s1">cc</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span><span class="s2">,</span>
+      <span class="s1">dd</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span>
+    <span class="s2">})</span>
+    <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">test</span><span class="s2">(</span><span class="s3">'binding analysis for destructure'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">content</span><span class="s2">, </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup&gt; 
+      const { foo, b: bar, ['x' + 'y']: baz, x: { y, zz: { z }}} = {} 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">'return { foo, bar, baz, y, z }'</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+      <span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_MAYBE_REF</span><span class="s2">,</span>
+      <span class="s1">bar</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_MAYBE_REF</span><span class="s2">,</span>
+      <span class="s1">baz</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_MAYBE_REF</span><span class="s2">,</span>
+      <span class="s1">y</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_MAYBE_REF</span><span class="s2">,</span>
+      <span class="s1">z</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_MAYBE_REF</span>
+    <span class="s2">})</span>
+    <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineProps()'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">content</span><span class="s2">, </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+<span class="s3">&lt;script setup&gt; 
+const props = defineProps({ 
+  foo: String 
+}) 
+const bar = 1 
+&lt;/script&gt; 
+  `</span><span class="s2">)</span>
+    <span class="s4">// should generate working code</span>
+    <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s4">// should analyze bindings</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+      <span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+      <span class="s1">bar</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span><span class="s2">,</span>
+      <span class="s1">props</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_REACTIVE_CONST</span>
+    <span class="s2">})</span>
+
+    <span class="s4">// should remove defineOptions import and call</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">not</span><span class="s2">.</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">'defineProps'</span><span class="s2">)</span>
+    <span class="s4">// should generate correct setup signature</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`setup(__props) {`</span><span class="s2">)</span>
+    <span class="s4">// should assign user identifier to it</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`const props = __props`</span><span class="s2">)</span>
+    <span class="s4">// should include context options in default export</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`export default { 
+  props: { 
+  foo: String 
+},`</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineProps w/ external definition'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+    <span class="s3">&lt;script setup&gt; 
+    import { propsModel } from './props' 
+    const props = defineProps(propsModel) 
+    &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+    <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`export default { 
+  props: propsModel,`</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s4">// #4764</span>
+  <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineProps w/ leading code'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+    <span class="s3">&lt;script setup&gt;import { x } from './x' 
+    const props = defineProps({}) 
+    &lt;/script&gt; 
+    `</span><span class="s2">)</span>
+    <span class="s4">// props declaration should be inside setup, not moved along with the import</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">not</span><span class="s2">.</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`const props = __props</span><span class="s0">\n</span><span class="s3">import`</span><span class="s2">)</span>
+    <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineEmits()'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">content</span><span class="s2">, </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+<span class="s3">&lt;script setup&gt; 
+const myEmit = defineEmits(['foo', 'bar']) 
+&lt;/script&gt; 
+  `</span><span class="s2">)</span>
+    <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+      <span class="s1">myEmit</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span>
+    <span class="s2">})</span>
+    <span class="s4">// should remove defineOptions import and call</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">not</span><span class="s2">.</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">'defineEmits'</span><span class="s2">)</span>
+    <span class="s4">// should generate correct setup signature</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`setup(__props, { emit: myEmit }) {`</span><span class="s2">)</span>
+    <span class="s4">// should include context options in default export</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`export default { 
+  emits: ['foo', 'bar'],`</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineProps/defineEmits in multi-variable declaration'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+    <span class="s3">&lt;script setup&gt; 
+    const props = defineProps(['item']), 
+      a = 1, 
+      emit = defineEmits(['a']); 
+    &lt;/script&gt; 
+  `</span><span class="s2">)</span>
+    <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`const a = 1;`</span><span class="s2">) </span><span class="s4">// test correct removal</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`props: ['item'],`</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emits: ['a'],`</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineProps/defineEmits in multi-variable declaration (full removal)'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+    <span class="s3">&lt;script setup&gt; 
+    const props = defineProps(['item']), 
+          emit = defineEmits(['a']); 
+    &lt;/script&gt; 
+  `</span><span class="s2">)</span>
+    <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`props: ['item'],`</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emits: ['a'],`</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineExpose()'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+<span class="s3">&lt;script setup&gt; 
+defineExpose({ foo: 123 }) 
+&lt;/script&gt; 
+  `</span><span class="s2">)</span>
+    <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s4">// should remove defineOptions import and call</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">not</span><span class="s2">.</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">'defineExpose'</span><span class="s2">)</span>
+    <span class="s4">// should generate correct setup signature</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`setup(__props, { expose }) {`</span><span class="s2">)</span>
+    <span class="s4">// should replace callee</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s5">/\bexpose\(\{ foo: 123 \}\)/</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">test</span><span class="s2">(</span><span class="s3">'&lt;script&gt; after &lt;script setup&gt; the script content not end with `</span><span class="s0">\\</span><span class="s3">n`'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+    <span class="s3">&lt;script setup&gt; 
+    import { x } from './x' 
+    &lt;/script&gt; 
+    &lt;script&gt;const n = 1&lt;/script&gt; 
+    `</span><span class="s2">)</span>
+    <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">describe</span><span class="s2">(</span><span class="s3">'&lt;script&gt; and &lt;script setup&gt; co-usage'</span><span class="s2">, () =&gt; {</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'script first'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script&gt; 
+      export const n = 1 
+ 
+      export default {} 
+      &lt;/script&gt; 
+      &lt;script setup&gt; 
+      import { x } from './x' 
+      x() 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'script setup first'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup&gt; 
+      import { x } from './x' 
+      x() 
+      &lt;/script&gt; 
+      &lt;script&gt; 
+      export const n = 1 
+      export default {} 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'script setup first, named default export'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup&gt; 
+      import { x } from './x' 
+      x() 
+      &lt;/script&gt; 
+      &lt;script&gt; 
+      export const n = 1 
+      const def = {} 
+      export { def as default } 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s4">// #4395</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'script setup first, lang=&quot;ts&quot;, script block content export default'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      import { x } from './x' 
+      x() 
+      &lt;/script&gt; 
+      &lt;script lang=&quot;ts&quot;&gt; 
+      export default { 
+        name: &quot;test&quot; 
+      } 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s4">// ensure __default__ is declared before used</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s5">/const __default__[\S\s]*\.\.\.__default__/m</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">describe</span><span class="s2">(</span><span class="s3">'spaces in ExportDefaultDeclaration node'</span><span class="s2">, () =&gt; {</span>
+      <span class="s4">// #4371</span>
+      <span class="s1">test</span><span class="s2">(</span><span class="s3">'with many spaces and newline'</span><span class="s2">, () =&gt; {</span>
+        <span class="s4">// #4371</span>
+        <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+        <span class="s3">&lt;script&gt; 
+        export const n = 1 
+        export        default 
+        { 
+          some:'option' 
+        } 
+        &lt;/script&gt; 
+        &lt;script setup&gt; 
+        import { x } from './x' 
+        x() 
+        &lt;/script&gt; 
+        `</span><span class="s2">)</span>
+        <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s2">})</span>
+
+      <span class="s1">test</span><span class="s2">(</span><span class="s3">'with minimal spaces'</span><span class="s2">, () =&gt; {</span>
+        <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+        <span class="s3">&lt;script&gt; 
+        export const n = 1 
+        export default{ 
+          some:'option' 
+        } 
+        &lt;/script&gt; 
+        &lt;script setup&gt; 
+        import { x } from './x' 
+        x() 
+        &lt;/script&gt; 
+        `</span><span class="s2">)</span>
+        <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s2">})</span>
+    <span class="s2">})</span>
+  <span class="s2">})</span>
+
+  <span class="s1">describe</span><span class="s2">(</span><span class="s3">'imports'</span><span class="s2">, () =&gt; {</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'should hoist and expose imports'</span><span class="s2">, () =&gt; {</span>
+      <span class="s1">assertCode</span><span class="s2">(</span>
+        <span class="s1">compile</span><span class="s2">(</span><span class="s3">`&lt;script setup&gt; 
+          import { ref } from 'vue' 
+          import 'foo/css' 
+        &lt;/script&gt;`</span><span class="s2">).</span><span class="s1">content</span>
+      <span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'should extract comment for import or type declarations'</span><span class="s2">, () =&gt; {</span>
+      <span class="s1">assertCode</span><span class="s2">(</span>
+        <span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+        <span class="s3">&lt;script setup&gt; 
+        import a from 'a' // comment 
+        import b from 'b' 
+        &lt;/script&gt; 
+        `</span><span class="s2">).</span><span class="s1">content</span>
+      <span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s4">// #2740</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'should allow defineProps/Emit at the start of imports'</span><span class="s2">, () =&gt; {</span>
+      <span class="s1">assertCode</span><span class="s2">(</span>
+        <span class="s1">compile</span><span class="s2">(</span><span class="s3">`&lt;script setup&gt; 
+      import { ref } from 'vue' 
+      defineProps(['foo']) 
+      defineEmits(['bar']) 
+      const r = ref(0) 
+      &lt;/script&gt;`</span><span class="s2">).</span><span class="s1">content</span>
+      <span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'import dedupe between &lt;script&gt; and &lt;script setup&gt;'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+        <span class="s3">&lt;script&gt; 
+        import { x } from './x' 
+        &lt;/script&gt; 
+        &lt;script setup&gt; 
+        import { x } from './x' 
+        x() 
+        &lt;/script&gt; 
+        `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">.</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s3">`import { x }`</span><span class="s2">)).</span><span class="s1">toEqual</span><span class="s2">(</span>
+        <span class="s1">content</span><span class="s2">.</span><span class="s1">lastIndexOf</span><span class="s2">(</span><span class="s3">`import { x }`</span><span class="s2">)</span>
+      <span class="s2">)</span>
+    <span class="s2">})</span>
+  <span class="s2">})</span>
+
+  <span class="s4">// in dev mode, declared bindings are returned as an object from setup()</span>
+  <span class="s4">// when using TS, users may import types which should not be returned as</span>
+  <span class="s4">// values, so we need to check import usage in the template to determine</span>
+  <span class="s4">// what to be returned.</span>
+  <span class="s1">describe</span><span class="s2">(</span><span class="s3">'dev mode import usage check'</span><span class="s2">, () =&gt; {</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'components'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+        <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+        import { FooBar, FooBaz, FooQux, foo } from './x' 
+        const fooBar: FooBar = 1 
+        &lt;/script&gt; 
+        &lt;template&gt; 
+          &lt;FooBaz&gt;&lt;/FooBaz&gt; 
+          &lt;foo-qux/&gt; 
+          &lt;foo/&gt; 
+          FooBar 
+        &lt;/template&gt; 
+        `</span><span class="s2">)</span>
+      <span class="s4">// FooBar: should not be matched by plain text or incorrect case</span>
+      <span class="s4">// FooBaz: used as PascalCase component</span>
+      <span class="s4">// FooQux: used as kebab-case component</span>
+      <span class="s4">// foo: lowercase component</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`return { fooBar, FooBaz, FooQux, foo }`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'directive'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+        <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+        import { vMyDir } from './x' 
+        &lt;/script&gt; 
+        &lt;template&gt; 
+          &lt;div v-my-dir&gt;&lt;/div&gt; 
+        &lt;/template&gt; 
+        `</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`return { vMyDir }`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s4">// https://github.com/vuejs/core/issues/4599</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'attribute expressions'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+        <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+        import { bar, baz } from './x' 
+        const cond = true 
+        &lt;/script&gt; 
+        &lt;template&gt; 
+          &lt;div :class=&quot;[cond ? '' : bar(), 'default']&quot; :style=&quot;baz&quot;&gt;&lt;/div&gt; 
+        &lt;/template&gt; 
+        `</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`return { cond, bar, baz }`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'vue interpolations'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      import { x, y, z, x$y } from './x' 
+      &lt;/script&gt; 
+      &lt;template&gt; 
+        &lt;div :id=&quot;z + 'y'&quot;&gt;{{ x }} {{ yy }} {{ x$y }}&lt;/div&gt; 
+      &lt;/template&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s4">// x: used in interpolation</span>
+      <span class="s4">// y: should not be matched by {{ yy }} or 'y' in binding exps</span>
+      <span class="s4">// x$y: #4274 should escape special chars when creating Regex</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`return { x, z, x$y }`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s4">// #4340 interpolations in template strings</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'js template string interpolations'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+        <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+        import { VAR, VAR2, VAR3 } from './x' 
+        &lt;/script&gt; 
+        &lt;template&gt; 
+          {{ </span><span class="s0">\`\$</span><span class="s3">{VAR}VAR2</span><span class="s0">\$</span><span class="s3">{VAR3}</span><span class="s0">\` </span><span class="s3">}} 
+        &lt;/template&gt; 
+        `</span><span class="s2">)</span>
+      <span class="s4">// VAR2 should not be matched</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`return { VAR, VAR3 }`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s4">// edge case: last tag in template</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'last tag'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+        <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+        import { FooBaz, Last } from './x' 
+        &lt;/script&gt; 
+        &lt;template&gt; 
+          &lt;FooBaz&gt;&lt;/FooBaz&gt; 
+          &lt;Last/&gt; 
+        &lt;/template&gt; 
+        `</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`return { FooBaz, Last }`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'TS annotations'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+        <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+        import { Foo, Baz, Qux, Fred } from './x' 
+        const a = 1 
+        function b() {} 
+        &lt;/script&gt; 
+        &lt;template&gt; 
+          {{ a as Foo }} 
+          {{ Baz }} 
+          &lt;Comp v-slot=&quot;{ data }: Qux&quot;&gt;{{ data }}&lt;/Comp&gt; 
+          &lt;div v-for=&quot;{ z = x as Qux } in list as Fred&quot;/&gt; 
+        &lt;/template&gt; 
+        `</span><span class="s2">)</span>
+
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`return { a, b, Baz }`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+  <span class="s2">})</span>
+
+  <span class="s4">// describe('inlineTemplate mode', () =&gt; {</span>
+  <span class="s4">//   test('should work', () =&gt; {</span>
+  <span class="s4">//     const { content } = compile(</span>
+  <span class="s4">//       `</span>
+  <span class="s4">//       &lt;script setup&gt;</span>
+  <span class="s4">//       import { ref } from 'vue'</span>
+  <span class="s4">//       const count = ref(0)</span>
+  <span class="s4">//       &lt;/script&gt;</span>
+  <span class="s4">//       &lt;template&gt;</span>
+  <span class="s4">//         &lt;div&gt;{{ count }}&lt;/div&gt;</span>
+  <span class="s4">//         &lt;div&gt;static&lt;/div&gt;</span>
+  <span class="s4">//       &lt;/template&gt;</span>
+  <span class="s4">//       `,</span>
+  <span class="s4">//       { inlineTemplate: true }</span>
+  <span class="s4">//     )</span>
+  <span class="s4">//     // check snapshot and make sure helper imports and</span>
+  <span class="s4">//     // hoists are placed correctly.</span>
+  <span class="s4">//     assertCode(content)</span>
+  <span class="s4">//     // in inline mode, no need to call expose() since nothing is exposed</span>
+  <span class="s4">//     // anyway!</span>
+  <span class="s4">//     expect(content).not.toMatch(`expose()`)</span>
+  <span class="s4">//   })</span>
+
+  <span class="s4">//   test('with defineExpose()', () =&gt; {</span>
+  <span class="s4">//     const { content } = compile(</span>
+  <span class="s4">//       `</span>
+  <span class="s4">//       &lt;script setup&gt;</span>
+  <span class="s4">//       const count = ref(0)</span>
+  <span class="s4">//       defineExpose({ count })</span>
+  <span class="s4">//       &lt;/script&gt;</span>
+  <span class="s4">//       `,</span>
+  <span class="s4">//       { inlineTemplate: true }</span>
+  <span class="s4">//     )</span>
+  <span class="s4">//     assertCode(content)</span>
+  <span class="s4">//     expect(content).toMatch(`setup(__props, { expose })`)</span>
+  <span class="s4">//     expect(content).toMatch(`expose({ count })`)</span>
+  <span class="s4">//   })</span>
+
+  <span class="s4">//   test('referencing scope components and directives', () =&gt; {</span>
+  <span class="s4">//     const { content } = compile(</span>
+  <span class="s4">//       `</span>
+  <span class="s4">//       &lt;script setup&gt;</span>
+  <span class="s4">//       import ChildComp from './Child.vue'</span>
+  <span class="s4">//       import SomeOtherComp from './Other.vue'</span>
+  <span class="s4">//       import vMyDir from './my-dir'</span>
+  <span class="s4">//       &lt;/script&gt;</span>
+  <span class="s4">//       &lt;template&gt;</span>
+  <span class="s4">//         &lt;div v-my-dir&gt;&lt;/div&gt;</span>
+  <span class="s4">//         &lt;ChildComp/&gt;</span>
+  <span class="s4">//         &lt;some-other-comp/&gt;</span>
+  <span class="s4">//       &lt;/template&gt;</span>
+  <span class="s4">//       `,</span>
+  <span class="s4">//       { inlineTemplate: true }</span>
+  <span class="s4">//     )</span>
+  <span class="s4">//     expect(content).toMatch('[_unref(vMyDir)]')</span>
+  <span class="s4">//     expect(content).toMatch('_createVNode(ChildComp)')</span>
+  <span class="s4">//     // kebab-case component support</span>
+  <span class="s4">//     expect(content).toMatch('_createVNode(SomeOtherComp)')</span>
+  <span class="s4">//     assertCode(content)</span>
+  <span class="s4">//   })</span>
+
+  <span class="s4">//   test('avoid unref() when necessary', () =&gt; {</span>
+  <span class="s4">//     // function, const, component import</span>
+  <span class="s4">//     const { content } = compile(</span>
+  <span class="s4">//       `&lt;script setup&gt;</span>
+  <span class="s4">//       import { ref } from 'vue'</span>
+  <span class="s4">//       import Foo, { bar } from './Foo.vue'</span>
+  <span class="s4">//       import other from './util'</span>
+  <span class="s4">//       import * as tree from './tree'</span>
+  <span class="s4">//       const count = ref(0)</span>
+  <span class="s4">//       const constant = {}</span>
+  <span class="s4">//       const maybe = foo()</span>
+  <span class="s4">//       let lett = 1</span>
+  <span class="s4">//       function fn() {}</span>
+  <span class="s4">//       &lt;/script&gt;</span>
+  <span class="s4">//       &lt;template&gt;</span>
+  <span class="s4">//         &lt;Foo&gt;{{ bar }}&lt;/Foo&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;fn&quot;&gt;{{ count }} {{ constant }} {{ maybe }} {{ lett }} {{ other }}&lt;/div&gt;</span>
+  <span class="s4">//         {{ tree.foo() }}</span>
+  <span class="s4">//       &lt;/template&gt;</span>
+  <span class="s4">//       `,</span>
+  <span class="s4">//       { inlineTemplate: true }</span>
+  <span class="s4">//     )</span>
+  <span class="s4">//     // no need to unref vue component import</span>
+  <span class="s4">//     expect(content).toMatch(`createVNode(Foo,`)</span>
+  <span class="s4">//     // #2699 should unref named imports from .vue</span>
+  <span class="s4">//     expect(content).toMatch(`unref(bar)`)</span>
+  <span class="s4">//     // should unref other imports</span>
+  <span class="s4">//     expect(content).toMatch(`unref(other)`)</span>
+  <span class="s4">//     // no need to unref constant literals</span>
+  <span class="s4">//     expect(content).not.toMatch(`unref(constant)`)</span>
+  <span class="s4">//     // should directly use .value for known refs</span>
+  <span class="s4">//     expect(content).toMatch(`count.value`)</span>
+  <span class="s4">//     // should unref() on const bindings that may be refs</span>
+  <span class="s4">//     expect(content).toMatch(`unref(maybe)`)</span>
+  <span class="s4">//     // should unref() on let bindings</span>
+  <span class="s4">//     expect(content).toMatch(`unref(lett)`)</span>
+  <span class="s4">//     // no need to unref namespace import (this also preserves tree-shaking)</span>
+  <span class="s4">//     expect(content).toMatch(`tree.foo()`)</span>
+  <span class="s4">//     // no need to unref function declarations</span>
+  <span class="s4">//     expect(content).toMatch(`{ onClick: fn }`)</span>
+  <span class="s4">//     // no need to mark constant fns in patch flag</span>
+  <span class="s4">//     expect(content).not.toMatch(`PROPS`)</span>
+  <span class="s4">//     assertCode(content)</span>
+  <span class="s4">//   })</span>
+
+  <span class="s4">//   test('v-model codegen', () =&gt; {</span>
+  <span class="s4">//     const { content } = compile(</span>
+  <span class="s4">//       `&lt;script setup&gt;</span>
+  <span class="s4">//       import { ref } from 'vue'</span>
+  <span class="s4">//       const count = ref(0)</span>
+  <span class="s4">//       const maybe = foo()</span>
+  <span class="s4">//       let lett = 1</span>
+  <span class="s4">//       &lt;/script&gt;</span>
+  <span class="s4">//       &lt;template&gt;</span>
+  <span class="s4">//         &lt;input v-model=&quot;count&quot;&gt;</span>
+  <span class="s4">//         &lt;input v-model=&quot;maybe&quot;&gt;</span>
+  <span class="s4">//         &lt;input v-model=&quot;lett&quot;&gt;</span>
+  <span class="s4">//       &lt;/template&gt;</span>
+  <span class="s4">//       `,</span>
+  <span class="s4">//       { inlineTemplate: true }</span>
+  <span class="s4">//     )</span>
+  <span class="s4">//     // known const ref: set value</span>
+  <span class="s4">//     expect(content).toMatch(`(count).value = $event`)</span>
+  <span class="s4">//     // const but maybe ref: assign if ref, otherwise do nothing</span>
+  <span class="s4">//     expect(content).toMatch(`_isRef(maybe) ? (maybe).value = $event : null`)</span>
+  <span class="s4">//     // let: handle both cases</span>
+  <span class="s4">//     expect(content).toMatch(</span>
+  <span class="s4">//       `_isRef(lett) ? (lett).value = $event : lett = $event`</span>
+  <span class="s4">//     )</span>
+  <span class="s4">//     assertCode(content)</span>
+  <span class="s4">//   })</span>
+
+  <span class="s4">//   test('template assignment expression codegen', () =&gt; {</span>
+  <span class="s4">//     const { content } = compile(</span>
+  <span class="s4">//       `&lt;script setup&gt;</span>
+  <span class="s4">//       import { ref } from 'vue'</span>
+  <span class="s4">//       const count = ref(0)</span>
+  <span class="s4">//       const maybe = foo()</span>
+  <span class="s4">//       let lett = 1</span>
+  <span class="s4">//       let v = ref(1)</span>
+  <span class="s4">//       &lt;/script&gt;</span>
+  <span class="s4">//       &lt;template&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;count = 1&quot;/&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;maybe = count&quot;/&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;lett = count&quot;/&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;v += 1&quot;/&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;v -= 1&quot;/&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;() =&gt; {</span>
+  <span class="s4">//             let a = '' + lett</span>
+  <span class="s4">//             v = a</span>
+  <span class="s4">//          }&quot;/&gt;</span>
+  <span class="s4">//          &lt;div @click=&quot;() =&gt; {</span>
+  <span class="s4">//             // nested scopes</span>
+  <span class="s4">//             (()=&gt;{</span>
+  <span class="s4">//               let x = a</span>
+  <span class="s4">//               (()=&gt;{</span>
+  <span class="s4">//                 let z = x</span>
+  <span class="s4">//                 let z2 = z</span>
+  <span class="s4">//               })</span>
+  <span class="s4">//               let lz = z</span>
+  <span class="s4">//             })</span>
+  <span class="s4">//             v = a</span>
+  <span class="s4">//          }&quot;/&gt;</span>
+  <span class="s4">//       &lt;/template&gt;</span>
+  <span class="s4">//       `,</span>
+  <span class="s4">//       { inlineTemplate: true }</span>
+  <span class="s4">//     )</span>
+  <span class="s4">//     // known const ref: set value</span>
+  <span class="s4">//     expect(content).toMatch(`count.value = 1`)</span>
+  <span class="s4">//     // const but maybe ref: only assign after check</span>
+  <span class="s4">//     expect(content).toMatch(`maybe.value = count.value`)</span>
+  <span class="s4">//     // let: handle both cases</span>
+  <span class="s4">//     expect(content).toMatch(</span>
+  <span class="s4">//       `_isRef(lett) ? lett.value = count.value : lett = count.value`</span>
+  <span class="s4">//     )</span>
+  <span class="s4">//     expect(content).toMatch(`_isRef(v) ? v.value += 1 : v += 1`)</span>
+  <span class="s4">//     expect(content).toMatch(`_isRef(v) ? v.value -= 1 : v -= 1`)</span>
+  <span class="s4">//     expect(content).toMatch(`_isRef(v) ? v.value = a : v = a`)</span>
+  <span class="s4">//     expect(content).toMatch(`_isRef(v) ? v.value = _ctx.a : v = _ctx.a`)</span>
+  <span class="s4">//     assertCode(content)</span>
+  <span class="s4">//   })</span>
+
+  <span class="s4">//   test('template update expression codegen', () =&gt; {</span>
+  <span class="s4">//     const { content } = compile(</span>
+  <span class="s4">//       `&lt;script setup&gt;</span>
+  <span class="s4">//       import { ref } from 'vue'</span>
+  <span class="s4">//       const count = ref(0)</span>
+  <span class="s4">//       const maybe = foo()</span>
+  <span class="s4">//       let lett = 1</span>
+  <span class="s4">//       &lt;/script&gt;</span>
+  <span class="s4">//       &lt;template&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;count++&quot;/&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;--count&quot;/&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;maybe++&quot;/&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;--maybe&quot;/&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;lett++&quot;/&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;--lett&quot;/&gt;</span>
+  <span class="s4">//       &lt;/template&gt;</span>
+  <span class="s4">//       `,</span>
+  <span class="s4">//       { inlineTemplate: true }</span>
+  <span class="s4">//     )</span>
+  <span class="s4">//     // known const ref: set value</span>
+  <span class="s4">//     expect(content).toMatch(`count.value++`)</span>
+  <span class="s4">//     expect(content).toMatch(`--count.value`)</span>
+  <span class="s4">//     // const but maybe ref (non-ref case ignored)</span>
+  <span class="s4">//     expect(content).toMatch(`maybe.value++`)</span>
+  <span class="s4">//     expect(content).toMatch(`--maybe.value`)</span>
+  <span class="s4">//     // let: handle both cases</span>
+  <span class="s4">//     expect(content).toMatch(`_isRef(lett) ? lett.value++ : lett++`)</span>
+  <span class="s4">//     expect(content).toMatch(`_isRef(lett) ? --lett.value : --lett`)</span>
+  <span class="s4">//     assertCode(content)</span>
+  <span class="s4">//   })</span>
+
+  <span class="s4">//   test('template destructure assignment codegen', () =&gt; {</span>
+  <span class="s4">//     const { content } = compile(</span>
+  <span class="s4">//       `&lt;script setup&gt;</span>
+  <span class="s4">//       import { ref } from 'vue'</span>
+  <span class="s4">//       const val = {}</span>
+  <span class="s4">//       const count = ref(0)</span>
+  <span class="s4">//       const maybe = foo()</span>
+  <span class="s4">//       let lett = 1</span>
+  <span class="s4">//       &lt;/script&gt;</span>
+  <span class="s4">//       &lt;template&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;({ count } = val)&quot;/&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;[maybe] = val&quot;/&gt;</span>
+  <span class="s4">//         &lt;div @click=&quot;({ lett } = val)&quot;/&gt;</span>
+  <span class="s4">//       &lt;/template&gt;</span>
+  <span class="s4">//       `,</span>
+  <span class="s4">//       { inlineTemplate: true }</span>
+  <span class="s4">//     )</span>
+  <span class="s4">//     // known const ref: set value</span>
+  <span class="s4">//     expect(content).toMatch(`({ count: count.value } = val)`)</span>
+  <span class="s4">//     // const but maybe ref (non-ref case ignored)</span>
+  <span class="s4">//     expect(content).toMatch(`[maybe.value] = val`)</span>
+  <span class="s4">//     // let: assumes non-ref</span>
+  <span class="s4">//     expect(content).toMatch(`{ lett: lett } = val`)</span>
+  <span class="s4">//     assertCode(content)</span>
+  <span class="s4">//   })</span>
+
+  <span class="s4">//   test('ssr codegen', () =&gt; {</span>
+  <span class="s4">//     const { content } = compile(</span>
+  <span class="s4">//       `</span>
+  <span class="s4">//       &lt;script setup&gt;</span>
+  <span class="s4">//       import { ref } from 'vue'</span>
+  <span class="s4">//       const count = ref(0)</span>
+  <span class="s4">//       &lt;/script&gt;</span>
+  <span class="s4">//       &lt;template&gt;</span>
+  <span class="s4">//         &lt;div&gt;{{ count }}&lt;/div&gt;</span>
+  <span class="s4">//         &lt;div&gt;static&lt;/div&gt;</span>
+  <span class="s4">//       &lt;/template&gt;</span>
+  <span class="s4">//       &lt;style&gt;</span>
+  <span class="s4">//       div { color: v-bind(count) }</span>
+  <span class="s4">//       &lt;/style&gt;</span>
+  <span class="s4">//       `,</span>
+  <span class="s4">//       {</span>
+  <span class="s4">//         inlineTemplate: true,</span>
+  <span class="s4">//         templateOptions: {</span>
+  <span class="s4">//           ssr: true</span>
+  <span class="s4">//         }</span>
+  <span class="s4">//       }</span>
+  <span class="s4">//     )</span>
+  <span class="s4">//     expect(content).toMatch(`\n  __ssrInlineRender: true,\n`)</span>
+  <span class="s4">//     expect(content).toMatch(`return (_ctx, _push`)</span>
+  <span class="s4">//     expect(content).toMatch(`ssrInterpolate`)</span>
+  <span class="s4">//     expect(content).not.toMatch(`useCssVars`)</span>
+  <span class="s4">//     expect(content).toMatch(`&quot;--${mockId}-count&quot;: (count.value)`)</span>
+  <span class="s4">//     assertCode(content)</span>
+  <span class="s4">//   })</span>
+  <span class="s4">// })</span>
+
+  <span class="s1">describe</span><span class="s2">(</span><span class="s3">'with TypeScript'</span><span class="s2">, () =&gt; {</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'hoist type declarations'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+        export interface Foo {} 
+        type Bar = {} 
+      &lt;/script&gt;`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineProps/Emit w/ runtime options'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+<span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+const props = defineProps({ foo: String }) 
+const emit = defineEmits(['a', 'b']) 
+&lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`export default /*#__PURE__*/_defineComponent({ 
+  props: { foo: String }, 
+  emits: ['a', 'b'], 
+  setup(__props, { emit }) {`</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineProps w/ type'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content</span><span class="s2">, </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      interface Test {} 
+ 
+      type Alias = number[] 
+ 
+      defineProps&lt;{ 
+        string: string 
+        number: number 
+        boolean: boolean 
+        object: object 
+        objectLiteral: { a: number } 
+        fn: (n: number) =&gt; void 
+        functionRef: Function 
+        objectRef: Object 
+        dateTime: Date 
+        array: string[] 
+        arrayRef: Array&lt;any&gt; 
+        tuple: [number, number] 
+        set: Set&lt;string&gt; 
+        literal: 'foo' 
+        optional?: any 
+        recordRef: Record&lt;string, null&gt; 
+        interface: Test 
+        alias: Alias 
+        method(): void 
+        symbol: symbol 
+ 
+        union: string | number 
+        literalUnion: 'foo' | 'bar' 
+        literalUnionNumber: 1 | 2 | 3 | 4 | 5 
+        literalUnionMixed: 'foo' | 1 | boolean 
+        intersection: Test &amp; {} 
+        foo: ((item: any) =&gt; boolean) | null 
+      }&gt;() 
+      &lt;/script&gt;`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`string: { type: String, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`number: { type: Number, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`boolean: { type: Boolean, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`object: { type: Object, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`objectLiteral: { type: Object, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`fn: { type: Function, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`functionRef: { type: Function, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`objectRef: { type: Object, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`dateTime: { type: Date, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`array: { type: Array, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`arrayRef: { type: Array, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`tuple: { type: Array, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`set: { type: Set, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`literal: { type: String, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`optional: { type: null, required: false }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`recordRef: { type: Object, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`interface: { type: Object, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`alias: { type: Array, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`method: { type: Function, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`symbol: { type: Symbol, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span>
+        <span class="s3">`union: { type: [String, Number], required: true }`</span>
+      <span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`literalUnion: { type: String, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span>
+        <span class="s3">`literalUnionNumber: { type: Number, required: true }`</span>
+      <span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span>
+        <span class="s3">`literalUnionMixed: { type: [String, Number, Boolean], required: true }`</span>
+      <span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`intersection: { type: Object, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`foo: { type: [Function, null], required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+        <span class="s1">string</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">number</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">boolean</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">object</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">objectLiteral</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">fn</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">functionRef</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">objectRef</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">dateTime</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">array</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">arrayRef</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">tuple</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">set</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">literal</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">optional</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">recordRef</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s0">interface</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">alias</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">method</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">symbol</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">union</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">literalUnion</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">literalUnionNumber</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">literalUnionMixed</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">intersection</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span>
+      <span class="s2">})</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineProps w/ interface'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content</span><span class="s2">, </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      interface Props { x?: number } 
+      defineProps&lt;Props&gt;() 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`x: { type: Number, required: false }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+        <span class="s1">x</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span>
+      <span class="s2">})</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineProps w/ exported interface'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content</span><span class="s2">, </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      export interface Props { x?: number } 
+      defineProps&lt;Props&gt;() 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`x: { type: Number, required: false }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+        <span class="s1">x</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span>
+      <span class="s2">})</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineProps w/ exported interface in normal script'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content</span><span class="s2">, </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script lang=&quot;ts&quot;&gt; 
+        export interface Props { x?: number } 
+      &lt;/script&gt; 
+      &lt;script setup lang=&quot;ts&quot;&gt; 
+        defineProps&lt;Props&gt;() 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`x: { type: Number, required: false }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+        <span class="s1">x</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span>
+      <span class="s2">})</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineProps w/ type alias'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content</span><span class="s2">, </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      type Props = { x?: number } 
+      defineProps&lt;Props&gt;() 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`x: { type: Number, required: false }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+        <span class="s1">x</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span>
+      <span class="s2">})</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineProps w/ exported type alias'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content</span><span class="s2">, </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      export type Props = { x?: number } 
+      defineProps&lt;Props&gt;() 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`x: { type: Number, required: false }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+        <span class="s1">x</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span>
+      <span class="s2">})</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'withDefaults (static)'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content</span><span class="s2">, </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      const props = withDefaults(defineProps&lt;{ 
+        foo?: string 
+        bar?: number; 
+        baz: boolean; 
+        qux?(): number 
+      }&gt;(), { 
+        foo: 'hi', 
+        qux() { return 1 } 
+      }) 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span>
+        <span class="s3">`foo: { type: String, required: false, default: 'hi' }`</span>
+      <span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`bar: { type: Number, required: false }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`baz: { type: Boolean, required: true }`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span>
+        <span class="s3">`qux: { type: Function, required: false, default() { return 1 } }`</span>
+      <span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span>
+        <span class="s3">`{ foo: string, bar?: number, baz: boolean, qux(): number }`</span>
+      <span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`const props = __props`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+        <span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">bar</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">baz</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">qux</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+        <span class="s1">props</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span>
+      <span class="s2">})</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'withDefaults (dynamic)'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      import { defaults } from './foo' 
+      const props = withDefaults(defineProps&lt;{ 
+        foo?: string 
+        bar?: number 
+        baz: boolean 
+      }&gt;(), { ...defaults }) 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`import { mergeDefaults as _mergeDefaults`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span>
+        <span class="s3">`</span>
+  <span class="s3">_mergeDefaults({ 
+    foo: { type: String, required: false }, 
+    bar: { type: Number, required: false }, 
+    baz: { type: Boolean, required: true } 
+  }, { ...defaults })`</span><span class="s2">.</span><span class="s1">trim</span><span class="s2">()</span>
+      <span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineEmits w/ type'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      const emit = defineEmits&lt;(e: 'foo' | 'bar') =&gt; void&gt;() 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emit: ((e: 'foo' | 'bar') =&gt; void),`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emits: [&quot;foo&quot;, &quot;bar&quot;]`</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineEmits w/ type (union)'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s1">type </span><span class="s2">= </span><span class="s3">`((e: 'foo' | 'bar') =&gt; void) | ((e: 'baz', id: number) =&gt; void)`</span>
+      <span class="s1">expect</span><span class="s2">(() =&gt;</span>
+        <span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      const emit = defineEmits&lt;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">type</span><span class="s2">}</span><span class="s3">&gt;() 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s2">).</span><span class="s1">toThrow</span><span class="s2">()</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineEmits w/ type (type literal w/ call signatures)'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s1">type </span><span class="s2">= </span><span class="s3">`{(e: 'foo' | 'bar'): void; (e: 'baz', id: number): void;}`</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      const emit = defineEmits&lt;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">type</span><span class="s2">}</span><span class="s3">&gt;() 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emit: (</span><span class="s1">$</span><span class="s2">{</span><span class="s1">type</span><span class="s2">}</span><span class="s3">),`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emits: [&quot;foo&quot;, &quot;bar&quot;, &quot;baz&quot;]`</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineEmits w/ type (interface)'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      interface Emits { (e: 'foo' | 'bar'): void } 
+      const emit = defineEmits&lt;Emits&gt;() 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emit: ({ (e: 'foo' | 'bar'): void }),`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emits: [&quot;foo&quot;, &quot;bar&quot;]`</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineEmits w/ type (exported interface)'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      export interface Emits { (e: 'foo' | 'bar'): void } 
+      const emit = defineEmits&lt;Emits&gt;() 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emit: ({ (e: 'foo' | 'bar'): void }),`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emits: [&quot;foo&quot;, &quot;bar&quot;]`</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineEmits w/ type (type alias)'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      type Emits = { (e: 'foo' | 'bar'): void } 
+      const emit = defineEmits&lt;Emits&gt;() 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emit: ({ (e: 'foo' | 'bar'): void }),`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emits: [&quot;foo&quot;, &quot;bar&quot;]`</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineEmits w/ type (exported type alias)'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      export type Emits = { (e: 'foo' | 'bar'): void } 
+      const emit = defineEmits&lt;Emits&gt;() 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emit: ({ (e: 'foo' | 'bar'): void }),`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emits: [&quot;foo&quot;, &quot;bar&quot;]`</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineEmits w/ type (referenced function type)'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      type Emits = (e: 'foo' | 'bar') =&gt; void 
+      const emit = defineEmits&lt;Emits&gt;() 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emit: ((e: 'foo' | 'bar') =&gt; void),`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emits: [&quot;foo&quot;, &quot;bar&quot;]`</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineEmits w/ type (referenced exported function type)'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+      export type Emits = (e: 'foo' | 'bar') =&gt; void 
+      const emit = defineEmits&lt;Emits&gt;() 
+      &lt;/script&gt; 
+      `</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emit: ((e: 'foo' | 'bar') =&gt; void),`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`emits: [&quot;foo&quot;, &quot;bar&quot;]`</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'runtime Enum'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content</span><span class="s2">, </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span>
+        <span class="s3">`&lt;script setup lang=&quot;ts&quot;&gt; 
+        enum Foo { A = 123 } 
+        &lt;/script&gt;`</span>
+      <span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+        <span class="s1">Foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span>
+      <span class="s2">})</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'runtime Enum in normal script'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content</span><span class="s2">, </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span>
+        <span class="s3">`&lt;script lang=&quot;ts&quot;&gt; 
+          export enum D { D = &quot;D&quot; } 
+          const enum C { C = &quot;C&quot; } 
+          enum B { B = &quot;B&quot; } 
+        &lt;/script&gt; 
+        &lt;script setup lang=&quot;ts&quot;&gt; 
+        enum Foo { A = 123 } 
+        &lt;/script&gt;`</span>
+      <span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+        <span class="s1">D</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span><span class="s2">,</span>
+        <span class="s1">C</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span><span class="s2">,</span>
+        <span class="s1">B</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span><span class="s2">,</span>
+        <span class="s1">Foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span>
+      <span class="s2">})</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'const Enum'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content</span><span class="s2">, </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span>
+        <span class="s3">`&lt;script setup lang=&quot;ts&quot;&gt; 
+        const enum Foo { A = 123 } 
+        &lt;/script&gt;`</span>
+      <span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+        <span class="s1">Foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span>
+      <span class="s2">})</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'import type'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span>
+        <span class="s3">`&lt;script setup lang=&quot;ts&quot;&gt; 
+        import type { Foo } from './main.ts' 
+        import { type Bar, Baz } from './main.ts' 
+        &lt;/script&gt;`</span>
+      <span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`return { Baz }`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+  <span class="s2">})</span>
+
+  <span class="s1">describe</span><span class="s2">(</span><span class="s3">'errors'</span><span class="s2">, () =&gt; {</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'&lt;script&gt; and &lt;script setup&gt; must have same lang'</span><span class="s2">, () =&gt; {</span>
+      <span class="s1">expect</span><span class="s2">(() =&gt;</span>
+        <span class="s1">compile</span><span class="s2">(</span><span class="s3">`&lt;script&gt;foo()&lt;/script&gt;&lt;script setup lang=&quot;ts&quot;&gt;bar()&lt;/script&gt;`</span><span class="s2">)</span>
+      <span class="s2">).</span><span class="s1">toThrow</span><span class="s2">(</span><span class="s3">`&lt;script&gt; and &lt;script setup&gt; must have the same language type`</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s0">const </span><span class="s1">moduleErrorMsg </span><span class="s2">= </span><span class="s3">`cannot contain ES module exports`</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'non-type named exports'</span><span class="s2">, () =&gt; {</span>
+      <span class="s1">expect</span><span class="s2">(() =&gt;</span>
+        <span class="s1">compile</span><span class="s2">(</span><span class="s3">`&lt;script setup&gt; 
+        export const a = 1 
+        &lt;/script&gt;`</span><span class="s2">)</span>
+      <span class="s2">).</span><span class="s1">toThrow</span><span class="s2">(</span><span class="s1">moduleErrorMsg</span><span class="s2">)</span>
+
+      <span class="s1">expect</span><span class="s2">(() =&gt;</span>
+        <span class="s1">compile</span><span class="s2">(</span><span class="s3">`&lt;script setup&gt; 
+        export * from './foo' 
+        &lt;/script&gt;`</span><span class="s2">)</span>
+      <span class="s2">).</span><span class="s1">toThrow</span><span class="s2">(</span><span class="s1">moduleErrorMsg</span><span class="s2">)</span>
+
+      <span class="s1">expect</span><span class="s2">(() =&gt;</span>
+        <span class="s1">compile</span><span class="s2">(</span><span class="s3">`&lt;script setup&gt; 
+          const bar = 1 
+          export { bar as default } 
+        &lt;/script&gt;`</span><span class="s2">)</span>
+      <span class="s2">).</span><span class="s1">toThrow</span><span class="s2">(</span><span class="s1">moduleErrorMsg</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineProps/Emit() w/ both type and non-type args'</span><span class="s2">, () =&gt; {</span>
+      <span class="s1">expect</span><span class="s2">(() =&gt; {</span>
+        <span class="s1">compile</span><span class="s2">(</span><span class="s3">`&lt;script setup lang=&quot;ts&quot;&gt; 
+        defineProps&lt;{}&gt;({}) 
+        &lt;/script&gt;`</span><span class="s2">)</span>
+      <span class="s2">}).</span><span class="s1">toThrow</span><span class="s2">(</span><span class="s3">`cannot accept both type and non-type arguments`</span><span class="s2">)</span>
+
+      <span class="s1">expect</span><span class="s2">(() =&gt; {</span>
+        <span class="s1">compile</span><span class="s2">(</span><span class="s3">`&lt;script setup lang=&quot;ts&quot;&gt; 
+        defineEmits&lt;{}&gt;({}) 
+        &lt;/script&gt;`</span><span class="s2">)</span>
+      <span class="s2">}).</span><span class="s1">toThrow</span><span class="s2">(</span><span class="s3">`cannot accept both type and non-type arguments`</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'defineProps/Emit() referencing local var'</span><span class="s2">, () =&gt; {</span>
+      <span class="s1">expect</span><span class="s2">(() =&gt;</span>
+        <span class="s1">compile</span><span class="s2">(</span><span class="s3">`&lt;script setup&gt; 
+        const bar = 1 
+        defineProps({ 
+          foo: { 
+            default: () =&gt; bar 
+          } 
+        }) 
+        &lt;/script&gt;`</span><span class="s2">)</span>
+      <span class="s2">).</span><span class="s1">toThrow</span><span class="s2">(</span><span class="s3">`cannot reference locally declared variables`</span><span class="s2">)</span>
+
+      <span class="s1">expect</span><span class="s2">(() =&gt;</span>
+        <span class="s1">compile</span><span class="s2">(</span><span class="s3">`&lt;script setup&gt; 
+        const bar = 'hello' 
+        defineEmits([bar]) 
+        &lt;/script&gt;`</span><span class="s2">)</span>
+      <span class="s2">).</span><span class="s1">toThrow</span><span class="s2">(</span><span class="s3">`cannot reference locally declared variables`</span><span class="s2">)</span>
+
+      <span class="s4">// #4644</span>
+      <span class="s1">expect</span><span class="s2">(() =&gt;</span>
+        <span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+        <span class="s3">&lt;script&gt;const bar = 1&lt;/script&gt; 
+        &lt;script setup&gt; 
+        defineProps({ 
+          foo: { 
+            default: () =&gt; bar 
+          } 
+        }) 
+        &lt;/script&gt;`</span><span class="s2">)</span>
+      <span class="s2">).</span><span class="s1">not</span><span class="s2">.</span><span class="s1">toThrow</span><span class="s2">(</span><span class="s3">`cannot reference locally declared variables`</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'should allow defineProps/Emit() referencing scope var'</span><span class="s2">, () =&gt; {</span>
+      <span class="s1">assertCode</span><span class="s2">(</span>
+        <span class="s1">compile</span><span class="s2">(</span><span class="s3">`&lt;script setup&gt; 
+          const bar = 1 
+          defineProps({ 
+            foo: { 
+              default: bar =&gt; bar + 1 
+            } 
+          }) 
+          defineEmits({ 
+            foo: bar =&gt; bar &gt; 1 
+          }) 
+        &lt;/script&gt;`</span><span class="s2">).</span><span class="s1">content</span>
+      <span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'should allow defineProps/Emit() referencing imported binding'</span><span class="s2">, () =&gt; {</span>
+      <span class="s1">assertCode</span><span class="s2">(</span>
+        <span class="s1">compile</span><span class="s2">(</span><span class="s3">`&lt;script setup&gt; 
+        import { bar } from './bar' 
+        defineProps({ 
+          foo: { 
+            default: () =&gt; bar 
+          } 
+        }) 
+        defineEmits({ 
+          foo: () =&gt; bar &gt; 1 
+        }) 
+        &lt;/script&gt;`</span><span class="s2">).</span><span class="s1">content</span>
+      <span class="s2">)</span>
+    <span class="s2">})</span>
+  <span class="s2">})</span>
+<span class="s2">})</span>
+
+<span class="s1">describe</span><span class="s2">(</span><span class="s3">'SFC analyze &lt;script&gt; bindings'</span><span class="s2">, () =&gt; {</span>
+  <span class="s1">it</span><span class="s2">(</span><span class="s3">'can parse decorators syntax in typescript block'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">scriptAst </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script lang=&quot;ts&quot;&gt; 
+        import { Options, Vue } from 'vue-class-component'; 
+        @Options({ 
+          components: { 
+            HelloWorld, 
+          }, 
+          props: ['foo', 'bar'] 
+        }) 
+        export default class Home extends Vue {} 
+      &lt;/script&gt; 
+    `</span><span class="s2">)</span>
+
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">scriptAst</span><span class="s2">).</span><span class="s1">toBeDefined</span><span class="s2">()</span>
+  <span class="s2">})</span>
+
+  <span class="s1">it</span><span class="s2">(</span><span class="s3">'recognizes props array declaration'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script&gt; 
+        export default { 
+          props: ['foo', 'bar'] 
+        } 
+      &lt;/script&gt; 
+    `</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+      <span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+      <span class="s1">bar</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span>
+    <span class="s2">})</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">!.</span><span class="s1">__isScriptSetup</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s0">false</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">it</span><span class="s2">(</span><span class="s3">'recognizes props object declaration'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script&gt; 
+        export default { 
+          props: { 
+            foo: String, 
+            bar: { 
+              type: String, 
+            }, 
+            baz: null, 
+            qux: [String, Number] 
+          } 
+        } 
+      &lt;/script&gt; 
+    `</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+      <span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+      <span class="s1">bar</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+      <span class="s1">baz</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+      <span class="s1">qux</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span>
+    <span class="s2">})</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">!.</span><span class="s1">__isScriptSetup</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s0">false</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">it</span><span class="s2">(</span><span class="s3">'recognizes setup return'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script&gt; 
+        const bar = 2 
+        export default { 
+          setup() { 
+            return { 
+              foo: 1, 
+              bar 
+            } 
+          } 
+        } 
+      &lt;/script&gt; 
+    `</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+      <span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_MAYBE_REF</span><span class="s2">,</span>
+      <span class="s1">bar</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_MAYBE_REF</span>
+    <span class="s2">})</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">!.</span><span class="s1">__isScriptSetup</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s0">false</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">it</span><span class="s2">(</span><span class="s3">'recognizes exported vars'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script&gt; 
+        export const foo = 2 
+      &lt;/script&gt; 
+      &lt;script setup&gt; 
+        console.log(foo) 
+      &lt;/script&gt; 
+    `</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+      <span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span>
+    <span class="s2">})</span>
+  <span class="s2">})</span>
+
+  <span class="s1">it</span><span class="s2">(</span><span class="s3">'recognizes async setup return'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script&gt; 
+        const bar = 2 
+        export default { 
+          async setup() { 
+            return { 
+              foo: 1, 
+              bar 
+            } 
+          } 
+        } 
+      &lt;/script&gt; 
+    `</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+      <span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_MAYBE_REF</span><span class="s2">,</span>
+      <span class="s1">bar</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_MAYBE_REF</span>
+    <span class="s2">})</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">!.</span><span class="s1">__isScriptSetup</span><span class="s2">).</span><span class="s1">toBe</span><span class="s2">(</span><span class="s0">false</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">it</span><span class="s2">(</span><span class="s3">'recognizes data return'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script&gt; 
+        const bar = 2 
+        export default { 
+          data() { 
+            return { 
+              foo: null, 
+              bar 
+            } 
+          } 
+        } 
+      &lt;/script&gt; 
+    `</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+      <span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">DATA</span><span class="s2">,</span>
+      <span class="s1">bar</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">DATA</span>
+    <span class="s2">})</span>
+  <span class="s2">})</span>
+
+  <span class="s1">it</span><span class="s2">(</span><span class="s3">'recognizes methods'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script&gt; 
+        export default { 
+          methods: { 
+            foo() {} 
+          } 
+        } 
+      &lt;/script&gt; 
+    `</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({ </span><span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">OPTIONS </span><span class="s2">})</span>
+  <span class="s2">})</span>
+
+  <span class="s1">it</span><span class="s2">(</span><span class="s3">'recognizes computeds'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script&gt; 
+        export default { 
+          computed: { 
+            foo() {}, 
+            bar: { 
+              get() {}, 
+              set() {}, 
+            } 
+          } 
+        } 
+      &lt;/script&gt; 
+    `</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+      <span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">OPTIONS</span><span class="s2">,</span>
+      <span class="s1">bar</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">OPTIONS</span>
+    <span class="s2">})</span>
+  <span class="s2">})</span>
+
+  <span class="s1">it</span><span class="s2">(</span><span class="s3">'recognizes injections array declaration'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script&gt; 
+        export default { 
+          inject: ['foo', 'bar'] 
+        } 
+      &lt;/script&gt; 
+    `</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+      <span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">OPTIONS</span><span class="s2">,</span>
+      <span class="s1">bar</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">OPTIONS</span>
+    <span class="s2">})</span>
+  <span class="s2">})</span>
+
+  <span class="s1">it</span><span class="s2">(</span><span class="s3">'recognizes injections object declaration'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script&gt; 
+        export default { 
+          inject: { 
+            foo: {}, 
+            bar: {}, 
+          } 
+        } 
+      &lt;/script&gt; 
+    `</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+      <span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">OPTIONS</span><span class="s2">,</span>
+      <span class="s1">bar</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">OPTIONS</span>
+    <span class="s2">})</span>
+  <span class="s2">})</span>
+
+  <span class="s1">it</span><span class="s2">(</span><span class="s3">'works for mixed bindings'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script&gt; 
+        export default { 
+          inject: ['foo'], 
+          props: { 
+            bar: String, 
+          }, 
+          setup() { 
+            return { 
+              baz: null, 
+            } 
+          }, 
+          data() { 
+            return { 
+              qux: null 
+            } 
+          }, 
+          methods: { 
+            quux() {} 
+          }, 
+          computed: { 
+            quuz() {} 
+          } 
+        } 
+      &lt;/script&gt; 
+    `</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+      <span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">OPTIONS</span><span class="s2">,</span>
+      <span class="s1">bar</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span><span class="s2">,</span>
+      <span class="s1">baz</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_MAYBE_REF</span><span class="s2">,</span>
+      <span class="s1">qux</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">DATA</span><span class="s2">,</span>
+      <span class="s1">quux</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">OPTIONS</span><span class="s2">,</span>
+      <span class="s1">quuz</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">OPTIONS</span>
+    <span class="s2">})</span>
+  <span class="s2">})</span>
+
+  <span class="s1">it</span><span class="s2">(</span><span class="s3">'works for script setup'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">bindings </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup&gt; 
+      import { ref as r } from 'vue' 
+      defineProps({ 
+        foo: String 
+      }) 
+ 
+      const a = r(1) 
+      let b = 2 
+      const c = 3 
+      const { d } = someFoo() 
+      let { e } = someBar() 
+      &lt;/script&gt; 
+    `</span><span class="s2">)</span>
+
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">bindings</span><span class="s2">).</span><span class="s1">toStrictEqual</span><span class="s2">({</span>
+      <span class="s1">r</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span><span class="s2">,</span>
+      <span class="s1">a</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_REF</span><span class="s2">,</span>
+      <span class="s1">b</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_LET</span><span class="s2">,</span>
+      <span class="s1">c</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_CONST</span><span class="s2">,</span>
+      <span class="s1">d</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_MAYBE_REF</span><span class="s2">,</span>
+      <span class="s1">e</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">SETUP_LET</span><span class="s2">,</span>
+      <span class="s1">foo</span><span class="s2">: </span><span class="s1">BindingTypes</span><span class="s2">.</span><span class="s1">PROPS</span>
+    <span class="s2">})</span>
+  <span class="s2">})</span>
+
+  <span class="s1">describe</span><span class="s2">(</span><span class="s3">'auto name inference'</span><span class="s2">, () =&gt; {</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'basic'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span>
+        <span class="s3">`&lt;script setup&gt;const a = 1&lt;/script&gt; 
+        &lt;template&gt;{{ a }}&lt;/template&gt;`</span><span class="s2">,</span>
+        <span class="s1">undefined</span><span class="s2">,</span>
+        <span class="s2">{</span>
+          <span class="s1">filename</span><span class="s2">: </span><span class="s3">'FooBar.vue'</span>
+        <span class="s2">}</span>
+      <span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`export default { 
+  __name: 'FooBar'`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'do not overwrite manual name (object)'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span>
+        <span class="s3">`&lt;script&gt; 
+        export default { 
+          name: 'Baz' 
+        } 
+        &lt;/script&gt; 
+        &lt;script setup&gt;const a = 1&lt;/script&gt; 
+        &lt;template&gt;{{ a }}&lt;/template&gt;`</span><span class="s2">,</span>
+        <span class="s1">undefined</span><span class="s2">,</span>
+        <span class="s2">{</span>
+          <span class="s1">filename</span><span class="s2">: </span><span class="s3">'FooBar.vue'</span>
+        <span class="s2">}</span>
+      <span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">not</span><span class="s2">.</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`name: 'FooBar'`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`name: 'Baz'`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'do not overwrite manual name (call)'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span>
+        <span class="s3">`&lt;script&gt; 
+        import { defineComponent } from 'vue' 
+        export default defineComponent({ 
+          name: 'Baz' 
+        }) 
+        &lt;/script&gt; 
+        &lt;script setup&gt;const a = 1&lt;/script&gt; 
+        &lt;template&gt;{{ a }}&lt;/template&gt;`</span><span class="s2">,</span>
+        <span class="s1">undefined</span><span class="s2">,</span>
+        <span class="s2">{</span>
+          <span class="s1">filename</span><span class="s2">: </span><span class="s3">'FooBar.vue'</span>
+        <span class="s2">}</span>
+      <span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">not</span><span class="s2">.</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`name: 'FooBar'`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`name: 'Baz'`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s4">// #12591</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'should not error when performing ts expression check for v-on inline statement'</span><span class="s2">, () =&gt; {</span>
+      <span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+        import { foo } from './foo' 
+      &lt;/script&gt; 
+      &lt;template&gt; 
+        &lt;div @click=&quot;$emit('update:a');&quot;&gt;&lt;/div&gt; 
+      &lt;/template&gt; 
+      `</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s4">// #12841</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'should not error when performing ts expression check for v-slot destructured default value'</span><span class="s2">, () =&gt; {</span>
+      <span class="s1">compile</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&lt;script setup lang=&quot;ts&quot;&gt; 
+        import FooComp from './Foo.vue' 
+      &lt;/script&gt; 
+      &lt;template&gt; 
+        &lt;FooComp&gt; 
+          &lt;template #bar=&quot;{ bar = { baz: '' } }&quot;&gt; 
+            {{ bar.baz }} 
+          &lt;/template&gt; 
+        &lt;/FooComp&gt; 
+      &lt;/template&gt; 
+      `</span><span class="s2">)</span>
+    <span class="s2">})</span>
+  <span class="s2">})</span>
+<span class="s2">})</span>
+</pre>
+</body>
+</html>

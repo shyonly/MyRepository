@@ -1,0 +1,190 @@
+<html>
+<head>
+<title>arcade.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #5f826b; font-style: italic;}
+.s3 { color: #67a37c; font-style: italic;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #bcbec4;}
+.s6 { color: #6aab73;}
+.s7 { color: #2aacb8;}
+.s8 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+arcade.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+ Language: ArcGIS Arcade 
+ Category: scripting 
+ Author: John Foster &lt;jfoster@esri.com&gt; 
+ Website: https://developers.arcgis.com/arcade/ 
+ Description: ArcGIS Arcade is an expression language used in many Esri ArcGIS products such as Pro, Online, Server, Runtime, JavaScript, and Python 
+*/</span>
+
+<span class="s2">/** </span><span class="s3">@type </span><span class="s2">LanguageFn */</span>
+<span class="s4">function </span><span class="s1">arcade</span><span class="s5">(</span><span class="s1">hljs</span><span class="s5">) {</span>
+  <span class="s4">const </span><span class="s1">IDENT_RE </span><span class="s5">= </span><span class="s6">'[A-Za-z_][0-9A-Za-z_]*'</span><span class="s5">;</span>
+  <span class="s4">const </span><span class="s1">KEYWORDS </span><span class="s5">= {</span>
+    <span class="s1">keyword</span><span class="s5">:</span>
+      <span class="s6">'if for while var new function do return void else break'</span><span class="s5">,</span>
+    <span class="s1">literal</span><span class="s5">:</span>
+      <span class="s6">'BackSlash DoubleQuote false ForwardSlash Infinity NaN NewLine null PI SingleQuote Tab TextFormatting true undefined'</span><span class="s5">,</span>
+    <span class="s1">built_in</span><span class="s5">:</span>
+      <span class="s6">'Abs Acos Angle Attachments Area AreaGeodetic Asin Atan Atan2 Average Bearing Boolean Buffer BufferGeodetic ' </span><span class="s5">+</span>
+      <span class="s6">'Ceil Centroid Clip Console Constrain Contains Cos Count Crosses Cut Date DateAdd ' </span><span class="s5">+</span>
+      <span class="s6">'DateDiff Day Decode DefaultValue Dictionary Difference Disjoint Distance DistanceGeodetic Distinct ' </span><span class="s5">+</span>
+      <span class="s6">'DomainCode DomainName Equals Exp Extent Feature FeatureSet FeatureSetByAssociation FeatureSetById FeatureSetByPortalItem ' </span><span class="s5">+</span>
+      <span class="s6">'FeatureSetByRelationshipName FeatureSetByTitle FeatureSetByUrl Filter First Floor Geometry GroupBy Guid HasKey Hour IIf IndexOf ' </span><span class="s5">+</span>
+      <span class="s6">'Intersection Intersects IsEmpty IsNan IsSelfIntersecting Length LengthGeodetic Log Max Mean Millisecond Min Minute Month ' </span><span class="s5">+</span>
+      <span class="s6">'MultiPartToSinglePart Multipoint NextSequenceValue Now Number OrderBy Overlaps Point Polygon ' </span><span class="s5">+</span>
+      <span class="s6">'Polyline Portal Pow Random Relate Reverse RingIsClockWise Round Second SetGeometry Sin Sort Sqrt Stdev Sum ' </span><span class="s5">+</span>
+      <span class="s6">'SymmetricDifference Tan Text Timestamp Today ToLocal Top Touches ToUTC TrackCurrentTime ' </span><span class="s5">+</span>
+      <span class="s6">'TrackGeometryWindow TrackIndex TrackStartTime TrackWindow TypeOf Union UrlEncode Variance ' </span><span class="s5">+</span>
+      <span class="s6">'Weekday When Within Year '</span>
+  <span class="s5">};</span>
+  <span class="s4">const </span><span class="s1">SYMBOL </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'symbol'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">$[datastore|feature|layer|map|measure|sourcefeature|sourcelayer|targetfeature|targetlayer|value|view]+'</span>
+  <span class="s5">};</span>
+  <span class="s4">const </span><span class="s1">NUMBER </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'number'</span><span class="s5">,</span>
+    <span class="s1">variants</span><span class="s5">: [</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">b(0[bB][01]+)'</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">b(0[oO][0-7]+)'</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s1">hljs</span><span class="s5">.</span><span class="s1">C_NUMBER_RE</span>
+      <span class="s5">}</span>
+    <span class="s5">],</span>
+    <span class="s1">relevance</span><span class="s5">: </span><span class="s7">0</span>
+  <span class="s5">};</span>
+  <span class="s4">const </span><span class="s1">SUBST </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'subst'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">$</span><span class="s4">\\</span><span class="s6">{'</span><span class="s5">,</span>
+    <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">}'</span><span class="s5">,</span>
+    <span class="s1">keywords</span><span class="s5">: </span><span class="s1">KEYWORDS</span><span class="s5">,</span>
+    <span class="s1">contains</span><span class="s5">: [] </span><span class="s0">// defined later</span>
+  <span class="s5">};</span>
+  <span class="s4">const </span><span class="s1">TEMPLATE_STRING </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'string'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'`'</span><span class="s5">,</span>
+    <span class="s1">end</span><span class="s5">: </span><span class="s6">'`'</span><span class="s5">,</span>
+    <span class="s1">contains</span><span class="s5">: [</span>
+      <span class="s1">hljs</span><span class="s5">.</span><span class="s1">BACKSLASH_ESCAPE</span><span class="s5">,</span>
+      <span class="s1">SUBST</span>
+    <span class="s5">]</span>
+  <span class="s5">};</span>
+  <span class="s1">SUBST</span><span class="s5">.</span><span class="s1">contains </span><span class="s5">= [</span>
+    <span class="s1">hljs</span><span class="s5">.</span><span class="s1">APOS_STRING_MODE</span><span class="s5">,</span>
+    <span class="s1">hljs</span><span class="s5">.</span><span class="s1">QUOTE_STRING_MODE</span><span class="s5">,</span>
+    <span class="s1">TEMPLATE_STRING</span><span class="s5">,</span>
+    <span class="s1">NUMBER</span><span class="s5">,</span>
+    <span class="s1">hljs</span><span class="s5">.</span><span class="s1">REGEXP_MODE</span>
+  <span class="s5">];</span>
+  <span class="s4">const </span><span class="s1">PARAMS_CONTAINS </span><span class="s5">= </span><span class="s1">SUBST</span><span class="s5">.</span><span class="s1">contains</span><span class="s5">.</span><span class="s1">concat</span><span class="s5">([</span>
+    <span class="s1">hljs</span><span class="s5">.</span><span class="s1">C_BLOCK_COMMENT_MODE</span><span class="s5">,</span>
+    <span class="s1">hljs</span><span class="s5">.</span><span class="s1">C_LINE_COMMENT_MODE</span>
+  <span class="s5">]);</span>
+
+  <span class="s4">return </span><span class="s5">{</span>
+    <span class="s1">name</span><span class="s5">: </span><span class="s6">'ArcGIS Arcade'</span><span class="s5">,</span>
+    <span class="s1">keywords</span><span class="s5">: </span><span class="s1">KEYWORDS</span><span class="s5">,</span>
+    <span class="s1">contains</span><span class="s5">: [</span>
+      <span class="s1">hljs</span><span class="s5">.</span><span class="s1">APOS_STRING_MODE</span><span class="s5">,</span>
+      <span class="s1">hljs</span><span class="s5">.</span><span class="s1">QUOTE_STRING_MODE</span><span class="s5">,</span>
+      <span class="s1">TEMPLATE_STRING</span><span class="s5">,</span>
+      <span class="s1">hljs</span><span class="s5">.</span><span class="s1">C_LINE_COMMENT_MODE</span><span class="s5">,</span>
+      <span class="s1">hljs</span><span class="s5">.</span><span class="s1">C_BLOCK_COMMENT_MODE</span><span class="s5">,</span>
+      <span class="s1">SYMBOL</span><span class="s5">,</span>
+      <span class="s1">NUMBER</span><span class="s5">,</span>
+      <span class="s5">{ </span><span class="s0">// object attr container</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s8">/[{,]\s*/</span><span class="s5">,</span>
+        <span class="s1">relevance</span><span class="s5">: </span><span class="s7">0</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: [{</span>
+          <span class="s1">begin</span><span class="s5">: </span><span class="s1">IDENT_RE </span><span class="s5">+ </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">s*:'</span><span class="s5">,</span>
+          <span class="s1">returnBegin</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+          <span class="s1">relevance</span><span class="s5">: </span><span class="s7">0</span><span class="s5">,</span>
+          <span class="s1">contains</span><span class="s5">: [{</span>
+            <span class="s1">className</span><span class="s5">: </span><span class="s6">'attr'</span><span class="s5">,</span>
+            <span class="s1">begin</span><span class="s5">: </span><span class="s1">IDENT_RE</span><span class="s5">,</span>
+            <span class="s1">relevance</span><span class="s5">: </span><span class="s7">0</span>
+          <span class="s5">}]</span>
+        <span class="s5">}]</span>
+      <span class="s5">},</span>
+      <span class="s5">{ </span><span class="s0">// &quot;value&quot; container</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s6">'(' </span><span class="s5">+ </span><span class="s1">hljs</span><span class="s5">.</span><span class="s1">RE_STARTERS_RE </span><span class="s5">+ </span><span class="s6">'|</span><span class="s4">\\</span><span class="s6">b(return)</span><span class="s4">\\</span><span class="s6">b)</span><span class="s4">\\</span><span class="s6">s*'</span><span class="s5">,</span>
+        <span class="s1">keywords</span><span class="s5">: </span><span class="s6">'return'</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: [</span>
+          <span class="s1">hljs</span><span class="s5">.</span><span class="s1">C_LINE_COMMENT_MODE</span><span class="s5">,</span>
+          <span class="s1">hljs</span><span class="s5">.</span><span class="s1">C_BLOCK_COMMENT_MODE</span><span class="s5">,</span>
+          <span class="s1">hljs</span><span class="s5">.</span><span class="s1">REGEXP_MODE</span><span class="s5">,</span>
+          <span class="s5">{</span>
+            <span class="s1">className</span><span class="s5">: </span><span class="s6">'function'</span><span class="s5">,</span>
+            <span class="s1">begin</span><span class="s5">: </span><span class="s6">'(</span><span class="s4">\\</span><span class="s6">(.*?</span><span class="s4">\\</span><span class="s6">)|' </span><span class="s5">+ </span><span class="s1">IDENT_RE </span><span class="s5">+ </span><span class="s6">')</span><span class="s4">\\</span><span class="s6">s*=&gt;'</span><span class="s5">,</span>
+            <span class="s1">returnBegin</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+            <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">s*=&gt;'</span><span class="s5">,</span>
+            <span class="s1">contains</span><span class="s5">: [{</span>
+              <span class="s1">className</span><span class="s5">: </span><span class="s6">'params'</span><span class="s5">,</span>
+              <span class="s1">variants</span><span class="s5">: [</span>
+                <span class="s5">{</span>
+                  <span class="s1">begin</span><span class="s5">: </span><span class="s1">IDENT_RE</span>
+                <span class="s5">},</span>
+                <span class="s5">{</span>
+                  <span class="s1">begin</span><span class="s5">: </span><span class="s8">/\(\s*\)/</span>
+                <span class="s5">},</span>
+                <span class="s5">{</span>
+                  <span class="s1">begin</span><span class="s5">: </span><span class="s8">/\(/</span><span class="s5">,</span>
+                  <span class="s1">end</span><span class="s5">: </span><span class="s8">/\)/</span><span class="s5">,</span>
+                  <span class="s1">excludeBegin</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+                  <span class="s1">excludeEnd</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+                  <span class="s1">keywords</span><span class="s5">: </span><span class="s1">KEYWORDS</span><span class="s5">,</span>
+                  <span class="s1">contains</span><span class="s5">: </span><span class="s1">PARAMS_CONTAINS</span>
+                <span class="s5">}</span>
+              <span class="s5">]</span>
+            <span class="s5">}]</span>
+          <span class="s5">}</span>
+        <span class="s5">],</span>
+        <span class="s1">relevance</span><span class="s5">: </span><span class="s7">0</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">className</span><span class="s5">: </span><span class="s6">'function'</span><span class="s5">,</span>
+        <span class="s1">beginKeywords</span><span class="s5">: </span><span class="s6">'function'</span><span class="s5">,</span>
+        <span class="s1">end</span><span class="s5">: </span><span class="s8">/\{/</span><span class="s5">,</span>
+        <span class="s1">excludeEnd</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+        <span class="s1">contains</span><span class="s5">: [</span>
+          <span class="s1">hljs</span><span class="s5">.</span><span class="s1">inherit</span><span class="s5">(</span><span class="s1">hljs</span><span class="s5">.</span><span class="s1">TITLE_MODE</span><span class="s5">, {</span>
+            <span class="s1">begin</span><span class="s5">: </span><span class="s1">IDENT_RE</span>
+          <span class="s5">}),</span>
+          <span class="s5">{</span>
+            <span class="s1">className</span><span class="s5">: </span><span class="s6">'params'</span><span class="s5">,</span>
+            <span class="s1">begin</span><span class="s5">: </span><span class="s8">/\(/</span><span class="s5">,</span>
+            <span class="s1">end</span><span class="s5">: </span><span class="s8">/\)/</span><span class="s5">,</span>
+            <span class="s1">excludeBegin</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+            <span class="s1">excludeEnd</span><span class="s5">: </span><span class="s4">true</span><span class="s5">,</span>
+            <span class="s1">contains</span><span class="s5">: </span><span class="s1">PARAMS_CONTAINS</span>
+          <span class="s5">}</span>
+        <span class="s5">],</span>
+        <span class="s1">illegal</span><span class="s5">: </span><span class="s8">/\[|%/</span>
+      <span class="s5">},</span>
+      <span class="s5">{</span>
+        <span class="s1">begin</span><span class="s5">: </span><span class="s8">/\$[(.]/</span>
+      <span class="s5">}</span>
+    <span class="s5">],</span>
+    <span class="s1">illegal</span><span class="s5">: </span><span class="s8">/#(?!!)/</span>
+  <span class="s5">};</span>
+<span class="s5">}</span>
+
+<span class="s1">module</span><span class="s5">.</span><span class="s1">exports </span><span class="s5">= </span><span class="s1">arcade</span><span class="s5">;</span>
+</pre>
+</body>
+</html>

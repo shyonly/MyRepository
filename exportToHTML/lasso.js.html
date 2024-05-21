@@ -1,0 +1,210 @@
+<html>
+<head>
+<title>lasso.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #2aacb8;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+lasso.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+Language: Lasso 
+Author: Eric Knibbe &lt;eric@lassosoft.com&gt; 
+Description: Lasso is a language and server platform for database-driven web applications. This definition handles Lasso 9 syntax and LassoScript for Lasso 8.6 and earlier. 
+Website: http://www.lassosoft.com/What-Is-Lasso 
+*/</span>
+
+<span class="s2">function </span><span class="s1">lasso</span><span class="s3">(</span><span class="s1">hljs</span><span class="s3">) {</span>
+  <span class="s2">const </span><span class="s1">LASSO_IDENT_RE </span><span class="s3">= </span><span class="s4">'[a-zA-Z_][</span><span class="s2">\\</span><span class="s4">w.]*'</span><span class="s3">;</span>
+  <span class="s2">const </span><span class="s1">LASSO_ANGLE_RE </span><span class="s3">= </span><span class="s4">'&lt;</span><span class="s2">\\</span><span class="s4">?(lasso(script)?|=)'</span><span class="s3">;</span>
+  <span class="s2">const </span><span class="s1">LASSO_CLOSE_RE </span><span class="s3">= </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">]|</span><span class="s2">\\</span><span class="s4">?&gt;'</span><span class="s3">;</span>
+  <span class="s2">const </span><span class="s1">LASSO_KEYWORDS </span><span class="s3">= {</span>
+    <span class="s1">$pattern</span><span class="s3">: </span><span class="s1">LASSO_IDENT_RE </span><span class="s3">+ </span><span class="s4">'|&amp;[lg]t;'</span><span class="s3">,</span>
+    <span class="s1">literal</span><span class="s3">:</span>
+      <span class="s4">'true false none minimal full all void and or not ' </span><span class="s3">+</span>
+      <span class="s4">'bw nbw ew new cn ncn lt lte gt gte eq neq rx nrx ft'</span><span class="s3">,</span>
+    <span class="s1">built_in</span><span class="s3">:</span>
+      <span class="s4">'array date decimal duration integer map pair string tag xml null ' </span><span class="s3">+</span>
+      <span class="s4">'boolean bytes keyword list locale queue set stack staticarray ' </span><span class="s3">+</span>
+      <span class="s4">'local var variable global data self inherited currentcapture givenblock'</span><span class="s3">,</span>
+    <span class="s1">keyword</span><span class="s3">:</span>
+      <span class="s4">'cache database_names database_schemanames database_tablenames ' </span><span class="s3">+</span>
+      <span class="s4">'define_tag define_type email_batch encode_set html_comment handle ' </span><span class="s3">+</span>
+      <span class="s4">'handle_error header if inline iterate ljax_target link ' </span><span class="s3">+</span>
+      <span class="s4">'link_currentaction link_currentgroup link_currentrecord link_detail ' </span><span class="s3">+</span>
+      <span class="s4">'link_firstgroup link_firstrecord link_lastgroup link_lastrecord ' </span><span class="s3">+</span>
+      <span class="s4">'link_nextgroup link_nextrecord link_prevgroup link_prevrecord log ' </span><span class="s3">+</span>
+      <span class="s4">'loop namespace_using output_none portal private protect records ' </span><span class="s3">+</span>
+      <span class="s4">'referer referrer repeating resultset rows search_args ' </span><span class="s3">+</span>
+      <span class="s4">'search_arguments select sort_args sort_arguments thread_atomic ' </span><span class="s3">+</span>
+      <span class="s4">'value_list while abort case else fail_if fail_ifnot fail if_empty ' </span><span class="s3">+</span>
+      <span class="s4">'if_false if_null if_true loop_abort loop_continue loop_count params ' </span><span class="s3">+</span>
+      <span class="s4">'params_up return return_value run_children soap_definetag ' </span><span class="s3">+</span>
+      <span class="s4">'soap_lastrequest soap_lastresponse tag_name ascending average by ' </span><span class="s3">+</span>
+      <span class="s4">'define descending do equals frozen group handle_failure import in ' </span><span class="s3">+</span>
+      <span class="s4">'into join let match max min on order parent protected provide public ' </span><span class="s3">+</span>
+      <span class="s4">'require returnhome skip split_thread sum take thread to trait type ' </span><span class="s3">+</span>
+      <span class="s4">'where with yield yieldhome'</span>
+  <span class="s3">};</span>
+  <span class="s2">const </span><span class="s1">HTML_COMMENT </span><span class="s3">= </span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">COMMENT</span><span class="s3">(</span>
+    <span class="s4">'&lt;!--'</span><span class="s3">,</span>
+    <span class="s4">'--&gt;'</span><span class="s3">,</span>
+    <span class="s3">{</span>
+      <span class="s1">relevance</span><span class="s3">: </span><span class="s5">0</span>
+    <span class="s3">}</span>
+  <span class="s3">);</span>
+  <span class="s2">const </span><span class="s1">LASSO_NOPROCESS </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'meta'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">[noprocess</span><span class="s2">\\</span><span class="s4">]'</span><span class="s3">,</span>
+    <span class="s1">starts</span><span class="s3">: {</span>
+      <span class="s1">end</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">[/noprocess</span><span class="s2">\\</span><span class="s4">]'</span><span class="s3">,</span>
+      <span class="s1">returnEnd</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+      <span class="s1">contains</span><span class="s3">: [</span><span class="s1">HTML_COMMENT</span><span class="s3">]</span>
+    <span class="s3">}</span>
+  <span class="s3">};</span>
+  <span class="s2">const </span><span class="s1">LASSO_START </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'meta'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">[/noprocess|' </span><span class="s3">+ </span><span class="s1">LASSO_ANGLE_RE</span>
+  <span class="s3">};</span>
+  <span class="s2">const </span><span class="s1">LASSO_DATAMEMBER </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'symbol'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\'</span><span class="s4">' </span><span class="s3">+ </span><span class="s1">LASSO_IDENT_RE </span><span class="s3">+ </span><span class="s4">'</span><span class="s2">\'</span><span class="s4">'</span>
+  <span class="s3">};</span>
+  <span class="s2">const </span><span class="s1">LASSO_CODE </span><span class="s3">= [</span>
+    <span class="s1">hljs</span><span class="s3">.</span><span class="s1">C_LINE_COMMENT_MODE</span><span class="s3">,</span>
+    <span class="s1">hljs</span><span class="s3">.</span><span class="s1">C_BLOCK_COMMENT_MODE</span><span class="s3">,</span>
+    <span class="s1">hljs</span><span class="s3">.</span><span class="s1">inherit</span><span class="s3">(</span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">C_NUMBER_MODE</span><span class="s3">, {</span>
+      <span class="s1">begin</span><span class="s3">: </span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">C_NUMBER_RE </span><span class="s3">+ </span><span class="s4">'|(-?infinity|NaN)</span><span class="s2">\\</span><span class="s4">b'</span>
+    <span class="s3">}),</span>
+    <span class="s1">hljs</span><span class="s3">.</span><span class="s1">inherit</span><span class="s3">(</span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">APOS_STRING_MODE</span><span class="s3">, {</span>
+      <span class="s1">illegal</span><span class="s3">: </span><span class="s2">null</span>
+    <span class="s3">}),</span>
+    <span class="s1">hljs</span><span class="s3">.</span><span class="s1">inherit</span><span class="s3">(</span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">QUOTE_STRING_MODE</span><span class="s3">, {</span>
+      <span class="s1">illegal</span><span class="s3">: </span><span class="s2">null</span>
+    <span class="s3">}),</span>
+    <span class="s3">{</span>
+      <span class="s1">className</span><span class="s3">: </span><span class="s4">'string'</span><span class="s3">,</span>
+      <span class="s1">begin</span><span class="s3">: </span><span class="s4">'`'</span><span class="s3">,</span>
+      <span class="s1">end</span><span class="s3">: </span><span class="s4">'`'</span>
+    <span class="s3">},</span>
+    <span class="s3">{ </span><span class="s0">// variables</span>
+      <span class="s1">variants</span><span class="s3">: [</span>
+        <span class="s3">{</span>
+          <span class="s1">begin</span><span class="s3">: </span><span class="s4">'[#$]' </span><span class="s3">+ </span><span class="s1">LASSO_IDENT_RE</span>
+        <span class="s3">},</span>
+        <span class="s3">{</span>
+          <span class="s1">begin</span><span class="s3">: </span><span class="s4">'#'</span><span class="s3">,</span>
+          <span class="s1">end</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">d+'</span><span class="s3">,</span>
+          <span class="s1">illegal</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">W'</span>
+        <span class="s3">}</span>
+      <span class="s3">]</span>
+    <span class="s3">},</span>
+    <span class="s3">{</span>
+      <span class="s1">className</span><span class="s3">: </span><span class="s4">'type'</span><span class="s3">,</span>
+      <span class="s1">begin</span><span class="s3">: </span><span class="s4">'::</span><span class="s2">\\</span><span class="s4">s*'</span><span class="s3">,</span>
+      <span class="s1">end</span><span class="s3">: </span><span class="s1">LASSO_IDENT_RE</span><span class="s3">,</span>
+      <span class="s1">illegal</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">W'</span>
+    <span class="s3">},</span>
+    <span class="s3">{</span>
+      <span class="s1">className</span><span class="s3">: </span><span class="s4">'params'</span><span class="s3">,</span>
+      <span class="s1">variants</span><span class="s3">: [</span>
+        <span class="s3">{</span>
+          <span class="s1">begin</span><span class="s3">: </span><span class="s4">'-(?!infinity)' </span><span class="s3">+ </span><span class="s1">LASSO_IDENT_RE</span><span class="s3">,</span>
+          <span class="s1">relevance</span><span class="s3">: </span><span class="s5">0</span>
+        <span class="s3">},</span>
+        <span class="s3">{</span>
+          <span class="s1">begin</span><span class="s3">: </span><span class="s4">'(</span><span class="s2">\\</span><span class="s4">.</span><span class="s2">\\</span><span class="s4">.</span><span class="s2">\\</span><span class="s4">.)'</span>
+        <span class="s3">}</span>
+      <span class="s3">]</span>
+    <span class="s3">},</span>
+    <span class="s3">{</span>
+      <span class="s1">begin</span><span class="s3">: </span><span class="s6">/(-&gt;|\.)\s*/</span><span class="s3">,</span>
+      <span class="s1">relevance</span><span class="s3">: </span><span class="s5">0</span><span class="s3">,</span>
+      <span class="s1">contains</span><span class="s3">: [</span><span class="s1">LASSO_DATAMEMBER</span><span class="s3">]</span>
+    <span class="s3">},</span>
+    <span class="s3">{</span>
+      <span class="s1">className</span><span class="s3">: </span><span class="s4">'class'</span><span class="s3">,</span>
+      <span class="s1">beginKeywords</span><span class="s3">: </span><span class="s4">'define'</span><span class="s3">,</span>
+      <span class="s1">returnEnd</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+      <span class="s1">end</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">(|=&gt;'</span><span class="s3">,</span>
+      <span class="s1">contains</span><span class="s3">: [</span>
+        <span class="s1">hljs</span><span class="s3">.</span><span class="s1">inherit</span><span class="s3">(</span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">TITLE_MODE</span><span class="s3">, {</span>
+          <span class="s1">begin</span><span class="s3">: </span><span class="s1">LASSO_IDENT_RE </span><span class="s3">+ </span><span class="s4">'(=(?!&gt;))?|[-+*/%](?!&gt;)'</span>
+        <span class="s3">})</span>
+      <span class="s3">]</span>
+    <span class="s3">}</span>
+  <span class="s3">];</span>
+  <span class="s2">return </span><span class="s3">{</span>
+    <span class="s1">name</span><span class="s3">: </span><span class="s4">'Lasso'</span><span class="s3">,</span>
+    <span class="s1">aliases</span><span class="s3">: [</span>
+      <span class="s4">'ls'</span><span class="s3">,</span>
+      <span class="s4">'lassoscript'</span>
+    <span class="s3">],</span>
+    <span class="s1">case_insensitive</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+    <span class="s1">keywords</span><span class="s3">: </span><span class="s1">LASSO_KEYWORDS</span><span class="s3">,</span>
+    <span class="s1">contains</span><span class="s3">: [</span>
+      <span class="s3">{</span>
+        <span class="s1">className</span><span class="s3">: </span><span class="s4">'meta'</span><span class="s3">,</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s1">LASSO_CLOSE_RE</span><span class="s3">,</span>
+        <span class="s1">relevance</span><span class="s3">: </span><span class="s5">0</span><span class="s3">,</span>
+        <span class="s1">starts</span><span class="s3">: { </span><span class="s0">// markup</span>
+          <span class="s1">end</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">[|' </span><span class="s3">+ </span><span class="s1">LASSO_ANGLE_RE</span><span class="s3">,</span>
+          <span class="s1">returnEnd</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+          <span class="s1">relevance</span><span class="s3">: </span><span class="s5">0</span><span class="s3">,</span>
+          <span class="s1">contains</span><span class="s3">: [</span><span class="s1">HTML_COMMENT</span><span class="s3">]</span>
+        <span class="s3">}</span>
+      <span class="s3">},</span>
+      <span class="s1">LASSO_NOPROCESS</span><span class="s3">,</span>
+      <span class="s1">LASSO_START</span><span class="s3">,</span>
+      <span class="s3">{</span>
+        <span class="s1">className</span><span class="s3">: </span><span class="s4">'meta'</span><span class="s3">,</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">[no_square_brackets'</span><span class="s3">,</span>
+        <span class="s1">starts</span><span class="s3">: {</span>
+          <span class="s1">end</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">[/no_square_brackets</span><span class="s2">\\</span><span class="s4">]'</span><span class="s3">, </span><span class="s0">// not implemented in the language</span>
+          <span class="s1">keywords</span><span class="s3">: </span><span class="s1">LASSO_KEYWORDS</span><span class="s3">,</span>
+          <span class="s1">contains</span><span class="s3">: [</span>
+            <span class="s3">{</span>
+              <span class="s1">className</span><span class="s3">: </span><span class="s4">'meta'</span><span class="s3">,</span>
+              <span class="s1">begin</span><span class="s3">: </span><span class="s1">LASSO_CLOSE_RE</span><span class="s3">,</span>
+              <span class="s1">relevance</span><span class="s3">: </span><span class="s5">0</span><span class="s3">,</span>
+              <span class="s1">starts</span><span class="s3">: {</span>
+                <span class="s1">end</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">[noprocess</span><span class="s2">\\</span><span class="s4">]|' </span><span class="s3">+ </span><span class="s1">LASSO_ANGLE_RE</span><span class="s3">,</span>
+                <span class="s1">returnEnd</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+                <span class="s1">contains</span><span class="s3">: [</span><span class="s1">HTML_COMMENT</span><span class="s3">]</span>
+              <span class="s3">}</span>
+            <span class="s3">},</span>
+            <span class="s1">LASSO_NOPROCESS</span><span class="s3">,</span>
+            <span class="s1">LASSO_START</span>
+          <span class="s3">].</span><span class="s1">concat</span><span class="s3">(</span><span class="s1">LASSO_CODE</span><span class="s3">)</span>
+        <span class="s3">}</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s1">className</span><span class="s3">: </span><span class="s4">'meta'</span><span class="s3">,</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">['</span><span class="s3">,</span>
+        <span class="s1">relevance</span><span class="s3">: </span><span class="s5">0</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s1">className</span><span class="s3">: </span><span class="s4">'meta'</span><span class="s3">,</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s4">'^#!'</span><span class="s3">,</span>
+        <span class="s1">end</span><span class="s3">: </span><span class="s4">'lasso9$'</span><span class="s3">,</span>
+        <span class="s1">relevance</span><span class="s3">: </span><span class="s5">10</span>
+      <span class="s3">}</span>
+    <span class="s3">].</span><span class="s1">concat</span><span class="s3">(</span><span class="s1">LASSO_CODE</span><span class="s3">)</span>
+  <span class="s3">};</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">lasso</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

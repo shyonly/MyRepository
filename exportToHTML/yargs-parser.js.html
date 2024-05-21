@@ -1,0 +1,1062 @@
+<html>
+<head>
+<title>yargs-parser.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #67a37c; font-style: italic;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #bcbec4;}
+.s5 { color: #6aab73;}
+.s6 { color: #7a7e85;}
+.s7 { color: #42c3d4;}
+.s8 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+yargs-parser.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* </span><span class="s1">@license</span>
+ <span class="s0">* Copyright (c) 2016, Contributors</span>
+ <span class="s0">* SPDX-License-Identifier: ISC</span>
+ <span class="s0">*/</span>
+<span class="s3">import </span><span class="s4">{ </span><span class="s2">tokenizeArgString </span><span class="s4">} </span><span class="s2">from </span><span class="s5">'./tokenize-arg-string.js'</span><span class="s4">;</span>
+<span class="s3">import </span><span class="s4">{ </span><span class="s2">DefaultValuesForTypeKey </span><span class="s4">} </span><span class="s2">from </span><span class="s5">'./yargs-parser-types.js'</span><span class="s4">;</span>
+<span class="s3">import </span><span class="s4">{ </span><span class="s2">camelCase</span><span class="s4">, </span><span class="s2">decamelize</span><span class="s4">, </span><span class="s2">looksLikeNumber </span><span class="s4">} </span><span class="s2">from </span><span class="s5">'./string-utils.js'</span><span class="s4">;</span>
+<span class="s3">let </span><span class="s2">mixin</span><span class="s4">;</span>
+<span class="s3">export class </span><span class="s2">YargsParser </span><span class="s4">{</span>
+    <span class="s2">constructor</span><span class="s4">(</span><span class="s2">_mixin</span><span class="s4">) {</span>
+        <span class="s2">mixin </span><span class="s4">= </span><span class="s2">_mixin</span><span class="s4">;</span>
+    <span class="s4">}</span>
+    <span class="s2">parse</span><span class="s4">(</span><span class="s2">argsInput</span><span class="s4">, </span><span class="s2">options</span><span class="s4">) {</span>
+        <span class="s3">const </span><span class="s2">opts </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">({</span>
+            <span class="s2">alias</span><span class="s4">: </span><span class="s2">undefined</span><span class="s4">,</span>
+            <span class="s2">array</span><span class="s4">: </span><span class="s2">undefined</span><span class="s4">,</span>
+            <span class="s2">boolean</span><span class="s4">: </span><span class="s2">undefined</span><span class="s4">,</span>
+            <span class="s2">config</span><span class="s4">: </span><span class="s2">undefined</span><span class="s4">,</span>
+            <span class="s2">configObjects</span><span class="s4">: </span><span class="s2">undefined</span><span class="s4">,</span>
+            <span class="s2">configuration</span><span class="s4">: </span><span class="s2">undefined</span><span class="s4">,</span>
+            <span class="s2">coerce</span><span class="s4">: </span><span class="s2">undefined</span><span class="s4">,</span>
+            <span class="s2">count</span><span class="s4">: </span><span class="s2">undefined</span><span class="s4">,</span>
+            <span class="s3">default</span><span class="s4">: </span><span class="s2">undefined</span><span class="s4">,</span>
+            <span class="s2">envPrefix</span><span class="s4">: </span><span class="s2">undefined</span><span class="s4">,</span>
+            <span class="s2">narg</span><span class="s4">: </span><span class="s2">undefined</span><span class="s4">,</span>
+            <span class="s2">normalize</span><span class="s4">: </span><span class="s2">undefined</span><span class="s4">,</span>
+            <span class="s2">string</span><span class="s4">: </span><span class="s2">undefined</span><span class="s4">,</span>
+            <span class="s2">number</span><span class="s4">: </span><span class="s2">undefined</span><span class="s4">,</span>
+            <span class="s2">__</span><span class="s4">: </span><span class="s2">undefined</span><span class="s4">,</span>
+            <span class="s2">key</span><span class="s4">: </span><span class="s2">undefined</span>
+        <span class="s4">}, </span><span class="s2">options</span><span class="s4">);</span>
+        <span class="s6">// allow a string argument to be passed in rather</span>
+        <span class="s6">// than an argv array.</span>
+        <span class="s3">const </span><span class="s2">args </span><span class="s4">= </span><span class="s2">tokenizeArgString</span><span class="s4">(</span><span class="s2">argsInput</span><span class="s4">);</span>
+        <span class="s6">// aliases might have transitive relationships, normalize this.</span>
+        <span class="s3">const </span><span class="s2">aliases </span><span class="s4">= </span><span class="s2">combineAliases</span><span class="s4">(</span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">(</span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">), </span><span class="s2">opts</span><span class="s4">.</span><span class="s2">alias</span><span class="s4">));</span>
+        <span class="s3">const </span><span class="s2">configuration </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">({</span>
+            <span class="s5">'boolean-negation'</span><span class="s4">: </span><span class="s3">true</span><span class="s4">,</span>
+            <span class="s5">'camel-case-expansion'</span><span class="s4">: </span><span class="s3">true</span><span class="s4">,</span>
+            <span class="s5">'combine-arrays'</span><span class="s4">: </span><span class="s3">false</span><span class="s4">,</span>
+            <span class="s5">'dot-notation'</span><span class="s4">: </span><span class="s3">true</span><span class="s4">,</span>
+            <span class="s5">'duplicate-arguments-array'</span><span class="s4">: </span><span class="s3">true</span><span class="s4">,</span>
+            <span class="s5">'flatten-duplicate-arrays'</span><span class="s4">: </span><span class="s3">true</span><span class="s4">,</span>
+            <span class="s5">'greedy-arrays'</span><span class="s4">: </span><span class="s3">true</span><span class="s4">,</span>
+            <span class="s5">'halt-at-non-option'</span><span class="s4">: </span><span class="s3">false</span><span class="s4">,</span>
+            <span class="s5">'nargs-eats-options'</span><span class="s4">: </span><span class="s3">false</span><span class="s4">,</span>
+            <span class="s5">'negation-prefix'</span><span class="s4">: </span><span class="s5">'no-'</span><span class="s4">,</span>
+            <span class="s5">'parse-numbers'</span><span class="s4">: </span><span class="s3">true</span><span class="s4">,</span>
+            <span class="s5">'parse-positional-numbers'</span><span class="s4">: </span><span class="s3">true</span><span class="s4">,</span>
+            <span class="s5">'populate--'</span><span class="s4">: </span><span class="s3">false</span><span class="s4">,</span>
+            <span class="s5">'set-placeholder-key'</span><span class="s4">: </span><span class="s3">false</span><span class="s4">,</span>
+            <span class="s5">'short-option-groups'</span><span class="s4">: </span><span class="s3">true</span><span class="s4">,</span>
+            <span class="s5">'strip-aliased'</span><span class="s4">: </span><span class="s3">false</span><span class="s4">,</span>
+            <span class="s5">'strip-dashed'</span><span class="s4">: </span><span class="s3">false</span><span class="s4">,</span>
+            <span class="s5">'unknown-options-as-args'</span><span class="s4">: </span><span class="s3">false</span>
+        <span class="s4">}, </span><span class="s2">opts</span><span class="s4">.</span><span class="s2">configuration</span><span class="s4">);</span>
+        <span class="s3">const </span><span class="s2">defaults </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">(</span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">), </span><span class="s2">opts</span><span class="s4">.</span><span class="s2">default</span><span class="s4">);</span>
+        <span class="s3">const </span><span class="s2">configObjects </span><span class="s4">= </span><span class="s2">opts</span><span class="s4">.</span><span class="s2">configObjects </span><span class="s4">|| [];</span>
+        <span class="s3">const </span><span class="s2">envPrefix </span><span class="s4">= </span><span class="s2">opts</span><span class="s4">.</span><span class="s2">envPrefix</span><span class="s4">;</span>
+        <span class="s3">const </span><span class="s2">notFlagsOption </span><span class="s4">= </span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'populate--'</span><span class="s4">];</span>
+        <span class="s3">const </span><span class="s2">notFlagsArgv </span><span class="s4">= </span><span class="s2">notFlagsOption </span><span class="s4">? </span><span class="s5">'--' </span><span class="s4">: </span><span class="s5">'_'</span><span class="s4">;</span>
+        <span class="s3">const </span><span class="s2">newAliases </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">);</span>
+        <span class="s3">const </span><span class="s2">defaulted </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">);</span>
+        <span class="s6">// allow a i18n handler to be passed in, default to a fake one (util.format).</span>
+        <span class="s3">const </span><span class="s2">__ </span><span class="s4">= </span><span class="s2">opts</span><span class="s4">.</span><span class="s2">__ </span><span class="s4">|| </span><span class="s2">mixin</span><span class="s4">.</span><span class="s2">format</span><span class="s4">;</span>
+        <span class="s3">const </span><span class="s2">flags </span><span class="s4">= {</span>
+            <span class="s2">aliases</span><span class="s4">: </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">),</span>
+            <span class="s2">arrays</span><span class="s4">: </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">),</span>
+            <span class="s2">bools</span><span class="s4">: </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">),</span>
+            <span class="s2">strings</span><span class="s4">: </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">),</span>
+            <span class="s2">numbers</span><span class="s4">: </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">),</span>
+            <span class="s2">counts</span><span class="s4">: </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">),</span>
+            <span class="s2">normalize</span><span class="s4">: </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">),</span>
+            <span class="s2">configs</span><span class="s4">: </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">),</span>
+            <span class="s2">nargs</span><span class="s4">: </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">),</span>
+            <span class="s2">coercions</span><span class="s4">: </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">),</span>
+            <span class="s2">keys</span><span class="s4">: []</span>
+        <span class="s4">};</span>
+        <span class="s3">const </span><span class="s2">negative </span><span class="s4">= </span><span class="s7">/^-([0-9]+(\.[0-9]+)?|\.[0-9]+)$/</span><span class="s4">;</span>
+        <span class="s3">const </span><span class="s2">negatedBoolean </span><span class="s4">= </span><span class="s3">new </span><span class="s2">RegExp</span><span class="s4">(</span><span class="s5">'^--' </span><span class="s4">+ </span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'negation-prefix'</span><span class="s4">] + </span><span class="s5">'(.+)'</span><span class="s4">);</span>
+        <span class="s4">[].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">opts</span><span class="s4">.</span><span class="s2">array </span><span class="s4">|| []).</span><span class="s2">filter</span><span class="s4">(</span><span class="s2">Boolean</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">opt</span><span class="s4">) {</span>
+            <span class="s3">const </span><span class="s2">key </span><span class="s4">= </span><span class="s3">typeof </span><span class="s2">opt </span><span class="s4">=== </span><span class="s5">'object' </span><span class="s4">? </span><span class="s2">opt</span><span class="s4">.</span><span class="s2">key </span><span class="s4">: </span><span class="s2">opt</span><span class="s4">;</span>
+            <span class="s6">// assign to flags[bools|strings|numbers]</span>
+            <span class="s3">const </span><span class="s2">assignment </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">opt</span><span class="s4">).</span><span class="s2">map</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+                <span class="s3">const </span><span class="s2">arrayFlagKeys </span><span class="s4">= {</span>
+                    <span class="s2">boolean</span><span class="s4">: </span><span class="s5">'bools'</span><span class="s4">,</span>
+                    <span class="s2">string</span><span class="s4">: </span><span class="s5">'strings'</span><span class="s4">,</span>
+                    <span class="s2">number</span><span class="s4">: </span><span class="s5">'numbers'</span>
+                <span class="s4">};</span>
+                <span class="s3">return </span><span class="s2">arrayFlagKeys</span><span class="s4">[</span><span class="s2">key</span><span class="s4">];</span>
+            <span class="s4">}).</span><span class="s2">filter</span><span class="s4">(</span><span class="s2">Boolean</span><span class="s4">).</span><span class="s2">pop</span><span class="s4">();</span>
+            <span class="s6">// assign key to be coerced</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">assignment</span><span class="s4">) {</span>
+                <span class="s2">flags</span><span class="s4">[</span><span class="s2">assignment</span><span class="s4">][</span><span class="s2">key</span><span class="s4">] = </span><span class="s3">true</span><span class="s4">;</span>
+            <span class="s4">}</span>
+            <span class="s2">flags</span><span class="s4">.</span><span class="s2">arrays</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s3">true</span><span class="s4">;</span>
+            <span class="s2">flags</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">key</span><span class="s4">);</span>
+        <span class="s4">});</span>
+        <span class="s4">[].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">opts</span><span class="s4">.</span><span class="s2">boolean </span><span class="s4">|| []).</span><span class="s2">filter</span><span class="s4">(</span><span class="s2">Boolean</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+            <span class="s2">flags</span><span class="s4">.</span><span class="s2">bools</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s3">true</span><span class="s4">;</span>
+            <span class="s2">flags</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">key</span><span class="s4">);</span>
+        <span class="s4">});</span>
+        <span class="s4">[].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">opts</span><span class="s4">.</span><span class="s2">string </span><span class="s4">|| []).</span><span class="s2">filter</span><span class="s4">(</span><span class="s2">Boolean</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+            <span class="s2">flags</span><span class="s4">.</span><span class="s2">strings</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s3">true</span><span class="s4">;</span>
+            <span class="s2">flags</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">key</span><span class="s4">);</span>
+        <span class="s4">});</span>
+        <span class="s4">[].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">opts</span><span class="s4">.</span><span class="s2">number </span><span class="s4">|| []).</span><span class="s2">filter</span><span class="s4">(</span><span class="s2">Boolean</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+            <span class="s2">flags</span><span class="s4">.</span><span class="s2">numbers</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s3">true</span><span class="s4">;</span>
+            <span class="s2">flags</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">key</span><span class="s4">);</span>
+        <span class="s4">});</span>
+        <span class="s4">[].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">opts</span><span class="s4">.</span><span class="s2">count </span><span class="s4">|| []).</span><span class="s2">filter</span><span class="s4">(</span><span class="s2">Boolean</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+            <span class="s2">flags</span><span class="s4">.</span><span class="s2">counts</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s3">true</span><span class="s4">;</span>
+            <span class="s2">flags</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">key</span><span class="s4">);</span>
+        <span class="s4">});</span>
+        <span class="s4">[].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">opts</span><span class="s4">.</span><span class="s2">normalize </span><span class="s4">|| []).</span><span class="s2">filter</span><span class="s4">(</span><span class="s2">Boolean</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+            <span class="s2">flags</span><span class="s4">.</span><span class="s2">normalize</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s3">true</span><span class="s4">;</span>
+            <span class="s2">flags</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">key</span><span class="s4">);</span>
+        <span class="s4">});</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">opts</span><span class="s4">.</span><span class="s2">narg </span><span class="s4">=== </span><span class="s5">'object'</span><span class="s4">) {</span>
+            <span class="s2">Object</span><span class="s4">.</span><span class="s2">entries</span><span class="s4">(</span><span class="s2">opts</span><span class="s4">.</span><span class="s2">narg</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(([</span><span class="s2">key</span><span class="s4">, </span><span class="s2">value</span><span class="s4">]) =&gt; {</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">value </span><span class="s4">=== </span><span class="s5">'number'</span><span class="s4">) {</span>
+                    <span class="s2">flags</span><span class="s4">.</span><span class="s2">nargs</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s2">value</span><span class="s4">;</span>
+                    <span class="s2">flags</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">key</span><span class="s4">);</span>
+                <span class="s4">}</span>
+            <span class="s4">});</span>
+        <span class="s4">}</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">opts</span><span class="s4">.</span><span class="s2">coerce </span><span class="s4">=== </span><span class="s5">'object'</span><span class="s4">) {</span>
+            <span class="s2">Object</span><span class="s4">.</span><span class="s2">entries</span><span class="s4">(</span><span class="s2">opts</span><span class="s4">.</span><span class="s2">coerce</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(([</span><span class="s2">key</span><span class="s4">, </span><span class="s2">value</span><span class="s4">]) =&gt; {</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">value </span><span class="s4">=== </span><span class="s5">'function'</span><span class="s4">) {</span>
+                    <span class="s2">flags</span><span class="s4">.</span><span class="s2">coercions</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s2">value</span><span class="s4">;</span>
+                    <span class="s2">flags</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">key</span><span class="s4">);</span>
+                <span class="s4">}</span>
+            <span class="s4">});</span>
+        <span class="s4">}</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">opts</span><span class="s4">.</span><span class="s2">config </span><span class="s4">!== </span><span class="s5">'undefined'</span><span class="s4">) {</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">opts</span><span class="s4">.</span><span class="s2">config</span><span class="s4">) || </span><span class="s3">typeof </span><span class="s2">opts</span><span class="s4">.</span><span class="s2">config </span><span class="s4">=== </span><span class="s5">'string'</span><span class="s4">) {</span>
+                <span class="s4">;</span>
+                <span class="s4">[].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">opts</span><span class="s4">.</span><span class="s2">config</span><span class="s4">).</span><span class="s2">filter</span><span class="s4">(</span><span class="s2">Boolean</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+                    <span class="s2">flags</span><span class="s4">.</span><span class="s2">configs</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s3">true</span><span class="s4">;</span>
+                <span class="s4">});</span>
+            <span class="s4">}</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">opts</span><span class="s4">.</span><span class="s2">config </span><span class="s4">=== </span><span class="s5">'object'</span><span class="s4">) {</span>
+                <span class="s2">Object</span><span class="s4">.</span><span class="s2">entries</span><span class="s4">(</span><span class="s2">opts</span><span class="s4">.</span><span class="s2">config</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(([</span><span class="s2">key</span><span class="s4">, </span><span class="s2">value</span><span class="s4">]) =&gt; {</span>
+                    <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">value </span><span class="s4">=== </span><span class="s5">'boolean' </span><span class="s4">|| </span><span class="s3">typeof </span><span class="s2">value </span><span class="s4">=== </span><span class="s5">'function'</span><span class="s4">) {</span>
+                        <span class="s2">flags</span><span class="s4">.</span><span class="s2">configs</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s2">value</span><span class="s4">;</span>
+                    <span class="s4">}</span>
+                <span class="s4">});</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+        <span class="s6">// create a lookup table that takes into account all</span>
+        <span class="s6">// combinations of aliases: {f: ['foo'], foo: ['f']}</span>
+        <span class="s2">extendAliases</span><span class="s4">(</span><span class="s2">opts</span><span class="s4">.</span><span class="s2">key</span><span class="s4">, </span><span class="s2">aliases</span><span class="s4">, </span><span class="s2">opts</span><span class="s4">.</span><span class="s2">default</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">arrays</span><span class="s4">);</span>
+        <span class="s6">// apply default values to all aliases.</span>
+        <span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">defaults</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+            <span class="s4">(</span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] || []).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">alias</span><span class="s4">) {</span>
+                <span class="s2">defaults</span><span class="s4">[</span><span class="s2">alias</span><span class="s4">] = </span><span class="s2">defaults</span><span class="s4">[</span><span class="s2">key</span><span class="s4">];</span>
+            <span class="s4">});</span>
+        <span class="s4">});</span>
+        <span class="s3">let </span><span class="s2">error </span><span class="s4">= </span><span class="s3">null</span><span class="s4">;</span>
+        <span class="s2">checkConfiguration</span><span class="s4">();</span>
+        <span class="s3">let </span><span class="s2">notFlags </span><span class="s4">= [];</span>
+        <span class="s3">const </span><span class="s2">argv </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">(</span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">), { </span><span class="s2">_</span><span class="s4">: [] });</span>
+        <span class="s6">// TODO(bcoe): for the first pass at removing object prototype  we didn't</span>
+        <span class="s6">// remove all prototypes from objects returned by this API, we might want</span>
+        <span class="s6">// to gradually move towards doing so.</span>
+        <span class="s3">const </span><span class="s2">argvReturn </span><span class="s4">= {};</span>
+        <span class="s3">for </span><span class="s4">(</span><span class="s3">let </span><span class="s2">i </span><span class="s4">= </span><span class="s8">0</span><span class="s4">; </span><span class="s2">i </span><span class="s4">&lt; </span><span class="s2">args</span><span class="s4">.</span><span class="s2">length</span><span class="s4">; </span><span class="s2">i</span><span class="s4">++) {</span>
+            <span class="s3">const </span><span class="s2">arg </span><span class="s4">= </span><span class="s2">args</span><span class="s4">[</span><span class="s2">i</span><span class="s4">];</span>
+            <span class="s3">const </span><span class="s2">truncatedArg </span><span class="s4">= </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">replace</span><span class="s4">(</span><span class="s7">/^-{3,}/</span><span class="s4">, </span><span class="s5">'---'</span><span class="s4">);</span>
+            <span class="s3">let </span><span class="s2">broken</span><span class="s4">;</span>
+            <span class="s3">let </span><span class="s2">key</span><span class="s4">;</span>
+            <span class="s3">let </span><span class="s2">letters</span><span class="s4">;</span>
+            <span class="s3">let </span><span class="s2">m</span><span class="s4">;</span>
+            <span class="s3">let </span><span class="s2">next</span><span class="s4">;</span>
+            <span class="s3">let </span><span class="s2">value</span><span class="s4">;</span>
+            <span class="s6">// any unknown option (except for end-of-options, &quot;--&quot;)</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">arg </span><span class="s4">!== </span><span class="s5">'--' </span><span class="s4">&amp;&amp; </span><span class="s2">isUnknownOptionAsArg</span><span class="s4">(</span><span class="s2">arg</span><span class="s4">)) {</span>
+                <span class="s2">pushPositional</span><span class="s4">(</span><span class="s2">arg</span><span class="s4">);</span>
+                <span class="s6">// ---, ---=, ----, etc,</span>
+            <span class="s4">}</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">truncatedArg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/---+(=|$)/</span><span class="s4">)) {</span>
+                <span class="s6">// options without key name are invalid.</span>
+                <span class="s2">pushPositional</span><span class="s4">(</span><span class="s2">arg</span><span class="s4">);</span>
+                <span class="s3">continue</span><span class="s4">;</span>
+                <span class="s6">// -- separated by =</span>
+            <span class="s4">}</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^--.+=/</span><span class="s4">) || (!</span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'short-option-groups'</span><span class="s4">] &amp;&amp; </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^-.+=/</span><span class="s4">))) {</span>
+                <span class="s6">// Using [\s\S] instead of . because js doesn't support the</span>
+                <span class="s6">// 'dotall' regex modifier. See:</span>
+                <span class="s6">// http://stackoverflow.com/a/1068308/13216</span>
+                <span class="s2">m </span><span class="s4">= </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^--?([^=]+)=([\s\S]*)$/</span><span class="s4">);</span>
+                <span class="s6">// arrays format = '--f=a b c'</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">m </span><span class="s4">!== </span><span class="s3">null </span><span class="s4">&amp;&amp; </span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">m</span><span class="s4">) &amp;&amp; </span><span class="s2">m</span><span class="s4">.</span><span class="s2">length </span><span class="s4">&gt;= </span><span class="s8">3</span><span class="s4">) {</span>
+                    <span class="s3">if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">m</span><span class="s4">[</span><span class="s8">1</span><span class="s4">], </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">arrays</span><span class="s4">)) {</span>
+                        <span class="s2">i </span><span class="s4">= </span><span class="s2">eatArray</span><span class="s4">(</span><span class="s2">i</span><span class="s4">, </span><span class="s2">m</span><span class="s4">[</span><span class="s8">1</span><span class="s4">], </span><span class="s2">args</span><span class="s4">, </span><span class="s2">m</span><span class="s4">[</span><span class="s8">2</span><span class="s4">]);</span>
+                    <span class="s4">}</span>
+                    <span class="s3">else if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">m</span><span class="s4">[</span><span class="s8">1</span><span class="s4">], </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">nargs</span><span class="s4">) !== </span><span class="s3">false</span><span class="s4">) {</span>
+                        <span class="s6">// nargs format = '--f=monkey washing cat'</span>
+                        <span class="s2">i </span><span class="s4">= </span><span class="s2">eatNargs</span><span class="s4">(</span><span class="s2">i</span><span class="s4">, </span><span class="s2">m</span><span class="s4">[</span><span class="s8">1</span><span class="s4">], </span><span class="s2">args</span><span class="s4">, </span><span class="s2">m</span><span class="s4">[</span><span class="s8">2</span><span class="s4">]);</span>
+                    <span class="s4">}</span>
+                    <span class="s3">else </span><span class="s4">{</span>
+                        <span class="s2">setArg</span><span class="s4">(</span><span class="s2">m</span><span class="s4">[</span><span class="s8">1</span><span class="s4">], </span><span class="s2">m</span><span class="s4">[</span><span class="s8">2</span><span class="s4">]);</span>
+                    <span class="s4">}</span>
+                <span class="s4">}</span>
+            <span class="s4">}</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s2">negatedBoolean</span><span class="s4">) &amp;&amp; </span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'boolean-negation'</span><span class="s4">]) {</span>
+                <span class="s2">m </span><span class="s4">= </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s2">negatedBoolean</span><span class="s4">);</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">m </span><span class="s4">!== </span><span class="s3">null </span><span class="s4">&amp;&amp; </span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">m</span><span class="s4">) &amp;&amp; </span><span class="s2">m</span><span class="s4">.</span><span class="s2">length </span><span class="s4">&gt;= </span><span class="s8">2</span><span class="s4">) {</span>
+                    <span class="s2">key </span><span class="s4">= </span><span class="s2">m</span><span class="s4">[</span><span class="s8">1</span><span class="s4">];</span>
+                    <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">arrays</span><span class="s4">) ? [</span><span class="s3">false</span><span class="s4">] : </span><span class="s3">false</span><span class="s4">);</span>
+                <span class="s4">}</span>
+                <span class="s6">// -- separated by space.</span>
+            <span class="s4">}</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^--.+/</span><span class="s4">) || (!</span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'short-option-groups'</span><span class="s4">] &amp;&amp; </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^-[^-]+/</span><span class="s4">))) {</span>
+                <span class="s2">m </span><span class="s4">= </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^--?(.+)/</span><span class="s4">);</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">m </span><span class="s4">!== </span><span class="s3">null </span><span class="s4">&amp;&amp; </span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">m</span><span class="s4">) &amp;&amp; </span><span class="s2">m</span><span class="s4">.</span><span class="s2">length </span><span class="s4">&gt;= </span><span class="s8">2</span><span class="s4">) {</span>
+                    <span class="s2">key </span><span class="s4">= </span><span class="s2">m</span><span class="s4">[</span><span class="s8">1</span><span class="s4">];</span>
+                    <span class="s3">if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">arrays</span><span class="s4">)) {</span>
+                        <span class="s6">// array format = '--foo a b c'</span>
+                        <span class="s2">i </span><span class="s4">= </span><span class="s2">eatArray</span><span class="s4">(</span><span class="s2">i</span><span class="s4">, </span><span class="s2">key</span><span class="s4">, </span><span class="s2">args</span><span class="s4">);</span>
+                    <span class="s4">}</span>
+                    <span class="s3">else if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">nargs</span><span class="s4">) !== </span><span class="s3">false</span><span class="s4">) {</span>
+                        <span class="s6">// nargs format = '--foo a b c'</span>
+                        <span class="s6">// should be truthy even if: flags.nargs[key] === 0</span>
+                        <span class="s2">i </span><span class="s4">= </span><span class="s2">eatNargs</span><span class="s4">(</span><span class="s2">i</span><span class="s4">, </span><span class="s2">key</span><span class="s4">, </span><span class="s2">args</span><span class="s4">);</span>
+                    <span class="s4">}</span>
+                    <span class="s3">else </span><span class="s4">{</span>
+                        <span class="s2">next </span><span class="s4">= </span><span class="s2">args</span><span class="s4">[</span><span class="s2">i </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">];</span>
+                        <span class="s3">if </span><span class="s4">(</span><span class="s2">next </span><span class="s4">!== </span><span class="s2">undefined </span><span class="s4">&amp;&amp; (!</span><span class="s2">next</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^-/</span><span class="s4">) ||</span>
+                            <span class="s2">next</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s2">negative</span><span class="s4">)) &amp;&amp;</span>
+                            <span class="s4">!</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">bools</span><span class="s4">) &amp;&amp;</span>
+                            <span class="s4">!</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">counts</span><span class="s4">)) {</span>
+                            <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">next</span><span class="s4">);</span>
+                            <span class="s2">i</span><span class="s4">++;</span>
+                        <span class="s4">}</span>
+                        <span class="s3">else if </span><span class="s4">(</span><span class="s7">/^(true|false)$/</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">next</span><span class="s4">)) {</span>
+                            <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">next</span><span class="s4">);</span>
+                            <span class="s2">i</span><span class="s4">++;</span>
+                        <span class="s4">}</span>
+                        <span class="s3">else </span><span class="s4">{</span>
+                            <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">defaultValue</span><span class="s4">(</span><span class="s2">key</span><span class="s4">));</span>
+                        <span class="s4">}</span>
+                    <span class="s4">}</span>
+                <span class="s4">}</span>
+                <span class="s6">// dot-notation flag separated by '='.</span>
+            <span class="s4">}</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^-.\..+=/</span><span class="s4">)) {</span>
+                <span class="s2">m </span><span class="s4">= </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^-([^=]+)=([\s\S]*)$/</span><span class="s4">);</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">m </span><span class="s4">!== </span><span class="s3">null </span><span class="s4">&amp;&amp; </span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">m</span><span class="s4">) &amp;&amp; </span><span class="s2">m</span><span class="s4">.</span><span class="s2">length </span><span class="s4">&gt;= </span><span class="s8">3</span><span class="s4">) {</span>
+                    <span class="s2">setArg</span><span class="s4">(</span><span class="s2">m</span><span class="s4">[</span><span class="s8">1</span><span class="s4">], </span><span class="s2">m</span><span class="s4">[</span><span class="s8">2</span><span class="s4">]);</span>
+                <span class="s4">}</span>
+                <span class="s6">// dot-notation flag separated by space.</span>
+            <span class="s4">}</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^-.\..+/</span><span class="s4">) &amp;&amp; !</span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s2">negative</span><span class="s4">)) {</span>
+                <span class="s2">next </span><span class="s4">= </span><span class="s2">args</span><span class="s4">[</span><span class="s2">i </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">];</span>
+                <span class="s2">m </span><span class="s4">= </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^-(.\..+)/</span><span class="s4">);</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">m </span><span class="s4">!== </span><span class="s3">null </span><span class="s4">&amp;&amp; </span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">m</span><span class="s4">) &amp;&amp; </span><span class="s2">m</span><span class="s4">.</span><span class="s2">length </span><span class="s4">&gt;= </span><span class="s8">2</span><span class="s4">) {</span>
+                    <span class="s2">key </span><span class="s4">= </span><span class="s2">m</span><span class="s4">[</span><span class="s8">1</span><span class="s4">];</span>
+                    <span class="s3">if </span><span class="s4">(</span><span class="s2">next </span><span class="s4">!== </span><span class="s2">undefined </span><span class="s4">&amp;&amp; !</span><span class="s2">next</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^-/</span><span class="s4">) &amp;&amp;</span>
+                        <span class="s4">!</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">bools</span><span class="s4">) &amp;&amp;</span>
+                        <span class="s4">!</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">counts</span><span class="s4">)) {</span>
+                        <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">next</span><span class="s4">);</span>
+                        <span class="s2">i</span><span class="s4">++;</span>
+                    <span class="s4">}</span>
+                    <span class="s3">else </span><span class="s4">{</span>
+                        <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">defaultValue</span><span class="s4">(</span><span class="s2">key</span><span class="s4">));</span>
+                    <span class="s4">}</span>
+                <span class="s4">}</span>
+            <span class="s4">}</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^-[^-]+/</span><span class="s4">) &amp;&amp; !</span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s2">negative</span><span class="s4">)) {</span>
+                <span class="s2">letters </span><span class="s4">= </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">(</span><span class="s8">1</span><span class="s4">, -</span><span class="s8">1</span><span class="s4">).</span><span class="s2">split</span><span class="s4">(</span><span class="s5">''</span><span class="s4">);</span>
+                <span class="s2">broken </span><span class="s4">= </span><span class="s3">false</span><span class="s4">;</span>
+                <span class="s3">for </span><span class="s4">(</span><span class="s3">let </span><span class="s2">j </span><span class="s4">= </span><span class="s8">0</span><span class="s4">; </span><span class="s2">j </span><span class="s4">&lt; </span><span class="s2">letters</span><span class="s4">.</span><span class="s2">length</span><span class="s4">; </span><span class="s2">j</span><span class="s4">++) {</span>
+                    <span class="s2">next </span><span class="s4">= </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">(</span><span class="s2">j </span><span class="s4">+ </span><span class="s8">2</span><span class="s4">);</span>
+                    <span class="s3">if </span><span class="s4">(</span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">] &amp;&amp; </span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">] === </span><span class="s5">'='</span><span class="s4">) {</span>
+                        <span class="s2">value </span><span class="s4">= </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">(</span><span class="s2">j </span><span class="s4">+ </span><span class="s8">3</span><span class="s4">);</span>
+                        <span class="s2">key </span><span class="s4">= </span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j</span><span class="s4">];</span>
+                        <span class="s3">if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">arrays</span><span class="s4">)) {</span>
+                            <span class="s6">// array format = '-f=a b c'</span>
+                            <span class="s2">i </span><span class="s4">= </span><span class="s2">eatArray</span><span class="s4">(</span><span class="s2">i</span><span class="s4">, </span><span class="s2">key</span><span class="s4">, </span><span class="s2">args</span><span class="s4">, </span><span class="s2">value</span><span class="s4">);</span>
+                        <span class="s4">}</span>
+                        <span class="s3">else if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">nargs</span><span class="s4">) !== </span><span class="s3">false</span><span class="s4">) {</span>
+                            <span class="s6">// nargs format = '-f=monkey washing cat'</span>
+                            <span class="s2">i </span><span class="s4">= </span><span class="s2">eatNargs</span><span class="s4">(</span><span class="s2">i</span><span class="s4">, </span><span class="s2">key</span><span class="s4">, </span><span class="s2">args</span><span class="s4">, </span><span class="s2">value</span><span class="s4">);</span>
+                        <span class="s4">}</span>
+                        <span class="s3">else </span><span class="s4">{</span>
+                            <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">value</span><span class="s4">);</span>
+                        <span class="s4">}</span>
+                        <span class="s2">broken </span><span class="s4">= </span><span class="s3">true</span><span class="s4">;</span>
+                        <span class="s3">break</span><span class="s4">;</span>
+                    <span class="s4">}</span>
+                    <span class="s3">if </span><span class="s4">(</span><span class="s2">next </span><span class="s4">=== </span><span class="s5">'-'</span><span class="s4">) {</span>
+                        <span class="s2">setArg</span><span class="s4">(</span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j</span><span class="s4">], </span><span class="s2">next</span><span class="s4">);</span>
+                        <span class="s3">continue</span><span class="s4">;</span>
+                    <span class="s4">}</span>
+                    <span class="s6">// current letter is an alphabetic character and next value is a number</span>
+                    <span class="s3">if </span><span class="s4">(</span><span class="s7">/[A-Za-z]/</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j</span><span class="s4">]) &amp;&amp;</span>
+                        <span class="s7">/^-?\d+(\.\d*)?(e-?\d+)?$/</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">next</span><span class="s4">) &amp;&amp;</span>
+                        <span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">next</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">bools</span><span class="s4">) === </span><span class="s3">false</span><span class="s4">) {</span>
+                        <span class="s2">setArg</span><span class="s4">(</span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j</span><span class="s4">], </span><span class="s2">next</span><span class="s4">);</span>
+                        <span class="s2">broken </span><span class="s4">= </span><span class="s3">true</span><span class="s4">;</span>
+                        <span class="s3">break</span><span class="s4">;</span>
+                    <span class="s4">}</span>
+                    <span class="s3">if </span><span class="s4">(</span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">] &amp;&amp; </span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">].</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/\W/</span><span class="s4">)) {</span>
+                        <span class="s2">setArg</span><span class="s4">(</span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j</span><span class="s4">], </span><span class="s2">next</span><span class="s4">);</span>
+                        <span class="s2">broken </span><span class="s4">= </span><span class="s3">true</span><span class="s4">;</span>
+                        <span class="s3">break</span><span class="s4">;</span>
+                    <span class="s4">}</span>
+                    <span class="s3">else </span><span class="s4">{</span>
+                        <span class="s2">setArg</span><span class="s4">(</span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j</span><span class="s4">], </span><span class="s2">defaultValue</span><span class="s4">(</span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j</span><span class="s4">]));</span>
+                    <span class="s4">}</span>
+                <span class="s4">}</span>
+                <span class="s2">key </span><span class="s4">= </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">(-</span><span class="s8">1</span><span class="s4">)[</span><span class="s8">0</span><span class="s4">];</span>
+                <span class="s3">if </span><span class="s4">(!</span><span class="s2">broken </span><span class="s4">&amp;&amp; </span><span class="s2">key </span><span class="s4">!== </span><span class="s5">'-'</span><span class="s4">) {</span>
+                    <span class="s3">if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">arrays</span><span class="s4">)) {</span>
+                        <span class="s6">// array format = '-f a b c'</span>
+                        <span class="s2">i </span><span class="s4">= </span><span class="s2">eatArray</span><span class="s4">(</span><span class="s2">i</span><span class="s4">, </span><span class="s2">key</span><span class="s4">, </span><span class="s2">args</span><span class="s4">);</span>
+                    <span class="s4">}</span>
+                    <span class="s3">else if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">nargs</span><span class="s4">) !== </span><span class="s3">false</span><span class="s4">) {</span>
+                        <span class="s6">// nargs format = '-f a b c'</span>
+                        <span class="s6">// should be truthy even if: flags.nargs[key] === 0</span>
+                        <span class="s2">i </span><span class="s4">= </span><span class="s2">eatNargs</span><span class="s4">(</span><span class="s2">i</span><span class="s4">, </span><span class="s2">key</span><span class="s4">, </span><span class="s2">args</span><span class="s4">);</span>
+                    <span class="s4">}</span>
+                    <span class="s3">else </span><span class="s4">{</span>
+                        <span class="s2">next </span><span class="s4">= </span><span class="s2">args</span><span class="s4">[</span><span class="s2">i </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">];</span>
+                        <span class="s3">if </span><span class="s4">(</span><span class="s2">next </span><span class="s4">!== </span><span class="s2">undefined </span><span class="s4">&amp;&amp; (!</span><span class="s7">/^(-|--)[^-]/</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">next</span><span class="s4">) ||</span>
+                            <span class="s2">next</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s2">negative</span><span class="s4">)) &amp;&amp;</span>
+                            <span class="s4">!</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">bools</span><span class="s4">) &amp;&amp;</span>
+                            <span class="s4">!</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">counts</span><span class="s4">)) {</span>
+                            <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">next</span><span class="s4">);</span>
+                            <span class="s2">i</span><span class="s4">++;</span>
+                        <span class="s4">}</span>
+                        <span class="s3">else if </span><span class="s4">(</span><span class="s7">/^(true|false)$/</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">next</span><span class="s4">)) {</span>
+                            <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">next</span><span class="s4">);</span>
+                            <span class="s2">i</span><span class="s4">++;</span>
+                        <span class="s4">}</span>
+                        <span class="s3">else </span><span class="s4">{</span>
+                            <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">defaultValue</span><span class="s4">(</span><span class="s2">key</span><span class="s4">));</span>
+                        <span class="s4">}</span>
+                    <span class="s4">}</span>
+                <span class="s4">}</span>
+            <span class="s4">}</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^-[0-9]$/</span><span class="s4">) &amp;&amp;</span>
+                <span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s2">negative</span><span class="s4">) &amp;&amp;</span>
+                <span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">arg</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">(</span><span class="s8">1</span><span class="s4">), </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">bools</span><span class="s4">)) {</span>
+                <span class="s6">// single-digit boolean alias, e.g: xargs -0</span>
+                <span class="s2">key </span><span class="s4">= </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">(</span><span class="s8">1</span><span class="s4">);</span>
+                <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">defaultValue</span><span class="s4">(</span><span class="s2">key</span><span class="s4">));</span>
+            <span class="s4">}</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">arg </span><span class="s4">=== </span><span class="s5">'--'</span><span class="s4">) {</span>
+                <span class="s2">notFlags </span><span class="s4">= </span><span class="s2">args</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">(</span><span class="s2">i </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">);</span>
+                <span class="s3">break</span><span class="s4">;</span>
+            <span class="s4">}</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'halt-at-non-option'</span><span class="s4">]) {</span>
+                <span class="s2">notFlags </span><span class="s4">= </span><span class="s2">args</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">(</span><span class="s2">i</span><span class="s4">);</span>
+                <span class="s3">break</span><span class="s4">;</span>
+            <span class="s4">}</span>
+            <span class="s3">else </span><span class="s4">{</span>
+                <span class="s2">pushPositional</span><span class="s4">(</span><span class="s2">arg</span><span class="s4">);</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+        <span class="s6">// order of precedence:</span>
+        <span class="s6">// 1. command line arg</span>
+        <span class="s6">// 2. value from env var</span>
+        <span class="s6">// 3. value from config file</span>
+        <span class="s6">// 4. value from config objects</span>
+        <span class="s6">// 5. configured default value</span>
+        <span class="s2">applyEnvVars</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">, </span><span class="s3">true</span><span class="s4">); </span><span class="s6">// special case: check env vars that point to config file</span>
+        <span class="s2">applyEnvVars</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">, </span><span class="s3">false</span><span class="s4">);</span>
+        <span class="s2">setConfig</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">);</span>
+        <span class="s2">setConfigObjects</span><span class="s4">();</span>
+        <span class="s2">applyDefaultsAndAliases</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">, </span><span class="s2">defaults</span><span class="s4">, </span><span class="s3">true</span><span class="s4">);</span>
+        <span class="s2">applyCoercions</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">);</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'set-placeholder-key'</span><span class="s4">])</span>
+            <span class="s2">setPlaceholderKeys</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">);</span>
+        <span class="s6">// for any counts either not in args or without an explicit default, set to 0</span>
+        <span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">flags</span><span class="s4">.</span><span class="s2">counts</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+            <span class="s3">if </span><span class="s4">(!</span><span class="s2">hasKey</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">, </span><span class="s2">key</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">)))</span>
+                <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s8">0</span><span class="s4">);</span>
+        <span class="s4">});</span>
+        <span class="s6">// '--' defaults to undefined.</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">notFlagsOption </span><span class="s4">&amp;&amp; </span><span class="s2">notFlags</span><span class="s4">.</span><span class="s2">length</span><span class="s4">)</span>
+            <span class="s2">argv</span><span class="s4">[</span><span class="s2">notFlagsArgv</span><span class="s4">] = [];</span>
+        <span class="s2">notFlags</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+            <span class="s2">argv</span><span class="s4">[</span><span class="s2">notFlagsArgv</span><span class="s4">].</span><span class="s2">push</span><span class="s4">(</span><span class="s2">key</span><span class="s4">);</span>
+        <span class="s4">});</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'camel-case-expansion'</span><span class="s4">] &amp;&amp; </span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'strip-dashed'</span><span class="s4">]) {</span>
+            <span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">).</span><span class="s2">filter</span><span class="s4">(</span><span class="s2">key </span><span class="s4">=&gt; </span><span class="s2">key </span><span class="s4">!== </span><span class="s5">'--' </span><span class="s4">&amp;&amp; </span><span class="s2">key</span><span class="s4">.</span><span class="s2">includes</span><span class="s4">(</span><span class="s5">'-'</span><span class="s4">)).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s2">key </span><span class="s4">=&gt; {</span>
+                <span class="s3">delete </span><span class="s2">argv</span><span class="s4">[</span><span class="s2">key</span><span class="s4">];</span>
+            <span class="s4">});</span>
+        <span class="s4">}</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'strip-aliased'</span><span class="s4">]) {</span>
+            <span class="s4">;</span>
+            <span class="s4">[].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">...Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">aliases</span><span class="s4">).</span><span class="s2">map</span><span class="s4">(</span><span class="s2">k </span><span class="s4">=&gt; </span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">k</span><span class="s4">])).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s2">alias </span><span class="s4">=&gt; {</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'camel-case-expansion'</span><span class="s4">] &amp;&amp; </span><span class="s2">alias</span><span class="s4">.</span><span class="s2">includes</span><span class="s4">(</span><span class="s5">'-'</span><span class="s4">)) {</span>
+                    <span class="s3">delete </span><span class="s2">argv</span><span class="s4">[</span><span class="s2">alias</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">).</span><span class="s2">map</span><span class="s4">(</span><span class="s2">prop </span><span class="s4">=&gt; </span><span class="s2">camelCase</span><span class="s4">(</span><span class="s2">prop</span><span class="s4">)).</span><span class="s2">join</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">)];</span>
+                <span class="s4">}</span>
+                <span class="s3">delete </span><span class="s2">argv</span><span class="s4">[</span><span class="s2">alias</span><span class="s4">];</span>
+            <span class="s4">});</span>
+        <span class="s4">}</span>
+        <span class="s6">// Push argument into positional array, applying numeric coercion:</span>
+        <span class="s3">function </span><span class="s2">pushPositional</span><span class="s4">(</span><span class="s2">arg</span><span class="s4">) {</span>
+            <span class="s3">const </span><span class="s2">maybeCoercedNumber </span><span class="s4">= </span><span class="s2">maybeCoerceNumber</span><span class="s4">(</span><span class="s5">'_'</span><span class="s4">, </span><span class="s2">arg</span><span class="s4">);</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">maybeCoercedNumber </span><span class="s4">=== </span><span class="s5">'string' </span><span class="s4">|| </span><span class="s3">typeof </span><span class="s2">maybeCoercedNumber </span><span class="s4">=== </span><span class="s5">'number'</span><span class="s4">) {</span>
+                <span class="s2">argv</span><span class="s4">.</span><span class="s2">_</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">maybeCoercedNumber</span><span class="s4">);</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+        <span class="s6">// how many arguments should we consume, based</span>
+        <span class="s6">// on the nargs option?</span>
+        <span class="s3">function </span><span class="s2">eatNargs</span><span class="s4">(</span><span class="s2">i</span><span class="s4">, </span><span class="s2">key</span><span class="s4">, </span><span class="s2">args</span><span class="s4">, </span><span class="s2">argAfterEqualSign</span><span class="s4">) {</span>
+            <span class="s3">let </span><span class="s2">ii</span><span class="s4">;</span>
+            <span class="s3">let </span><span class="s2">toEat </span><span class="s4">= </span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">nargs</span><span class="s4">);</span>
+            <span class="s6">// NaN has a special meaning for the array type, indicating that one or</span>
+            <span class="s6">// more values are expected.</span>
+            <span class="s2">toEat </span><span class="s4">= </span><span class="s3">typeof </span><span class="s2">toEat </span><span class="s4">!== </span><span class="s5">'number' </span><span class="s4">|| </span><span class="s2">isNaN</span><span class="s4">(</span><span class="s2">toEat</span><span class="s4">) ? </span><span class="s8">1 </span><span class="s4">: </span><span class="s2">toEat</span><span class="s4">;</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">toEat </span><span class="s4">=== </span><span class="s8">0</span><span class="s4">) {</span>
+                <span class="s3">if </span><span class="s4">(!</span><span class="s2">isUndefined</span><span class="s4">(</span><span class="s2">argAfterEqualSign</span><span class="s4">)) {</span>
+                    <span class="s2">error </span><span class="s4">= </span><span class="s2">Error</span><span class="s4">(</span><span class="s2">__</span><span class="s4">(</span><span class="s5">'Argument unexpected for: %s'</span><span class="s4">, </span><span class="s2">key</span><span class="s4">));</span>
+                <span class="s4">}</span>
+                <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">defaultValue</span><span class="s4">(</span><span class="s2">key</span><span class="s4">));</span>
+                <span class="s3">return </span><span class="s2">i</span><span class="s4">;</span>
+            <span class="s4">}</span>
+            <span class="s3">let </span><span class="s2">available </span><span class="s4">= </span><span class="s2">isUndefined</span><span class="s4">(</span><span class="s2">argAfterEqualSign</span><span class="s4">) ? </span><span class="s8">0 </span><span class="s4">: </span><span class="s8">1</span><span class="s4">;</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'nargs-eats-options'</span><span class="s4">]) {</span>
+                <span class="s6">// classic behavior, yargs eats positional and dash arguments.</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">args</span><span class="s4">.</span><span class="s2">length </span><span class="s4">- (</span><span class="s2">i </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">) + </span><span class="s2">available </span><span class="s4">&lt; </span><span class="s2">toEat</span><span class="s4">) {</span>
+                    <span class="s2">error </span><span class="s4">= </span><span class="s2">Error</span><span class="s4">(</span><span class="s2">__</span><span class="s4">(</span><span class="s5">'Not enough arguments following: %s'</span><span class="s4">, </span><span class="s2">key</span><span class="s4">));</span>
+                <span class="s4">}</span>
+                <span class="s2">available </span><span class="s4">= </span><span class="s2">toEat</span><span class="s4">;</span>
+            <span class="s4">}</span>
+            <span class="s3">else </span><span class="s4">{</span>
+                <span class="s6">// nargs will not consume flag arguments, e.g., -abc, --foo,</span>
+                <span class="s6">// and terminates when one is observed.</span>
+                <span class="s3">for </span><span class="s4">(</span><span class="s2">ii </span><span class="s4">= </span><span class="s2">i </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">; </span><span class="s2">ii </span><span class="s4">&lt; </span><span class="s2">args</span><span class="s4">.</span><span class="s2">length</span><span class="s4">; </span><span class="s2">ii</span><span class="s4">++) {</span>
+                    <span class="s3">if </span><span class="s4">(!</span><span class="s2">args</span><span class="s4">[</span><span class="s2">ii</span><span class="s4">].</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^-[^0-9]/</span><span class="s4">) || </span><span class="s2">args</span><span class="s4">[</span><span class="s2">ii</span><span class="s4">].</span><span class="s2">match</span><span class="s4">(</span><span class="s2">negative</span><span class="s4">) || </span><span class="s2">isUnknownOptionAsArg</span><span class="s4">(</span><span class="s2">args</span><span class="s4">[</span><span class="s2">ii</span><span class="s4">]))</span>
+                        <span class="s2">available</span><span class="s4">++;</span>
+                    <span class="s3">else</span>
+                        <span class="s3">break</span><span class="s4">;</span>
+                <span class="s4">}</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">available </span><span class="s4">&lt; </span><span class="s2">toEat</span><span class="s4">)</span>
+                    <span class="s2">error </span><span class="s4">= </span><span class="s2">Error</span><span class="s4">(</span><span class="s2">__</span><span class="s4">(</span><span class="s5">'Not enough arguments following: %s'</span><span class="s4">, </span><span class="s2">key</span><span class="s4">));</span>
+            <span class="s4">}</span>
+            <span class="s3">let </span><span class="s2">consumed </span><span class="s4">= </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">min</span><span class="s4">(</span><span class="s2">available</span><span class="s4">, </span><span class="s2">toEat</span><span class="s4">);</span>
+            <span class="s3">if </span><span class="s4">(!</span><span class="s2">isUndefined</span><span class="s4">(</span><span class="s2">argAfterEqualSign</span><span class="s4">) &amp;&amp; </span><span class="s2">consumed </span><span class="s4">&gt; </span><span class="s8">0</span><span class="s4">) {</span>
+                <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">argAfterEqualSign</span><span class="s4">);</span>
+                <span class="s2">consumed</span><span class="s4">--;</span>
+            <span class="s4">}</span>
+            <span class="s3">for </span><span class="s4">(</span><span class="s2">ii </span><span class="s4">= </span><span class="s2">i </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">; </span><span class="s2">ii </span><span class="s4">&lt; (</span><span class="s2">consumed </span><span class="s4">+ </span><span class="s2">i </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">); </span><span class="s2">ii</span><span class="s4">++) {</span>
+                <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">args</span><span class="s4">[</span><span class="s2">ii</span><span class="s4">]);</span>
+            <span class="s4">}</span>
+            <span class="s3">return </span><span class="s4">(</span><span class="s2">i </span><span class="s4">+ </span><span class="s2">consumed</span><span class="s4">);</span>
+        <span class="s4">}</span>
+        <span class="s6">// if an option is an array, eat all non-hyphenated arguments</span>
+        <span class="s6">// following it... YUM!</span>
+        <span class="s6">// e.g., --foo apple banana cat becomes [&quot;apple&quot;, &quot;banana&quot;, &quot;cat&quot;]</span>
+        <span class="s3">function </span><span class="s2">eatArray</span><span class="s4">(</span><span class="s2">i</span><span class="s4">, </span><span class="s2">key</span><span class="s4">, </span><span class="s2">args</span><span class="s4">, </span><span class="s2">argAfterEqualSign</span><span class="s4">) {</span>
+            <span class="s3">let </span><span class="s2">argsToSet </span><span class="s4">= [];</span>
+            <span class="s3">let </span><span class="s2">next </span><span class="s4">= </span><span class="s2">argAfterEqualSign </span><span class="s4">|| </span><span class="s2">args</span><span class="s4">[</span><span class="s2">i </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">];</span>
+            <span class="s6">// If both array and nargs are configured, enforce the nargs count:</span>
+            <span class="s3">const </span><span class="s2">nargsCount </span><span class="s4">= </span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">nargs</span><span class="s4">);</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">bools</span><span class="s4">) &amp;&amp; !(</span><span class="s7">/^(true|false)$/</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">next</span><span class="s4">))) {</span>
+                <span class="s2">argsToSet</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s3">true</span><span class="s4">);</span>
+            <span class="s4">}</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">isUndefined</span><span class="s4">(</span><span class="s2">next</span><span class="s4">) ||</span>
+                <span class="s4">(</span><span class="s2">isUndefined</span><span class="s4">(</span><span class="s2">argAfterEqualSign</span><span class="s4">) &amp;&amp; </span><span class="s7">/^-/</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">next</span><span class="s4">) &amp;&amp; !</span><span class="s2">negative</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">next</span><span class="s4">) &amp;&amp; !</span><span class="s2">isUnknownOptionAsArg</span><span class="s4">(</span><span class="s2">next</span><span class="s4">))) {</span>
+                <span class="s6">// for keys without value ==&gt; argsToSet remains an empty []</span>
+                <span class="s6">// set user default value, if available</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">defaults</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] !== </span><span class="s2">undefined</span><span class="s4">) {</span>
+                    <span class="s3">const </span><span class="s2">defVal </span><span class="s4">= </span><span class="s2">defaults</span><span class="s4">[</span><span class="s2">key</span><span class="s4">];</span>
+                    <span class="s2">argsToSet </span><span class="s4">= </span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">defVal</span><span class="s4">) ? </span><span class="s2">defVal </span><span class="s4">: [</span><span class="s2">defVal</span><span class="s4">];</span>
+                <span class="s4">}</span>
+            <span class="s4">}</span>
+            <span class="s3">else </span><span class="s4">{</span>
+                <span class="s6">// value in --option=value is eaten as is</span>
+                <span class="s3">if </span><span class="s4">(!</span><span class="s2">isUndefined</span><span class="s4">(</span><span class="s2">argAfterEqualSign</span><span class="s4">)) {</span>
+                    <span class="s2">argsToSet</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">processValue</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">argAfterEqualSign</span><span class="s4">));</span>
+                <span class="s4">}</span>
+                <span class="s3">for </span><span class="s4">(</span><span class="s3">let </span><span class="s2">ii </span><span class="s4">= </span><span class="s2">i </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">; </span><span class="s2">ii </span><span class="s4">&lt; </span><span class="s2">args</span><span class="s4">.</span><span class="s2">length</span><span class="s4">; </span><span class="s2">ii</span><span class="s4">++) {</span>
+                    <span class="s3">if </span><span class="s4">((!</span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'greedy-arrays'</span><span class="s4">] &amp;&amp; </span><span class="s2">argsToSet</span><span class="s4">.</span><span class="s2">length </span><span class="s4">&gt; </span><span class="s8">0</span><span class="s4">) ||</span>
+                        <span class="s4">(</span><span class="s2">nargsCount </span><span class="s4">&amp;&amp; </span><span class="s3">typeof </span><span class="s2">nargsCount </span><span class="s4">=== </span><span class="s5">'number' </span><span class="s4">&amp;&amp; </span><span class="s2">argsToSet</span><span class="s4">.</span><span class="s2">length </span><span class="s4">&gt;= </span><span class="s2">nargsCount</span><span class="s4">))</span>
+                        <span class="s3">break</span><span class="s4">;</span>
+                    <span class="s2">next </span><span class="s4">= </span><span class="s2">args</span><span class="s4">[</span><span class="s2">ii</span><span class="s4">];</span>
+                    <span class="s3">if </span><span class="s4">(</span><span class="s7">/^-/</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">next</span><span class="s4">) &amp;&amp; !</span><span class="s2">negative</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">next</span><span class="s4">) &amp;&amp; !</span><span class="s2">isUnknownOptionAsArg</span><span class="s4">(</span><span class="s2">next</span><span class="s4">))</span>
+                        <span class="s3">break</span><span class="s4">;</span>
+                    <span class="s2">i </span><span class="s4">= </span><span class="s2">ii</span><span class="s4">;</span>
+                    <span class="s2">argsToSet</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">processValue</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">next</span><span class="s4">));</span>
+                <span class="s4">}</span>
+            <span class="s4">}</span>
+            <span class="s6">// If both array and nargs are configured, create an error if less than</span>
+            <span class="s6">// nargs positionals were found. NaN has special meaning, indicating</span>
+            <span class="s6">// that at least one value is required (more are okay).</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">nargsCount </span><span class="s4">=== </span><span class="s5">'number' </span><span class="s4">&amp;&amp; ((</span><span class="s2">nargsCount </span><span class="s4">&amp;&amp; </span><span class="s2">argsToSet</span><span class="s4">.</span><span class="s2">length </span><span class="s4">&lt; </span><span class="s2">nargsCount</span><span class="s4">) ||</span>
+                <span class="s4">(</span><span class="s2">isNaN</span><span class="s4">(</span><span class="s2">nargsCount</span><span class="s4">) &amp;&amp; </span><span class="s2">argsToSet</span><span class="s4">.</span><span class="s2">length </span><span class="s4">=== </span><span class="s8">0</span><span class="s4">))) {</span>
+                <span class="s2">error </span><span class="s4">= </span><span class="s2">Error</span><span class="s4">(</span><span class="s2">__</span><span class="s4">(</span><span class="s5">'Not enough arguments following: %s'</span><span class="s4">, </span><span class="s2">key</span><span class="s4">));</span>
+            <span class="s4">}</span>
+            <span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">argsToSet</span><span class="s4">);</span>
+            <span class="s3">return </span><span class="s2">i</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">setArg</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">val</span><span class="s4">) {</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s7">/-/</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">key</span><span class="s4">) &amp;&amp; </span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'camel-case-expansion'</span><span class="s4">]) {</span>
+                <span class="s3">const </span><span class="s2">alias </span><span class="s4">= </span><span class="s2">key</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">).</span><span class="s2">map</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">prop</span><span class="s4">) {</span>
+                    <span class="s3">return </span><span class="s2">camelCase</span><span class="s4">(</span><span class="s2">prop</span><span class="s4">);</span>
+                <span class="s4">}).</span><span class="s2">join</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">);</span>
+                <span class="s2">addNewAlias</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">alias</span><span class="s4">);</span>
+            <span class="s4">}</span>
+            <span class="s3">const </span><span class="s2">value </span><span class="s4">= </span><span class="s2">processValue</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">val</span><span class="s4">);</span>
+            <span class="s3">const </span><span class="s2">splitKey </span><span class="s4">= </span><span class="s2">key</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">);</span>
+            <span class="s2">setKey</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">, </span><span class="s2">splitKey</span><span class="s4">, </span><span class="s2">value</span><span class="s4">);</span>
+            <span class="s6">// handle populating aliases of the full key</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">]) {</span>
+                <span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">].</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">x</span><span class="s4">) {</span>
+                    <span class="s3">const </span><span class="s2">keyProperties </span><span class="s4">= </span><span class="s2">x</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">);</span>
+                    <span class="s2">setKey</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">, </span><span class="s2">keyProperties</span><span class="s4">, </span><span class="s2">value</span><span class="s4">);</span>
+                <span class="s4">});</span>
+            <span class="s4">}</span>
+            <span class="s6">// handle populating aliases of the first element of the dot-notation key</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">splitKey</span><span class="s4">.</span><span class="s2">length </span><span class="s4">&gt; </span><span class="s8">1 </span><span class="s4">&amp;&amp; </span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'dot-notation'</span><span class="s4">]) {</span>
+                <span class="s4">;</span>
+                <span class="s4">(</span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">splitKey</span><span class="s4">[</span><span class="s8">0</span><span class="s4">]] || []).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">x</span><span class="s4">) {</span>
+                    <span class="s3">let </span><span class="s2">keyProperties </span><span class="s4">= </span><span class="s2">x</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">);</span>
+                    <span class="s6">// expand alias with nested objects in key</span>
+                    <span class="s3">const </span><span class="s2">a </span><span class="s4">= [].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">splitKey</span><span class="s4">);</span>
+                    <span class="s2">a</span><span class="s4">.</span><span class="s2">shift</span><span class="s4">(); </span><span class="s6">// nuke the old key.</span>
+                    <span class="s2">keyProperties </span><span class="s4">= </span><span class="s2">keyProperties</span><span class="s4">.</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">a</span><span class="s4">);</span>
+                    <span class="s6">// populate alias only if is not already an alias of the full key</span>
+                    <span class="s6">// (already populated above)</span>
+                    <span class="s3">if </span><span class="s4">(!(</span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] || []).</span><span class="s2">includes</span><span class="s4">(</span><span class="s2">keyProperties</span><span class="s4">.</span><span class="s2">join</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">))) {</span>
+                        <span class="s2">setKey</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">, </span><span class="s2">keyProperties</span><span class="s4">, </span><span class="s2">value</span><span class="s4">);</span>
+                    <span class="s4">}</span>
+                <span class="s4">});</span>
+            <span class="s4">}</span>
+            <span class="s6">// Set normalize getter and setter when key is in 'normalize' but isn't an array</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">normalize</span><span class="s4">) &amp;&amp; !</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">arrays</span><span class="s4">)) {</span>
+                <span class="s3">const </span><span class="s2">keys </span><span class="s4">= [</span><span class="s2">key</span><span class="s4">].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] || []);</span>
+                <span class="s2">keys</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+                    <span class="s2">Object</span><span class="s4">.</span><span class="s2">defineProperty</span><span class="s4">(</span><span class="s2">argvReturn</span><span class="s4">, </span><span class="s2">key</span><span class="s4">, {</span>
+                        <span class="s2">enumerable</span><span class="s4">: </span><span class="s3">true</span><span class="s4">,</span>
+                        <span class="s2">get</span><span class="s4">() {</span>
+                            <span class="s3">return </span><span class="s2">val</span><span class="s4">;</span>
+                        <span class="s4">},</span>
+                        <span class="s2">set</span><span class="s4">(</span><span class="s2">value</span><span class="s4">) {</span>
+                            <span class="s2">val </span><span class="s4">= </span><span class="s3">typeof </span><span class="s2">value </span><span class="s4">=== </span><span class="s5">'string' </span><span class="s4">? </span><span class="s2">mixin</span><span class="s4">.</span><span class="s2">normalize</span><span class="s4">(</span><span class="s2">value</span><span class="s4">) : </span><span class="s2">value</span><span class="s4">;</span>
+                        <span class="s4">}</span>
+                    <span class="s4">});</span>
+                <span class="s4">});</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">addNewAlias</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">alias</span><span class="s4">) {</span>
+            <span class="s3">if </span><span class="s4">(!(</span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] &amp;&amp; </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">].</span><span class="s2">length</span><span class="s4">)) {</span>
+                <span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = [</span><span class="s2">alias</span><span class="s4">];</span>
+                <span class="s2">newAliases</span><span class="s4">[</span><span class="s2">alias</span><span class="s4">] = </span><span class="s3">true</span><span class="s4">;</span>
+            <span class="s4">}</span>
+            <span class="s3">if </span><span class="s4">(!(</span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">alias</span><span class="s4">] &amp;&amp; </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">alias</span><span class="s4">].</span><span class="s2">length</span><span class="s4">)) {</span>
+                <span class="s2">addNewAlias</span><span class="s4">(</span><span class="s2">alias</span><span class="s4">, </span><span class="s2">key</span><span class="s4">);</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">processValue</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">val</span><span class="s4">) {</span>
+            <span class="s6">// strings may be quoted, clean this up as we assign values.</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">val </span><span class="s4">=== </span><span class="s5">'string' </span><span class="s4">&amp;&amp;</span>
+                <span class="s4">(</span><span class="s2">val</span><span class="s4">[</span><span class="s8">0</span><span class="s4">] === </span><span class="s5">&quot;'&quot; </span><span class="s4">|| </span><span class="s2">val</span><span class="s4">[</span><span class="s8">0</span><span class="s4">] === </span><span class="s5">'&quot;'</span><span class="s4">) &amp;&amp;</span>
+                <span class="s2">val</span><span class="s4">[</span><span class="s2">val</span><span class="s4">.</span><span class="s2">length </span><span class="s4">- </span><span class="s8">1</span><span class="s4">] === </span><span class="s2">val</span><span class="s4">[</span><span class="s8">0</span><span class="s4">]) {</span>
+                <span class="s2">val </span><span class="s4">= </span><span class="s2">val</span><span class="s4">.</span><span class="s2">substring</span><span class="s4">(</span><span class="s8">1</span><span class="s4">, </span><span class="s2">val</span><span class="s4">.</span><span class="s2">length </span><span class="s4">- </span><span class="s8">1</span><span class="s4">);</span>
+            <span class="s4">}</span>
+            <span class="s6">// handle parsing boolean arguments --foo=true --bar false.</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">bools</span><span class="s4">) || </span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">counts</span><span class="s4">)) {</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">val </span><span class="s4">=== </span><span class="s5">'string'</span><span class="s4">)</span>
+                    <span class="s2">val </span><span class="s4">= </span><span class="s2">val </span><span class="s4">=== </span><span class="s5">'true'</span><span class="s4">;</span>
+            <span class="s4">}</span>
+            <span class="s3">let </span><span class="s2">value </span><span class="s4">= </span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">val</span><span class="s4">)</span>
+                <span class="s4">? </span><span class="s2">val</span><span class="s4">.</span><span class="s2">map</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">v</span><span class="s4">) { </span><span class="s3">return </span><span class="s2">maybeCoerceNumber</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">v</span><span class="s4">); })</span>
+                <span class="s4">: </span><span class="s2">maybeCoerceNumber</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">val</span><span class="s4">);</span>
+            <span class="s6">// increment a count given as arg (either no value or value parsed as boolean)</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">counts</span><span class="s4">) &amp;&amp; (</span><span class="s2">isUndefined</span><span class="s4">(</span><span class="s2">value</span><span class="s4">) || </span><span class="s3">typeof </span><span class="s2">value </span><span class="s4">=== </span><span class="s5">'boolean'</span><span class="s4">)) {</span>
+                <span class="s2">value </span><span class="s4">= </span><span class="s2">increment</span><span class="s4">();</span>
+            <span class="s4">}</span>
+            <span class="s6">// Set normalized value when key is in 'normalize' and in 'arrays'</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">normalize</span><span class="s4">) &amp;&amp; </span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">arrays</span><span class="s4">)) {</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">val</span><span class="s4">))</span>
+                    <span class="s2">value </span><span class="s4">= </span><span class="s2">val</span><span class="s4">.</span><span class="s2">map</span><span class="s4">((</span><span class="s2">val</span><span class="s4">) =&gt; { </span><span class="s3">return </span><span class="s2">mixin</span><span class="s4">.</span><span class="s2">normalize</span><span class="s4">(</span><span class="s2">val</span><span class="s4">); });</span>
+                <span class="s3">else</span>
+                    <span class="s2">value </span><span class="s4">= </span><span class="s2">mixin</span><span class="s4">.</span><span class="s2">normalize</span><span class="s4">(</span><span class="s2">val</span><span class="s4">);</span>
+            <span class="s4">}</span>
+            <span class="s3">return </span><span class="s2">value</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">maybeCoerceNumber</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">value</span><span class="s4">) {</span>
+            <span class="s3">if </span><span class="s4">(!</span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'parse-positional-numbers'</span><span class="s4">] &amp;&amp; </span><span class="s2">key </span><span class="s4">=== </span><span class="s5">'_'</span><span class="s4">)</span>
+                <span class="s3">return </span><span class="s2">value</span><span class="s4">;</span>
+            <span class="s3">if </span><span class="s4">(!</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">strings</span><span class="s4">) &amp;&amp; !</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">bools</span><span class="s4">) &amp;&amp; !</span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">value</span><span class="s4">)) {</span>
+                <span class="s3">const </span><span class="s2">shouldCoerceNumber </span><span class="s4">= </span><span class="s2">looksLikeNumber</span><span class="s4">(</span><span class="s2">value</span><span class="s4">) &amp;&amp; </span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'parse-numbers'</span><span class="s4">] &amp;&amp; (</span><span class="s2">Number</span><span class="s4">.</span><span class="s2">isSafeInteger</span><span class="s4">(</span><span class="s2">Math</span><span class="s4">.</span><span class="s2">floor</span><span class="s4">(</span><span class="s2">parseFloat</span><span class="s4">(</span><span class="s5">`</span><span class="s2">$</span><span class="s4">{</span><span class="s2">value</span><span class="s4">}</span><span class="s5">`</span><span class="s4">))));</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">shouldCoerceNumber </span><span class="s4">|| (!</span><span class="s2">isUndefined</span><span class="s4">(</span><span class="s2">value</span><span class="s4">) &amp;&amp; </span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">numbers</span><span class="s4">))) {</span>
+                    <span class="s2">value </span><span class="s4">= </span><span class="s2">Number</span><span class="s4">(</span><span class="s2">value</span><span class="s4">);</span>
+                <span class="s4">}</span>
+            <span class="s4">}</span>
+            <span class="s3">return </span><span class="s2">value</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s6">// set args from config.json file, this should be</span>
+        <span class="s6">// applied last so that defaults can be applied.</span>
+        <span class="s3">function </span><span class="s2">setConfig</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">) {</span>
+            <span class="s3">const </span><span class="s2">configLookup </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">);</span>
+            <span class="s6">// expand defaults/aliases, in-case any happen to reference</span>
+            <span class="s6">// the config.json file.</span>
+            <span class="s2">applyDefaultsAndAliases</span><span class="s4">(</span><span class="s2">configLookup</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">, </span><span class="s2">defaults</span><span class="s4">);</span>
+            <span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">flags</span><span class="s4">.</span><span class="s2">configs</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">configKey</span><span class="s4">) {</span>
+                <span class="s3">const </span><span class="s2">configPath </span><span class="s4">= </span><span class="s2">argv</span><span class="s4">[</span><span class="s2">configKey</span><span class="s4">] || </span><span class="s2">configLookup</span><span class="s4">[</span><span class="s2">configKey</span><span class="s4">];</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">configPath</span><span class="s4">) {</span>
+                    <span class="s3">try </span><span class="s4">{</span>
+                        <span class="s3">let </span><span class="s2">config </span><span class="s4">= </span><span class="s3">null</span><span class="s4">;</span>
+                        <span class="s3">const </span><span class="s2">resolvedConfigPath </span><span class="s4">= </span><span class="s2">mixin</span><span class="s4">.</span><span class="s2">resolve</span><span class="s4">(</span><span class="s2">mixin</span><span class="s4">.</span><span class="s2">cwd</span><span class="s4">(), </span><span class="s2">configPath</span><span class="s4">);</span>
+                        <span class="s3">const </span><span class="s2">resolveConfig </span><span class="s4">= </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">configs</span><span class="s4">[</span><span class="s2">configKey</span><span class="s4">];</span>
+                        <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">resolveConfig </span><span class="s4">=== </span><span class="s5">'function'</span><span class="s4">) {</span>
+                            <span class="s3">try </span><span class="s4">{</span>
+                                <span class="s2">config </span><span class="s4">= </span><span class="s2">resolveConfig</span><span class="s4">(</span><span class="s2">resolvedConfigPath</span><span class="s4">);</span>
+                            <span class="s4">}</span>
+                            <span class="s3">catch </span><span class="s4">(</span><span class="s2">e</span><span class="s4">) {</span>
+                                <span class="s2">config </span><span class="s4">= </span><span class="s2">e</span><span class="s4">;</span>
+                            <span class="s4">}</span>
+                            <span class="s3">if </span><span class="s4">(</span><span class="s2">config </span><span class="s3">instanceof </span><span class="s2">Error</span><span class="s4">) {</span>
+                                <span class="s2">error </span><span class="s4">= </span><span class="s2">config</span><span class="s4">;</span>
+                                <span class="s3">return</span><span class="s4">;</span>
+                            <span class="s4">}</span>
+                        <span class="s4">}</span>
+                        <span class="s3">else </span><span class="s4">{</span>
+                            <span class="s2">config </span><span class="s4">= </span><span class="s2">mixin</span><span class="s4">.</span><span class="s2">require</span><span class="s4">(</span><span class="s2">resolvedConfigPath</span><span class="s4">);</span>
+                        <span class="s4">}</span>
+                        <span class="s2">setConfigObject</span><span class="s4">(</span><span class="s2">config</span><span class="s4">);</span>
+                    <span class="s4">}</span>
+                    <span class="s3">catch </span><span class="s4">(</span><span class="s2">ex</span><span class="s4">) {</span>
+                        <span class="s6">// Deno will receive a PermissionDenied error if an attempt is</span>
+                        <span class="s6">// made to load config without the --allow-read flag:</span>
+                        <span class="s3">if </span><span class="s4">(</span><span class="s2">ex</span><span class="s4">.</span><span class="s2">name </span><span class="s4">=== </span><span class="s5">'PermissionDenied'</span><span class="s4">)</span>
+                            <span class="s2">error </span><span class="s4">= </span><span class="s2">ex</span><span class="s4">;</span>
+                        <span class="s3">else if </span><span class="s4">(</span><span class="s2">argv</span><span class="s4">[</span><span class="s2">configKey</span><span class="s4">])</span>
+                            <span class="s2">error </span><span class="s4">= </span><span class="s2">Error</span><span class="s4">(</span><span class="s2">__</span><span class="s4">(</span><span class="s5">'Invalid JSON config file: %s'</span><span class="s4">, </span><span class="s2">configPath</span><span class="s4">));</span>
+                    <span class="s4">}</span>
+                <span class="s4">}</span>
+            <span class="s4">});</span>
+        <span class="s4">}</span>
+        <span class="s6">// set args from config object.</span>
+        <span class="s6">// it recursively checks nested objects.</span>
+        <span class="s3">function </span><span class="s2">setConfigObject</span><span class="s4">(</span><span class="s2">config</span><span class="s4">, </span><span class="s2">prev</span><span class="s4">) {</span>
+            <span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">config</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+                <span class="s3">const </span><span class="s2">value </span><span class="s4">= </span><span class="s2">config</span><span class="s4">[</span><span class="s2">key</span><span class="s4">];</span>
+                <span class="s3">const </span><span class="s2">fullKey </span><span class="s4">= </span><span class="s2">prev </span><span class="s4">? </span><span class="s2">prev </span><span class="s4">+ </span><span class="s5">'.' </span><span class="s4">+ </span><span class="s2">key </span><span class="s4">: </span><span class="s2">key</span><span class="s4">;</span>
+                <span class="s6">// if the value is an inner object and we have dot-notation</span>
+                <span class="s6">// enabled, treat inner objects in config the same as</span>
+                <span class="s6">// heavily nested dot notations (foo.bar.apple).</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">value </span><span class="s4">=== </span><span class="s5">'object' </span><span class="s4">&amp;&amp; </span><span class="s2">value </span><span class="s4">!== </span><span class="s3">null </span><span class="s4">&amp;&amp; !</span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">value</span><span class="s4">) &amp;&amp; </span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'dot-notation'</span><span class="s4">]) {</span>
+                    <span class="s6">// if the value is an object but not an array, check nested object</span>
+                    <span class="s2">setConfigObject</span><span class="s4">(</span><span class="s2">value</span><span class="s4">, </span><span class="s2">fullKey</span><span class="s4">);</span>
+                <span class="s4">}</span>
+                <span class="s3">else </span><span class="s4">{</span>
+                    <span class="s6">// setting arguments via CLI takes precedence over</span>
+                    <span class="s6">// values within the config file.</span>
+                    <span class="s3">if </span><span class="s4">(!</span><span class="s2">hasKey</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">, </span><span class="s2">fullKey</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">)) || (</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">fullKey</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">arrays</span><span class="s4">) &amp;&amp; </span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'combine-arrays'</span><span class="s4">])) {</span>
+                        <span class="s2">setArg</span><span class="s4">(</span><span class="s2">fullKey</span><span class="s4">, </span><span class="s2">value</span><span class="s4">);</span>
+                    <span class="s4">}</span>
+                <span class="s4">}</span>
+            <span class="s4">});</span>
+        <span class="s4">}</span>
+        <span class="s6">// set all config objects passed in opts</span>
+        <span class="s3">function </span><span class="s2">setConfigObjects</span><span class="s4">() {</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">configObjects </span><span class="s4">!== </span><span class="s5">'undefined'</span><span class="s4">) {</span>
+                <span class="s2">configObjects</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">configObject</span><span class="s4">) {</span>
+                    <span class="s2">setConfigObject</span><span class="s4">(</span><span class="s2">configObject</span><span class="s4">);</span>
+                <span class="s4">});</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">applyEnvVars</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">, </span><span class="s2">configOnly</span><span class="s4">) {</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">envPrefix </span><span class="s4">=== </span><span class="s5">'undefined'</span><span class="s4">)</span>
+                <span class="s3">return</span><span class="s4">;</span>
+            <span class="s3">const </span><span class="s2">prefix </span><span class="s4">= </span><span class="s3">typeof </span><span class="s2">envPrefix </span><span class="s4">=== </span><span class="s5">'string' </span><span class="s4">? </span><span class="s2">envPrefix </span><span class="s4">: </span><span class="s5">''</span><span class="s4">;</span>
+            <span class="s3">const </span><span class="s2">env </span><span class="s4">= </span><span class="s2">mixin</span><span class="s4">.</span><span class="s2">env</span><span class="s4">();</span>
+            <span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">env</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">envVar</span><span class="s4">) {</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">prefix </span><span class="s4">=== </span><span class="s5">'' </span><span class="s4">|| </span><span class="s2">envVar</span><span class="s4">.</span><span class="s2">lastIndexOf</span><span class="s4">(</span><span class="s2">prefix</span><span class="s4">, </span><span class="s8">0</span><span class="s4">) === </span><span class="s8">0</span><span class="s4">) {</span>
+                    <span class="s6">// get array of nested keys and convert them to camel case</span>
+                    <span class="s3">const </span><span class="s2">keys </span><span class="s4">= </span><span class="s2">envVar</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s5">'__'</span><span class="s4">).</span><span class="s2">map</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">i</span><span class="s4">) {</span>
+                        <span class="s3">if </span><span class="s4">(</span><span class="s2">i </span><span class="s4">=== </span><span class="s8">0</span><span class="s4">) {</span>
+                            <span class="s2">key </span><span class="s4">= </span><span class="s2">key</span><span class="s4">.</span><span class="s2">substring</span><span class="s4">(</span><span class="s2">prefix</span><span class="s4">.</span><span class="s2">length</span><span class="s4">);</span>
+                        <span class="s4">}</span>
+                        <span class="s3">return </span><span class="s2">camelCase</span><span class="s4">(</span><span class="s2">key</span><span class="s4">);</span>
+                    <span class="s4">});</span>
+                    <span class="s3">if </span><span class="s4">(((</span><span class="s2">configOnly </span><span class="s4">&amp;&amp; </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">configs</span><span class="s4">[</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">join</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">)]) || !</span><span class="s2">configOnly</span><span class="s4">) &amp;&amp; !</span><span class="s2">hasKey</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">, </span><span class="s2">keys</span><span class="s4">)) {</span>
+                        <span class="s2">setArg</span><span class="s4">(</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">join</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">), </span><span class="s2">env</span><span class="s4">[</span><span class="s2">envVar</span><span class="s4">]);</span>
+                    <span class="s4">}</span>
+                <span class="s4">}</span>
+            <span class="s4">});</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">applyCoercions</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">) {</span>
+            <span class="s3">let </span><span class="s2">coerce</span><span class="s4">;</span>
+            <span class="s3">const </span><span class="s2">applied </span><span class="s4">= </span><span class="s3">new </span><span class="s2">Set</span><span class="s4">();</span>
+            <span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+                <span class="s3">if </span><span class="s4">(!</span><span class="s2">applied</span><span class="s4">.</span><span class="s2">has</span><span class="s4">(</span><span class="s2">key</span><span class="s4">)) { </span><span class="s6">// If we haven't already coerced this option via one of its aliases</span>
+                    <span class="s2">coerce </span><span class="s4">= </span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">coercions</span><span class="s4">);</span>
+                    <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">coerce </span><span class="s4">=== </span><span class="s5">'function'</span><span class="s4">) {</span>
+                        <span class="s3">try </span><span class="s4">{</span>
+                            <span class="s3">const </span><span class="s2">value </span><span class="s4">= </span><span class="s2">maybeCoerceNumber</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">coerce</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">[</span><span class="s2">key</span><span class="s4">]));</span>
+                            <span class="s4">([].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] || [], </span><span class="s2">key</span><span class="s4">)).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s2">ali </span><span class="s4">=&gt; {</span>
+                                <span class="s2">applied</span><span class="s4">.</span><span class="s2">add</span><span class="s4">(</span><span class="s2">ali</span><span class="s4">);</span>
+                                <span class="s2">argv</span><span class="s4">[</span><span class="s2">ali</span><span class="s4">] = </span><span class="s2">value</span><span class="s4">;</span>
+                            <span class="s4">});</span>
+                        <span class="s4">}</span>
+                        <span class="s3">catch </span><span class="s4">(</span><span class="s2">err</span><span class="s4">) {</span>
+                            <span class="s2">error </span><span class="s4">= </span><span class="s2">err</span><span class="s4">;</span>
+                        <span class="s4">}</span>
+                    <span class="s4">}</span>
+                <span class="s4">}</span>
+            <span class="s4">});</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">setPlaceholderKeys</span><span class="s4">(</span><span class="s2">argv</span><span class="s4">) {</span>
+            <span class="s2">flags</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">((</span><span class="s2">key</span><span class="s4">) =&gt; {</span>
+                <span class="s6">// don't set placeholder keys for dot notation options 'foo.bar'.</span>
+                <span class="s3">if </span><span class="s4">(~</span><span class="s2">key</span><span class="s4">.</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">))</span>
+                    <span class="s3">return</span><span class="s4">;</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">argv</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] === </span><span class="s5">'undefined'</span><span class="s4">)</span>
+                    <span class="s2">argv</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s2">undefined</span><span class="s4">;</span>
+            <span class="s4">});</span>
+            <span class="s3">return </span><span class="s2">argv</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">applyDefaultsAndAliases</span><span class="s4">(</span><span class="s2">obj</span><span class="s4">, </span><span class="s2">aliases</span><span class="s4">, </span><span class="s2">defaults</span><span class="s4">, </span><span class="s2">canLog </span><span class="s4">= </span><span class="s3">false</span><span class="s4">) {</span>
+            <span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">defaults</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+                <span class="s3">if </span><span class="s4">(!</span><span class="s2">hasKey</span><span class="s4">(</span><span class="s2">obj</span><span class="s4">, </span><span class="s2">key</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">))) {</span>
+                    <span class="s2">setKey</span><span class="s4">(</span><span class="s2">obj</span><span class="s4">, </span><span class="s2">key</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">), </span><span class="s2">defaults</span><span class="s4">[</span><span class="s2">key</span><span class="s4">]);</span>
+                    <span class="s3">if </span><span class="s4">(</span><span class="s2">canLog</span><span class="s4">)</span>
+                        <span class="s2">defaulted</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s3">true</span><span class="s4">;</span>
+                    <span class="s4">(</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] || []).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">x</span><span class="s4">) {</span>
+                        <span class="s3">if </span><span class="s4">(</span><span class="s2">hasKey</span><span class="s4">(</span><span class="s2">obj</span><span class="s4">, </span><span class="s2">x</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">)))</span>
+                            <span class="s3">return</span><span class="s4">;</span>
+                        <span class="s2">setKey</span><span class="s4">(</span><span class="s2">obj</span><span class="s4">, </span><span class="s2">x</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">), </span><span class="s2">defaults</span><span class="s4">[</span><span class="s2">key</span><span class="s4">]);</span>
+                    <span class="s4">});</span>
+                <span class="s4">}</span>
+            <span class="s4">});</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">hasKey</span><span class="s4">(</span><span class="s2">obj</span><span class="s4">, </span><span class="s2">keys</span><span class="s4">) {</span>
+            <span class="s3">let </span><span class="s2">o </span><span class="s4">= </span><span class="s2">obj</span><span class="s4">;</span>
+            <span class="s3">if </span><span class="s4">(!</span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'dot-notation'</span><span class="s4">])</span>
+                <span class="s2">keys </span><span class="s4">= [</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">join</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">)];</span>
+            <span class="s2">keys</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">(</span><span class="s8">0</span><span class="s4">, -</span><span class="s8">1</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+                <span class="s2">o </span><span class="s4">= (</span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] || {});</span>
+            <span class="s4">});</span>
+            <span class="s3">const </span><span class="s2">key </span><span class="s4">= </span><span class="s2">keys</span><span class="s4">[</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">length </span><span class="s4">- </span><span class="s8">1</span><span class="s4">];</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">o </span><span class="s4">!== </span><span class="s5">'object'</span><span class="s4">)</span>
+                <span class="s3">return false</span><span class="s4">;</span>
+            <span class="s3">else</span>
+                <span class="s3">return </span><span class="s2">key </span><span class="s3">in </span><span class="s2">o</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">setKey</span><span class="s4">(</span><span class="s2">obj</span><span class="s4">, </span><span class="s2">keys</span><span class="s4">, </span><span class="s2">value</span><span class="s4">) {</span>
+            <span class="s3">let </span><span class="s2">o </span><span class="s4">= </span><span class="s2">obj</span><span class="s4">;</span>
+            <span class="s3">if </span><span class="s4">(!</span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'dot-notation'</span><span class="s4">])</span>
+                <span class="s2">keys </span><span class="s4">= [</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">join</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">)];</span>
+            <span class="s2">keys</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">(</span><span class="s8">0</span><span class="s4">, -</span><span class="s8">1</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+                <span class="s6">// TODO(bcoe): in the next major version of yargs, switch to</span>
+                <span class="s6">// Object.create(null) for dot notation:</span>
+                <span class="s2">key </span><span class="s4">= </span><span class="s2">sanitizeKey</span><span class="s4">(</span><span class="s2">key</span><span class="s4">);</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">o </span><span class="s4">=== </span><span class="s5">'object' </span><span class="s4">&amp;&amp; </span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] === </span><span class="s2">undefined</span><span class="s4">) {</span>
+                    <span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = {};</span>
+                <span class="s4">}</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] !== </span><span class="s5">'object' </span><span class="s4">|| </span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">])) {</span>
+                    <span class="s6">// ensure that o[key] is an array, and that the last item is an empty object.</span>
+                    <span class="s3">if </span><span class="s4">(</span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">])) {</span>
+                        <span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">].</span><span class="s2">push</span><span class="s4">({});</span>
+                    <span class="s4">}</span>
+                    <span class="s3">else </span><span class="s4">{</span>
+                        <span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = [</span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">], {}];</span>
+                    <span class="s4">}</span>
+                    <span class="s6">// we want to update the empty object at the end of the o[key] array, so set o to that object</span>
+                    <span class="s2">o </span><span class="s4">= </span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">][</span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">].</span><span class="s2">length </span><span class="s4">- </span><span class="s8">1</span><span class="s4">];</span>
+                <span class="s4">}</span>
+                <span class="s3">else </span><span class="s4">{</span>
+                    <span class="s2">o </span><span class="s4">= </span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">];</span>
+                <span class="s4">}</span>
+            <span class="s4">});</span>
+            <span class="s6">// TODO(bcoe): in the next major version of yargs, switch to</span>
+            <span class="s6">// Object.create(null) for dot notation:</span>
+            <span class="s3">const </span><span class="s2">key </span><span class="s4">= </span><span class="s2">sanitizeKey</span><span class="s4">(</span><span class="s2">keys</span><span class="s4">[</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">length </span><span class="s4">- </span><span class="s8">1</span><span class="s4">]);</span>
+            <span class="s3">const </span><span class="s2">isTypeArray </span><span class="s4">= </span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">keys</span><span class="s4">.</span><span class="s2">join</span><span class="s4">(</span><span class="s5">'.'</span><span class="s4">), </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">arrays</span><span class="s4">);</span>
+            <span class="s3">const </span><span class="s2">isValueArray </span><span class="s4">= </span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">value</span><span class="s4">);</span>
+            <span class="s3">let </span><span class="s2">duplicate </span><span class="s4">= </span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'duplicate-arguments-array'</span><span class="s4">];</span>
+            <span class="s6">// nargs has higher priority than duplicate</span>
+            <span class="s3">if </span><span class="s4">(!</span><span class="s2">duplicate </span><span class="s4">&amp;&amp; </span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">nargs</span><span class="s4">)) {</span>
+                <span class="s2">duplicate </span><span class="s4">= </span><span class="s3">true</span><span class="s4">;</span>
+                <span class="s3">if </span><span class="s4">((!</span><span class="s2">isUndefined</span><span class="s4">(</span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">]) &amp;&amp; </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">nargs</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] === </span><span class="s8">1</span><span class="s4">) || (</span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">]) &amp;&amp; </span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">].</span><span class="s2">length </span><span class="s4">=== </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">nargs</span><span class="s4">[</span><span class="s2">key</span><span class="s4">])) {</span>
+                    <span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s2">undefined</span><span class="s4">;</span>
+                <span class="s4">}</span>
+            <span class="s4">}</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">value </span><span class="s4">=== </span><span class="s2">increment</span><span class="s4">()) {</span>
+                <span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s2">increment</span><span class="s4">(</span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">]);</span>
+            <span class="s4">}</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">])) {</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">duplicate </span><span class="s4">&amp;&amp; </span><span class="s2">isTypeArray </span><span class="s4">&amp;&amp; </span><span class="s2">isValueArray</span><span class="s4">) {</span>
+                    <span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'flatten-duplicate-arrays'</span><span class="s4">] ? </span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">value</span><span class="s4">) : (</span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">][</span><span class="s8">0</span><span class="s4">]) ? </span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] : [</span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">]]).</span><span class="s2">concat</span><span class="s4">([</span><span class="s2">value</span><span class="s4">]);</span>
+                <span class="s4">}</span>
+                <span class="s3">else if </span><span class="s4">(!</span><span class="s2">duplicate </span><span class="s4">&amp;&amp; </span><span class="s2">Boolean</span><span class="s4">(</span><span class="s2">isTypeArray</span><span class="s4">) === </span><span class="s2">Boolean</span><span class="s4">(</span><span class="s2">isValueArray</span><span class="s4">)) {</span>
+                    <span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s2">value</span><span class="s4">;</span>
+                <span class="s4">}</span>
+                <span class="s3">else </span><span class="s4">{</span>
+                    <span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">].</span><span class="s2">concat</span><span class="s4">([</span><span class="s2">value</span><span class="s4">]);</span>
+                <span class="s4">}</span>
+            <span class="s4">}</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] === </span><span class="s2">undefined </span><span class="s4">&amp;&amp; </span><span class="s2">isTypeArray</span><span class="s4">) {</span>
+                <span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s2">isValueArray </span><span class="s4">? </span><span class="s2">value </span><span class="s4">: [</span><span class="s2">value</span><span class="s4">];</span>
+            <span class="s4">}</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">duplicate </span><span class="s4">&amp;&amp; !(</span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] === </span><span class="s2">undefined </span><span class="s4">||</span>
+                <span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">counts</span><span class="s4">) ||</span>
+                <span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">bools</span><span class="s4">))) {</span>
+                <span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = [</span><span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">], </span><span class="s2">value</span><span class="s4">];</span>
+            <span class="s4">}</span>
+            <span class="s3">else </span><span class="s4">{</span>
+                <span class="s2">o</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = </span><span class="s2">value</span><span class="s4">;</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+        <span class="s6">// extend the aliases list with inferred aliases.</span>
+        <span class="s3">function </span><span class="s2">extendAliases</span><span class="s4">(</span><span class="s2">...args</span><span class="s4">) {</span>
+            <span class="s2">args</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">obj</span><span class="s4">) {</span>
+                <span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">obj </span><span class="s4">|| {}).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+                    <span class="s6">// short-circuit if we've already added a key</span>
+                    <span class="s6">// to the aliases array, for example it might</span>
+                    <span class="s6">// exist in both 'opts.default' and 'opts.key'.</span>
+                    <span class="s3">if </span><span class="s4">(</span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">])</span>
+                        <span class="s3">return</span><span class="s4">;</span>
+                    <span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] = [].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] || []);</span>
+                    <span class="s6">// For &quot;--option-name&quot;, also set argv.optionName</span>
+                    <span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">key</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">x</span><span class="s4">) {</span>
+                        <span class="s3">if </span><span class="s4">(</span><span class="s7">/-/</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">x</span><span class="s4">) &amp;&amp; </span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'camel-case-expansion'</span><span class="s4">]) {</span>
+                            <span class="s3">const </span><span class="s2">c </span><span class="s4">= </span><span class="s2">camelCase</span><span class="s4">(</span><span class="s2">x</span><span class="s4">);</span>
+                            <span class="s3">if </span><span class="s4">(</span><span class="s2">c </span><span class="s4">!== </span><span class="s2">key </span><span class="s4">&amp;&amp; </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">].</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s2">c</span><span class="s4">) === -</span><span class="s8">1</span><span class="s4">) {</span>
+                                <span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">].</span><span class="s2">push</span><span class="s4">(</span><span class="s2">c</span><span class="s4">);</span>
+                                <span class="s2">newAliases</span><span class="s4">[</span><span class="s2">c</span><span class="s4">] = </span><span class="s3">true</span><span class="s4">;</span>
+                            <span class="s4">}</span>
+                        <span class="s4">}</span>
+                    <span class="s4">});</span>
+                    <span class="s6">// For &quot;--optionName&quot;, also set argv['option-name']</span>
+                    <span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">key</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">x</span><span class="s4">) {</span>
+                        <span class="s3">if </span><span class="s4">(</span><span class="s2">x</span><span class="s4">.</span><span class="s2">length </span><span class="s4">&gt; </span><span class="s8">1 </span><span class="s4">&amp;&amp; </span><span class="s7">/[A-Z]/</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">x</span><span class="s4">) &amp;&amp; </span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'camel-case-expansion'</span><span class="s4">]) {</span>
+                            <span class="s3">const </span><span class="s2">c </span><span class="s4">= </span><span class="s2">decamelize</span><span class="s4">(</span><span class="s2">x</span><span class="s4">, </span><span class="s5">'-'</span><span class="s4">);</span>
+                            <span class="s3">if </span><span class="s4">(</span><span class="s2">c </span><span class="s4">!== </span><span class="s2">key </span><span class="s4">&amp;&amp; </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">].</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s2">c</span><span class="s4">) === -</span><span class="s8">1</span><span class="s4">) {</span>
+                                <span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">].</span><span class="s2">push</span><span class="s4">(</span><span class="s2">c</span><span class="s4">);</span>
+                                <span class="s2">newAliases</span><span class="s4">[</span><span class="s2">c</span><span class="s4">] = </span><span class="s3">true</span><span class="s4">;</span>
+                            <span class="s4">}</span>
+                        <span class="s4">}</span>
+                    <span class="s4">});</span>
+                    <span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">].</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">x</span><span class="s4">) {</span>
+                        <span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">x</span><span class="s4">] = [</span><span class="s2">key</span><span class="s4">].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">].</span><span class="s2">filter</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">y</span><span class="s4">) {</span>
+                            <span class="s3">return </span><span class="s2">x </span><span class="s4">!== </span><span class="s2">y</span><span class="s4">;</span>
+                        <span class="s4">}));</span>
+                    <span class="s4">});</span>
+                <span class="s4">});</span>
+            <span class="s4">});</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flag</span><span class="s4">) {</span>
+            <span class="s3">const </span><span class="s2">toCheck </span><span class="s4">= [].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] || [], </span><span class="s2">key</span><span class="s4">);</span>
+            <span class="s3">const </span><span class="s2">keys </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">flag</span><span class="s4">);</span>
+            <span class="s3">const </span><span class="s2">setAlias </span><span class="s4">= </span><span class="s2">toCheck</span><span class="s4">.</span><span class="s2">find</span><span class="s4">(</span><span class="s2">key </span><span class="s4">=&gt; </span><span class="s2">keys</span><span class="s4">.</span><span class="s2">includes</span><span class="s4">(</span><span class="s2">key</span><span class="s4">));</span>
+            <span class="s3">return </span><span class="s2">setAlias </span><span class="s4">? </span><span class="s2">flag</span><span class="s4">[</span><span class="s2">setAlias</span><span class="s4">] : </span><span class="s3">false</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">hasAnyFlag</span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+            <span class="s3">const </span><span class="s2">flagsKeys </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">flags</span><span class="s4">);</span>
+            <span class="s3">const </span><span class="s2">toCheck </span><span class="s4">= [].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">flagsKeys</span><span class="s4">.</span><span class="s2">map</span><span class="s4">(</span><span class="s2">k </span><span class="s4">=&gt; </span><span class="s2">flags</span><span class="s4">[</span><span class="s2">k</span><span class="s4">]));</span>
+            <span class="s3">return </span><span class="s2">toCheck</span><span class="s4">.</span><span class="s2">some</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">flag</span><span class="s4">) {</span>
+                <span class="s3">return </span><span class="s2">Array</span><span class="s4">.</span><span class="s2">isArray</span><span class="s4">(</span><span class="s2">flag</span><span class="s4">) ? </span><span class="s2">flag</span><span class="s4">.</span><span class="s2">includes</span><span class="s4">(</span><span class="s2">key</span><span class="s4">) : </span><span class="s2">flag</span><span class="s4">[</span><span class="s2">key</span><span class="s4">];</span>
+            <span class="s4">});</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">hasFlagsMatching</span><span class="s4">(</span><span class="s2">arg</span><span class="s4">, </span><span class="s2">...patterns</span><span class="s4">) {</span>
+            <span class="s3">const </span><span class="s2">toCheck </span><span class="s4">= [].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">...patterns</span><span class="s4">);</span>
+            <span class="s3">return </span><span class="s2">toCheck</span><span class="s4">.</span><span class="s2">some</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">pattern</span><span class="s4">) {</span>
+                <span class="s3">const </span><span class="s2">match </span><span class="s4">= </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s2">pattern</span><span class="s4">);</span>
+                <span class="s3">return </span><span class="s2">match </span><span class="s4">&amp;&amp; </span><span class="s2">hasAnyFlag</span><span class="s4">(</span><span class="s2">match</span><span class="s4">[</span><span class="s8">1</span><span class="s4">]);</span>
+            <span class="s4">});</span>
+        <span class="s4">}</span>
+        <span class="s6">// based on a simplified version of the short flag group parsing logic</span>
+        <span class="s3">function </span><span class="s2">hasAllShortFlags</span><span class="s4">(</span><span class="s2">arg</span><span class="s4">) {</span>
+            <span class="s6">// if this is a negative number, or doesn't start with a single hyphen, it's not a short flag group</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s2">negative</span><span class="s4">) || !</span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/^-[^-]+/</span><span class="s4">)) {</span>
+                <span class="s3">return false</span><span class="s4">;</span>
+            <span class="s4">}</span>
+            <span class="s3">let </span><span class="s2">hasAllFlags </span><span class="s4">= </span><span class="s3">true</span><span class="s4">;</span>
+            <span class="s3">let </span><span class="s2">next</span><span class="s4">;</span>
+            <span class="s3">const </span><span class="s2">letters </span><span class="s4">= </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">(</span><span class="s8">1</span><span class="s4">).</span><span class="s2">split</span><span class="s4">(</span><span class="s5">''</span><span class="s4">);</span>
+            <span class="s3">for </span><span class="s4">(</span><span class="s3">let </span><span class="s2">j </span><span class="s4">= </span><span class="s8">0</span><span class="s4">; </span><span class="s2">j </span><span class="s4">&lt; </span><span class="s2">letters</span><span class="s4">.</span><span class="s2">length</span><span class="s4">; </span><span class="s2">j</span><span class="s4">++) {</span>
+                <span class="s2">next </span><span class="s4">= </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">(</span><span class="s2">j </span><span class="s4">+ </span><span class="s8">2</span><span class="s4">);</span>
+                <span class="s3">if </span><span class="s4">(!</span><span class="s2">hasAnyFlag</span><span class="s4">(</span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j</span><span class="s4">])) {</span>
+                    <span class="s2">hasAllFlags </span><span class="s4">= </span><span class="s3">false</span><span class="s4">;</span>
+                    <span class="s3">break</span><span class="s4">;</span>
+                <span class="s4">}</span>
+                <span class="s3">if </span><span class="s4">((</span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">] &amp;&amp; </span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">] === </span><span class="s5">'='</span><span class="s4">) ||</span>
+                    <span class="s2">next </span><span class="s4">=== </span><span class="s5">'-' </span><span class="s4">||</span>
+                    <span class="s4">(</span><span class="s7">/[A-Za-z]/</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j</span><span class="s4">]) &amp;&amp; </span><span class="s7">/^-?\d+(\.\d*)?(e-?\d+)?$/</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">next</span><span class="s4">)) ||</span>
+                    <span class="s4">(</span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">] &amp;&amp; </span><span class="s2">letters</span><span class="s4">[</span><span class="s2">j </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">].</span><span class="s2">match</span><span class="s4">(</span><span class="s7">/\W/</span><span class="s4">))) {</span>
+                    <span class="s3">break</span><span class="s4">;</span>
+                <span class="s4">}</span>
+            <span class="s4">}</span>
+            <span class="s3">return </span><span class="s2">hasAllFlags</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">isUnknownOptionAsArg</span><span class="s4">(</span><span class="s2">arg</span><span class="s4">) {</span>
+            <span class="s3">return </span><span class="s2">configuration</span><span class="s4">[</span><span class="s5">'unknown-options-as-args'</span><span class="s4">] &amp;&amp; </span><span class="s2">isUnknownOption</span><span class="s4">(</span><span class="s2">arg</span><span class="s4">);</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">isUnknownOption</span><span class="s4">(</span><span class="s2">arg</span><span class="s4">) {</span>
+            <span class="s2">arg </span><span class="s4">= </span><span class="s2">arg</span><span class="s4">.</span><span class="s2">replace</span><span class="s4">(</span><span class="s7">/^-{3,}/</span><span class="s4">, </span><span class="s5">'--'</span><span class="s4">);</span>
+            <span class="s6">// ignore negative numbers</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">arg</span><span class="s4">.</span><span class="s2">match</span><span class="s4">(</span><span class="s2">negative</span><span class="s4">)) {</span>
+                <span class="s3">return false</span><span class="s4">;</span>
+            <span class="s4">}</span>
+            <span class="s6">// if this is a short option group and all of them are configured, it isn't unknown</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">hasAllShortFlags</span><span class="s4">(</span><span class="s2">arg</span><span class="s4">)) {</span>
+                <span class="s3">return false</span><span class="s4">;</span>
+            <span class="s4">}</span>
+            <span class="s6">// e.g. '--count=2'</span>
+            <span class="s3">const </span><span class="s2">flagWithEquals </span><span class="s4">= </span><span class="s7">/^-+([^=]+?)=[\s\S]*$/</span><span class="s4">;</span>
+            <span class="s6">// e.g. '-a' or '--arg'</span>
+            <span class="s3">const </span><span class="s2">normalFlag </span><span class="s4">= </span><span class="s7">/^-+([^=]+?)$/</span><span class="s4">;</span>
+            <span class="s6">// e.g. '-a-'</span>
+            <span class="s3">const </span><span class="s2">flagEndingInHyphen </span><span class="s4">= </span><span class="s7">/^-+([^=]+?)-$/</span><span class="s4">;</span>
+            <span class="s6">// e.g. '-abc123'</span>
+            <span class="s3">const </span><span class="s2">flagEndingInDigits </span><span class="s4">= </span><span class="s7">/^-+([^=]+?\d+)$/</span><span class="s4">;</span>
+            <span class="s6">// e.g. '-a/usr/local'</span>
+            <span class="s3">const </span><span class="s2">flagEndingInNonWordCharacters </span><span class="s4">= </span><span class="s7">/^-+([^=]+?)\W+.*$/</span><span class="s4">;</span>
+            <span class="s6">// check the different types of flag styles, including negatedBoolean, a pattern defined near the start of the parse method</span>
+            <span class="s3">return </span><span class="s4">!</span><span class="s2">hasFlagsMatching</span><span class="s4">(</span><span class="s2">arg</span><span class="s4">, </span><span class="s2">flagWithEquals</span><span class="s4">, </span><span class="s2">negatedBoolean</span><span class="s4">, </span><span class="s2">normalFlag</span><span class="s4">, </span><span class="s2">flagEndingInHyphen</span><span class="s4">, </span><span class="s2">flagEndingInDigits</span><span class="s4">, </span><span class="s2">flagEndingInNonWordCharacters</span><span class="s4">);</span>
+        <span class="s4">}</span>
+        <span class="s6">// make a best effort to pick a default value</span>
+        <span class="s6">// for an option based on name and type.</span>
+        <span class="s3">function </span><span class="s2">defaultValue</span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+            <span class="s3">if </span><span class="s4">(!</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">bools</span><span class="s4">) &amp;&amp;</span>
+                <span class="s4">!</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">counts</span><span class="s4">) &amp;&amp;</span>
+                <span class="s5">`</span><span class="s2">$</span><span class="s4">{</span><span class="s2">key</span><span class="s4">}</span><span class="s5">` </span><span class="s3">in </span><span class="s2">defaults</span><span class="s4">) {</span>
+                <span class="s3">return </span><span class="s2">defaults</span><span class="s4">[</span><span class="s2">key</span><span class="s4">];</span>
+            <span class="s4">}</span>
+            <span class="s3">else </span><span class="s4">{</span>
+                <span class="s3">return </span><span class="s2">defaultForType</span><span class="s4">(</span><span class="s2">guessType</span><span class="s4">(</span><span class="s2">key</span><span class="s4">));</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+        <span class="s6">// return a default value, given the type of a flag.,</span>
+        <span class="s3">function </span><span class="s2">defaultForType</span><span class="s4">(</span><span class="s2">type</span><span class="s4">) {</span>
+            <span class="s3">const </span><span class="s2">def </span><span class="s4">= {</span>
+                <span class="s4">[</span><span class="s2">DefaultValuesForTypeKey</span><span class="s4">.</span><span class="s2">BOOLEAN</span><span class="s4">]: </span><span class="s3">true</span><span class="s4">,</span>
+                <span class="s4">[</span><span class="s2">DefaultValuesForTypeKey</span><span class="s4">.</span><span class="s2">STRING</span><span class="s4">]: </span><span class="s5">''</span><span class="s4">,</span>
+                <span class="s4">[</span><span class="s2">DefaultValuesForTypeKey</span><span class="s4">.</span><span class="s2">NUMBER</span><span class="s4">]: </span><span class="s2">undefined</span><span class="s4">,</span>
+                <span class="s4">[</span><span class="s2">DefaultValuesForTypeKey</span><span class="s4">.</span><span class="s2">ARRAY</span><span class="s4">]: []</span>
+            <span class="s4">};</span>
+            <span class="s3">return </span><span class="s2">def</span><span class="s4">[</span><span class="s2">type</span><span class="s4">];</span>
+        <span class="s4">}</span>
+        <span class="s6">// given a flag, enforce a default type.</span>
+        <span class="s3">function </span><span class="s2">guessType</span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+            <span class="s3">let </span><span class="s2">type </span><span class="s4">= </span><span class="s2">DefaultValuesForTypeKey</span><span class="s4">.</span><span class="s2">BOOLEAN</span><span class="s4">;</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">strings</span><span class="s4">))</span>
+                <span class="s2">type </span><span class="s4">= </span><span class="s2">DefaultValuesForTypeKey</span><span class="s4">.</span><span class="s2">STRING</span><span class="s4">;</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">numbers</span><span class="s4">))</span>
+                <span class="s2">type </span><span class="s4">= </span><span class="s2">DefaultValuesForTypeKey</span><span class="s4">.</span><span class="s2">NUMBER</span><span class="s4">;</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">bools</span><span class="s4">))</span>
+                <span class="s2">type </span><span class="s4">= </span><span class="s2">DefaultValuesForTypeKey</span><span class="s4">.</span><span class="s2">BOOLEAN</span><span class="s4">;</span>
+            <span class="s3">else if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">arrays</span><span class="s4">))</span>
+                <span class="s2">type </span><span class="s4">= </span><span class="s2">DefaultValuesForTypeKey</span><span class="s4">.</span><span class="s2">ARRAY</span><span class="s4">;</span>
+            <span class="s3">return </span><span class="s2">type</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s3">function </span><span class="s2">isUndefined</span><span class="s4">(</span><span class="s2">num</span><span class="s4">) {</span>
+            <span class="s3">return </span><span class="s2">num </span><span class="s4">=== </span><span class="s2">undefined</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s6">// check user configuration settings for inconsistencies</span>
+        <span class="s3">function </span><span class="s2">checkConfiguration</span><span class="s4">() {</span>
+            <span class="s6">// count keys should not be set as array/narg</span>
+            <span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">flags</span><span class="s4">.</span><span class="s2">counts</span><span class="s4">).</span><span class="s2">find</span><span class="s4">(</span><span class="s2">key </span><span class="s4">=&gt; {</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">arrays</span><span class="s4">)) {</span>
+                    <span class="s2">error </span><span class="s4">= </span><span class="s2">Error</span><span class="s4">(</span><span class="s2">__</span><span class="s4">(</span><span class="s5">'Invalid configuration: %s, opts.count excludes opts.array.'</span><span class="s4">, </span><span class="s2">key</span><span class="s4">));</span>
+                    <span class="s3">return true</span><span class="s4">;</span>
+                <span class="s4">}</span>
+                <span class="s3">else if </span><span class="s4">(</span><span class="s2">checkAllAliases</span><span class="s4">(</span><span class="s2">key</span><span class="s4">, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">nargs</span><span class="s4">)) {</span>
+                    <span class="s2">error </span><span class="s4">= </span><span class="s2">Error</span><span class="s4">(</span><span class="s2">__</span><span class="s4">(</span><span class="s5">'Invalid configuration: %s, opts.count excludes opts.narg.'</span><span class="s4">, </span><span class="s2">key</span><span class="s4">));</span>
+                    <span class="s3">return true</span><span class="s4">;</span>
+                <span class="s4">}</span>
+                <span class="s3">return false</span><span class="s4">;</span>
+            <span class="s4">});</span>
+        <span class="s4">}</span>
+        <span class="s3">return </span><span class="s4">{</span>
+            <span class="s2">aliases</span><span class="s4">: </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">({}, </span><span class="s2">flags</span><span class="s4">.</span><span class="s2">aliases</span><span class="s4">),</span>
+            <span class="s2">argv</span><span class="s4">: </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">(</span><span class="s2">argvReturn</span><span class="s4">, </span><span class="s2">argv</span><span class="s4">),</span>
+            <span class="s2">configuration</span><span class="s4">: </span><span class="s2">configuration</span><span class="s4">,</span>
+            <span class="s2">defaulted</span><span class="s4">: </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">({}, </span><span class="s2">defaulted</span><span class="s4">),</span>
+            <span class="s2">error</span><span class="s4">: </span><span class="s2">error</span><span class="s4">,</span>
+            <span class="s2">newAliases</span><span class="s4">: </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">({}, </span><span class="s2">newAliases</span><span class="s4">)</span>
+        <span class="s4">};</span>
+    <span class="s4">}</span>
+<span class="s4">}</span>
+<span class="s6">// if any aliases reference each other, we should</span>
+<span class="s6">// merge them together.</span>
+<span class="s3">function </span><span class="s2">combineAliases</span><span class="s4">(</span><span class="s2">aliases</span><span class="s4">) {</span>
+    <span class="s3">const </span><span class="s2">aliasArrays </span><span class="s4">= [];</span>
+    <span class="s3">const </span><span class="s2">combined </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">create</span><span class="s4">(</span><span class="s3">null</span><span class="s4">);</span>
+    <span class="s3">let </span><span class="s2">change </span><span class="s4">= </span><span class="s3">true</span><span class="s4">;</span>
+    <span class="s6">// turn alias lookup hash {key: ['alias1', 'alias2']} into</span>
+    <span class="s6">// a simple array ['key', 'alias1', 'alias2']</span>
+    <span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">aliases</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+        <span class="s2">aliasArrays</span><span class="s4">.</span><span class="s2">push</span><span class="s4">([].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">aliases</span><span class="s4">[</span><span class="s2">key</span><span class="s4">], </span><span class="s2">key</span><span class="s4">));</span>
+    <span class="s4">});</span>
+    <span class="s6">// combine arrays until zero changes are</span>
+    <span class="s6">// made in an iteration.</span>
+    <span class="s3">while </span><span class="s4">(</span><span class="s2">change</span><span class="s4">) {</span>
+        <span class="s2">change </span><span class="s4">= </span><span class="s3">false</span><span class="s4">;</span>
+        <span class="s3">for </span><span class="s4">(</span><span class="s3">let </span><span class="s2">i </span><span class="s4">= </span><span class="s8">0</span><span class="s4">; </span><span class="s2">i </span><span class="s4">&lt; </span><span class="s2">aliasArrays</span><span class="s4">.</span><span class="s2">length</span><span class="s4">; </span><span class="s2">i</span><span class="s4">++) {</span>
+            <span class="s3">for </span><span class="s4">(</span><span class="s3">let </span><span class="s2">ii </span><span class="s4">= </span><span class="s2">i </span><span class="s4">+ </span><span class="s8">1</span><span class="s4">; </span><span class="s2">ii </span><span class="s4">&lt; </span><span class="s2">aliasArrays</span><span class="s4">.</span><span class="s2">length</span><span class="s4">; </span><span class="s2">ii</span><span class="s4">++) {</span>
+                <span class="s3">const </span><span class="s2">intersect </span><span class="s4">= </span><span class="s2">aliasArrays</span><span class="s4">[</span><span class="s2">i</span><span class="s4">].</span><span class="s2">filter</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">v</span><span class="s4">) {</span>
+                    <span class="s3">return </span><span class="s2">aliasArrays</span><span class="s4">[</span><span class="s2">ii</span><span class="s4">].</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s2">v</span><span class="s4">) !== -</span><span class="s8">1</span><span class="s4">;</span>
+                <span class="s4">});</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">intersect</span><span class="s4">.</span><span class="s2">length</span><span class="s4">) {</span>
+                    <span class="s2">aliasArrays</span><span class="s4">[</span><span class="s2">i</span><span class="s4">] = </span><span class="s2">aliasArrays</span><span class="s4">[</span><span class="s2">i</span><span class="s4">].</span><span class="s2">concat</span><span class="s4">(</span><span class="s2">aliasArrays</span><span class="s4">[</span><span class="s2">ii</span><span class="s4">]);</span>
+                    <span class="s2">aliasArrays</span><span class="s4">.</span><span class="s2">splice</span><span class="s4">(</span><span class="s2">ii</span><span class="s4">, </span><span class="s8">1</span><span class="s4">);</span>
+                    <span class="s2">change </span><span class="s4">= </span><span class="s3">true</span><span class="s4">;</span>
+                    <span class="s3">break</span><span class="s4">;</span>
+                <span class="s4">}</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+    <span class="s4">}</span>
+    <span class="s6">// map arrays back to the hash-lookup (de-dupe while</span>
+    <span class="s6">// we're at it).</span>
+    <span class="s2">aliasArrays</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">aliasArray</span><span class="s4">) {</span>
+        <span class="s2">aliasArray </span><span class="s4">= </span><span class="s2">aliasArray</span><span class="s4">.</span><span class="s2">filter</span><span class="s4">(</span><span class="s3">function </span><span class="s4">(</span><span class="s2">v</span><span class="s4">, </span><span class="s2">i</span><span class="s4">, </span><span class="s2">self</span><span class="s4">) {</span>
+            <span class="s3">return </span><span class="s2">self</span><span class="s4">.</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s2">v</span><span class="s4">) === </span><span class="s2">i</span><span class="s4">;</span>
+        <span class="s4">});</span>
+        <span class="s3">const </span><span class="s2">lastAlias </span><span class="s4">= </span><span class="s2">aliasArray</span><span class="s4">.</span><span class="s2">pop</span><span class="s4">();</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">lastAlias </span><span class="s4">!== </span><span class="s2">undefined </span><span class="s4">&amp;&amp; </span><span class="s3">typeof </span><span class="s2">lastAlias </span><span class="s4">=== </span><span class="s5">'string'</span><span class="s4">) {</span>
+            <span class="s2">combined</span><span class="s4">[</span><span class="s2">lastAlias</span><span class="s4">] = </span><span class="s2">aliasArray</span><span class="s4">;</span>
+        <span class="s4">}</span>
+    <span class="s4">});</span>
+    <span class="s3">return </span><span class="s2">combined</span><span class="s4">;</span>
+<span class="s4">}</span>
+<span class="s6">// this function should only be called when a count is given as an arg</span>
+<span class="s6">// it is NOT called to set a default value</span>
+<span class="s6">// thus we can start the count at 1 instead of 0</span>
+<span class="s3">function </span><span class="s2">increment</span><span class="s4">(</span><span class="s2">orig</span><span class="s4">) {</span>
+    <span class="s3">return </span><span class="s2">orig </span><span class="s4">!== </span><span class="s2">undefined </span><span class="s4">? </span><span class="s2">orig </span><span class="s4">+ </span><span class="s8">1 </span><span class="s4">: </span><span class="s8">1</span><span class="s4">;</span>
+<span class="s4">}</span>
+<span class="s6">// TODO(bcoe): in the next major version of yargs, switch to</span>
+<span class="s6">// Object.create(null) for dot notation:</span>
+<span class="s3">function </span><span class="s2">sanitizeKey</span><span class="s4">(</span><span class="s2">key</span><span class="s4">) {</span>
+    <span class="s3">if </span><span class="s4">(</span><span class="s2">key </span><span class="s4">=== </span><span class="s5">'__proto__'</span><span class="s4">)</span>
+        <span class="s3">return </span><span class="s5">'___proto___'</span><span class="s4">;</span>
+    <span class="s3">return </span><span class="s2">key</span><span class="s4">;</span>
+<span class="s4">}</span>
+</pre>
+</body>
+</html>

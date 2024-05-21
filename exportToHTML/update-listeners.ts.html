@@ -1,0 +1,123 @@
+<html>
+<head>
+<title>update-listeners.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+update-listeners.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">warn</span><span class="s2">, </span><span class="s1">invokeWithErrorHandling </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'core/util/index'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">cached</span><span class="s2">, </span><span class="s1">isUndef</span><span class="s2">, </span><span class="s1">isTrue</span><span class="s2">, </span><span class="s1">isArray </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'shared/util'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">Component </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/component'</span>
+
+<span class="s0">const </span><span class="s1">normalizeEvent </span><span class="s2">= </span><span class="s1">cached</span><span class="s2">(</span>
+  <span class="s2">(</span>
+    <span class="s1">name</span><span class="s2">: </span><span class="s1">string</span>
+  <span class="s2">): {</span>
+    <span class="s1">name</span><span class="s2">: </span><span class="s1">string</span>
+    <span class="s1">once</span><span class="s2">: </span><span class="s1">boolean</span>
+    <span class="s1">capture</span><span class="s2">: </span><span class="s1">boolean</span>
+    <span class="s1">passive</span><span class="s2">: </span><span class="s1">boolean</span>
+    <span class="s1">handler</span><span class="s2">?: </span><span class="s1">Function</span>
+    <span class="s1">params</span><span class="s2">?: </span><span class="s1">Array</span><span class="s2">&lt;</span><span class="s1">any</span><span class="s2">&gt;</span>
+  <span class="s2">} =&gt; {</span>
+    <span class="s0">const </span><span class="s1">passive </span><span class="s2">= </span><span class="s1">name</span><span class="s2">.</span><span class="s1">charAt</span><span class="s2">(</span><span class="s4">0</span><span class="s2">) === </span><span class="s3">'&amp;'</span>
+    <span class="s1">name </span><span class="s2">= </span><span class="s1">passive </span><span class="s2">? </span><span class="s1">name</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s4">1</span><span class="s2">) : </span><span class="s1">name</span>
+    <span class="s0">const </span><span class="s1">once </span><span class="s2">= </span><span class="s1">name</span><span class="s2">.</span><span class="s1">charAt</span><span class="s2">(</span><span class="s4">0</span><span class="s2">) === </span><span class="s3">'~' </span><span class="s5">// Prefixed last, checked first</span>
+    <span class="s1">name </span><span class="s2">= </span><span class="s1">once </span><span class="s2">? </span><span class="s1">name</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s4">1</span><span class="s2">) : </span><span class="s1">name</span>
+    <span class="s0">const </span><span class="s1">capture </span><span class="s2">= </span><span class="s1">name</span><span class="s2">.</span><span class="s1">charAt</span><span class="s2">(</span><span class="s4">0</span><span class="s2">) === </span><span class="s3">'!'</span>
+    <span class="s1">name </span><span class="s2">= </span><span class="s1">capture </span><span class="s2">? </span><span class="s1">name</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s4">1</span><span class="s2">) : </span><span class="s1">name</span>
+    <span class="s0">return </span><span class="s2">{</span>
+      <span class="s1">name</span><span class="s2">,</span>
+      <span class="s1">once</span><span class="s2">,</span>
+      <span class="s1">capture</span><span class="s2">,</span>
+      <span class="s1">passive</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">)</span>
+
+<span class="s0">export function </span><span class="s1">createFnInvoker</span><span class="s2">(</span>
+  <span class="s1">fns</span><span class="s2">: </span><span class="s1">Function </span><span class="s2">| </span><span class="s1">Array</span><span class="s2">&lt;</span><span class="s1">Function</span><span class="s2">&gt;,</span>
+  <span class="s1">vm</span><span class="s2">?: </span><span class="s1">Component</span>
+<span class="s2">): </span><span class="s1">Function </span><span class="s2">{</span>
+  <span class="s0">function </span><span class="s1">invoker</span><span class="s2">() {</span>
+    <span class="s0">const </span><span class="s1">fns </span><span class="s2">= </span><span class="s1">invoker</span><span class="s2">.</span><span class="s1">fns</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">fns</span><span class="s2">)) {</span>
+      <span class="s0">const </span><span class="s1">cloned </span><span class="s2">= </span><span class="s1">fns</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">()</span>
+      <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s4">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">cloned</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+        <span class="s1">invokeWithErrorHandling</span><span class="s2">(</span>
+          <span class="s1">cloned</span><span class="s2">[</span><span class="s1">i</span><span class="s2">],</span>
+          <span class="s0">null</span><span class="s2">,</span>
+          <span class="s1">arguments </span><span class="s2">as </span><span class="s1">any</span><span class="s2">,</span>
+          <span class="s1">vm</span><span class="s2">,</span>
+          <span class="s3">`v-on handler`</span>
+        <span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+      <span class="s5">// return handler return value for single handlers</span>
+      <span class="s0">return </span><span class="s1">invokeWithErrorHandling</span><span class="s2">(</span>
+        <span class="s1">fns</span><span class="s2">,</span>
+        <span class="s0">null</span><span class="s2">,</span>
+        <span class="s1">arguments </span><span class="s2">as </span><span class="s1">any</span><span class="s2">,</span>
+        <span class="s1">vm</span><span class="s2">,</span>
+        <span class="s3">`v-on handler`</span>
+      <span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+  <span class="s1">invoker</span><span class="s2">.</span><span class="s1">fns </span><span class="s2">= </span><span class="s1">fns</span>
+  <span class="s0">return </span><span class="s1">invoker</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">updateListeners</span><span class="s2">(</span>
+  <span class="s1">on</span><span class="s2">: </span><span class="s1">Object</span><span class="s2">,</span>
+  <span class="s1">oldOn</span><span class="s2">: </span><span class="s1">Object</span><span class="s2">,</span>
+  <span class="s1">add</span><span class="s2">: </span><span class="s1">Function</span><span class="s2">,</span>
+  <span class="s1">remove</span><span class="s2">: </span><span class="s1">Function</span><span class="s2">,</span>
+  <span class="s1">createOnceHandler</span><span class="s2">: </span><span class="s1">Function</span><span class="s2">,</span>
+  <span class="s1">vm</span><span class="s2">: </span><span class="s1">Component</span>
+<span class="s2">) {</span>
+  <span class="s0">let </span><span class="s1">name</span><span class="s2">, </span><span class="s1">cur</span><span class="s2">, </span><span class="s1">old</span><span class="s2">, </span><span class="s1">event</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s1">name </span><span class="s0">in </span><span class="s1">on</span><span class="s2">) {</span>
+    <span class="s1">cur </span><span class="s2">= </span><span class="s1">on</span><span class="s2">[</span><span class="s1">name</span><span class="s2">]</span>
+    <span class="s1">old </span><span class="s2">= </span><span class="s1">oldOn</span><span class="s2">[</span><span class="s1">name</span><span class="s2">]</span>
+    <span class="s1">event </span><span class="s2">= </span><span class="s1">normalizeEvent</span><span class="s2">(</span><span class="s1">name</span><span class="s2">)</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isUndef</span><span class="s2">(</span><span class="s1">cur</span><span class="s2">)) {</span>
+      <span class="s1">__DEV__ </span><span class="s2">&amp;&amp;</span>
+        <span class="s1">warn</span><span class="s2">(</span>
+          <span class="s3">`Invalid handler for event &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">event</span><span class="s2">.</span><span class="s1">name</span><span class="s2">}</span><span class="s3">&quot;: got ` </span><span class="s2">+ </span><span class="s1">String</span><span class="s2">(</span><span class="s1">cur</span><span class="s2">),</span>
+          <span class="s1">vm</span>
+        <span class="s2">)</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isUndef</span><span class="s2">(</span><span class="s1">old</span><span class="s2">)) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">isUndef</span><span class="s2">(</span><span class="s1">cur</span><span class="s2">.</span><span class="s1">fns</span><span class="s2">)) {</span>
+        <span class="s1">cur </span><span class="s2">= </span><span class="s1">on</span><span class="s2">[</span><span class="s1">name</span><span class="s2">] = </span><span class="s1">createFnInvoker</span><span class="s2">(</span><span class="s1">cur</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">)</span>
+      <span class="s2">}</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">isTrue</span><span class="s2">(</span><span class="s1">event</span><span class="s2">.</span><span class="s1">once</span><span class="s2">)) {</span>
+        <span class="s1">cur </span><span class="s2">= </span><span class="s1">on</span><span class="s2">[</span><span class="s1">name</span><span class="s2">] = </span><span class="s1">createOnceHandler</span><span class="s2">(</span><span class="s1">event</span><span class="s2">.</span><span class="s1">name</span><span class="s2">, </span><span class="s1">cur</span><span class="s2">, </span><span class="s1">event</span><span class="s2">.</span><span class="s1">capture</span><span class="s2">)</span>
+      <span class="s2">}</span>
+      <span class="s1">add</span><span class="s2">(</span><span class="s1">event</span><span class="s2">.</span><span class="s1">name</span><span class="s2">, </span><span class="s1">cur</span><span class="s2">, </span><span class="s1">event</span><span class="s2">.</span><span class="s1">capture</span><span class="s2">, </span><span class="s1">event</span><span class="s2">.</span><span class="s1">passive</span><span class="s2">, </span><span class="s1">event</span><span class="s2">.</span><span class="s1">params</span><span class="s2">)</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">cur </span><span class="s2">!== </span><span class="s1">old</span><span class="s2">) {</span>
+      <span class="s1">old</span><span class="s2">.</span><span class="s1">fns </span><span class="s2">= </span><span class="s1">cur</span>
+      <span class="s1">on</span><span class="s2">[</span><span class="s1">name</span><span class="s2">] = </span><span class="s1">old</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s1">name </span><span class="s0">in </span><span class="s1">oldOn</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isUndef</span><span class="s2">(</span><span class="s1">on</span><span class="s2">[</span><span class="s1">name</span><span class="s2">])) {</span>
+      <span class="s1">event </span><span class="s2">= </span><span class="s1">normalizeEvent</span><span class="s2">(</span><span class="s1">name</span><span class="s2">)</span>
+      <span class="s1">remove</span><span class="s2">(</span><span class="s1">event</span><span class="s2">.</span><span class="s1">name</span><span class="s2">, </span><span class="s1">oldOn</span><span class="s2">[</span><span class="s1">name</span><span class="s2">], </span><span class="s1">event</span><span class="s2">.</span><span class="s1">capture</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,257 @@
+<html>
+<head>
+<title>geometry.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+.s6 { color: #5f826b; font-style: italic;}
+.s7 { color: #67a37c; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+geometry.js</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">defineConfigurable from </span><span class="s2">'./defineConfigurable.js'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s1">getWindowOf from </span><span class="s2">'./getWindowOf.js'</span><span class="s3">;</span>
+<span class="s0">import </span><span class="s1">isBrowser from </span><span class="s2">'./isBrowser.js'</span><span class="s3">;</span>
+
+<span class="s4">// Placeholder of an empty content rectangle.</span>
+<span class="s0">const </span><span class="s1">emptyRect </span><span class="s3">= </span><span class="s1">createRectInit</span><span class="s3">(</span><span class="s5">0</span><span class="s3">, </span><span class="s5">0</span><span class="s3">, </span><span class="s5">0</span><span class="s3">, </span><span class="s5">0</span><span class="s3">);</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Converts provided string to a number.</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{number|string} value</span>
+ <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{number}</span>
+ <span class="s6">*/</span>
+<span class="s0">function </span><span class="s1">toFloat</span><span class="s3">(</span><span class="s1">value</span><span class="s3">) {</span>
+    <span class="s0">return </span><span class="s1">parseFloat</span><span class="s3">(</span><span class="s1">value</span><span class="s3">) || </span><span class="s5">0</span><span class="s3">;</span>
+<span class="s3">}</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Extracts borders size from provided styles.</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{CSSStyleDeclaration} styles</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{...string} positions - Borders positions (top, right, ...)</span>
+ <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{number}</span>
+ <span class="s6">*/</span>
+<span class="s0">function </span><span class="s1">getBordersSize</span><span class="s3">(</span><span class="s1">styles</span><span class="s3">, </span><span class="s1">...positions</span><span class="s3">) {</span>
+    <span class="s0">return </span><span class="s1">positions</span><span class="s3">.</span><span class="s1">reduce</span><span class="s3">((</span><span class="s1">size</span><span class="s3">, </span><span class="s1">position</span><span class="s3">) =&gt; {</span>
+        <span class="s0">const </span><span class="s1">value </span><span class="s3">= </span><span class="s1">styles</span><span class="s3">[</span><span class="s2">'border-' </span><span class="s3">+ </span><span class="s1">position </span><span class="s3">+ </span><span class="s2">'-width'</span><span class="s3">];</span>
+
+        <span class="s0">return </span><span class="s1">size </span><span class="s3">+ </span><span class="s1">toFloat</span><span class="s3">(</span><span class="s1">value</span><span class="s3">);</span>
+    <span class="s3">}, </span><span class="s5">0</span><span class="s3">);</span>
+<span class="s3">}</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Extracts paddings sizes from provided styles.</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{CSSStyleDeclaration} styles</span>
+ <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{Object} Paddings box.</span>
+ <span class="s6">*/</span>
+<span class="s0">function </span><span class="s1">getPaddings</span><span class="s3">(</span><span class="s1">styles</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">positions </span><span class="s3">= [</span><span class="s2">'top'</span><span class="s3">, </span><span class="s2">'right'</span><span class="s3">, </span><span class="s2">'bottom'</span><span class="s3">, </span><span class="s2">'left'</span><span class="s3">];</span>
+    <span class="s0">const </span><span class="s1">paddings </span><span class="s3">= {};</span>
+
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">const </span><span class="s1">position of positions</span><span class="s3">) {</span>
+        <span class="s0">const </span><span class="s1">value </span><span class="s3">= </span><span class="s1">styles</span><span class="s3">[</span><span class="s2">'padding-' </span><span class="s3">+ </span><span class="s1">position</span><span class="s3">];</span>
+
+        <span class="s1">paddings</span><span class="s3">[</span><span class="s1">position</span><span class="s3">] = </span><span class="s1">toFloat</span><span class="s3">(</span><span class="s1">value</span><span class="s3">);</span>
+    <span class="s3">}</span>
+
+    <span class="s0">return </span><span class="s1">paddings</span><span class="s3">;</span>
+<span class="s3">}</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Calculates content rectangle of provided SVG element.</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{SVGGraphicsElement} target - Element content rectangle of which needs</span>
+ <span class="s6">*      to be calculated.</span>
+ <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{DOMRectInit}</span>
+ <span class="s6">*/</span>
+<span class="s0">function </span><span class="s1">getSVGContentRect</span><span class="s3">(</span><span class="s1">target</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">bbox </span><span class="s3">= </span><span class="s1">target</span><span class="s3">.</span><span class="s1">getBBox</span><span class="s3">();</span>
+
+    <span class="s0">return </span><span class="s1">createRectInit</span><span class="s3">(</span><span class="s5">0</span><span class="s3">, </span><span class="s5">0</span><span class="s3">, </span><span class="s1">bbox</span><span class="s3">.</span><span class="s1">width</span><span class="s3">, </span><span class="s1">bbox</span><span class="s3">.</span><span class="s1">height</span><span class="s3">);</span>
+<span class="s3">}</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Calculates content rectangle of provided HTMLElement.</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{HTMLElement} target - Element for which to calculate the content rectangle.</span>
+ <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{DOMRectInit}</span>
+ <span class="s6">*/</span>
+<span class="s0">function </span><span class="s1">getHTMLElementContentRect</span><span class="s3">(</span><span class="s1">target</span><span class="s3">) {</span>
+    <span class="s4">// Client width &amp; height properties can't be</span>
+    <span class="s4">// used exclusively as they provide rounded values.</span>
+    <span class="s0">const </span><span class="s3">{</span><span class="s1">clientWidth</span><span class="s3">, </span><span class="s1">clientHeight</span><span class="s3">} = </span><span class="s1">target</span><span class="s3">;</span>
+
+    <span class="s4">// By this condition we can catch all non-replaced inline, hidden and</span>
+    <span class="s4">// detached elements. Though elements with width &amp; height properties less</span>
+    <span class="s4">// than 0.5 will be discarded as well.</span>
+    <span class="s4">//</span>
+    <span class="s4">// Without it we would need to implement separate methods for each of</span>
+    <span class="s4">// those cases and it's not possible to perform a precise and performance</span>
+    <span class="s4">// effective test for hidden elements. E.g. even jQuery's ':visible' filter</span>
+    <span class="s4">// gives wrong results for elements with width &amp; height less than 0.5.</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">clientWidth </span><span class="s3">&amp;&amp; !</span><span class="s1">clientHeight</span><span class="s3">) {</span>
+        <span class="s0">return </span><span class="s1">emptyRect</span><span class="s3">;</span>
+    <span class="s3">}</span>
+
+    <span class="s0">const </span><span class="s1">styles </span><span class="s3">= </span><span class="s1">getWindowOf</span><span class="s3">(</span><span class="s1">target</span><span class="s3">).</span><span class="s1">getComputedStyle</span><span class="s3">(</span><span class="s1">target</span><span class="s3">);</span>
+    <span class="s0">const </span><span class="s1">paddings </span><span class="s3">= </span><span class="s1">getPaddings</span><span class="s3">(</span><span class="s1">styles</span><span class="s3">);</span>
+    <span class="s0">const </span><span class="s1">horizPad </span><span class="s3">= </span><span class="s1">paddings</span><span class="s3">.</span><span class="s1">left </span><span class="s3">+ </span><span class="s1">paddings</span><span class="s3">.</span><span class="s1">right</span><span class="s3">;</span>
+    <span class="s0">const </span><span class="s1">vertPad </span><span class="s3">= </span><span class="s1">paddings</span><span class="s3">.</span><span class="s1">top </span><span class="s3">+ </span><span class="s1">paddings</span><span class="s3">.</span><span class="s1">bottom</span><span class="s3">;</span>
+
+    <span class="s4">// Computed styles of width &amp; height are being used because they are the</span>
+    <span class="s4">// only dimensions available to JS that contain non-rounded values. It could</span>
+    <span class="s4">// be possible to utilize the getBoundingClientRect if only it's data wasn't</span>
+    <span class="s4">// affected by CSS transformations let alone paddings, borders and scroll bars.</span>
+    <span class="s0">let </span><span class="s1">width </span><span class="s3">= </span><span class="s1">toFloat</span><span class="s3">(</span><span class="s1">styles</span><span class="s3">.</span><span class="s1">width</span><span class="s3">),</span>
+        <span class="s1">height </span><span class="s3">= </span><span class="s1">toFloat</span><span class="s3">(</span><span class="s1">styles</span><span class="s3">.</span><span class="s1">height</span><span class="s3">);</span>
+
+    <span class="s4">// Width &amp; height include paddings and borders when the 'border-box' box</span>
+    <span class="s4">// model is applied (except for IE).</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">styles</span><span class="s3">.</span><span class="s1">boxSizing </span><span class="s3">=== </span><span class="s2">'border-box'</span><span class="s3">) {</span>
+        <span class="s4">// Following conditions are required to handle Internet Explorer which</span>
+        <span class="s4">// doesn't include paddings and borders to computed CSS dimensions.</span>
+        <span class="s4">//</span>
+        <span class="s4">// We can say that if CSS dimensions + paddings are equal to the &quot;client&quot;</span>
+        <span class="s4">// properties then it's either IE, and thus we don't need to subtract</span>
+        <span class="s4">// anything, or an element merely doesn't have paddings/borders styles.</span>
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">Math</span><span class="s3">.</span><span class="s1">round</span><span class="s3">(</span><span class="s1">width </span><span class="s3">+ </span><span class="s1">horizPad</span><span class="s3">) !== </span><span class="s1">clientWidth</span><span class="s3">) {</span>
+            <span class="s1">width </span><span class="s3">-= </span><span class="s1">getBordersSize</span><span class="s3">(</span><span class="s1">styles</span><span class="s3">, </span><span class="s2">'left'</span><span class="s3">, </span><span class="s2">'right'</span><span class="s3">) + </span><span class="s1">horizPad</span><span class="s3">;</span>
+        <span class="s3">}</span>
+
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">Math</span><span class="s3">.</span><span class="s1">round</span><span class="s3">(</span><span class="s1">height </span><span class="s3">+ </span><span class="s1">vertPad</span><span class="s3">) !== </span><span class="s1">clientHeight</span><span class="s3">) {</span>
+            <span class="s1">height </span><span class="s3">-= </span><span class="s1">getBordersSize</span><span class="s3">(</span><span class="s1">styles</span><span class="s3">, </span><span class="s2">'top'</span><span class="s3">, </span><span class="s2">'bottom'</span><span class="s3">) + </span><span class="s1">vertPad</span><span class="s3">;</span>
+        <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s4">// Following steps can't be applied to the document's root element as its</span>
+    <span class="s4">// client[Width/Height] properties represent viewport area of the window.</span>
+    <span class="s4">// Besides, it's as well not necessary as the &lt;html&gt; itself neither has</span>
+    <span class="s4">// rendered scroll bars nor it can be clipped.</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">isDocumentElement</span><span class="s3">(</span><span class="s1">target</span><span class="s3">)) {</span>
+        <span class="s4">// In some browsers (only in Firefox, actually) CSS width &amp; height</span>
+        <span class="s4">// include scroll bars size which can be removed at this step as scroll</span>
+        <span class="s4">// bars are the only difference between rounded dimensions + paddings</span>
+        <span class="s4">// and &quot;client&quot; properties, though that is not always true in Chrome.</span>
+        <span class="s0">const </span><span class="s1">vertScrollbar </span><span class="s3">= </span><span class="s1">Math</span><span class="s3">.</span><span class="s1">round</span><span class="s3">(</span><span class="s1">width </span><span class="s3">+ </span><span class="s1">horizPad</span><span class="s3">) - </span><span class="s1">clientWidth</span><span class="s3">;</span>
+        <span class="s0">const </span><span class="s1">horizScrollbar </span><span class="s3">= </span><span class="s1">Math</span><span class="s3">.</span><span class="s1">round</span><span class="s3">(</span><span class="s1">height </span><span class="s3">+ </span><span class="s1">vertPad</span><span class="s3">) - </span><span class="s1">clientHeight</span><span class="s3">;</span>
+
+        <span class="s4">// Chrome has a rather weird rounding of &quot;client&quot; properties.</span>
+        <span class="s4">// E.g. for an element with content width of 314.2px it sometimes gives</span>
+        <span class="s4">// the client width of 315px and for the width of 314.7px it may give</span>
+        <span class="s4">// 314px. And it doesn't happen all the time. So just ignore this delta</span>
+        <span class="s4">// as a non-relevant.</span>
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">Math</span><span class="s3">.</span><span class="s1">abs</span><span class="s3">(</span><span class="s1">vertScrollbar</span><span class="s3">) !== </span><span class="s5">1</span><span class="s3">) {</span>
+            <span class="s1">width </span><span class="s3">-= </span><span class="s1">vertScrollbar</span><span class="s3">;</span>
+        <span class="s3">}</span>
+
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">Math</span><span class="s3">.</span><span class="s1">abs</span><span class="s3">(</span><span class="s1">horizScrollbar</span><span class="s3">) !== </span><span class="s5">1</span><span class="s3">) {</span>
+            <span class="s1">height </span><span class="s3">-= </span><span class="s1">horizScrollbar</span><span class="s3">;</span>
+        <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s0">return </span><span class="s1">createRectInit</span><span class="s3">(</span><span class="s1">paddings</span><span class="s3">.</span><span class="s1">left</span><span class="s3">, </span><span class="s1">paddings</span><span class="s3">.</span><span class="s1">top</span><span class="s3">, </span><span class="s1">width</span><span class="s3">, </span><span class="s1">height</span><span class="s3">);</span>
+<span class="s3">}</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Checks whether provided element is an instance of the SVGGraphicsElement.</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Element} target - Element to be checked.</span>
+ <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{boolean}</span>
+ <span class="s6">*/</span>
+<span class="s0">const </span><span class="s1">isSVGGraphicsElement </span><span class="s3">= (() =&gt; {</span>
+    <span class="s4">// Some browsers, namely IE and Edge, don't have the SVGGraphicsElement</span>
+    <span class="s4">// interface.</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s0">typeof </span><span class="s1">SVGGraphicsElement </span><span class="s3">!== </span><span class="s2">'undefined'</span><span class="s3">) {</span>
+        <span class="s0">return </span><span class="s1">target </span><span class="s3">=&gt; </span><span class="s1">target </span><span class="s0">instanceof </span><span class="s1">getWindowOf</span><span class="s3">(</span><span class="s1">target</span><span class="s3">).</span><span class="s1">SVGGraphicsElement</span><span class="s3">;</span>
+    <span class="s3">}</span>
+
+    <span class="s4">// If it's so, then check that element is at least an instance of the</span>
+    <span class="s4">// SVGElement and that it has the &quot;getBBox&quot; method.</span>
+    <span class="s4">// eslint-disable-next-line no-extra-parens</span>
+    <span class="s0">return </span><span class="s1">target </span><span class="s3">=&gt; (</span>
+        <span class="s1">target </span><span class="s0">instanceof </span><span class="s1">getWindowOf</span><span class="s3">(</span><span class="s1">target</span><span class="s3">).</span><span class="s1">SVGElement </span><span class="s3">&amp;&amp;</span>
+        <span class="s0">typeof </span><span class="s1">target</span><span class="s3">.</span><span class="s1">getBBox </span><span class="s3">=== </span><span class="s2">'function'</span>
+    <span class="s3">);</span>
+<span class="s3">})();</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Checks whether provided element is a document element (&lt;html&gt;).</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Element} target - Element to be checked.</span>
+ <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{boolean}</span>
+ <span class="s6">*/</span>
+<span class="s0">function </span><span class="s1">isDocumentElement</span><span class="s3">(</span><span class="s1">target</span><span class="s3">) {</span>
+    <span class="s0">return </span><span class="s1">target </span><span class="s3">=== </span><span class="s1">getWindowOf</span><span class="s3">(</span><span class="s1">target</span><span class="s3">).</span><span class="s1">document</span><span class="s3">.</span><span class="s1">documentElement</span><span class="s3">;</span>
+<span class="s3">}</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Calculates an appropriate content rectangle for provided html or svg element.</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Element} target - Element content rectangle of which needs to be calculated.</span>
+ <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{DOMRectInit}</span>
+ <span class="s6">*/</span>
+<span class="s0">export function </span><span class="s1">getContentRect</span><span class="s3">(</span><span class="s1">target</span><span class="s3">) {</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">isBrowser</span><span class="s3">) {</span>
+        <span class="s0">return </span><span class="s1">emptyRect</span><span class="s3">;</span>
+    <span class="s3">}</span>
+
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">isSVGGraphicsElement</span><span class="s3">(</span><span class="s1">target</span><span class="s3">)) {</span>
+        <span class="s0">return </span><span class="s1">getSVGContentRect</span><span class="s3">(</span><span class="s1">target</span><span class="s3">);</span>
+    <span class="s3">}</span>
+
+    <span class="s0">return </span><span class="s1">getHTMLElementContentRect</span><span class="s3">(</span><span class="s1">target</span><span class="s3">);</span>
+<span class="s3">}</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Creates rectangle with an interface of the DOMRectReadOnly.</span>
+ <span class="s6">* Spec: https://drafts.fxtf.org/geometry/#domrectreadonly</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{DOMRectInit} rectInit - Object with rectangle's x/y coordinates and dimensions.</span>
+ <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{DOMRectReadOnly}</span>
+ <span class="s6">*/</span>
+<span class="s0">export function </span><span class="s1">createReadOnlyRect</span><span class="s3">({</span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s1">width</span><span class="s3">, </span><span class="s1">height</span><span class="s3">}) {</span>
+    <span class="s4">// If DOMRectReadOnly is available use it as a prototype for the rectangle.</span>
+    <span class="s0">const </span><span class="s1">Constr </span><span class="s3">= </span><span class="s0">typeof </span><span class="s1">DOMRectReadOnly </span><span class="s3">!== </span><span class="s2">'undefined' </span><span class="s3">? </span><span class="s1">DOMRectReadOnly </span><span class="s3">: </span><span class="s1">Object</span><span class="s3">;</span>
+    <span class="s0">const </span><span class="s1">rect </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">create</span><span class="s3">(</span><span class="s1">Constr</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">);</span>
+
+    <span class="s4">// Rectangle's properties are not writable and non-enumerable.</span>
+    <span class="s1">defineConfigurable</span><span class="s3">(</span><span class="s1">rect</span><span class="s3">, {</span>
+        <span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s1">width</span><span class="s3">, </span><span class="s1">height</span><span class="s3">,</span>
+        <span class="s1">top</span><span class="s3">: </span><span class="s1">y</span><span class="s3">,</span>
+        <span class="s1">right</span><span class="s3">: </span><span class="s1">x </span><span class="s3">+ </span><span class="s1">width</span><span class="s3">,</span>
+        <span class="s1">bottom</span><span class="s3">: </span><span class="s1">height </span><span class="s3">+ </span><span class="s1">y</span><span class="s3">,</span>
+        <span class="s1">left</span><span class="s3">: </span><span class="s1">x</span>
+    <span class="s3">});</span>
+
+    <span class="s0">return </span><span class="s1">rect</span><span class="s3">;</span>
+<span class="s3">}</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Creates DOMRectInit object based on the provided dimensions and the x/y coordinates.</span>
+ <span class="s6">* Spec: https://drafts.fxtf.org/geometry/#dictdef-domrectinit</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{number} x - X coordinate.</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{number} y - Y coordinate.</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{number} width - Rectangle's width.</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{number} height - Rectangle's height.</span>
+ <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{DOMRectInit}</span>
+ <span class="s6">*/</span>
+<span class="s0">export function </span><span class="s1">createRectInit</span><span class="s3">(</span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s1">width</span><span class="s3">, </span><span class="s1">height</span><span class="s3">) {</span>
+    <span class="s0">return </span><span class="s3">{</span><span class="s1">x</span><span class="s3">, </span><span class="s1">y</span><span class="s3">, </span><span class="s1">width</span><span class="s3">, </span><span class="s1">height</span><span class="s3">};</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

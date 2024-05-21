@@ -1,0 +1,278 @@
+<html>
+<head>
+<title>props.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+.s6 { color: #5f826b; font-style: italic;}
+.s7 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+props.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">warn </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./debug'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">observe</span><span class="s2">, </span><span class="s1">toggleObserving</span><span class="s2">, </span><span class="s1">shouldObserve </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../observer/index'</span>
+<span class="s0">import </span><span class="s2">{</span>
+  <span class="s1">hasOwn</span><span class="s2">,</span>
+  <span class="s1">isArray</span><span class="s2">,</span>
+  <span class="s1">isObject</span><span class="s2">,</span>
+  <span class="s1">isFunction</span><span class="s2">,</span>
+  <span class="s1">toRawType</span><span class="s2">,</span>
+  <span class="s1">hyphenate</span><span class="s2">,</span>
+  <span class="s1">capitalize</span><span class="s2">,</span>
+  <span class="s1">isPlainObject</span>
+<span class="s2">} </span><span class="s1">from </span><span class="s3">'shared/util'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">Component </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/component'</span>
+
+<span class="s1">type PropOptions </span><span class="s2">= {</span>
+  <span class="s1">type</span><span class="s2">: </span><span class="s1">Function </span><span class="s2">| </span><span class="s1">Array</span><span class="s2">&lt;</span><span class="s1">Function</span><span class="s2">&gt; | </span><span class="s0">null</span>
+  <span class="s0">default</span><span class="s2">: </span><span class="s1">any</span>
+  <span class="s1">required</span><span class="s2">?: </span><span class="s1">boolean</span>
+  <span class="s1">validator</span><span class="s2">?: </span><span class="s1">Function</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">validateProp</span><span class="s2">(</span>
+  <span class="s1">key</span><span class="s2">: </span><span class="s1">string</span><span class="s2">,</span>
+  <span class="s1">propOptions</span><span class="s2">: </span><span class="s1">Object</span><span class="s2">,</span>
+  <span class="s1">propsData</span><span class="s2">: </span><span class="s1">Object</span><span class="s2">,</span>
+  <span class="s1">vm</span><span class="s2">?: </span><span class="s1">Component</span>
+<span class="s2">): </span><span class="s1">any </span><span class="s2">{</span>
+  <span class="s0">const </span><span class="s1">prop </span><span class="s2">= </span><span class="s1">propOptions</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+  <span class="s0">const </span><span class="s1">absent </span><span class="s2">= !</span><span class="s1">hasOwn</span><span class="s2">(</span><span class="s1">propsData</span><span class="s2">, </span><span class="s1">key</span><span class="s2">)</span>
+  <span class="s0">let </span><span class="s1">value </span><span class="s2">= </span><span class="s1">propsData</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+  <span class="s4">// boolean casting</span>
+  <span class="s0">const </span><span class="s1">booleanIndex </span><span class="s2">= </span><span class="s1">getTypeIndex</span><span class="s2">(</span><span class="s1">Boolean</span><span class="s2">, </span><span class="s1">prop</span><span class="s2">.</span><span class="s1">type</span><span class="s2">)</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">booleanIndex </span><span class="s2">&gt; -</span><span class="s5">1</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">absent </span><span class="s2">&amp;&amp; !</span><span class="s1">hasOwn</span><span class="s2">(</span><span class="s1">prop</span><span class="s2">, </span><span class="s3">'default'</span><span class="s2">)) {</span>
+      <span class="s1">value </span><span class="s2">= </span><span class="s0">false</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">value </span><span class="s2">=== </span><span class="s3">'' </span><span class="s2">|| </span><span class="s1">value </span><span class="s2">=== </span><span class="s1">hyphenate</span><span class="s2">(</span><span class="s1">key</span><span class="s2">)) {</span>
+      <span class="s4">// only cast empty string / same name to boolean if</span>
+      <span class="s4">// boolean has higher priority</span>
+      <span class="s0">const </span><span class="s1">stringIndex </span><span class="s2">= </span><span class="s1">getTypeIndex</span><span class="s2">(</span><span class="s1">String</span><span class="s2">, </span><span class="s1">prop</span><span class="s2">.</span><span class="s1">type</span><span class="s2">)</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">stringIndex </span><span class="s2">&lt; </span><span class="s5">0 </span><span class="s2">|| </span><span class="s1">booleanIndex </span><span class="s2">&lt; </span><span class="s1">stringIndex</span><span class="s2">) {</span>
+        <span class="s1">value </span><span class="s2">= </span><span class="s0">true</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+  <span class="s4">// check default value</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">value </span><span class="s2">=== </span><span class="s1">undefined</span><span class="s2">) {</span>
+    <span class="s1">value </span><span class="s2">= </span><span class="s1">getPropDefaultValue</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">, </span><span class="s1">prop</span><span class="s2">, </span><span class="s1">key</span><span class="s2">)</span>
+    <span class="s4">// since the default value is a fresh copy,</span>
+    <span class="s4">// make sure to observe it.</span>
+    <span class="s0">const </span><span class="s1">prevShouldObserve </span><span class="s2">= </span><span class="s1">shouldObserve</span>
+    <span class="s1">toggleObserving</span><span class="s2">(</span><span class="s0">true</span><span class="s2">)</span>
+    <span class="s1">observe</span><span class="s2">(</span><span class="s1">value</span><span class="s2">)</span>
+    <span class="s1">toggleObserving</span><span class="s2">(</span><span class="s1">prevShouldObserve</span><span class="s2">)</span>
+  <span class="s2">}</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">__DEV__</span><span class="s2">) {</span>
+    <span class="s1">assertProp</span><span class="s2">(</span><span class="s1">prop</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">value</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">, </span><span class="s1">absent</span><span class="s2">)</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s1">value</span>
+<span class="s2">}</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Get the default value of a prop.</span>
+ <span class="s6">*/</span>
+<span class="s0">function </span><span class="s1">getPropDefaultValue</span><span class="s2">(</span>
+  <span class="s1">vm</span><span class="s2">: </span><span class="s1">Component </span><span class="s2">| </span><span class="s1">undefined</span><span class="s2">,</span>
+  <span class="s1">prop</span><span class="s2">: </span><span class="s1">PropOptions</span><span class="s2">,</span>
+  <span class="s1">key</span><span class="s2">: </span><span class="s1">string</span>
+<span class="s2">): </span><span class="s1">any </span><span class="s2">{</span>
+  <span class="s4">// no default, return undefined</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">hasOwn</span><span class="s2">(</span><span class="s1">prop</span><span class="s2">, </span><span class="s3">'default'</span><span class="s2">)) {</span>
+    <span class="s0">return </span><span class="s1">undefined</span>
+  <span class="s2">}</span>
+  <span class="s0">const </span><span class="s1">def </span><span class="s2">= </span><span class="s1">prop</span><span class="s2">.</span><span class="s1">default</span>
+  <span class="s4">// warn against non-factory defaults for Object &amp; Array</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">__DEV__ </span><span class="s2">&amp;&amp; </span><span class="s1">isObject</span><span class="s2">(</span><span class="s1">def</span><span class="s2">)) {</span>
+    <span class="s1">warn</span><span class="s2">(</span>
+      <span class="s3">'Invalid default value for prop &quot;' </span><span class="s2">+</span>
+        <span class="s1">key </span><span class="s2">+</span>
+        <span class="s3">'&quot;: ' </span><span class="s2">+</span>
+        <span class="s3">'Props with type Object/Array must use a factory function ' </span><span class="s2">+</span>
+        <span class="s3">'to return the default value.'</span><span class="s2">,</span>
+      <span class="s1">vm</span>
+    <span class="s2">)</span>
+  <span class="s2">}</span>
+  <span class="s4">// the raw prop value was also undefined from previous render,</span>
+  <span class="s4">// return previous default value to avoid unnecessary watcher trigger</span>
+  <span class="s0">if </span><span class="s2">(</span>
+    <span class="s1">vm </span><span class="s2">&amp;&amp;</span>
+    <span class="s1">vm</span><span class="s2">.</span><span class="s1">$options</span><span class="s2">.</span><span class="s1">propsData </span><span class="s2">&amp;&amp;</span>
+    <span class="s1">vm</span><span class="s2">.</span><span class="s1">$options</span><span class="s2">.</span><span class="s1">propsData</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] === </span><span class="s1">undefined </span><span class="s2">&amp;&amp;</span>
+    <span class="s1">vm</span><span class="s2">.</span><span class="s1">_props</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] !== </span><span class="s1">undefined</span>
+  <span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_props</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+  <span class="s2">}</span>
+  <span class="s4">// call factory function for non-Function types</span>
+  <span class="s4">// a value is Function if its prototype is function even across different execution context</span>
+  <span class="s0">return </span><span class="s1">isFunction</span><span class="s2">(</span><span class="s1">def</span><span class="s2">) &amp;&amp; </span><span class="s1">getType</span><span class="s2">(</span><span class="s1">prop</span><span class="s2">.</span><span class="s1">type</span><span class="s2">) !== </span><span class="s3">'Function'</span>
+    <span class="s2">? </span><span class="s1">def</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">)</span>
+    <span class="s2">: </span><span class="s1">def</span>
+<span class="s2">}</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Assert whether a prop is valid.</span>
+ <span class="s6">*/</span>
+<span class="s0">function </span><span class="s1">assertProp</span><span class="s2">(</span>
+  <span class="s1">prop</span><span class="s2">: </span><span class="s1">PropOptions</span><span class="s2">,</span>
+  <span class="s1">name</span><span class="s2">: </span><span class="s1">string</span><span class="s2">,</span>
+  <span class="s1">value</span><span class="s2">: </span><span class="s1">any</span><span class="s2">,</span>
+  <span class="s1">vm</span><span class="s2">?: </span><span class="s1">Component</span><span class="s2">,</span>
+  <span class="s1">absent</span><span class="s2">?: </span><span class="s1">boolean</span>
+<span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">prop</span><span class="s2">.</span><span class="s1">required </span><span class="s2">&amp;&amp; </span><span class="s1">absent</span><span class="s2">) {</span>
+    <span class="s1">warn</span><span class="s2">(</span><span class="s3">'Missing required prop: &quot;' </span><span class="s2">+ </span><span class="s1">name </span><span class="s2">+ </span><span class="s3">'&quot;'</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">)</span>
+    <span class="s0">return</span>
+  <span class="s2">}</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">value </span><span class="s2">== </span><span class="s0">null </span><span class="s2">&amp;&amp; !</span><span class="s1">prop</span><span class="s2">.</span><span class="s1">required</span><span class="s2">) {</span>
+    <span class="s0">return</span>
+  <span class="s2">}</span>
+  <span class="s0">let </span><span class="s1">type </span><span class="s2">= </span><span class="s1">prop</span><span class="s2">.</span><span class="s1">type</span>
+  <span class="s0">let </span><span class="s1">valid </span><span class="s2">= !</span><span class="s1">type </span><span class="s2">|| (</span><span class="s1">type </span><span class="s2">as </span><span class="s1">any</span><span class="s2">) === </span><span class="s0">true</span>
+  <span class="s0">const </span><span class="s1">expectedTypes</span><span class="s2">: </span><span class="s1">string</span><span class="s2">[] = []</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">type</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">type</span><span class="s2">)) {</span>
+      <span class="s1">type </span><span class="s2">= [</span><span class="s1">type</span><span class="s2">]</span>
+    <span class="s2">}</span>
+    <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s5">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">type</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&amp;&amp; !</span><span class="s1">valid</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+      <span class="s0">const </span><span class="s1">assertedType </span><span class="s2">= </span><span class="s1">assertType</span><span class="s2">(</span><span class="s1">value</span><span class="s2">, </span><span class="s1">type</span><span class="s2">[</span><span class="s1">i</span><span class="s2">], </span><span class="s1">vm</span><span class="s2">)</span>
+      <span class="s1">expectedTypes</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">assertedType</span><span class="s2">.</span><span class="s1">expectedType </span><span class="s2">|| </span><span class="s3">''</span><span class="s2">)</span>
+      <span class="s1">valid </span><span class="s2">= </span><span class="s1">assertedType</span><span class="s2">.</span><span class="s1">valid</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+  <span class="s0">const </span><span class="s1">haveExpectedTypes </span><span class="s2">= </span><span class="s1">expectedTypes</span><span class="s2">.</span><span class="s1">some</span><span class="s2">(</span><span class="s1">t </span><span class="s2">=&gt; </span><span class="s1">t</span><span class="s2">)</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">valid </span><span class="s2">&amp;&amp; </span><span class="s1">haveExpectedTypes</span><span class="s2">) {</span>
+    <span class="s1">warn</span><span class="s2">(</span><span class="s1">getInvalidTypeMessage</span><span class="s2">(</span><span class="s1">name</span><span class="s2">, </span><span class="s1">value</span><span class="s2">, </span><span class="s1">expectedTypes</span><span class="s2">), </span><span class="s1">vm</span><span class="s2">)</span>
+    <span class="s0">return</span>
+  <span class="s2">}</span>
+  <span class="s0">const </span><span class="s1">validator </span><span class="s2">= </span><span class="s1">prop</span><span class="s2">.</span><span class="s1">validator</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">validator</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">validator</span><span class="s2">(</span><span class="s1">value</span><span class="s2">)) {</span>
+      <span class="s1">warn</span><span class="s2">(</span>
+        <span class="s3">'Invalid prop: custom validator check failed for prop &quot;' </span><span class="s2">+ </span><span class="s1">name </span><span class="s2">+ </span><span class="s3">'&quot;.'</span><span class="s2">,</span>
+        <span class="s1">vm</span>
+      <span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">const </span><span class="s1">simpleCheckRE </span><span class="s2">= </span><span class="s7">/^(String|Number|Boolean|Function|Symbol|BigInt)$/</span>
+
+<span class="s0">function </span><span class="s1">assertType</span><span class="s2">(</span>
+  <span class="s1">value</span><span class="s2">: </span><span class="s1">any</span><span class="s2">,</span>
+  <span class="s1">type</span><span class="s2">: </span><span class="s1">Function</span><span class="s2">,</span>
+  <span class="s1">vm</span><span class="s2">?: </span><span class="s1">Component</span>
+<span class="s2">): {</span>
+  <span class="s1">valid</span><span class="s2">: </span><span class="s1">boolean</span>
+  <span class="s1">expectedType</span><span class="s2">: </span><span class="s1">string</span>
+<span class="s2">} {</span>
+  <span class="s0">let </span><span class="s1">valid</span>
+  <span class="s0">const </span><span class="s1">expectedType </span><span class="s2">= </span><span class="s1">getType</span><span class="s2">(</span><span class="s1">type</span><span class="s2">)</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">simpleCheckRE</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">expectedType</span><span class="s2">)) {</span>
+    <span class="s0">const </span><span class="s1">t </span><span class="s2">= </span><span class="s0">typeof </span><span class="s1">value</span>
+    <span class="s1">valid </span><span class="s2">= </span><span class="s1">t </span><span class="s2">=== </span><span class="s1">expectedType</span><span class="s2">.</span><span class="s1">toLowerCase</span><span class="s2">()</span>
+    <span class="s4">// for primitive wrapper objects</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">valid </span><span class="s2">&amp;&amp; </span><span class="s1">t </span><span class="s2">=== </span><span class="s3">'object'</span><span class="s2">) {</span>
+      <span class="s1">valid </span><span class="s2">= </span><span class="s1">value </span><span class="s0">instanceof </span><span class="s1">type</span>
+    <span class="s2">}</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">expectedType </span><span class="s2">=== </span><span class="s3">'Object'</span><span class="s2">) {</span>
+    <span class="s1">valid </span><span class="s2">= </span><span class="s1">isPlainObject</span><span class="s2">(</span><span class="s1">value</span><span class="s2">)</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">expectedType </span><span class="s2">=== </span><span class="s3">'Array'</span><span class="s2">) {</span>
+    <span class="s1">valid </span><span class="s2">= </span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">value</span><span class="s2">)</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s0">try </span><span class="s2">{</span>
+      <span class="s1">valid </span><span class="s2">= </span><span class="s1">value </span><span class="s0">instanceof </span><span class="s1">type</span>
+    <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">e</span><span class="s2">: </span><span class="s1">any</span><span class="s2">) {</span>
+      <span class="s1">warn</span><span class="s2">(</span><span class="s3">'Invalid prop type: &quot;' </span><span class="s2">+ </span><span class="s1">String</span><span class="s2">(</span><span class="s1">type</span><span class="s2">) + </span><span class="s3">'&quot; is not a constructor'</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">)</span>
+      <span class="s1">valid </span><span class="s2">= </span><span class="s0">false</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s2">{</span>
+    <span class="s1">valid</span><span class="s2">,</span>
+    <span class="s1">expectedType</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">const </span><span class="s1">functionTypeCheckRE </span><span class="s2">= </span><span class="s7">/^\s*function (\w+)/</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Use function string name to check built-in types,</span>
+ <span class="s6">* because a simple equality check will fail when running</span>
+ <span class="s6">* across different vms / iframes.</span>
+ <span class="s6">*/</span>
+<span class="s0">function </span><span class="s1">getType</span><span class="s2">(</span><span class="s1">fn</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">match </span><span class="s2">= </span><span class="s1">fn </span><span class="s2">&amp;&amp; </span><span class="s1">fn</span><span class="s2">.</span><span class="s1">toString</span><span class="s2">().</span><span class="s1">match</span><span class="s2">(</span><span class="s1">functionTypeCheckRE</span><span class="s2">)</span>
+  <span class="s0">return </span><span class="s1">match </span><span class="s2">? </span><span class="s1">match</span><span class="s2">[</span><span class="s5">1</span><span class="s2">] : </span><span class="s3">''</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">isSameType</span><span class="s2">(</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">) {</span>
+  <span class="s0">return </span><span class="s1">getType</span><span class="s2">(</span><span class="s1">a</span><span class="s2">) === </span><span class="s1">getType</span><span class="s2">(</span><span class="s1">b</span><span class="s2">)</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">getTypeIndex</span><span class="s2">(</span><span class="s1">type</span><span class="s2">, </span><span class="s1">expectedTypes</span><span class="s2">): </span><span class="s1">number </span><span class="s2">{</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">expectedTypes</span><span class="s2">)) {</span>
+    <span class="s0">return </span><span class="s1">isSameType</span><span class="s2">(</span><span class="s1">expectedTypes</span><span class="s2">, </span><span class="s1">type</span><span class="s2">) ? </span><span class="s5">0 </span><span class="s2">: -</span><span class="s5">1</span>
+  <span class="s2">}</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s5">0</span><span class="s2">, </span><span class="s1">len </span><span class="s2">= </span><span class="s1">expectedTypes</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">len</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isSameType</span><span class="s2">(</span><span class="s1">expectedTypes</span><span class="s2">[</span><span class="s1">i</span><span class="s2">], </span><span class="s1">type</span><span class="s2">)) {</span>
+      <span class="s0">return </span><span class="s1">i</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s2">-</span><span class="s5">1</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">getInvalidTypeMessage</span><span class="s2">(</span><span class="s1">name</span><span class="s2">, </span><span class="s1">value</span><span class="s2">, </span><span class="s1">expectedTypes</span><span class="s2">) {</span>
+  <span class="s0">let </span><span class="s1">message </span><span class="s2">=</span>
+    <span class="s3">`Invalid prop: type check failed for prop &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span><span class="s3">&quot;.` </span><span class="s2">+</span>
+    <span class="s3">` Expected </span><span class="s1">$</span><span class="s2">{</span><span class="s1">expectedTypes</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">capitalize</span><span class="s2">).</span><span class="s1">join</span><span class="s2">(</span><span class="s3">', '</span><span class="s2">)}</span><span class="s3">`</span>
+  <span class="s0">const </span><span class="s1">expectedType </span><span class="s2">= </span><span class="s1">expectedTypes</span><span class="s2">[</span><span class="s5">0</span><span class="s2">]</span>
+  <span class="s0">const </span><span class="s1">receivedType </span><span class="s2">= </span><span class="s1">toRawType</span><span class="s2">(</span><span class="s1">value</span><span class="s2">)</span>
+  <span class="s4">// check if we need to specify expected value</span>
+  <span class="s0">if </span><span class="s2">(</span>
+    <span class="s1">expectedTypes</span><span class="s2">.</span><span class="s1">length </span><span class="s2">=== </span><span class="s5">1 </span><span class="s2">&amp;&amp;</span>
+    <span class="s1">isExplicable</span><span class="s2">(</span><span class="s1">expectedType</span><span class="s2">) &amp;&amp;</span>
+    <span class="s1">isExplicable</span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">value</span><span class="s2">) &amp;&amp;</span>
+    <span class="s2">!</span><span class="s1">isBoolean</span><span class="s2">(</span><span class="s1">expectedType</span><span class="s2">, </span><span class="s1">receivedType</span><span class="s2">)</span>
+  <span class="s2">) {</span>
+    <span class="s1">message </span><span class="s2">+= </span><span class="s3">` with value </span><span class="s1">$</span><span class="s2">{</span><span class="s1">styleValue</span><span class="s2">(</span><span class="s1">value</span><span class="s2">, </span><span class="s1">expectedType</span><span class="s2">)}</span><span class="s3">`</span>
+  <span class="s2">}</span>
+  <span class="s1">message </span><span class="s2">+= </span><span class="s3">`, got </span><span class="s1">$</span><span class="s2">{</span><span class="s1">receivedType</span><span class="s2">} </span><span class="s3">`</span>
+  <span class="s4">// check if we need to specify received value</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isExplicable</span><span class="s2">(</span><span class="s1">receivedType</span><span class="s2">)) {</span>
+    <span class="s1">message </span><span class="s2">+= </span><span class="s3">`with value </span><span class="s1">$</span><span class="s2">{</span><span class="s1">styleValue</span><span class="s2">(</span><span class="s1">value</span><span class="s2">, </span><span class="s1">receivedType</span><span class="s2">)}</span><span class="s3">.`</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s1">message</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">styleValue</span><span class="s2">(</span><span class="s1">value</span><span class="s2">, </span><span class="s1">type</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'String'</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s3">`&quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">value</span><span class="s2">}</span><span class="s3">&quot;`</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">type </span><span class="s2">=== </span><span class="s3">'Number'</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">Number</span><span class="s2">(</span><span class="s1">value</span><span class="s2">)}</span><span class="s3">`</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s0">return </span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">value</span><span class="s2">}</span><span class="s3">`</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">const </span><span class="s1">EXPLICABLE_TYPES </span><span class="s2">= [</span><span class="s3">'string'</span><span class="s2">, </span><span class="s3">'number'</span><span class="s2">, </span><span class="s3">'boolean'</span><span class="s2">]</span>
+<span class="s0">function </span><span class="s1">isExplicable</span><span class="s2">(</span><span class="s1">value</span><span class="s2">) {</span>
+  <span class="s0">return </span><span class="s1">EXPLICABLE_TYPES</span><span class="s2">.</span><span class="s1">some</span><span class="s2">(</span><span class="s1">elem </span><span class="s2">=&gt; </span><span class="s1">value</span><span class="s2">.</span><span class="s1">toLowerCase</span><span class="s2">() === </span><span class="s1">elem</span><span class="s2">)</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">isBoolean</span><span class="s2">(</span><span class="s1">...args</span><span class="s2">) {</span>
+  <span class="s0">return </span><span class="s1">args</span><span class="s2">.</span><span class="s1">some</span><span class="s2">(</span><span class="s1">elem </span><span class="s2">=&gt; </span><span class="s1">elem</span><span class="s2">.</span><span class="s1">toLowerCase</span><span class="s2">() === </span><span class="s3">'boolean'</span><span class="s2">)</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

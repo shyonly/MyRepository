@@ -1,0 +1,372 @@
+<html>
+<head>
+<title>submenu.vue</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #d5b778;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+.s6 { color: #bababa;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+submenu.vue</font>
+</center></td></tr></table>
+<pre><span class="s0">&lt;script&gt;</span>
+  <span class="s2">import </span><span class="s1">ElCollapseTransition from </span><span class="s3">'element-ui/src/transitions/collapse-transition'</span><span class="s1">;</span>
+  <span class="s2">import </span><span class="s1">menuMixin from </span><span class="s3">'./menu-mixin'</span><span class="s1">;</span>
+  <span class="s2">import </span><span class="s1">Emitter from </span><span class="s3">'element-ui/src/mixins/emitter'</span><span class="s1">;</span>
+  <span class="s2">import </span><span class="s1">Popper from </span><span class="s3">'element-ui/src/utils/vue-popper'</span><span class="s1">;</span>
+
+  <span class="s2">const </span><span class="s1">poperMixins = {</span>
+    <span class="s1">props: {</span>
+      <span class="s1">transformOrigin: {</span>
+        <span class="s1">type: [Boolean, String],</span>
+        <span class="s2">default</span><span class="s1">: </span><span class="s2">false</span>
+      <span class="s1">},</span>
+      <span class="s1">offset: Popper.props.offset,</span>
+      <span class="s1">boundariesPadding: Popper.props.boundariesPadding,</span>
+      <span class="s1">popperOptions: Popper.props.popperOptions</span>
+    <span class="s1">},</span>
+    <span class="s1">data: Popper.data,</span>
+    <span class="s1">methods: Popper.methods,</span>
+    <span class="s1">beforeDestroy: Popper.beforeDestroy,</span>
+    <span class="s1">deactivated: Popper.deactivated</span>
+  <span class="s1">};</span>
+
+  <span class="s2">export default </span><span class="s1">{</span>
+    <span class="s1">name: </span><span class="s3">'ElSubmenu'</span><span class="s1">,</span>
+
+    <span class="s1">componentName: </span><span class="s3">'ElSubmenu'</span><span class="s1">,</span>
+
+    <span class="s1">mixins: [menuMixin, Emitter, poperMixins],</span>
+
+    <span class="s1">components: { ElCollapseTransition },</span>
+
+    <span class="s1">props: {</span>
+      <span class="s1">index: {</span>
+        <span class="s1">type: String,</span>
+        <span class="s1">required: </span><span class="s2">true</span>
+      <span class="s1">},</span>
+      <span class="s1">showTimeout: {</span>
+        <span class="s1">type: Number,</span>
+        <span class="s2">default</span><span class="s1">: </span><span class="s4">300</span>
+      <span class="s1">},</span>
+      <span class="s1">hideTimeout: {</span>
+        <span class="s1">type: Number,</span>
+        <span class="s2">default</span><span class="s1">: </span><span class="s4">300</span>
+      <span class="s1">},</span>
+      <span class="s1">popperClass: String,</span>
+      <span class="s1">disabled: Boolean,</span>
+      <span class="s1">popperAppendToBody: {</span>
+        <span class="s1">type: Boolean,</span>
+        <span class="s2">default</span><span class="s1">: undefined</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+
+    <span class="s1">data() {</span>
+      <span class="s2">return </span><span class="s1">{</span>
+        <span class="s1">popperJS: </span><span class="s2">null</span><span class="s1">,</span>
+        <span class="s1">timeout: </span><span class="s2">null</span><span class="s1">,</span>
+        <span class="s1">items: {},</span>
+        <span class="s1">submenus: {},</span>
+        <span class="s1">mouseInChild: </span><span class="s2">false</span>
+      <span class="s1">};</span>
+    <span class="s1">},</span>
+    <span class="s1">watch: {</span>
+      <span class="s1">opened(val) {</span>
+        <span class="s2">if </span><span class="s1">(</span><span class="s2">this</span><span class="s1">.isMenuPopup) {</span>
+          <span class="s2">this</span><span class="s1">.$nextTick(_ =&gt; {</span>
+            <span class="s2">this</span><span class="s1">.updatePopper();</span>
+          <span class="s1">});</span>
+        <span class="s1">}</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">computed: {</span>
+      <span class="s5">// popper option</span>
+      <span class="s1">appendToBody() {</span>
+        <span class="s2">return this</span><span class="s1">.popperAppendToBody === undefined</span>
+          <span class="s1">? </span><span class="s2">this</span><span class="s1">.isFirstLevel</span>
+          <span class="s1">: </span><span class="s2">this</span><span class="s1">.popperAppendToBody;</span>
+      <span class="s1">},</span>
+      <span class="s1">menuTransitionName() {</span>
+        <span class="s2">return this</span><span class="s1">.rootMenu.collapse ? </span><span class="s3">'el-zoom-in-left' </span><span class="s1">: </span><span class="s3">'el-zoom-in-top'</span><span class="s1">;</span>
+      <span class="s1">},</span>
+      <span class="s1">opened() {</span>
+        <span class="s2">return this</span><span class="s1">.rootMenu.openedMenus.indexOf(</span><span class="s2">this</span><span class="s1">.index) &gt; -</span><span class="s4">1</span><span class="s1">;</span>
+      <span class="s1">},</span>
+      <span class="s1">active() {</span>
+        <span class="s2">let </span><span class="s1">isActive = </span><span class="s2">false</span><span class="s1">;</span>
+        <span class="s2">const </span><span class="s1">submenus = </span><span class="s2">this</span><span class="s1">.submenus;</span>
+        <span class="s2">const </span><span class="s1">items = </span><span class="s2">this</span><span class="s1">.items;</span>
+
+        <span class="s1">Object.keys(items).forEach(index =&gt; {</span>
+          <span class="s2">if </span><span class="s1">(items[index].active) {</span>
+            <span class="s1">isActive = </span><span class="s2">true</span><span class="s1">;</span>
+          <span class="s1">}</span>
+        <span class="s1">});</span>
+
+        <span class="s1">Object.keys(submenus).forEach(index =&gt; {</span>
+          <span class="s2">if </span><span class="s1">(submenus[index].active) {</span>
+            <span class="s1">isActive = </span><span class="s2">true</span><span class="s1">;</span>
+          <span class="s1">}</span>
+        <span class="s1">});</span>
+
+        <span class="s2">return </span><span class="s1">isActive;</span>
+      <span class="s1">},</span>
+      <span class="s1">hoverBackground() {</span>
+        <span class="s2">return this</span><span class="s1">.rootMenu.hoverBackground;</span>
+      <span class="s1">},</span>
+      <span class="s1">backgroundColor() {</span>
+        <span class="s2">return this</span><span class="s1">.rootMenu.backgroundColor || </span><span class="s3">''</span><span class="s1">;</span>
+      <span class="s1">},</span>
+      <span class="s1">activeTextColor() {</span>
+        <span class="s2">return this</span><span class="s1">.rootMenu.activeTextColor || </span><span class="s3">''</span><span class="s1">;</span>
+      <span class="s1">},</span>
+      <span class="s1">textColor() {</span>
+        <span class="s2">return this</span><span class="s1">.rootMenu.textColor || </span><span class="s3">''</span><span class="s1">;</span>
+      <span class="s1">},</span>
+      <span class="s1">mode() {</span>
+        <span class="s2">return this</span><span class="s1">.rootMenu.mode;</span>
+      <span class="s1">},</span>
+      <span class="s1">isMenuPopup() {</span>
+        <span class="s2">return this</span><span class="s1">.rootMenu.isMenuPopup;</span>
+      <span class="s1">},</span>
+      <span class="s1">titleStyle() {</span>
+        <span class="s2">if </span><span class="s1">(</span><span class="s2">this</span><span class="s1">.mode !== </span><span class="s3">'horizontal'</span><span class="s1">) {</span>
+          <span class="s2">return </span><span class="s1">{</span>
+            <span class="s1">color: </span><span class="s2">this</span><span class="s1">.textColor</span>
+          <span class="s1">};</span>
+        <span class="s1">}</span>
+        <span class="s2">return </span><span class="s1">{</span>
+          <span class="s1">borderBottomColor: </span><span class="s2">this</span><span class="s1">.active</span>
+            <span class="s1">? (</span><span class="s2">this</span><span class="s1">.rootMenu.activeTextColor ? </span><span class="s2">this</span><span class="s1">.activeTextColor : </span><span class="s3">''</span><span class="s1">)</span>
+            <span class="s1">: </span><span class="s3">'transparent'</span><span class="s1">,</span>
+          <span class="s1">color: </span><span class="s2">this</span><span class="s1">.active</span>
+            <span class="s1">? </span><span class="s2">this</span><span class="s1">.activeTextColor</span>
+            <span class="s1">: </span><span class="s2">this</span><span class="s1">.textColor</span>
+        <span class="s1">};</span>
+      <span class="s1">},</span>
+      <span class="s1">isFirstLevel() {</span>
+        <span class="s2">let </span><span class="s1">isFirstLevel = </span><span class="s2">true</span><span class="s1">;</span>
+        <span class="s2">let </span><span class="s1">parent = </span><span class="s2">this</span><span class="s1">.$parent;</span>
+        <span class="s2">while </span><span class="s1">(parent &amp;&amp; parent !== </span><span class="s2">this</span><span class="s1">.rootMenu) {</span>
+          <span class="s2">if </span><span class="s1">([</span><span class="s3">'ElSubmenu'</span><span class="s1">, </span><span class="s3">'ElMenuItemGroup'</span><span class="s1">].indexOf(parent.$options.componentName) &gt; -</span><span class="s4">1</span><span class="s1">) {</span>
+            <span class="s1">isFirstLevel = </span><span class="s2">false</span><span class="s1">;</span>
+            <span class="s2">break</span><span class="s1">;</span>
+          <span class="s1">} </span><span class="s2">else </span><span class="s1">{</span>
+            <span class="s1">parent = parent.$parent;</span>
+          <span class="s1">}</span>
+        <span class="s1">}</span>
+        <span class="s2">return </span><span class="s1">isFirstLevel;</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">methods: {</span>
+      <span class="s1">handleCollapseToggle(value) {</span>
+        <span class="s2">if </span><span class="s1">(value) {</span>
+          <span class="s2">this</span><span class="s1">.initPopper();</span>
+        <span class="s1">} </span><span class="s2">else </span><span class="s1">{</span>
+          <span class="s2">this</span><span class="s1">.doDestroy();</span>
+        <span class="s1">}</span>
+      <span class="s1">},</span>
+      <span class="s1">addItem(item) {</span>
+        <span class="s2">this</span><span class="s1">.$set(</span><span class="s2">this</span><span class="s1">.items, item.index, item);</span>
+      <span class="s1">},</span>
+      <span class="s1">removeItem(item) {</span>
+        <span class="s2">delete this</span><span class="s1">.items[item.index];</span>
+      <span class="s1">},</span>
+      <span class="s1">addSubmenu(item) {</span>
+        <span class="s2">this</span><span class="s1">.$set(</span><span class="s2">this</span><span class="s1">.submenus, item.index, item);</span>
+      <span class="s1">},</span>
+      <span class="s1">removeSubmenu(item) {</span>
+        <span class="s2">delete this</span><span class="s1">.submenus[item.index];</span>
+      <span class="s1">},</span>
+      <span class="s1">handleClick() {</span>
+        <span class="s2">const </span><span class="s1">{ rootMenu, disabled } = </span><span class="s2">this</span><span class="s1">;</span>
+        <span class="s2">if </span><span class="s1">(</span>
+          <span class="s1">(rootMenu.menuTrigger === </span><span class="s3">'hover' </span><span class="s1">&amp;&amp; rootMenu.mode === </span><span class="s3">'horizontal'</span><span class="s1">) ||</span>
+          <span class="s1">(rootMenu.collapse &amp;&amp; rootMenu.mode === </span><span class="s3">'vertical'</span><span class="s1">) ||</span>
+          <span class="s1">disabled</span>
+        <span class="s1">) {</span>
+          <span class="s2">return</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s2">this</span><span class="s1">.dispatch(</span><span class="s3">'ElMenu'</span><span class="s1">, </span><span class="s3">'submenu-click'</span><span class="s1">, </span><span class="s2">this</span><span class="s1">);</span>
+      <span class="s1">},</span>
+      <span class="s1">handleMouseenter(event, showTimeout = </span><span class="s2">this</span><span class="s1">.showTimeout) {</span>
+
+        <span class="s2">if </span><span class="s1">(!(</span><span class="s3">'ActiveXObject' </span><span class="s2">in </span><span class="s1">window) &amp;&amp; event.type === </span><span class="s3">'focus' </span><span class="s1">&amp;&amp; !event.relatedTarget) {</span>
+          <span class="s2">return</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s2">const </span><span class="s1">{ rootMenu, disabled } = </span><span class="s2">this</span><span class="s1">;</span>
+        <span class="s2">if </span><span class="s1">(</span>
+          <span class="s1">(rootMenu.menuTrigger === </span><span class="s3">'click' </span><span class="s1">&amp;&amp; rootMenu.mode === </span><span class="s3">'horizontal'</span><span class="s1">) ||</span>
+          <span class="s1">(!rootMenu.collapse &amp;&amp; rootMenu.mode === </span><span class="s3">'vertical'</span><span class="s1">) ||</span>
+          <span class="s1">disabled</span>
+        <span class="s1">) {</span>
+          <span class="s2">return</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s2">this</span><span class="s1">.dispatch(</span><span class="s3">'ElSubmenu'</span><span class="s1">, </span><span class="s3">'mouse-enter-child'</span><span class="s1">);</span>
+        <span class="s1">clearTimeout(</span><span class="s2">this</span><span class="s1">.timeout);</span>
+        <span class="s2">this</span><span class="s1">.timeout = setTimeout(() =&gt; {</span>
+          <span class="s2">this</span><span class="s1">.rootMenu.openMenu(</span><span class="s2">this</span><span class="s1">.index, </span><span class="s2">this</span><span class="s1">.indexPath);</span>
+        <span class="s1">}, showTimeout);</span>
+
+        <span class="s2">if </span><span class="s1">(</span><span class="s2">this</span><span class="s1">.appendToBody) {</span>
+          <span class="s2">this</span><span class="s1">.$parent.$el.dispatchEvent(</span><span class="s2">new </span><span class="s1">MouseEvent(</span><span class="s3">'mouseenter'</span><span class="s1">));</span>
+        <span class="s1">}</span>
+      <span class="s1">},</span>
+      <span class="s1">handleMouseleave(deepDispatch = </span><span class="s2">false</span><span class="s1">) {</span>
+        <span class="s2">const </span><span class="s1">{rootMenu} = </span><span class="s2">this</span><span class="s1">;</span>
+        <span class="s2">if </span><span class="s1">(</span>
+          <span class="s1">(rootMenu.menuTrigger === </span><span class="s3">'click' </span><span class="s1">&amp;&amp; rootMenu.mode === </span><span class="s3">'horizontal'</span><span class="s1">) ||</span>
+          <span class="s1">(!rootMenu.collapse &amp;&amp; rootMenu.mode === </span><span class="s3">'vertical'</span><span class="s1">)</span>
+        <span class="s1">) {</span>
+          <span class="s2">return</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s2">this</span><span class="s1">.dispatch(</span><span class="s3">'ElSubmenu'</span><span class="s1">, </span><span class="s3">'mouse-leave-child'</span><span class="s1">);</span>
+        <span class="s1">clearTimeout(</span><span class="s2">this</span><span class="s1">.timeout);</span>
+        <span class="s2">this</span><span class="s1">.timeout = setTimeout(() =&gt; {</span>
+          <span class="s1">!</span><span class="s2">this</span><span class="s1">.mouseInChild &amp;&amp; </span><span class="s2">this</span><span class="s1">.rootMenu.closeMenu(</span><span class="s2">this</span><span class="s1">.index);</span>
+        <span class="s1">}, </span><span class="s2">this</span><span class="s1">.hideTimeout);</span>
+
+        <span class="s2">if </span><span class="s1">(</span><span class="s2">this</span><span class="s1">.appendToBody &amp;&amp; deepDispatch) {</span>
+          <span class="s2">if </span><span class="s1">(</span><span class="s2">this</span><span class="s1">.$parent.$options.name === </span><span class="s3">'ElSubmenu'</span><span class="s1">) {</span>
+            <span class="s2">this</span><span class="s1">.$parent.handleMouseleave(</span><span class="s2">true</span><span class="s1">);</span>
+          <span class="s1">}</span>
+        <span class="s1">}</span>
+      <span class="s1">},</span>
+      <span class="s1">handleTitleMouseenter() {</span>
+        <span class="s2">if </span><span class="s1">(</span><span class="s2">this</span><span class="s1">.mode === </span><span class="s3">'horizontal' </span><span class="s1">&amp;&amp; !</span><span class="s2">this</span><span class="s1">.rootMenu.backgroundColor) </span><span class="s2">return</span><span class="s1">;</span>
+        <span class="s2">const </span><span class="s1">title = </span><span class="s2">this</span><span class="s1">.$refs[</span><span class="s3">'submenu-title'</span><span class="s1">];</span>
+        <span class="s1">title &amp;&amp; (title.style.backgroundColor = </span><span class="s2">this</span><span class="s1">.rootMenu.hoverBackground);</span>
+      <span class="s1">},</span>
+      <span class="s1">handleTitleMouseleave() {</span>
+        <span class="s2">if </span><span class="s1">(</span><span class="s2">this</span><span class="s1">.mode === </span><span class="s3">'horizontal' </span><span class="s1">&amp;&amp; !</span><span class="s2">this</span><span class="s1">.rootMenu.backgroundColor) </span><span class="s2">return</span><span class="s1">;</span>
+        <span class="s2">const </span><span class="s1">title = </span><span class="s2">this</span><span class="s1">.$refs[</span><span class="s3">'submenu-title'</span><span class="s1">];</span>
+        <span class="s1">title &amp;&amp; (title.style.backgroundColor = </span><span class="s2">this</span><span class="s1">.rootMenu.backgroundColor || </span><span class="s3">''</span><span class="s1">);</span>
+      <span class="s1">},</span>
+      <span class="s1">updatePlacement() {</span>
+        <span class="s2">this</span><span class="s1">.currentPlacement = </span><span class="s2">this</span><span class="s1">.mode === </span><span class="s3">'horizontal' </span><span class="s1">&amp;&amp; </span><span class="s2">this</span><span class="s1">.isFirstLevel</span>
+          <span class="s1">? </span><span class="s3">'bottom-start'</span>
+          <span class="s1">: </span><span class="s3">'right-start'</span><span class="s1">;</span>
+      <span class="s1">},</span>
+      <span class="s1">initPopper() {</span>
+        <span class="s2">this</span><span class="s1">.referenceElm = </span><span class="s2">this</span><span class="s1">.$el;</span>
+        <span class="s2">this</span><span class="s1">.popperElm = </span><span class="s2">this</span><span class="s1">.$refs.menu;</span>
+        <span class="s2">this</span><span class="s1">.updatePlacement();</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">created() {</span>
+      <span class="s2">this</span><span class="s1">.$on(</span><span class="s3">'toggle-collapse'</span><span class="s1">, </span><span class="s2">this</span><span class="s1">.handleCollapseToggle);</span>
+      <span class="s2">this</span><span class="s1">.$on(</span><span class="s3">'mouse-enter-child'</span><span class="s1">, () =&gt; {</span>
+        <span class="s2">this</span><span class="s1">.mouseInChild = </span><span class="s2">true</span><span class="s1">;</span>
+        <span class="s1">clearTimeout(</span><span class="s2">this</span><span class="s1">.timeout);</span>
+      <span class="s1">});</span>
+      <span class="s2">this</span><span class="s1">.$on(</span><span class="s3">'mouse-leave-child'</span><span class="s1">, () =&gt; {</span>
+        <span class="s2">this</span><span class="s1">.mouseInChild = </span><span class="s2">false</span><span class="s1">;</span>
+        <span class="s1">clearTimeout(</span><span class="s2">this</span><span class="s1">.timeout);</span>
+      <span class="s1">});</span>
+    <span class="s1">},</span>
+    <span class="s1">mounted() {</span>
+      <span class="s2">this</span><span class="s1">.parentMenu.addSubmenu(</span><span class="s2">this</span><span class="s1">);</span>
+      <span class="s2">this</span><span class="s1">.rootMenu.addSubmenu(</span><span class="s2">this</span><span class="s1">);</span>
+      <span class="s2">this</span><span class="s1">.initPopper();</span>
+    <span class="s1">},</span>
+    <span class="s1">beforeDestroy() {</span>
+      <span class="s2">this</span><span class="s1">.parentMenu.removeSubmenu(</span><span class="s2">this</span><span class="s1">);</span>
+      <span class="s2">this</span><span class="s1">.rootMenu.removeSubmenu(</span><span class="s2">this</span><span class="s1">);</span>
+    <span class="s1">},</span>
+    <span class="s1">render(h) {</span>
+      <span class="s2">const </span><span class="s1">{</span>
+        <span class="s1">active,</span>
+        <span class="s1">opened,</span>
+        <span class="s1">paddingStyle,</span>
+        <span class="s1">titleStyle,</span>
+        <span class="s1">backgroundColor,</span>
+        <span class="s1">rootMenu,</span>
+        <span class="s1">currentPlacement,</span>
+        <span class="s1">menuTransitionName,</span>
+        <span class="s1">mode,</span>
+        <span class="s1">disabled,</span>
+        <span class="s1">popperClass,</span>
+        <span class="s1">$slots,</span>
+        <span class="s1">isFirstLevel</span>
+      <span class="s1">} = </span><span class="s2">this</span><span class="s1">;</span>
+
+      <span class="s2">const </span><span class="s1">popupMenu = (</span>
+        <span class="s0">&lt;transition </span><span class="s6">name</span><span class="s3">=</span><span class="s1">{menuTransitionName}</span><span class="s0">&gt;</span>
+          <span class="s0">&lt;div</span>
+            <span class="s6">ref</span><span class="s3">=&quot;menu&quot;</span>
+            <span class="s6">v-show</span><span class="s3">=</span><span class="s1">{opened}</span>
+            <span class="s6">class</span><span class="s3">=</span><span class="s1">{[</span><span class="s3">`el-menu--</span><span class="s1">${mode}</span><span class="s3">`</span><span class="s1">, popperClass]}</span>
+            <span class="s6">on-mouseenter</span><span class="s3">=</span><span class="s1">{($event) =&gt; </span><span class="s2">this</span><span class="s1">.handleMouseenter($event, </span><span class="s4">100</span><span class="s1">)}</span>
+            <span class="s6">on-mouseleave</span><span class="s3">=</span><span class="s1">{() =&gt; </span><span class="s2">this</span><span class="s1">.handleMouseleave(</span><span class="s2">true</span><span class="s1">)}</span>
+            <span class="s6">on-focus</span><span class="s3">=</span><span class="s1">{($event) =&gt; </span><span class="s2">this</span><span class="s1">.handleMouseenter($event, </span><span class="s4">100</span><span class="s1">)}</span><span class="s0">&gt;</span>
+            <span class="s0">&lt;ul</span>
+              <span class="s6">role</span><span class="s3">=&quot;menu&quot;</span>
+              <span class="s6">class</span><span class="s3">=</span><span class="s1">{[</span><span class="s3">'el-menu el-menu--popup'</span><span class="s1">, </span><span class="s3">`el-menu--popup-</span><span class="s1">${currentPlacement}</span><span class="s3">`</span><span class="s1">]}</span>
+              <span class="s6">style</span><span class="s3">=</span><span class="s1">{{ backgroundColor: rootMenu.backgroundColor || </span><span class="s3">'' </span><span class="s1">}}</span><span class="s0">&gt;</span>
+              <span class="s1">{$slots.default}</span>
+            <span class="s0">&lt;/ul&gt;</span>
+          <span class="s0">&lt;/div&gt;</span>
+        <span class="s0">&lt;/transition&gt;</span>
+      <span class="s1">);</span>
+
+      <span class="s2">const </span><span class="s1">inlineMenu = (</span>
+        <span class="s0">&lt;el-collapse-transition&gt;</span>
+          <span class="s0">&lt;ul</span>
+            <span class="s6">role</span><span class="s3">=&quot;menu&quot;</span>
+            <span class="s6">class</span><span class="s3">=&quot;el-menu el-menu--inline&quot;</span>
+            <span class="s6">v-show</span><span class="s3">=</span><span class="s1">{opened}</span>
+            <span class="s6">style</span><span class="s3">=</span><span class="s1">{{ backgroundColor: rootMenu.backgroundColor || </span><span class="s3">'' </span><span class="s1">}}</span><span class="s0">&gt;</span>
+            <span class="s1">{$slots.default}</span>
+          <span class="s0">&lt;/ul&gt;</span>
+        <span class="s0">&lt;/el-collapse-transition&gt;</span>
+      <span class="s1">);</span>
+
+      <span class="s2">const </span><span class="s1">submenuTitleIcon = (</span>
+        <span class="s1">rootMenu.mode === </span><span class="s3">'horizontal' </span><span class="s1">&amp;&amp; isFirstLevel ||</span>
+        <span class="s1">rootMenu.mode === </span><span class="s3">'vertical' </span><span class="s1">&amp;&amp; !rootMenu.collapse</span>
+      <span class="s1">) ? </span><span class="s3">'el-icon-arrow-down' </span><span class="s1">: </span><span class="s3">'el-icon-arrow-right'</span><span class="s1">;</span>
+
+      <span class="s2">return </span><span class="s1">(</span>
+        <span class="s0">&lt;li</span>
+          <span class="s6">class</span><span class="s3">=</span><span class="s1">{{</span>
+            <span class="s3">'el-submenu'</span><span class="s1">: </span><span class="s2">true</span><span class="s1">,</span>
+            <span class="s3">'is-active'</span><span class="s1">: active,</span>
+            <span class="s3">'is-opened'</span><span class="s1">: opened,</span>
+            <span class="s3">'is-disabled'</span><span class="s1">: disabled</span>
+          <span class="s1">}}</span>
+          <span class="s6">role</span><span class="s3">=&quot;menuitem&quot;</span>
+          <span class="s6">aria-haspopup</span><span class="s3">=&quot;true&quot;</span>
+          <span class="s6">aria-expanded</span><span class="s3">=</span><span class="s1">{opened}</span>
+          <span class="s6">on-mouseenter</span><span class="s3">=</span><span class="s1">{</span><span class="s2">this</span><span class="s1">.handleMouseenter}</span>
+          <span class="s6">on-mouseleave</span><span class="s3">=</span><span class="s1">{() =&gt; </span><span class="s2">this</span><span class="s1">.handleMouseleave(</span><span class="s2">false</span><span class="s1">)}</span>
+          <span class="s6">on-focus</span><span class="s3">=</span><span class="s1">{</span><span class="s2">this</span><span class="s1">.handleMouseenter}</span>
+        <span class="s0">&gt;</span>
+          <span class="s0">&lt;div</span>
+            <span class="s6">class</span><span class="s3">=&quot;el-submenu__title&quot;</span>
+            <span class="s6">ref</span><span class="s3">=&quot;submenu-title&quot;</span>
+            <span class="s6">on-click</span><span class="s3">=</span><span class="s1">{</span><span class="s2">this</span><span class="s1">.handleClick}</span>
+            <span class="s6">on-mouseenter</span><span class="s3">=</span><span class="s1">{</span><span class="s2">this</span><span class="s1">.handleTitleMouseenter}</span>
+            <span class="s6">on-mouseleave</span><span class="s3">=</span><span class="s1">{</span><span class="s2">this</span><span class="s1">.handleTitleMouseleave}</span>
+            <span class="s6">style</span><span class="s3">=</span><span class="s1">{[paddingStyle, titleStyle, { backgroundColor }]}</span>
+          <span class="s0">&gt;</span>
+            <span class="s1">{$slots.title}</span>
+            <span class="s0">&lt;i </span><span class="s6">class</span><span class="s3">=</span><span class="s1">{[ </span><span class="s3">'el-submenu__icon-arrow'</span><span class="s1">, submenuTitleIcon ]}</span><span class="s0">&gt;&lt;/i&gt;</span>
+          <span class="s0">&lt;/div&gt;</span>
+          <span class="s1">{</span><span class="s2">this</span><span class="s1">.isMenuPopup ? popupMenu : inlineMenu}</span>
+        <span class="s0">&lt;/li&gt;</span>
+      <span class="s1">);</span>
+    <span class="s1">}</span>
+  <span class="s1">};</span>
+<span class="s0">&lt;/script&gt;</span>
+</pre>
+</body>
+</html>

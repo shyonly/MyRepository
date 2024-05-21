@@ -1,0 +1,361 @@
+<html>
+<head>
+<title>upload-img.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #67a37c; font-style: italic;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #6aab73;}
+.s5 { color: #bcbec4;}
+.s6 { color: #7a7e85;}
+.s7 { color: #42c3d4;}
+.s8 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+upload-img.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* </span><span class="s1">@description </span><span class="s0">上传图片</span>
+ <span class="s0">* </span><span class="s1">@author </span><span class="s0">wangfupeng</span>
+ <span class="s0">*/</span>
+
+<span class="s3">import </span><span class="s2">Editor from </span><span class="s4">'../../editor/index'</span>
+<span class="s3">import </span><span class="s5">{ </span><span class="s2">arrForEach</span><span class="s5">, </span><span class="s2">forEach </span><span class="s5">} </span><span class="s2">from </span><span class="s4">'../../utils/util'</span>
+<span class="s3">import </span><span class="s2">post from </span><span class="s4">'../../editor/upload/upload-core'</span>
+<span class="s3">import </span><span class="s2">Progress from </span><span class="s4">'../../editor/upload/progress'</span>
+
+<span class="s2">type ResImgItemType </span><span class="s5">= </span><span class="s2">string </span><span class="s5">| { </span><span class="s2">url</span><span class="s5">: </span><span class="s2">string</span><span class="s5">; </span><span class="s2">alt</span><span class="s5">?: </span><span class="s2">string</span><span class="s5">; </span><span class="s2">href</span><span class="s5">?: </span><span class="s2">string </span><span class="s5">}</span>
+
+<span class="s3">export </span><span class="s2">type ResType </span><span class="s5">= {</span>
+    <span class="s2">errno</span><span class="s5">: </span><span class="s2">number </span><span class="s5">| </span><span class="s2">string</span>
+    <span class="s2">data</span><span class="s5">: </span><span class="s2">ResImgItemType</span><span class="s5">[]</span>
+<span class="s5">}</span>
+
+<span class="s3">class </span><span class="s2">UploadImg </span><span class="s5">{</span>
+    <span class="s3">private </span><span class="s2">editor</span><span class="s5">: </span><span class="s2">Editor</span>
+
+    <span class="s2">constructor</span><span class="s5">(</span><span class="s2">editor</span><span class="s5">: </span><span class="s2">Editor</span><span class="s5">) {</span>
+        <span class="s3">this</span><span class="s5">.</span><span class="s2">editor </span><span class="s5">= </span><span class="s2">editor</span>
+    <span class="s5">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 往编辑区域插入图片</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">src 图片地址</span>
+     <span class="s0">*/</span>
+    <span class="s3">public </span><span class="s2">insertImg</span><span class="s5">(</span><span class="s2">src</span><span class="s5">: </span><span class="s2">string</span><span class="s5">, </span><span class="s2">alt</span><span class="s5">?: </span><span class="s2">string</span><span class="s5">, </span><span class="s2">href</span><span class="s5">?: </span><span class="s2">string</span><span class="s5">): </span><span class="s3">void </span><span class="s5">{</span>
+        <span class="s3">const </span><span class="s2">editor </span><span class="s5">= </span><span class="s3">this</span><span class="s5">.</span><span class="s2">editor</span>
+        <span class="s3">const </span><span class="s2">config </span><span class="s5">= </span><span class="s2">editor</span><span class="s5">.</span><span class="s2">config</span>
+
+        <span class="s3">const </span><span class="s2">i18nPrefix </span><span class="s5">= </span><span class="s4">'validate.'</span>
+        <span class="s3">const </span><span class="s2">t </span><span class="s5">= (</span><span class="s2">text</span><span class="s5">: </span><span class="s2">string</span><span class="s5">, </span><span class="s2">prefix</span><span class="s5">: </span><span class="s2">string </span><span class="s5">= </span><span class="s2">i18nPrefix</span><span class="s5">): </span><span class="s2">string </span><span class="s5">=&gt; {</span>
+            <span class="s3">return </span><span class="s2">editor</span><span class="s5">.</span><span class="s2">i18next</span><span class="s5">.</span><span class="s2">t</span><span class="s5">(</span><span class="s2">prefix </span><span class="s5">+ </span><span class="s2">text</span><span class="s5">)</span>
+        <span class="s5">}</span>
+
+        <span class="s0">/**</span>
+         <span class="s0">* fix: insertImg xss</span>
+         <span class="s0">*/</span>
+
+        <span class="s6">// 过滤src, 防止xss</span>
+        <span class="s3">let </span><span class="s2">resultSrc </span><span class="s5">= </span><span class="s2">src</span><span class="s5">.</span><span class="s2">replace</span><span class="s5">(</span><span class="s7">/&lt;/g</span><span class="s5">, </span><span class="s4">'&amp;lt;'</span><span class="s5">).</span><span class="s2">replace</span><span class="s5">(</span><span class="s7">/&gt;/g</span><span class="s5">, </span><span class="s4">'&amp;gt;'</span><span class="s5">)</span>
+
+        <span class="s6">// 因为下面要单引号拼接字符串, 所以要将单引号替换成双引号</span>
+        <span class="s2">resultSrc </span><span class="s5">= </span><span class="s2">resultSrc</span><span class="s5">.</span><span class="s2">replace</span><span class="s5">(</span><span class="s4">&quot;'&quot;</span><span class="s5">, </span><span class="s4">'&quot;'</span><span class="s5">)</span>
+
+        <span class="s3">let </span><span class="s2">hrefText </span><span class="s5">= </span><span class="s4">''</span>
+
+        <span class="s6">// 设置图片的元数据 data-</span>
+        <span class="s3">if </span><span class="s5">(</span><span class="s2">href</span><span class="s5">) {</span>
+            <span class="s2">hrefText </span><span class="s5">= </span><span class="s2">href</span><span class="s5">.</span><span class="s2">replace</span><span class="s5">(</span><span class="s4">&quot;'&quot;</span><span class="s5">, </span><span class="s4">'&quot;'</span><span class="s5">)</span>
+
+            <span class="s2">hrefText </span><span class="s5">= </span><span class="s4">`data-href='</span><span class="s2">$</span><span class="s5">{</span><span class="s2">encodeURIComponent</span><span class="s5">(</span><span class="s2">hrefText</span><span class="s5">)}</span><span class="s4">' `</span>
+        <span class="s5">}</span>
+
+        <span class="s3">let </span><span class="s2">altText </span><span class="s5">= </span><span class="s4">''</span>
+        <span class="s6">// 设置图片alt, 过滤xss标签攻击</span>
+        <span class="s3">if </span><span class="s5">(</span><span class="s2">alt</span><span class="s5">) {</span>
+            <span class="s2">altText </span><span class="s5">= </span><span class="s2">alt</span><span class="s5">.</span><span class="s2">replace</span><span class="s5">(</span><span class="s7">/&lt;/g</span><span class="s5">, </span><span class="s4">'&amp;lt;'</span><span class="s5">).</span><span class="s2">replace</span><span class="s5">(</span><span class="s7">/&gt;/g</span><span class="s5">, </span><span class="s4">'&amp;gt;'</span><span class="s5">)</span>
+
+            <span class="s6">// 因为下面要单引号拼接字符串, 所以要将单引号替换成双引号</span>
+            <span class="s2">altText </span><span class="s5">= </span><span class="s2">altText</span><span class="s5">.</span><span class="s2">replace</span><span class="s5">(</span><span class="s4">&quot;'&quot;</span><span class="s5">, </span><span class="s4">'&quot;'</span><span class="s5">)</span>
+
+            <span class="s2">altText </span><span class="s5">= </span><span class="s4">`alt='</span><span class="s2">$</span><span class="s5">{</span><span class="s2">altText</span><span class="s5">}</span><span class="s4">' `</span>
+        <span class="s5">}</span>
+
+        <span class="s6">// 先插入图片，无论是否能成功</span>
+        <span class="s2">editor</span><span class="s5">.</span><span class="s2">cmd</span><span class="s5">.</span><span class="s2">do</span><span class="s5">(</span>
+            <span class="s4">'insertHTML'</span><span class="s5">,</span>
+            <span class="s4">`&lt;img src='</span><span class="s2">$</span><span class="s5">{</span><span class="s2">resultSrc</span><span class="s5">}</span><span class="s4">' </span><span class="s2">$</span><span class="s5">{</span><span class="s2">altText</span><span class="s5">}</span><span class="s2">$</span><span class="s5">{</span><span class="s2">hrefText</span><span class="s5">}</span><span class="s4">style=&quot;max-width:100%;&quot; contenteditable=&quot;false&quot;/&gt;`</span>
+        <span class="s5">)</span>
+        <span class="s6">// 执行回调函数</span>
+        <span class="s2">config</span><span class="s5">.</span><span class="s2">linkImgCallback</span><span class="s5">(</span><span class="s2">src</span><span class="s5">, </span><span class="s2">alt</span><span class="s5">, </span><span class="s2">href</span><span class="s5">)</span>
+
+        <span class="s6">// 加载图片</span>
+        <span class="s3">let </span><span class="s2">img</span><span class="s5">: </span><span class="s2">any </span><span class="s5">= </span><span class="s2">document</span><span class="s5">.</span><span class="s2">createElement</span><span class="s5">(</span><span class="s4">'img'</span><span class="s5">)</span>
+        <span class="s2">img</span><span class="s5">.</span><span class="s2">onload </span><span class="s5">= () =&gt; {</span>
+            <span class="s2">img </span><span class="s5">= </span><span class="s3">null</span>
+        <span class="s5">}</span>
+        <span class="s2">img</span><span class="s5">.</span><span class="s2">onerror </span><span class="s5">= () =&gt; {</span>
+            <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span>
+                <span class="s2">t</span><span class="s5">(</span><span class="s4">'插入图片错误'</span><span class="s5">),</span>
+                <span class="s4">'error'</span><span class="s5">,</span>
+                <span class="s4">`wangEditor: </span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'插入图片错误'</span><span class="s5">)}</span><span class="s4">，</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'图片链接'</span><span class="s5">)} </span><span class="s4">&quot;</span><span class="s2">$</span><span class="s5">{</span><span class="s2">src</span><span class="s5">}</span><span class="s4">&quot;，</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'下载链接失败'</span><span class="s5">)}</span><span class="s4">`</span>
+            <span class="s5">)</span>
+            <span class="s2">img </span><span class="s5">= </span><span class="s3">null</span>
+        <span class="s5">}</span>
+        <span class="s2">img</span><span class="s5">.</span><span class="s2">onabort </span><span class="s5">= () =&gt; (</span><span class="s2">img </span><span class="s5">= </span><span class="s3">null</span><span class="s5">)</span>
+        <span class="s2">img</span><span class="s5">.</span><span class="s2">src </span><span class="s5">= </span><span class="s2">src</span>
+    <span class="s5">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 上传图片</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">files 文件列表</span>
+     <span class="s0">*/</span>
+    <span class="s3">public </span><span class="s2">uploadImg</span><span class="s5">(</span><span class="s2">files</span><span class="s5">: </span><span class="s2">FileList </span><span class="s5">| </span><span class="s2">File</span><span class="s5">[]): </span><span class="s3">void </span><span class="s5">{</span>
+        <span class="s3">if </span><span class="s5">(!</span><span class="s2">files</span><span class="s5">.</span><span class="s2">length</span><span class="s5">) {</span>
+            <span class="s3">return</span>
+        <span class="s5">}</span>
+
+        <span class="s3">const </span><span class="s2">editor </span><span class="s5">= </span><span class="s3">this</span><span class="s5">.</span><span class="s2">editor</span>
+        <span class="s3">const </span><span class="s2">config </span><span class="s5">= </span><span class="s2">editor</span><span class="s5">.</span><span class="s2">config</span>
+
+        <span class="s6">// ------------------------------ i18next ------------------------------</span>
+
+        <span class="s3">const </span><span class="s2">i18nPrefix </span><span class="s5">= </span><span class="s4">'validate.'</span>
+        <span class="s3">const </span><span class="s2">t </span><span class="s5">= (</span><span class="s2">text</span><span class="s5">: </span><span class="s2">string</span><span class="s5">): </span><span class="s2">string </span><span class="s5">=&gt; {</span>
+            <span class="s3">return </span><span class="s2">editor</span><span class="s5">.</span><span class="s2">i18next</span><span class="s5">.</span><span class="s2">t</span><span class="s5">(</span><span class="s2">i18nPrefix </span><span class="s5">+ </span><span class="s2">text</span><span class="s5">)</span>
+        <span class="s5">}</span>
+
+        <span class="s6">// ------------------------------ 获取配置信息 ------------------------------</span>
+
+        <span class="s6">// 服务端地址</span>
+        <span class="s3">let </span><span class="s2">uploadImgServer </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadImgServer</span>
+        <span class="s6">// base64 格式</span>
+        <span class="s3">const </span><span class="s2">uploadImgShowBase64 </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadImgShowBase64</span>
+        <span class="s6">// 图片最大体积</span>
+        <span class="s3">const </span><span class="s2">maxSize </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadImgMaxSize</span>
+        <span class="s3">const </span><span class="s2">maxSizeM </span><span class="s5">= </span><span class="s2">maxSize </span><span class="s5">/ </span><span class="s8">1024 </span><span class="s5">/ </span><span class="s8">1024</span>
+        <span class="s6">// 一次最多上传图片数量</span>
+        <span class="s3">const </span><span class="s2">maxLength </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadImgMaxLength</span>
+        <span class="s6">// 自定义 fileName</span>
+        <span class="s3">const </span><span class="s2">uploadFileName </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadFileName</span>
+        <span class="s6">// 自定义参数</span>
+        <span class="s3">const </span><span class="s2">uploadImgParams </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadImgParams</span>
+        <span class="s6">// 参数拼接到 url 中</span>
+        <span class="s3">const </span><span class="s2">uploadImgParamsWithUrl </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadImgParamsWithUrl</span>
+        <span class="s6">// 自定义 header</span>
+        <span class="s3">const </span><span class="s2">uploadImgHeaders </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadImgHeaders</span>
+        <span class="s6">// 钩子函数</span>
+        <span class="s3">const </span><span class="s2">hooks </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadImgHooks</span>
+        <span class="s6">// 上传图片超时时间</span>
+        <span class="s3">const </span><span class="s2">timeout </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadImgTimeout</span>
+        <span class="s6">// 跨域带 cookie</span>
+        <span class="s3">const </span><span class="s2">withCredentials </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">withCredentials</span>
+        <span class="s6">// 自定义上传图片</span>
+        <span class="s3">const </span><span class="s2">customUploadImg </span><span class="s5">= </span><span class="s2">config</span><span class="s5">.</span><span class="s2">customUploadImg</span>
+
+        <span class="s3">if </span><span class="s5">(!</span><span class="s2">customUploadImg</span><span class="s5">) {</span>
+            <span class="s6">// 没有 customUploadImg 的情况下，需要如下两个配置才能继续进行图片上传</span>
+            <span class="s3">if </span><span class="s5">(!</span><span class="s2">uploadImgServer </span><span class="s5">&amp;&amp; !</span><span class="s2">uploadImgShowBase64</span><span class="s5">) {</span>
+                <span class="s3">return</span>
+            <span class="s5">}</span>
+        <span class="s5">}</span>
+
+        <span class="s6">// ------------------------------ 验证文件信息 ------------------------------</span>
+        <span class="s3">const </span><span class="s2">resultFiles</span><span class="s5">: </span><span class="s2">File</span><span class="s5">[] = []</span>
+        <span class="s3">const </span><span class="s2">errInfos</span><span class="s5">: </span><span class="s2">string</span><span class="s5">[] = []</span>
+        <span class="s2">arrForEach</span><span class="s5">(</span><span class="s2">files</span><span class="s5">, </span><span class="s2">file </span><span class="s5">=&gt; {</span>
+            <span class="s6">// chrome 低版本 粘贴一张图时files为 [null, File]</span>
+            <span class="s3">if </span><span class="s5">(!</span><span class="s2">file</span><span class="s5">) </span><span class="s3">return</span>
+
+            <span class="s3">const </span><span class="s2">name </span><span class="s5">= </span><span class="s2">file</span><span class="s5">.</span><span class="s2">name </span><span class="s5">|| </span><span class="s2">file</span><span class="s5">.</span><span class="s2">type</span><span class="s5">.</span><span class="s2">replace</span><span class="s5">(</span><span class="s4">'/'</span><span class="s5">, </span><span class="s4">'.'</span><span class="s5">) </span><span class="s6">// 兼容低版本chrome 没有name</span>
+            <span class="s3">const </span><span class="s2">size </span><span class="s5">= </span><span class="s2">file</span><span class="s5">.</span><span class="s2">size</span>
+
+            <span class="s6">// chrome 低版本 name === undefined</span>
+            <span class="s3">if </span><span class="s5">(!</span><span class="s2">name </span><span class="s5">|| !</span><span class="s2">size</span><span class="s5">) {</span>
+                <span class="s3">return</span>
+            <span class="s5">}</span>
+
+            <span class="s6">// 将uploadImgAccept数组转换为正则对象</span>
+            <span class="s3">const </span><span class="s2">imgType </span><span class="s5">= </span><span class="s2">editor</span><span class="s5">.</span><span class="s2">config</span><span class="s5">.</span><span class="s2">uploadImgAccept</span><span class="s5">.</span><span class="s2">join</span><span class="s5">(</span><span class="s4">'|'</span><span class="s5">)</span>
+            <span class="s3">const </span><span class="s2">imgTypeRuleStr </span><span class="s5">= </span><span class="s4">`.(</span><span class="s2">$</span><span class="s5">{</span><span class="s2">imgType</span><span class="s5">}</span><span class="s4">)$`</span>
+            <span class="s3">const </span><span class="s2">uploadImgAcceptRule </span><span class="s5">= </span><span class="s3">new </span><span class="s2">RegExp</span><span class="s5">(</span><span class="s2">imgTypeRuleStr</span><span class="s5">, </span><span class="s4">'i'</span><span class="s5">)</span>
+            <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadImgAcceptRule</span><span class="s5">.</span><span class="s2">test</span><span class="s5">(</span><span class="s2">name</span><span class="s5">) === </span><span class="s3">false</span><span class="s5">) {</span>
+                <span class="s6">// 后缀名不合法，不是图片</span>
+                <span class="s2">errInfos</span><span class="s5">.</span><span class="s2">push</span><span class="s5">(</span><span class="s4">`【</span><span class="s2">$</span><span class="s5">{</span><span class="s2">name</span><span class="s5">}</span><span class="s4">】</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'不是图片'</span><span class="s5">)}</span><span class="s4">`</span><span class="s5">)</span>
+                <span class="s3">return</span>
+            <span class="s5">}</span>
+
+            <span class="s3">if </span><span class="s5">(</span><span class="s2">maxSize </span><span class="s5">&lt; </span><span class="s2">size</span><span class="s5">) {</span>
+                <span class="s6">// 上传图片过大</span>
+                <span class="s2">errInfos</span><span class="s5">.</span><span class="s2">push</span><span class="s5">(</span><span class="s4">`【</span><span class="s2">$</span><span class="s5">{</span><span class="s2">name</span><span class="s5">}</span><span class="s4">】</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'大于'</span><span class="s5">)} </span><span class="s2">$</span><span class="s5">{</span><span class="s2">maxSizeM</span><span class="s5">}</span><span class="s4">M`</span><span class="s5">)</span>
+                <span class="s3">return</span>
+            <span class="s5">}</span>
+
+            <span class="s6">// 验证通过的加入结果列表</span>
+            <span class="s2">resultFiles</span><span class="s5">.</span><span class="s2">push</span><span class="s5">(</span><span class="s2">file</span><span class="s5">)</span>
+        <span class="s5">})</span>
+        <span class="s6">// 抛出验证信息</span>
+        <span class="s3">if </span><span class="s5">(</span><span class="s2">errInfos</span><span class="s5">.</span><span class="s2">length</span><span class="s5">) {</span>
+            <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span><span class="s4">`</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'图片验证未通过'</span><span class="s5">)}</span><span class="s4">: </span><span class="s3">\n</span><span class="s4">` </span><span class="s5">+ </span><span class="s2">errInfos</span><span class="s5">.</span><span class="s2">join</span><span class="s5">(</span><span class="s4">'</span><span class="s3">\n</span><span class="s4">'</span><span class="s5">), </span><span class="s4">'warning'</span><span class="s5">)</span>
+            <span class="s3">return</span>
+        <span class="s5">}</span>
+
+        <span class="s6">// 如果过滤后文件列表为空直接返回</span>
+        <span class="s3">if </span><span class="s5">(</span><span class="s2">resultFiles</span><span class="s5">.</span><span class="s2">length </span><span class="s5">=== </span><span class="s8">0</span><span class="s5">) {</span>
+            <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'传入的文件不合法'</span><span class="s5">), </span><span class="s4">'warning'</span><span class="s5">)</span>
+            <span class="s3">return</span>
+        <span class="s5">}</span>
+
+        <span class="s3">if </span><span class="s5">(</span><span class="s2">resultFiles</span><span class="s5">.</span><span class="s2">length </span><span class="s5">&gt; </span><span class="s2">maxLength</span><span class="s5">) {</span>
+            <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'一次最多上传'</span><span class="s5">) + </span><span class="s2">maxLength </span><span class="s5">+ </span><span class="s2">t</span><span class="s5">(</span><span class="s4">'张图片'</span><span class="s5">), </span><span class="s4">'warning'</span><span class="s5">)</span>
+            <span class="s3">return</span>
+        <span class="s5">}</span>
+
+        <span class="s6">// ------------------------------ 自定义上传 ------------------------------</span>
+        <span class="s3">if </span><span class="s5">(</span><span class="s2">customUploadImg </span><span class="s5">&amp;&amp; </span><span class="s3">typeof </span><span class="s2">customUploadImg </span><span class="s5">=== </span><span class="s4">'function'</span><span class="s5">) {</span>
+            <span class="s2">customUploadImg</span><span class="s5">(</span><span class="s2">resultFiles</span><span class="s5">, </span><span class="s3">this</span><span class="s5">.</span><span class="s2">insertImg</span><span class="s5">.</span><span class="s2">bind</span><span class="s5">(</span><span class="s3">this</span><span class="s5">))</span>
+
+            <span class="s6">// 阻止以下代码执行，重要！！！</span>
+            <span class="s3">return</span>
+        <span class="s5">}</span>
+
+        <span class="s6">// ------------------------------ 上传图片 ------------------------------</span>
+
+        <span class="s6">// 添加图片数据</span>
+        <span class="s3">const </span><span class="s2">formData </span><span class="s5">= </span><span class="s3">new </span><span class="s2">FormData</span><span class="s5">()</span>
+        <span class="s2">resultFiles</span><span class="s5">.</span><span class="s2">forEach</span><span class="s5">((</span><span class="s2">file</span><span class="s5">: </span><span class="s2">File</span><span class="s5">, </span><span class="s2">index</span><span class="s5">: </span><span class="s2">number</span><span class="s5">) =&gt; {</span>
+            <span class="s3">let </span><span class="s2">name </span><span class="s5">= </span><span class="s2">uploadFileName </span><span class="s5">|| </span><span class="s2">file</span><span class="s5">.</span><span class="s2">name</span>
+            <span class="s3">if </span><span class="s5">(</span><span class="s2">resultFiles</span><span class="s5">.</span><span class="s2">length </span><span class="s5">&gt; </span><span class="s8">1</span><span class="s5">) {</span>
+                <span class="s6">// 多个文件时，filename 不能重复</span>
+                <span class="s2">name </span><span class="s5">= </span><span class="s2">name </span><span class="s5">+ (</span><span class="s2">index </span><span class="s5">+ </span><span class="s8">1</span><span class="s5">)</span>
+            <span class="s5">}</span>
+            <span class="s2">formData</span><span class="s5">.</span><span class="s2">append</span><span class="s5">(</span><span class="s2">name</span><span class="s5">, </span><span class="s2">file</span><span class="s5">)</span>
+        <span class="s5">})</span>
+        <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadImgServer</span><span class="s5">) {</span>
+            <span class="s6">// 添加自定义参数</span>
+            <span class="s3">const </span><span class="s2">uploadImgServerArr </span><span class="s5">= </span><span class="s2">uploadImgServer</span><span class="s5">.</span><span class="s2">split</span><span class="s5">(</span><span class="s4">'#'</span><span class="s5">)</span>
+            <span class="s2">uploadImgServer </span><span class="s5">= </span><span class="s2">uploadImgServerArr</span><span class="s5">[</span><span class="s8">0</span><span class="s5">]</span>
+            <span class="s3">const </span><span class="s2">uploadImgServerHash </span><span class="s5">= </span><span class="s2">uploadImgServerArr</span><span class="s5">[</span><span class="s8">1</span><span class="s5">] || </span><span class="s4">''</span>
+            <span class="s2">forEach</span><span class="s5">(</span><span class="s2">uploadImgParams</span><span class="s5">, (</span><span class="s2">key</span><span class="s5">: </span><span class="s2">string</span><span class="s5">, </span><span class="s2">val</span><span class="s5">: </span><span class="s2">string</span><span class="s5">) =&gt; {</span>
+                <span class="s6">// 因使用者反应，自定义参数不能默认 encode ，由 v3.1.1 版本开始注释掉</span>
+                <span class="s6">// val = encodeURIComponent(val)</span>
+
+                <span class="s6">// 第一，将参数拼接到 url 中</span>
+                <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadImgParamsWithUrl</span><span class="s5">) {</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadImgServer</span><span class="s5">.</span><span class="s2">indexOf</span><span class="s5">(</span><span class="s4">'?'</span><span class="s5">) &gt; </span><span class="s8">0</span><span class="s5">) {</span>
+                        <span class="s2">uploadImgServer </span><span class="s5">+= </span><span class="s4">'&amp;'</span>
+                    <span class="s5">} </span><span class="s3">else </span><span class="s5">{</span>
+                        <span class="s2">uploadImgServer </span><span class="s5">+= </span><span class="s4">'?'</span>
+                    <span class="s5">}</span>
+                    <span class="s2">uploadImgServer </span><span class="s5">= </span><span class="s2">uploadImgServer </span><span class="s5">+ </span><span class="s2">key </span><span class="s5">+ </span><span class="s4">'=' </span><span class="s5">+ </span><span class="s2">val</span>
+                <span class="s5">}</span>
+
+                <span class="s6">// 第二，将参数添加到 formData 中</span>
+                <span class="s2">formData</span><span class="s5">.</span><span class="s2">append</span><span class="s5">(</span><span class="s2">key</span><span class="s5">, </span><span class="s2">val</span><span class="s5">)</span>
+            <span class="s5">})</span>
+            <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadImgServerHash</span><span class="s5">) {</span>
+                <span class="s2">uploadImgServer </span><span class="s5">+= </span><span class="s4">'#' </span><span class="s5">+ </span><span class="s2">uploadImgServerHash</span>
+            <span class="s5">}</span>
+
+            <span class="s6">// 开始上传</span>
+            <span class="s3">const </span><span class="s2">xhr </span><span class="s5">= </span><span class="s2">post</span><span class="s5">(</span><span class="s2">uploadImgServer</span><span class="s5">, {</span>
+                <span class="s2">timeout</span><span class="s5">,</span>
+                <span class="s2">formData</span><span class="s5">,</span>
+                <span class="s2">headers</span><span class="s5">: </span><span class="s2">uploadImgHeaders</span><span class="s5">,</span>
+                <span class="s2">withCredentials</span><span class="s5">: !!</span><span class="s2">withCredentials</span><span class="s5">,</span>
+                <span class="s2">beforeSend</span><span class="s5">: </span><span class="s2">xhr </span><span class="s5">=&gt; {</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">hooks</span><span class="s5">.</span><span class="s2">before</span><span class="s5">) </span><span class="s3">return </span><span class="s2">hooks</span><span class="s5">.</span><span class="s2">before</span><span class="s5">(</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">editor</span><span class="s5">, </span><span class="s2">resultFiles</span><span class="s5">)</span>
+                <span class="s5">},</span>
+                <span class="s2">onTimeout</span><span class="s5">: </span><span class="s2">xhr </span><span class="s5">=&gt; {</span>
+                    <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'上传图片超时'</span><span class="s5">), </span><span class="s4">'error'</span><span class="s5">)</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">hooks</span><span class="s5">.</span><span class="s2">timeout</span><span class="s5">) </span><span class="s2">hooks</span><span class="s5">.</span><span class="s2">timeout</span><span class="s5">(</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">editor</span><span class="s5">)</span>
+                <span class="s5">},</span>
+                <span class="s2">onProgress</span><span class="s5">: (</span><span class="s2">percent</span><span class="s5">, </span><span class="s2">e</span><span class="s5">) =&gt; {</span>
+                    <span class="s3">const </span><span class="s2">progressBar </span><span class="s5">= </span><span class="s3">new </span><span class="s2">Progress</span><span class="s5">(</span><span class="s2">editor</span><span class="s5">)</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">e</span><span class="s5">.</span><span class="s2">lengthComputable</span><span class="s5">) {</span>
+                        <span class="s2">percent </span><span class="s5">= </span><span class="s2">e</span><span class="s5">.</span><span class="s2">loaded </span><span class="s5">/ </span><span class="s2">e</span><span class="s5">.</span><span class="s2">total</span>
+                        <span class="s2">progressBar</span><span class="s5">.</span><span class="s2">show</span><span class="s5">(</span><span class="s2">percent</span><span class="s5">)</span>
+                    <span class="s5">}</span>
+                <span class="s5">},</span>
+                <span class="s2">onError</span><span class="s5">: </span><span class="s2">xhr </span><span class="s5">=&gt; {</span>
+                    <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span>
+                        <span class="s2">t</span><span class="s5">(</span><span class="s4">'上传图片错误'</span><span class="s5">),</span>
+                        <span class="s4">'error'</span><span class="s5">,</span>
+                        <span class="s4">`</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'上传图片错误'</span><span class="s5">)}</span><span class="s4">，</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'服务器返回状态'</span><span class="s5">)}</span><span class="s4">: </span><span class="s2">$</span><span class="s5">{</span><span class="s2">xhr</span><span class="s5">.</span><span class="s2">status</span><span class="s5">}</span><span class="s4">`</span>
+                    <span class="s5">)</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">hooks</span><span class="s5">.</span><span class="s2">error</span><span class="s5">) </span><span class="s2">hooks</span><span class="s5">.</span><span class="s2">error</span><span class="s5">(</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">editor</span><span class="s5">)</span>
+                <span class="s5">},</span>
+                <span class="s2">onFail</span><span class="s5">: (</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">resultStr</span><span class="s5">) =&gt; {</span>
+                    <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span>
+                        <span class="s2">t</span><span class="s5">(</span><span class="s4">'上传图片失败'</span><span class="s5">),</span>
+                        <span class="s4">'error'</span><span class="s5">,</span>
+                        <span class="s2">t</span><span class="s5">(</span><span class="s4">'上传图片返回结果错误'</span><span class="s5">) + </span><span class="s4">`，</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'返回结果'</span><span class="s5">)}</span><span class="s4">: ` </span><span class="s5">+ </span><span class="s2">resultStr</span>
+                    <span class="s5">)</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">hooks</span><span class="s5">.</span><span class="s2">fail</span><span class="s5">) </span><span class="s2">hooks</span><span class="s5">.</span><span class="s2">fail</span><span class="s5">(</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">editor</span><span class="s5">, </span><span class="s2">resultStr</span><span class="s5">)</span>
+                <span class="s5">},</span>
+                <span class="s2">onSuccess</span><span class="s5">: (</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">result</span><span class="s5">: </span><span class="s2">ResType</span><span class="s5">) =&gt; {</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">hooks</span><span class="s5">.</span><span class="s2">customInsert</span><span class="s5">) {</span>
+                        <span class="s6">// 自定义插入图片</span>
+                        <span class="s2">hooks</span><span class="s5">.</span><span class="s2">customInsert</span><span class="s5">(</span><span class="s3">this</span><span class="s5">.</span><span class="s2">insertImg</span><span class="s5">.</span><span class="s2">bind</span><span class="s5">(</span><span class="s3">this</span><span class="s5">), </span><span class="s2">result</span><span class="s5">, </span><span class="s2">editor</span><span class="s5">)</span>
+                        <span class="s3">return</span>
+                    <span class="s5">}</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">result</span><span class="s5">.</span><span class="s2">errno </span><span class="s5">!= </span><span class="s4">'0'</span><span class="s5">) {</span>
+                        <span class="s6">// 返回格式不对，应该为 { errno: 0, data: [...] }</span>
+                        <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span>
+                            <span class="s2">t</span><span class="s5">(</span><span class="s4">'上传图片失败'</span><span class="s5">),</span>
+                            <span class="s4">'error'</span><span class="s5">,</span>
+                            <span class="s4">`</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'上传图片返回结果错误'</span><span class="s5">)}</span><span class="s4">，</span><span class="s2">$</span><span class="s5">{</span><span class="s2">t</span><span class="s5">(</span><span class="s4">'返回结果'</span><span class="s5">)} </span><span class="s4">errno=</span><span class="s2">$</span><span class="s5">{</span><span class="s2">result</span><span class="s5">.</span><span class="s2">errno</span><span class="s5">}</span><span class="s4">`</span>
+                        <span class="s5">)</span>
+                        <span class="s3">if </span><span class="s5">(</span><span class="s2">hooks</span><span class="s5">.</span><span class="s2">fail</span><span class="s5">) </span><span class="s2">hooks</span><span class="s5">.</span><span class="s2">fail</span><span class="s5">(</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">editor</span><span class="s5">, </span><span class="s2">result</span><span class="s5">)</span>
+                        <span class="s3">return</span>
+                    <span class="s5">}</span>
+
+                    <span class="s6">// 成功，插入图片</span>
+                    <span class="s3">const </span><span class="s2">data </span><span class="s5">= </span><span class="s2">result</span><span class="s5">.</span><span class="s2">data</span>
+                    <span class="s2">data</span><span class="s5">.</span><span class="s2">forEach</span><span class="s5">(</span><span class="s2">link </span><span class="s5">=&gt; {</span>
+                        <span class="s3">if </span><span class="s5">(</span><span class="s3">typeof </span><span class="s2">link </span><span class="s5">=== </span><span class="s4">'string'</span><span class="s5">) {</span>
+                            <span class="s3">this</span><span class="s5">.</span><span class="s2">insertImg</span><span class="s5">(</span><span class="s2">link</span><span class="s5">)</span>
+                        <span class="s5">} </span><span class="s3">else </span><span class="s5">{</span>
+                            <span class="s3">this</span><span class="s5">.</span><span class="s2">insertImg</span><span class="s5">(</span><span class="s2">link</span><span class="s5">.</span><span class="s2">url</span><span class="s5">, </span><span class="s2">link</span><span class="s5">.</span><span class="s2">alt</span><span class="s5">, </span><span class="s2">link</span><span class="s5">.</span><span class="s2">href</span><span class="s5">)</span>
+                        <span class="s5">}</span>
+                    <span class="s5">})</span>
+
+                    <span class="s6">// 钩子函数</span>
+                    <span class="s3">if </span><span class="s5">(</span><span class="s2">hooks</span><span class="s5">.</span><span class="s2">success</span><span class="s5">) </span><span class="s2">hooks</span><span class="s5">.</span><span class="s2">success</span><span class="s5">(</span><span class="s2">xhr</span><span class="s5">, </span><span class="s2">editor</span><span class="s5">, </span><span class="s2">result</span><span class="s5">)</span>
+                <span class="s5">},</span>
+            <span class="s5">})</span>
+            <span class="s3">if </span><span class="s5">(</span><span class="s3">typeof </span><span class="s2">xhr </span><span class="s5">=== </span><span class="s4">'string'</span><span class="s5">) {</span>
+                <span class="s6">// 上传被阻止</span>
+                <span class="s2">config</span><span class="s5">.</span><span class="s2">customAlert</span><span class="s5">(</span><span class="s2">xhr</span><span class="s5">, </span><span class="s4">'error'</span><span class="s5">)</span>
+            <span class="s5">}</span>
+
+            <span class="s6">// 阻止以下代码执行，重要！！！</span>
+            <span class="s3">return</span>
+        <span class="s5">}</span>
+
+        <span class="s6">// ------------------------------ 显示 base64 格式 ------------------------------</span>
+        <span class="s3">if </span><span class="s5">(</span><span class="s2">uploadImgShowBase64</span><span class="s5">) {</span>
+            <span class="s2">arrForEach</span><span class="s5">(</span><span class="s2">files</span><span class="s5">, </span><span class="s2">file </span><span class="s5">=&gt; {</span>
+                <span class="s3">const </span><span class="s2">_this </span><span class="s5">= </span><span class="s3">this</span>
+                <span class="s3">const </span><span class="s2">reader </span><span class="s5">= </span><span class="s3">new </span><span class="s2">FileReader</span><span class="s5">()</span>
+                <span class="s2">reader</span><span class="s5">.</span><span class="s2">readAsDataURL</span><span class="s5">(</span><span class="s2">file</span><span class="s5">)</span>
+                <span class="s2">reader</span><span class="s5">.</span><span class="s2">onload </span><span class="s5">= </span><span class="s3">function </span><span class="s5">() {</span>
+                    <span class="s3">if </span><span class="s5">(!</span><span class="s3">this</span><span class="s5">.</span><span class="s2">result</span><span class="s5">) </span><span class="s3">return</span>
+                    <span class="s3">const </span><span class="s2">imgLink </span><span class="s5">= </span><span class="s3">this</span><span class="s5">.</span><span class="s2">result</span><span class="s5">.</span><span class="s2">toString</span><span class="s5">()</span>
+                    <span class="s2">_this</span><span class="s5">.</span><span class="s2">insertImg</span><span class="s5">(</span><span class="s2">imgLink</span><span class="s5">, </span><span class="s2">imgLink</span><span class="s5">)</span>
+                <span class="s5">}</span>
+            <span class="s5">})</span>
+        <span class="s5">}</span>
+    <span class="s5">}</span>
+<span class="s5">}</span>
+
+<span class="s3">export default </span><span class="s2">UploadImg</span>
+</pre>
+</body>
+</html>

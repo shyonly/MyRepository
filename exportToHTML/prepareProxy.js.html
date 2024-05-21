@@ -1,0 +1,229 @@
+<html>
+<head>
+<title>prepareProxy.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #7a7e85;}
+.s6 { color: #2aacb8;}
+.s7 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+prepareProxy.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* Copyright (c) 2015-present, Facebook, Inc.</span>
+ <span class="s0">*</span>
+ <span class="s0">* This source code is licensed under the MIT license found in the</span>
+ <span class="s0">* LICENSE file at</span>
+ <span class="s0">* https://github.com/facebookincubator/create-react-app/blob/master/LICENSE</span>
+ <span class="s0">*/</span>
+
+<span class="s2">const </span><span class="s1">fs </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'fs'</span><span class="s3">)</span>
+<span class="s2">const </span><span class="s1">url </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'url'</span><span class="s3">)</span>
+<span class="s2">const </span><span class="s1">path </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'path'</span><span class="s3">)</span>
+<span class="s2">const </span><span class="s3">{ </span><span class="s1">chalk </span><span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'@vue/cli-shared-utils'</span><span class="s3">)</span>
+<span class="s2">const </span><span class="s1">address </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'address'</span><span class="s3">)</span>
+
+<span class="s2">const </span><span class="s1">defaultConfig </span><span class="s3">= {</span>
+  <span class="s1">logLevel</span><span class="s3">: </span><span class="s4">'silent'</span><span class="s3">,</span>
+  <span class="s1">secure</span><span class="s3">: </span><span class="s2">false</span><span class="s3">,</span>
+  <span class="s1">changeOrigin</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+  <span class="s1">ws</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+  <span class="s1">xfwd</span><span class="s3">: </span><span class="s2">true</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s2">function </span><span class="s1">prepareProxy </span><span class="s3">(</span><span class="s1">proxy</span><span class="s3">, </span><span class="s1">appPublicFolder</span><span class="s3">) {</span>
+  <span class="s5">// `proxy` lets you specify alternate servers for specific requests.</span>
+  <span class="s5">// It can either be a string or an object conforming to the Webpack dev server proxy configuration</span>
+  <span class="s5">// https://webpack.github.io/docs/webpack-dev-server.html</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">proxy</span><span class="s3">) {</span>
+    <span class="s2">return </span><span class="s1">undefined</span>
+  <span class="s3">}</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">Array</span><span class="s3">.</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">proxy</span><span class="s3">) || (</span><span class="s2">typeof </span><span class="s1">proxy </span><span class="s3">!== </span><span class="s4">'object' </span><span class="s3">&amp;&amp; </span><span class="s2">typeof </span><span class="s1">proxy </span><span class="s3">!== </span><span class="s4">'string'</span><span class="s3">)) {</span>
+    <span class="s1">console</span><span class="s3">.</span><span class="s1">log</span><span class="s3">(</span>
+      <span class="s1">chalk</span><span class="s3">.</span><span class="s1">red</span><span class="s3">(</span>
+        <span class="s4">'When specified, &quot;proxy&quot; in package.json must be a string or an object.'</span>
+      <span class="s3">)</span>
+    <span class="s3">)</span>
+    <span class="s1">console</span><span class="s3">.</span><span class="s1">log</span><span class="s3">(</span>
+      <span class="s1">chalk</span><span class="s3">.</span><span class="s1">red</span><span class="s3">(</span><span class="s4">'Instead, the type of &quot;proxy&quot; was &quot;' </span><span class="s3">+ </span><span class="s2">typeof </span><span class="s1">proxy </span><span class="s3">+ </span><span class="s4">'&quot;.'</span><span class="s3">)</span>
+    <span class="s3">)</span>
+    <span class="s1">console</span><span class="s3">.</span><span class="s1">log</span><span class="s3">(</span>
+      <span class="s1">chalk</span><span class="s3">.</span><span class="s1">red</span><span class="s3">(</span>
+        <span class="s4">'Either remove &quot;proxy&quot; from package.json, or make it an object.'</span>
+      <span class="s3">)</span>
+    <span class="s3">)</span>
+    <span class="s1">process</span><span class="s3">.</span><span class="s1">exit</span><span class="s3">(</span><span class="s6">1</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s5">// If proxy is specified, let it handle any request except for</span>
+  <span class="s5">// files in the public folder and requests to the WebpackDevServer socket endpoint.</span>
+  <span class="s5">// https://github.com/facebook/create-react-app/issues/6720</span>
+  <span class="s2">function </span><span class="s1">mayProxy </span><span class="s3">(</span><span class="s1">pathname</span><span class="s3">) {</span>
+    <span class="s2">const </span><span class="s1">maybePublicPath </span><span class="s3">= </span><span class="s1">path</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s1">appPublicFolder</span><span class="s3">, </span><span class="s1">pathname</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s6">1</span><span class="s3">))</span>
+    <span class="s2">const </span><span class="s1">isPublicFileRequest </span><span class="s3">= </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">existsSync</span><span class="s3">(</span><span class="s1">maybePublicPath</span><span class="s3">) &amp;&amp; </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">statSync</span><span class="s3">(</span><span class="s1">maybePublicPath</span><span class="s3">).</span><span class="s1">isFile</span><span class="s3">()</span>
+    <span class="s2">const </span><span class="s1">isWdsEndpointRequest </span><span class="s3">= </span><span class="s1">pathname</span><span class="s3">.</span><span class="s1">startsWith</span><span class="s3">(</span><span class="s4">'/sockjs-node'</span><span class="s3">) </span><span class="s5">// used by webpackHotDevClient</span>
+    <span class="s2">return </span><span class="s3">!(</span><span class="s1">isPublicFileRequest </span><span class="s3">|| </span><span class="s1">isWdsEndpointRequest</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s2">function </span><span class="s1">createProxyEntry </span><span class="s3">(</span><span class="s1">target</span><span class="s3">, </span><span class="s1">usersOnProxyReq</span><span class="s3">, </span><span class="s1">context</span><span class="s3">) {</span>
+    <span class="s5">// #2478</span>
+    <span class="s5">// There're a little-known use case that the `target` field is an object rather than a string</span>
+    <span class="s5">// https://github.com/chimurai/http-proxy-middleware/blob/master/recipes/https.md</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s2">typeof </span><span class="s1">target </span><span class="s3">=== </span><span class="s4">'string' </span><span class="s3">&amp;&amp; </span><span class="s1">process</span><span class="s3">.</span><span class="s1">platform </span><span class="s3">=== </span><span class="s4">'win32'</span><span class="s3">) {</span>
+      <span class="s1">target </span><span class="s3">= </span><span class="s1">resolveLoopback</span><span class="s3">(</span><span class="s1">target</span><span class="s3">)</span>
+    <span class="s3">}</span>
+    <span class="s2">return </span><span class="s3">{</span>
+      <span class="s1">target</span><span class="s3">,</span>
+      <span class="s1">context </span><span class="s3">(</span><span class="s1">pathname</span><span class="s3">, </span><span class="s1">req</span><span class="s3">) {</span>
+        <span class="s5">// is a static asset</span>
+        <span class="s2">if </span><span class="s3">(!</span><span class="s1">mayProxy</span><span class="s3">(</span><span class="s1">pathname</span><span class="s3">)) {</span>
+          <span class="s2">return false</span>
+        <span class="s3">}</span>
+        <span class="s2">if </span><span class="s3">(</span><span class="s1">context</span><span class="s3">) {</span>
+          <span class="s5">// Explicit context, e.g. /api</span>
+          <span class="s2">return </span><span class="s1">pathname</span><span class="s3">.</span><span class="s1">match</span><span class="s3">(</span><span class="s1">context</span><span class="s3">)</span>
+        <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+          <span class="s5">// not a static request</span>
+          <span class="s2">if </span><span class="s3">(</span><span class="s1">req</span><span class="s3">.</span><span class="s1">method </span><span class="s3">!== </span><span class="s4">'GET'</span><span class="s3">) {</span>
+            <span class="s2">return true</span>
+          <span class="s3">}</span>
+          <span class="s5">// Heuristics: if request `accept`s text/html, we pick /index.html.</span>
+          <span class="s5">// Modern browsers include text/html into `accept` header when navigating.</span>
+          <span class="s5">// However API calls like `fetch()` won’t generally accept text/html.</span>
+          <span class="s5">// If this heuristic doesn’t work well for you, use a custom `proxy` object.</span>
+          <span class="s2">return </span><span class="s3">(</span>
+            <span class="s1">req</span><span class="s3">.</span><span class="s1">headers</span><span class="s3">.</span><span class="s1">accept </span><span class="s3">&amp;&amp;</span>
+            <span class="s1">req</span><span class="s3">.</span><span class="s1">headers</span><span class="s3">.</span><span class="s1">accept</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s4">'text/html'</span><span class="s3">) === -</span><span class="s6">1</span>
+          <span class="s3">)</span>
+        <span class="s3">}</span>
+      <span class="s3">},</span>
+      <span class="s1">onProxyReq </span><span class="s3">(</span><span class="s1">proxyReq</span><span class="s3">, </span><span class="s1">req</span><span class="s3">, </span><span class="s1">res</span><span class="s3">) {</span>
+        <span class="s2">if </span><span class="s3">(</span><span class="s1">usersOnProxyReq</span><span class="s3">) {</span>
+          <span class="s1">usersOnProxyReq</span><span class="s3">(</span><span class="s1">proxyReq</span><span class="s3">, </span><span class="s1">req</span><span class="s3">, </span><span class="s1">res</span><span class="s3">)</span>
+        <span class="s3">}</span>
+        <span class="s5">// Browsers may send Origin headers even with same-origin</span>
+        <span class="s5">// requests. To prevent CORS issues, we have to change</span>
+        <span class="s5">// the Origin to match the target URL.</span>
+        <span class="s2">if </span><span class="s3">(!</span><span class="s1">proxyReq</span><span class="s3">.</span><span class="s1">agent </span><span class="s3">&amp;&amp; </span><span class="s1">proxyReq</span><span class="s3">.</span><span class="s1">getHeader</span><span class="s3">(</span><span class="s4">'origin'</span><span class="s3">)) {</span>
+          <span class="s1">proxyReq</span><span class="s3">.</span><span class="s1">setHeader</span><span class="s3">(</span><span class="s4">'origin'</span><span class="s3">, </span><span class="s1">target</span><span class="s3">)</span>
+        <span class="s3">}</span>
+      <span class="s3">},</span>
+      <span class="s1">onError</span><span class="s3">: </span><span class="s1">onProxyError</span><span class="s3">(</span><span class="s1">target</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s5">// Support proxy as a string for those who are using the simple proxy option</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">typeof </span><span class="s1">proxy </span><span class="s3">=== </span><span class="s4">'string'</span><span class="s3">) {</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s7">/^http(s)?:\/\//</span><span class="s3">.</span><span class="s1">test</span><span class="s3">(</span><span class="s1">proxy</span><span class="s3">)) {</span>
+      <span class="s1">console</span><span class="s3">.</span><span class="s1">log</span><span class="s3">(</span>
+        <span class="s1">chalk</span><span class="s3">.</span><span class="s1">red</span><span class="s3">(</span>
+          <span class="s4">'When &quot;proxy&quot; is specified in package.json it must start with either http:// or https://'</span>
+        <span class="s3">)</span>
+      <span class="s3">)</span>
+      <span class="s1">process</span><span class="s3">.</span><span class="s1">exit</span><span class="s3">(</span><span class="s6">1</span><span class="s3">)</span>
+    <span class="s3">}</span>
+
+    <span class="s2">return </span><span class="s3">[</span>
+      <span class="s1">Object</span><span class="s3">.</span><span class="s1">assign</span><span class="s3">({}, </span><span class="s1">defaultConfig</span><span class="s3">, </span><span class="s1">createProxyEntry</span><span class="s3">(</span><span class="s1">proxy</span><span class="s3">))</span>
+    <span class="s3">]</span>
+  <span class="s3">}</span>
+
+  <span class="s5">// Otherwise, proxy is an object so create an array of proxies to pass to webpackDevServer</span>
+  <span class="s2">return </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">(</span><span class="s1">proxy</span><span class="s3">).</span><span class="s1">map</span><span class="s3">(</span><span class="s1">context </span><span class="s3">=&gt; {</span>
+    <span class="s2">const </span><span class="s1">config </span><span class="s3">= </span><span class="s1">proxy</span><span class="s3">[</span><span class="s1">context</span><span class="s3">]</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">Object</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">hasOwnProperty</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">config</span><span class="s3">, </span><span class="s4">'target'</span><span class="s3">)) {</span>
+      <span class="s1">console</span><span class="s3">.</span><span class="s1">log</span><span class="s3">(</span>
+        <span class="s1">chalk</span><span class="s3">.</span><span class="s1">red</span><span class="s3">(</span>
+          <span class="s4">'When `proxy` in package.json is an object, each `context` object must have a ' </span><span class="s3">+</span>
+            <span class="s4">'`target` property specified as a url string'</span>
+        <span class="s3">)</span>
+      <span class="s3">)</span>
+      <span class="s1">process</span><span class="s3">.</span><span class="s1">exit</span><span class="s3">(</span><span class="s6">1</span><span class="s3">)</span>
+    <span class="s3">}</span>
+    <span class="s2">const </span><span class="s1">entry </span><span class="s3">= </span><span class="s1">createProxyEntry</span><span class="s3">(</span><span class="s1">config</span><span class="s3">.</span><span class="s1">target</span><span class="s3">, </span><span class="s1">config</span><span class="s3">.</span><span class="s1">onProxyReq</span><span class="s3">, </span><span class="s1">context</span><span class="s3">)</span>
+    <span class="s2">return </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">assign</span><span class="s3">({}, </span><span class="s1">defaultConfig</span><span class="s3">, </span><span class="s1">config</span><span class="s3">, </span><span class="s1">entry</span><span class="s3">)</span>
+  <span class="s3">})</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">resolveLoopback </span><span class="s3">(</span><span class="s1">proxy</span><span class="s3">) {</span>
+  <span class="s2">const </span><span class="s1">o </span><span class="s3">= </span><span class="s2">new </span><span class="s1">url</span><span class="s3">.</span><span class="s1">URL</span><span class="s3">(</span><span class="s1">proxy</span><span class="s3">)</span>
+  <span class="s1">o</span><span class="s3">.</span><span class="s1">host </span><span class="s3">= </span><span class="s1">undefined</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">o</span><span class="s3">.</span><span class="s1">hostname </span><span class="s3">!== </span><span class="s4">'localhost'</span><span class="s3">) {</span>
+    <span class="s2">return </span><span class="s1">proxy</span>
+  <span class="s3">}</span>
+  <span class="s5">// Unfortunately, many languages (unlike node) do not yet support IPv6.</span>
+  <span class="s5">// This means even though localhost resolves to ::1, the application</span>
+  <span class="s5">// must fall back to IPv4 (on 127.0.0.1).</span>
+  <span class="s5">// We can re-enable this in a few years.</span>
+  <span class="s5">/* try { 
+    o.hostname = address.ipv6() ? '::1' : '127.0.0.1'; 
+  } catch (_ignored) { 
+    o.hostname = '127.0.0.1'; 
+  } */</span>
+
+  <span class="s2">try </span><span class="s3">{</span>
+    <span class="s5">// Check if we're on a network; if we are, chances are we can resolve</span>
+    <span class="s5">// localhost. Otherwise, we can just be safe and assume localhost is</span>
+    <span class="s5">// IPv4 for maximum compatibility.</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">address</span><span class="s3">.</span><span class="s1">ip</span><span class="s3">()) {</span>
+      <span class="s1">o</span><span class="s3">.</span><span class="s1">hostname </span><span class="s3">= </span><span class="s4">'127.0.0.1'</span>
+    <span class="s3">}</span>
+  <span class="s3">} </span><span class="s2">catch </span><span class="s3">(</span><span class="s1">_ignored</span><span class="s3">) {</span>
+    <span class="s1">o</span><span class="s3">.</span><span class="s1">hostname </span><span class="s3">= </span><span class="s4">'127.0.0.1'</span>
+  <span class="s3">}</span>
+  <span class="s2">return </span><span class="s1">url</span><span class="s3">.</span><span class="s1">format</span><span class="s3">(</span><span class="s1">o</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s5">// We need to provide a custom onError function for httpProxyMiddleware.</span>
+<span class="s5">// It allows us to log custom error messages on the console.</span>
+<span class="s2">function </span><span class="s1">onProxyError </span><span class="s3">(</span><span class="s1">proxy</span><span class="s3">) {</span>
+  <span class="s2">return </span><span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">req</span><span class="s3">, </span><span class="s1">res</span><span class="s3">) =&gt; {</span>
+    <span class="s2">const </span><span class="s1">host </span><span class="s3">= </span><span class="s1">req</span><span class="s3">.</span><span class="s1">headers </span><span class="s3">&amp;&amp; </span><span class="s1">req</span><span class="s3">.</span><span class="s1">headers</span><span class="s3">.</span><span class="s1">host</span>
+    <span class="s1">console</span><span class="s3">.</span><span class="s1">log</span><span class="s3">(</span>
+      <span class="s1">chalk</span><span class="s3">.</span><span class="s1">red</span><span class="s3">(</span><span class="s4">'Proxy error:'</span><span class="s3">) +</span>
+        <span class="s4">' Could not proxy request ' </span><span class="s3">+</span>
+        <span class="s1">chalk</span><span class="s3">.</span><span class="s1">cyan</span><span class="s3">(</span><span class="s1">req</span><span class="s3">.</span><span class="s1">url</span><span class="s3">) +</span>
+        <span class="s4">' from ' </span><span class="s3">+</span>
+        <span class="s1">chalk</span><span class="s3">.</span><span class="s1">cyan</span><span class="s3">(</span><span class="s1">host</span><span class="s3">) +</span>
+        <span class="s4">' to ' </span><span class="s3">+</span>
+        <span class="s1">chalk</span><span class="s3">.</span><span class="s1">cyan</span><span class="s3">(</span><span class="s1">proxy</span><span class="s3">) +</span>
+        <span class="s4">'.'</span>
+    <span class="s3">)</span>
+    <span class="s1">console</span><span class="s3">.</span><span class="s1">log</span><span class="s3">(</span>
+      <span class="s4">'See https://nodejs.org/api/errors.html#errors_common_system_errors for more information (' </span><span class="s3">+</span>
+        <span class="s1">chalk</span><span class="s3">.</span><span class="s1">cyan</span><span class="s3">(</span><span class="s1">err</span><span class="s3">.</span><span class="s1">code</span><span class="s3">) +</span>
+        <span class="s4">').'</span>
+    <span class="s3">)</span>
+    <span class="s1">console</span><span class="s3">.</span><span class="s1">log</span><span class="s3">()</span>
+
+    <span class="s5">// And immediately send the proper error response to the client.</span>
+    <span class="s5">// Otherwise, the request will eventually timeout with ERR_EMPTY_RESPONSE on the client side.</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">res</span><span class="s3">.</span><span class="s1">writeHead </span><span class="s3">&amp;&amp; !</span><span class="s1">res</span><span class="s3">.</span><span class="s1">headersSent</span><span class="s3">) {</span>
+      <span class="s1">res</span><span class="s3">.</span><span class="s1">writeHead</span><span class="s3">(</span><span class="s6">500</span><span class="s3">)</span>
+    <span class="s3">}</span>
+    <span class="s1">res</span><span class="s3">.</span><span class="s1">end</span><span class="s3">(</span>
+      <span class="s4">'Proxy error: Could not proxy request ' </span><span class="s3">+</span>
+        <span class="s1">req</span><span class="s3">.</span><span class="s1">url </span><span class="s3">+</span>
+        <span class="s4">' from ' </span><span class="s3">+</span>
+        <span class="s1">host </span><span class="s3">+</span>
+        <span class="s4">' to ' </span><span class="s3">+</span>
+        <span class="s1">proxy </span><span class="s3">+</span>
+        <span class="s4">' (' </span><span class="s3">+</span>
+        <span class="s1">err</span><span class="s3">.</span><span class="s1">code </span><span class="s3">+</span>
+        <span class="s4">').'</span>
+    <span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

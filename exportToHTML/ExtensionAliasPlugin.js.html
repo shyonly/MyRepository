@@ -1,0 +1,125 @@
+<html>
+<head>
+<title>ExtensionAliasPlugin.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #67a37c; font-style: italic;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+ExtensionAliasPlugin.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+    MIT License http://www.opensource.org/licenses/mit-license.php 
+    Author Ivan Kopeykin @vankop 
+*/</span>
+
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">const </span><span class="s1">forEachBail </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./forEachBail&quot;</span><span class="s3">);</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Resolver&quot;)} Resolver */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Resolver&quot;).ResolveRequest} ResolveRequest */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Resolver&quot;).ResolveStepHook} ResolveStepHook */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{{ alias: string|string[], extension: string }} ExtensionAliasOption */</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s4">class </span><span class="s1">ExtensionAliasPlugin </span><span class="s3">{</span>
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string | ResolveStepHook} source source</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ExtensionAliasOption} options options</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string | ResolveStepHook} target target</span>
+	 <span class="s5">*/</span>
+	<span class="s1">constructor</span><span class="s3">(</span><span class="s1">source</span><span class="s3">, </span><span class="s1">options</span><span class="s3">, </span><span class="s1">target</span><span class="s3">) {</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">source </span><span class="s3">= </span><span class="s1">source</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">options </span><span class="s3">= </span><span class="s1">options</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">target </span><span class="s3">= </span><span class="s1">target</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Resolver} resolver the resolver</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">apply</span><span class="s3">(</span><span class="s1">resolver</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s1">target </span><span class="s3">= </span><span class="s1">resolver</span><span class="s3">.</span><span class="s1">ensureHook</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">target</span><span class="s3">);</span>
+		<span class="s4">const </span><span class="s3">{ </span><span class="s1">extension</span><span class="s3">, </span><span class="s1">alias </span><span class="s3">} = </span><span class="s4">this</span><span class="s3">.</span><span class="s1">options</span><span class="s3">;</span>
+		<span class="s1">resolver</span>
+			<span class="s3">.</span><span class="s1">getHook</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">source</span><span class="s3">)</span>
+			<span class="s3">.</span><span class="s1">tapAsync</span><span class="s3">(</span><span class="s2">&quot;ExtensionAliasPlugin&quot;</span><span class="s3">, (</span><span class="s1">request</span><span class="s3">, </span><span class="s1">resolveContext</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) =&gt; {</span>
+				<span class="s4">const </span><span class="s1">requestPath </span><span class="s3">= </span><span class="s1">request</span><span class="s3">.</span><span class="s1">request</span><span class="s3">;</span>
+				<span class="s4">if </span><span class="s3">(!</span><span class="s1">requestPath </span><span class="s3">|| !</span><span class="s1">requestPath</span><span class="s3">.</span><span class="s1">endsWith</span><span class="s3">(</span><span class="s1">extension</span><span class="s3">)) </span><span class="s4">return </span><span class="s1">callback</span><span class="s3">();</span>
+				<span class="s4">const </span><span class="s1">isAliasString </span><span class="s3">= </span><span class="s4">typeof </span><span class="s1">alias </span><span class="s3">=== </span><span class="s2">&quot;string&quot;</span><span class="s3">;</span>
+				<span class="s5">/**</span>
+				 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} alias extension alias</span>
+				 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{(err?: null|Error, result?: null|ResolveRequest) =&gt; void} callback callback</span>
+				 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{number} [index] index</span>
+				 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+				 <span class="s5">*/</span>
+				<span class="s4">const </span><span class="s1">resolve </span><span class="s3">= (</span><span class="s1">alias</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">, </span><span class="s1">index</span><span class="s3">) =&gt; {</span>
+					<span class="s4">const </span><span class="s1">newRequest </span><span class="s3">= </span><span class="s2">`</span><span class="s1">$</span><span class="s3">{</span><span class="s1">requestPath</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span>
+						<span class="s7">0</span><span class="s3">,</span>
+						<span class="s3">-</span><span class="s1">extension</span><span class="s3">.</span><span class="s1">length</span>
+					<span class="s3">)}</span><span class="s1">$</span><span class="s3">{</span><span class="s1">alias</span><span class="s3">}</span><span class="s2">`</span><span class="s3">;</span>
+
+					<span class="s4">return </span><span class="s1">resolver</span><span class="s3">.</span><span class="s1">doResolve</span><span class="s3">(</span>
+						<span class="s1">target</span><span class="s3">,</span>
+						<span class="s3">{</span>
+							<span class="s1">...request</span><span class="s3">,</span>
+							<span class="s1">request</span><span class="s3">: </span><span class="s1">newRequest</span><span class="s3">,</span>
+							<span class="s1">fullySpecified</span><span class="s3">: </span><span class="s4">true</span>
+						<span class="s3">},</span>
+						<span class="s2">`aliased from extension alias with mapping '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">extension</span><span class="s3">}</span><span class="s2">' to '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">alias</span><span class="s3">}</span><span class="s2">'`</span><span class="s3">,</span>
+						<span class="s1">resolveContext</span><span class="s3">,</span>
+						<span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">result</span><span class="s3">) =&gt; {</span>
+							<span class="s0">// Throw error if we are on the last alias (for multiple aliases) and it failed, always throw if we are not an array or we have only one alias</span>
+							<span class="s4">if </span><span class="s3">(!</span><span class="s1">isAliasString </span><span class="s3">&amp;&amp; </span><span class="s1">index</span><span class="s3">) {</span>
+								<span class="s4">if </span><span class="s3">(</span><span class="s1">index </span><span class="s3">!== </span><span class="s4">this</span><span class="s3">.</span><span class="s1">options</span><span class="s3">.</span><span class="s1">alias</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) {</span>
+									<span class="s4">if </span><span class="s3">(</span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">log</span><span class="s3">) {</span>
+										<span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">log</span><span class="s3">(</span>
+											<span class="s2">`Failed to alias from extension alias with mapping '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">extension</span><span class="s3">}</span><span class="s2">' to '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">alias</span><span class="s3">}</span><span class="s2">' for '</span><span class="s1">$</span><span class="s3">{</span><span class="s1">newRequest</span><span class="s3">}</span><span class="s2">': </span><span class="s1">$</span><span class="s3">{</span><span class="s1">err</span><span class="s3">}</span><span class="s2">`</span>
+										<span class="s3">);</span>
+									<span class="s3">}</span>
+
+									<span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, </span><span class="s1">result</span><span class="s3">);</span>
+								<span class="s3">}</span>
+
+								<span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">result</span><span class="s3">);</span>
+							<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+								<span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">result</span><span class="s3">);</span>
+							<span class="s3">}</span>
+						<span class="s3">}</span>
+					<span class="s3">);</span>
+				<span class="s3">};</span>
+				<span class="s5">/**</span>
+				 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{null|Error} [err] error</span>
+				 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{null|ResolveRequest} [result] result</span>
+				 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+				 <span class="s5">*/</span>
+				<span class="s4">const </span><span class="s1">stoppingCallback </span><span class="s3">= (</span><span class="s1">err</span><span class="s3">, </span><span class="s1">result</span><span class="s3">) =&gt; {</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) </span><span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s1">err</span><span class="s3">);</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">result</span><span class="s3">) </span><span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, </span><span class="s1">result</span><span class="s3">);</span>
+					<span class="s0">// Don't allow other aliasing or raw request</span>
+					<span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, </span><span class="s4">null</span><span class="s3">);</span>
+				<span class="s3">};</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">isAliasString</span><span class="s3">) {</span>
+					<span class="s1">resolve</span><span class="s3">(</span><span class="s1">alias</span><span class="s3">, </span><span class="s1">stoppingCallback</span><span class="s3">);</span>
+				<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">alias</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s7">1</span><span class="s3">) {</span>
+					<span class="s1">forEachBail</span><span class="s3">(</span><span class="s1">alias</span><span class="s3">, </span><span class="s1">resolve</span><span class="s3">, </span><span class="s1">stoppingCallback</span><span class="s3">);</span>
+				<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+					<span class="s1">resolve</span><span class="s3">(</span><span class="s1">alias</span><span class="s3">[</span><span class="s7">0</span><span class="s3">], </span><span class="s1">stoppingCallback</span><span class="s3">);</span>
+				<span class="s3">}</span>
+			<span class="s3">});</span>
+	<span class="s3">}</span>
+<span class="s3">};</span>
+</pre>
+</body>
+</html>

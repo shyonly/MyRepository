@@ -1,0 +1,206 @@
+<html>
+<head>
+<title>README.markdown</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #56a8f5;}
+.s4 { color: #c77dbb; font-style: italic;}
+.s5 { color: #6aab73;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+README.markdown</font>
+</center></td></tr></table>
+<pre><span class="s0"># </span><span class="s2">require-directory</span>
+
+<span class="s2">Recursively iterates over specified directory, `require</span><span class="s1">()</span><span class="s2">`</span><span class="s1">'</span><span class="s2">ing each file, and returning a nested hash structure containing those modules.</span>
+
+<span class="s1">**[</span><span class="s2">Follow me </span><span class="s1">(</span><span class="s2">@troygoode</span><span class="s1">) </span><span class="s2">on Twitter</span><span class="s1">!](</span><span class="s3">https://twitter.com/intent/user?screen_name=troygoode</span><span class="s1">)**</span>
+
+<span class="s1">[![</span><span class="s2">NPM</span><span class="s1">](</span><span class="s3">https://nodei.co/npm/require-directory.png?downloads=true&amp;stars=true</span><span class="s1">)](</span><span class="s3">https://nodei.co/npm/require-directory/</span><span class="s1">)</span>
+
+<span class="s1">[![</span><span class="s2">build status</span><span class="s1">](</span><span class="s3">https://secure.travis-ci.org/troygoode/node-require-directory.png</span><span class="s1">)](</span><span class="s3">http://travis-ci.org/troygoode/node-require-directory</span><span class="s1">)</span>
+
+<span class="s0">## </span><span class="s2">How To Use</span>
+
+<span class="s0">### </span><span class="s2">Installation </span><span class="s1">(</span><span class="s2">via </span><span class="s1">[</span><span class="s2">npm</span><span class="s1">](</span><span class="s3">https://npmjs.org/package/require-directory</span><span class="s1">))</span>
+
+<span class="s0">```</span><span class="s4">bash</span>
+<span class="s5">$ npm install require-directory</span>
+<span class="s0">```</span>
+
+<span class="s0">### </span><span class="s2">Usage</span>
+
+<span class="s2">A common pattern in node.js is to include an index file which creates a hash of the files in its current directory. Given a directory structure like so</span><span class="s1">:</span>
+
+<span class="s0">* </span><span class="s2">app.js</span>
+<span class="s0">* </span><span class="s2">routes/</span>
+  <span class="s0">* </span><span class="s2">index.js</span>
+  <span class="s0">* </span><span class="s2">home.js</span>
+  <span class="s0">* </span><span class="s2">auth/</span>
+    <span class="s0">* </span><span class="s2">login.js</span>
+    <span class="s0">* </span><span class="s2">logout.js</span>
+    <span class="s0">* </span><span class="s2">register.js</span>
+
+<span class="s2">`routes/index.js` uses `require-directory` to build the hash </span><span class="s1">(</span><span class="s2">rather than doing so manually</span><span class="s1">) </span><span class="s2">like so</span><span class="s1">:</span>
+
+<span class="s0">```</span><span class="s4">javascript</span>
+<span class="s5">var requireDirectory = require('require-directory');</span>
+<span class="s5">module.exports = requireDirectory(module);</span>
+<span class="s0">```</span>
+
+<span class="s2">`app.js` references `routes/index.js` like any other module, but it now has a hash/tree of the exports from the `./routes/` directory</span><span class="s1">:</span>
+
+<span class="s0">```</span><span class="s4">javascript</span>
+<span class="s5">var routes = require('./routes');</span>
+
+<span class="s5">// snip</span>
+
+<span class="s5">app.get('/', routes.home);</span>
+<span class="s5">app.get('/register', routes.auth.register);</span>
+<span class="s5">app.get('/login', routes.auth.login);</span>
+<span class="s5">app.get('/logout', routes.auth.logout);</span>
+<span class="s0">```</span>
+
+<span class="s2">The `routes` variable above is the equivalent of this</span><span class="s1">:</span>
+
+<span class="s0">```</span><span class="s4">javascript</span>
+<span class="s5">var routes = {</span>
+  <span class="s5">home: require('routes/home.js'),</span>
+  <span class="s5">auth: {</span>
+    <span class="s5">login: require('routes/auth/login.js'),</span>
+    <span class="s5">logout: require('routes/auth/logout.js'),</span>
+    <span class="s5">register: require('routes/auth/register.js')</span>
+  <span class="s5">}</span>
+<span class="s5">};</span>
+<span class="s0">```</span>
+
+<span class="s1">*</span><span class="s2">Note that `routes.index` will be `undefined` as you would hope.</span><span class="s1">*</span>
+
+<span class="s0">### </span><span class="s2">Specifying Another Directory</span>
+
+<span class="s2">You can specify which directory you want to build a tree of </span><span class="s1">(</span><span class="s2">if it isn't the current directory for whatever reason</span><span class="s1">) </span><span class="s2">by passing it as the second parameter. Not specifying the path </span><span class="s1">(</span><span class="s2">`requireDirectory</span><span class="s1">(</span><span class="s2">module</span><span class="s1">)</span><span class="s2">`</span><span class="s1">) </span><span class="s2">is the equivelant of `requireDirectory</span><span class="s1">(</span><span class="s2">module, </span><span class="s1">__</span><span class="s2">dirname</span><span class="s1">)</span><span class="s2">`</span><span class="s1">:</span>
+
+<span class="s0">```</span><span class="s4">javascript</span>
+<span class="s5">var requireDirectory = require('require-directory');</span>
+<span class="s5">module.exports = requireDirectory(module, './some/subdirectory');</span>
+<span class="s0">```</span>
+
+<span class="s2">For example, in the </span><span class="s1">[</span><span class="s2">example in the Usage section</span><span class="s1">](</span><span class="s2">#usage</span><span class="s1">) </span><span class="s2">we could have avoided creating `routes/index.js` and instead changed the first lines of `app.js` to</span><span class="s1">:</span>
+
+<span class="s0">```</span><span class="s4">javascript</span>
+<span class="s5">var requireDirectory = require('require-directory');</span>
+<span class="s5">var routes = requireDirectory(module, './routes');</span>
+<span class="s0">```</span>
+
+<span class="s0">## </span><span class="s2">Options</span>
+
+<span class="s2">You can pass an options hash to `require-directory` as the 2nd parameter </span><span class="s1">(</span><span class="s2">or 3rd if you're passing the path to another directory as the 2nd parameter already</span><span class="s1">)</span><span class="s2">. Here are the available options</span><span class="s1">:</span>
+
+<span class="s0">### </span><span class="s2">Whitelisting</span>
+
+<span class="s2">Whitelisting </span><span class="s1">(</span><span class="s2">either via RegExp or function</span><span class="s1">) </span><span class="s2">allows you to specify that only certain files be loaded.</span>
+
+<span class="s0">```</span><span class="s4">javascript</span>
+<span class="s5">var requireDirectory = require('require-directory'),</span>
+  <span class="s5">whitelist = /onlyinclude.js$/,</span>
+  <span class="s5">hash = requireDirectory(module, {include: whitelist});</span>
+<span class="s0">```</span>
+
+<span class="s0">```</span><span class="s4">javascript</span>
+<span class="s5">var requireDirectory = require('require-directory'),</span>
+  <span class="s5">check = function(path){</span>
+    <span class="s5">if(/onlyinclude.js$/.test(path)){</span>
+      <span class="s5">return true; // don't include</span>
+    <span class="s5">}else{</span>
+      <span class="s5">return false; // go ahead and include</span>
+    <span class="s5">}</span>
+  <span class="s5">},</span>
+  <span class="s5">hash = requireDirectory(module, {include: check});</span>
+<span class="s0">```</span>
+
+<span class="s0">### </span><span class="s2">Blacklisting</span>
+
+<span class="s2">Blacklisting </span><span class="s1">(</span><span class="s2">either via RegExp or function</span><span class="s1">) </span><span class="s2">allows you to specify that all but certain files should be loaded.</span>
+
+<span class="s0">```</span><span class="s4">javascript</span>
+<span class="s5">var requireDirectory = require('require-directory'),</span>
+  <span class="s5">blacklist = /dontinclude\.js$/,</span>
+  <span class="s5">hash = requireDirectory(module, {exclude: blacklist});</span>
+<span class="s0">```</span>
+
+<span class="s0">```</span><span class="s4">javascript</span>
+<span class="s5">var requireDirectory = require('require-directory'),</span>
+  <span class="s5">check = function(path){</span>
+    <span class="s5">if(/dontinclude\.js$/.test(path)){</span>
+      <span class="s5">return false; // don't include</span>
+    <span class="s5">}else{</span>
+      <span class="s5">return true; // go ahead and include</span>
+    <span class="s5">}</span>
+  <span class="s5">},</span>
+  <span class="s5">hash = requireDirectory(module, {exclude: check});</span>
+<span class="s0">```</span>
+
+<span class="s0">### </span><span class="s2">Visiting Objects As They're Loaded</span>
+
+<span class="s2">`require-directory` takes a function as the `visit` option that will be called for each module that is added to module.exports.</span>
+
+<span class="s0">```</span><span class="s4">javascript</span>
+<span class="s5">var requireDirectory = require('require-directory'),</span>
+  <span class="s5">visitor = function(obj) {</span>
+    <span class="s5">console.log(obj); // will be called for every module that is loaded</span>
+  <span class="s5">},</span>
+  <span class="s5">hash = requireDirectory(module, {visit: visitor});</span>
+<span class="s0">```</span>
+
+<span class="s2">The visitor can also transform the objects by returning a value</span><span class="s1">:</span>
+
+<span class="s0">```</span><span class="s4">javascript</span>
+<span class="s5">var requireDirectory = require('require-directory'),</span>
+  <span class="s5">visitor = function(obj) {</span>
+    <span class="s5">return obj(new Date());</span>
+  <span class="s5">},</span>
+  <span class="s5">hash = requireDirectory(module, {visit: visitor});</span>
+<span class="s0">```</span>
+
+<span class="s0">### </span><span class="s2">Renaming Keys</span>
+
+<span class="s0">```</span><span class="s4">javascript</span>
+<span class="s5">var requireDirectory = require('require-directory'),</span>
+  <span class="s5">renamer = function(name) {</span>
+    <span class="s5">return name.toUpperCase();</span>
+  <span class="s5">},</span>
+  <span class="s5">hash = requireDirectory(module, {rename: renamer});</span>
+<span class="s0">```</span>
+
+<span class="s0">### </span><span class="s2">No Recursion</span>
+
+<span class="s0">```</span><span class="s4">javascript</span>
+<span class="s5">var requireDirectory = require('require-directory'),</span>
+  <span class="s5">hash = requireDirectory(module, {recurse: false});</span>
+<span class="s0">```</span>
+
+<span class="s0">## </span><span class="s2">Run Unit Tests</span>
+
+<span class="s0">```</span><span class="s4">bash</span>
+<span class="s5">$ npm run lint</span>
+<span class="s5">$ npm test</span>
+<span class="s0">```</span>
+
+<span class="s0">## </span><span class="s2">License</span>
+
+<span class="s1">[</span><span class="s2">MIT License</span><span class="s1">](</span><span class="s3">http://www.opensource.org/licenses/mit-license.php</span><span class="s1">)</span>
+
+<span class="s0">## </span><span class="s2">Author</span>
+
+<span class="s1">[</span><span class="s2">Troy Goode</span><span class="s1">](</span><span class="s3">https://github.com/TroyGoode</span><span class="s1">) ([</span><span class="s2">troygoode@gmail.com</span><span class="s1">](</span><span class="s2">mailto</span><span class="s1">:</span><span class="s2">troygoode@gmail.com</span><span class="s1">))</span>
+
+</pre>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<html>
+<head>
+<title>ip.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+ip.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s2">Assert </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'@hapi/hoek/lib/assert'</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s2">Uri </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./uri'</span><span class="s1">);</span>
+
+
+<span class="s3">const </span><span class="s2">internals </span><span class="s1">= {};</span>
+
+
+<span class="s2">exports</span><span class="s1">.</span><span class="s2">regex </span><span class="s1">= </span><span class="s3">function </span><span class="s1">(</span><span class="s2">options </span><span class="s1">= {}) {</span>
+
+    <span class="s4">// CIDR</span>
+
+    <span class="s2">Assert</span><span class="s1">(</span><span class="s2">options</span><span class="s1">.</span><span class="s2">cidr </span><span class="s1">=== </span><span class="s2">undefined </span><span class="s1">|| </span><span class="s3">typeof </span><span class="s2">options</span><span class="s1">.</span><span class="s2">cidr </span><span class="s1">=== </span><span class="s0">'string'</span><span class="s1">, </span><span class="s0">'options.cidr must be a string'</span><span class="s1">);</span>
+    <span class="s3">const </span><span class="s2">cidr </span><span class="s1">= </span><span class="s2">options</span><span class="s1">.</span><span class="s2">cidr </span><span class="s1">? </span><span class="s2">options</span><span class="s1">.</span><span class="s2">cidr</span><span class="s1">.</span><span class="s2">toLowerCase</span><span class="s1">() : </span><span class="s0">'optional'</span><span class="s1">;</span>
+    <span class="s2">Assert</span><span class="s1">([</span><span class="s0">'required'</span><span class="s1">, </span><span class="s0">'optional'</span><span class="s1">, </span><span class="s0">'forbidden'</span><span class="s1">].</span><span class="s2">includes</span><span class="s1">(</span><span class="s2">cidr</span><span class="s1">), </span><span class="s0">'options.cidr must be one of required, optional, forbidden'</span><span class="s1">);</span>
+
+    <span class="s4">// Versions</span>
+
+    <span class="s2">Assert</span><span class="s1">(</span><span class="s2">options</span><span class="s1">.</span><span class="s2">version </span><span class="s1">=== </span><span class="s2">undefined </span><span class="s1">|| </span><span class="s3">typeof </span><span class="s2">options</span><span class="s1">.</span><span class="s2">version </span><span class="s1">=== </span><span class="s0">'string' </span><span class="s1">|| </span><span class="s2">Array</span><span class="s1">.</span><span class="s2">isArray</span><span class="s1">(</span><span class="s2">options</span><span class="s1">.</span><span class="s2">version</span><span class="s1">), </span><span class="s0">'options.version must be a string or an array of string'</span><span class="s1">);</span>
+    <span class="s3">let </span><span class="s2">versions </span><span class="s1">= </span><span class="s2">options</span><span class="s1">.</span><span class="s2">version </span><span class="s1">|| [</span><span class="s0">'ipv4'</span><span class="s1">, </span><span class="s0">'ipv6'</span><span class="s1">, </span><span class="s0">'ipvfuture'</span><span class="s1">];</span>
+    <span class="s3">if </span><span class="s1">(!</span><span class="s2">Array</span><span class="s1">.</span><span class="s2">isArray</span><span class="s1">(</span><span class="s2">versions</span><span class="s1">)) {</span>
+        <span class="s2">versions </span><span class="s1">= [</span><span class="s2">versions</span><span class="s1">];</span>
+    <span class="s1">}</span>
+
+    <span class="s2">Assert</span><span class="s1">(</span><span class="s2">versions</span><span class="s1">.</span><span class="s2">length </span><span class="s1">&gt;= </span><span class="s5">1</span><span class="s1">, </span><span class="s0">'options.version must have at least 1 version specified'</span><span class="s1">);</span>
+
+    <span class="s3">for </span><span class="s1">(</span><span class="s3">let </span><span class="s2">i </span><span class="s1">= </span><span class="s5">0</span><span class="s1">; </span><span class="s2">i </span><span class="s1">&lt; </span><span class="s2">versions</span><span class="s1">.</span><span class="s2">length</span><span class="s1">; ++</span><span class="s2">i</span><span class="s1">) {</span>
+        <span class="s2">Assert</span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">versions</span><span class="s1">[</span><span class="s2">i</span><span class="s1">] === </span><span class="s0">'string'</span><span class="s1">, </span><span class="s0">'options.version must only contain strings'</span><span class="s1">);</span>
+        <span class="s2">versions</span><span class="s1">[</span><span class="s2">i</span><span class="s1">] = </span><span class="s2">versions</span><span class="s1">[</span><span class="s2">i</span><span class="s1">].</span><span class="s2">toLowerCase</span><span class="s1">();</span>
+        <span class="s2">Assert</span><span class="s1">([</span><span class="s0">'ipv4'</span><span class="s1">, </span><span class="s0">'ipv6'</span><span class="s1">, </span><span class="s0">'ipvfuture'</span><span class="s1">].</span><span class="s2">includes</span><span class="s1">(</span><span class="s2">versions</span><span class="s1">[</span><span class="s2">i</span><span class="s1">]), </span><span class="s0">'options.version contains unknown version ' </span><span class="s1">+ </span><span class="s2">versions</span><span class="s1">[</span><span class="s2">i</span><span class="s1">] + </span><span class="s0">' - must be one of ipv4, ipv6, ipvfuture'</span><span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s2">versions </span><span class="s1">= </span><span class="s2">Array</span><span class="s1">.</span><span class="s2">from</span><span class="s1">(</span><span class="s3">new </span><span class="s2">Set</span><span class="s1">(</span><span class="s2">versions</span><span class="s1">));</span>
+
+    <span class="s4">// Regex</span>
+
+    <span class="s3">const </span><span class="s2">parts </span><span class="s1">= </span><span class="s2">versions</span><span class="s1">.</span><span class="s2">map</span><span class="s1">((</span><span class="s2">version</span><span class="s1">) =&gt; {</span>
+
+        <span class="s4">// Forbidden</span>
+
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">cidr </span><span class="s1">=== </span><span class="s0">'forbidden'</span><span class="s1">) {</span>
+            <span class="s3">return </span><span class="s2">Uri</span><span class="s1">.</span><span class="s2">ip</span><span class="s1">[</span><span class="s2">version</span><span class="s1">];</span>
+        <span class="s1">}</span>
+
+        <span class="s4">// Required</span>
+
+        <span class="s3">const </span><span class="s2">cidrpart </span><span class="s1">= </span><span class="s0">`</span><span class="s3">\\</span><span class="s0">/</span><span class="s2">$</span><span class="s1">{</span><span class="s2">version </span><span class="s1">=== </span><span class="s0">'ipv4' </span><span class="s1">? </span><span class="s2">Uri</span><span class="s1">.</span><span class="s2">ip</span><span class="s1">.</span><span class="s2">v4Cidr </span><span class="s1">: </span><span class="s2">Uri</span><span class="s1">.</span><span class="s2">ip</span><span class="s1">.</span><span class="s2">v6Cidr</span><span class="s1">}</span><span class="s0">`</span><span class="s1">;</span>
+
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">cidr </span><span class="s1">=== </span><span class="s0">'required'</span><span class="s1">) {</span>
+            <span class="s3">return </span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">Uri</span><span class="s1">.</span><span class="s2">ip</span><span class="s1">[</span><span class="s2">version</span><span class="s1">]}</span><span class="s2">$</span><span class="s1">{</span><span class="s2">cidrpart</span><span class="s1">}</span><span class="s0">`</span><span class="s1">;</span>
+        <span class="s1">}</span>
+
+        <span class="s4">// Optional</span>
+
+        <span class="s3">return </span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">Uri</span><span class="s1">.</span><span class="s2">ip</span><span class="s1">[</span><span class="s2">version</span><span class="s1">]}</span><span class="s0">(?:</span><span class="s2">$</span><span class="s1">{</span><span class="s2">cidrpart</span><span class="s1">}</span><span class="s0">)?`</span><span class="s1">;</span>
+    <span class="s1">});</span>
+
+    <span class="s3">const </span><span class="s2">raw </span><span class="s1">= </span><span class="s0">`(?:</span><span class="s2">$</span><span class="s1">{</span><span class="s2">parts</span><span class="s1">.</span><span class="s2">join</span><span class="s1">(</span><span class="s0">'|'</span><span class="s1">)}</span><span class="s0">)`</span><span class="s1">;</span>
+    <span class="s3">const </span><span class="s2">regex </span><span class="s1">= </span><span class="s3">new </span><span class="s2">RegExp</span><span class="s1">(</span><span class="s0">`^</span><span class="s2">$</span><span class="s1">{</span><span class="s2">raw</span><span class="s1">}</span><span class="s0">$`</span><span class="s1">);</span>
+    <span class="s3">return </span><span class="s1">{ </span><span class="s2">cidr</span><span class="s1">, </span><span class="s2">versions</span><span class="s1">, </span><span class="s2">regex</span><span class="s1">, </span><span class="s2">raw </span><span class="s1">};</span>
+<span class="s1">};</span>
+</pre>
+</body>
+</html>

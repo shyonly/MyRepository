@@ -1,0 +1,127 @@
+<html>
+<head>
+<title>guess.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+guess.js</font>
+</center></td></tr></table>
+<pre><span class="s0">const </span><span class="s1">path </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'path'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s1">shellQuote </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'shell-quote'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s1">childProcess </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'child_process'</span><span class="s2">)</span>
+
+<span class="s4">// Map from full process name to binary that starts the process</span>
+<span class="s4">// We can't just re-use full process name, because it will spawn a new instance</span>
+<span class="s4">// of the app every time</span>
+<span class="s0">const </span><span class="s1">COMMON_EDITORS_OSX </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./editor-info/osx'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s1">COMMON_EDITORS_LINUX </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./editor-info/linux'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s1">COMMON_EDITORS_WIN </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./editor-info/windows'</span><span class="s2">)</span>
+
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= </span><span class="s0">function </span><span class="s1">guessEditor </span><span class="s2">(</span><span class="s1">specifiedEditor</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">specifiedEditor</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">shellQuote</span><span class="s2">.</span><span class="s1">parse</span><span class="s2">(</span><span class="s1">specifiedEditor</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">LAUNCH_EDITOR</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s2">[</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">LAUNCH_EDITOR</span><span class="s2">]</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">versions</span><span class="s2">.</span><span class="s1">webcontainer</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s2">[</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">EDITOR </span><span class="s2">|| </span><span class="s3">'code'</span><span class="s2">]</span>
+  <span class="s2">}</span>
+
+  <span class="s4">// We can find out which editor is currently running by:</span>
+  <span class="s4">// `ps x` on macOS and Linux</span>
+  <span class="s4">// `Get-Process` on Windows</span>
+  <span class="s0">try </span><span class="s2">{</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">platform </span><span class="s2">=== </span><span class="s3">'darwin'</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">output </span><span class="s2">= </span><span class="s1">childProcess</span>
+        <span class="s2">.</span><span class="s1">execSync</span><span class="s2">(</span><span class="s3">'ps x -o comm='</span><span class="s2">, {</span>
+          <span class="s1">stdio</span><span class="s2">: [</span><span class="s3">'pipe'</span><span class="s2">, </span><span class="s3">'pipe'</span><span class="s2">, </span><span class="s3">'ignore'</span><span class="s2">]</span>
+        <span class="s2">})</span>
+        <span class="s2">.</span><span class="s1">toString</span><span class="s2">()</span>
+      <span class="s0">const </span><span class="s1">processNames </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">COMMON_EDITORS_OSX</span><span class="s2">)</span>
+      <span class="s0">const </span><span class="s1">processList </span><span class="s2">= </span><span class="s1">output</span><span class="s2">.</span><span class="s1">split</span><span class="s2">(</span><span class="s3">'</span><span class="s0">\n</span><span class="s3">'</span><span class="s2">)</span>
+      <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s5">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">processNames</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+        <span class="s0">const </span><span class="s1">processName </span><span class="s2">= </span><span class="s1">processNames</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]</span>
+        <span class="s4">// Find editor by exact match.</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">output</span><span class="s2">.</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s1">processName</span><span class="s2">) !== -</span><span class="s5">1</span><span class="s2">) {</span>
+          <span class="s0">return </span><span class="s2">[</span><span class="s1">COMMON_EDITORS_OSX</span><span class="s2">[</span><span class="s1">processName</span><span class="s2">]]</span>
+        <span class="s2">}</span>
+        <span class="s0">const </span><span class="s1">processNameWithoutApplications </span><span class="s2">= </span><span class="s1">processName</span><span class="s2">.</span><span class="s1">replace</span><span class="s2">(</span><span class="s3">'/Applications'</span><span class="s2">, </span><span class="s3">''</span><span class="s2">)</span>
+        <span class="s4">// Find editor installation not in /Applications.</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">output</span><span class="s2">.</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s1">processNameWithoutApplications</span><span class="s2">) !== -</span><span class="s5">1</span><span class="s2">) {</span>
+          <span class="s4">// Use the CLI command if one is specified</span>
+          <span class="s0">if </span><span class="s2">(</span><span class="s1">processName </span><span class="s2">!== </span><span class="s1">COMMON_EDITORS_OSX</span><span class="s2">[</span><span class="s1">processName</span><span class="s2">]) {</span>
+            <span class="s0">return </span><span class="s2">[</span><span class="s1">COMMON_EDITORS_OSX</span><span class="s2">[</span><span class="s1">processName</span><span class="s2">]]</span>
+          <span class="s2">}</span>
+          <span class="s4">// Use a partial match to find the running process path.  If one is found, use the</span>
+          <span class="s4">// existing path since it can be running from anywhere.</span>
+          <span class="s0">const </span><span class="s1">runningProcess </span><span class="s2">= </span><span class="s1">processList</span><span class="s2">.</span><span class="s1">find</span><span class="s2">((</span><span class="s1">procName</span><span class="s2">) =&gt; </span><span class="s1">procName</span><span class="s2">.</span><span class="s1">endsWith</span><span class="s2">(</span><span class="s1">processNameWithoutApplications</span><span class="s2">))</span>
+          <span class="s0">if </span><span class="s2">(</span><span class="s1">runningProcess </span><span class="s2">!== </span><span class="s1">undefined</span><span class="s2">) {</span>
+            <span class="s0">return </span><span class="s2">[</span><span class="s1">runningProcess</span><span class="s2">]</span>
+          <span class="s2">}</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">platform </span><span class="s2">=== </span><span class="s3">'win32'</span><span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">output </span><span class="s2">= </span><span class="s1">childProcess</span>
+        <span class="s2">.</span><span class="s1">execSync</span><span class="s2">(</span>
+          <span class="s3">'powershell -NoProfile -Command &quot;Get-CimInstance -Query </span><span class="s0">\\</span><span class="s3">&quot;select executablepath from win32_process where executablepath is not null</span><span class="s0">\\</span><span class="s3">&quot; | % { $_.ExecutablePath }&quot;'</span><span class="s2">,</span>
+          <span class="s2">{</span>
+            <span class="s1">stdio</span><span class="s2">: [</span><span class="s3">'pipe'</span><span class="s2">, </span><span class="s3">'pipe'</span><span class="s2">, </span><span class="s3">'ignore'</span><span class="s2">]</span>
+          <span class="s2">}</span>
+        <span class="s2">)</span>
+        <span class="s2">.</span><span class="s1">toString</span><span class="s2">()</span>
+      <span class="s0">const </span><span class="s1">runningProcesses </span><span class="s2">= </span><span class="s1">output</span><span class="s2">.</span><span class="s1">split</span><span class="s2">(</span><span class="s3">'</span><span class="s0">\r\n</span><span class="s3">'</span><span class="s2">)</span>
+      <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s5">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">runningProcesses</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+        <span class="s0">const </span><span class="s1">fullProcessPath </span><span class="s2">= </span><span class="s1">runningProcesses</span><span class="s2">[</span><span class="s1">i</span><span class="s2">].</span><span class="s1">trim</span><span class="s2">()</span>
+        <span class="s0">const </span><span class="s1">shortProcessName </span><span class="s2">= </span><span class="s1">path</span><span class="s2">.</span><span class="s1">basename</span><span class="s2">(</span><span class="s1">fullProcessPath</span><span class="s2">)</span>
+
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">COMMON_EDITORS_WIN</span><span class="s2">.</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s1">shortProcessName</span><span class="s2">) !== -</span><span class="s5">1</span><span class="s2">) {</span>
+          <span class="s0">return </span><span class="s2">[</span><span class="s1">fullProcessPath</span><span class="s2">]</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">platform </span><span class="s2">=== </span><span class="s3">'linux'</span><span class="s2">) {</span>
+      <span class="s4">// --no-heading No header line</span>
+      <span class="s4">// x List all processes owned by you</span>
+      <span class="s4">// -o comm Need only names column</span>
+      <span class="s0">const </span><span class="s1">output </span><span class="s2">= </span><span class="s1">childProcess</span>
+        <span class="s2">.</span><span class="s1">execSync</span><span class="s2">(</span><span class="s3">'ps x --no-heading -o comm --sort=comm'</span><span class="s2">, {</span>
+          <span class="s1">stdio</span><span class="s2">: [</span><span class="s3">'pipe'</span><span class="s2">, </span><span class="s3">'pipe'</span><span class="s2">, </span><span class="s3">'ignore'</span><span class="s2">]</span>
+        <span class="s2">})</span>
+        <span class="s2">.</span><span class="s1">toString</span><span class="s2">()</span>
+      <span class="s0">const </span><span class="s1">processNames </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">COMMON_EDITORS_LINUX</span><span class="s2">)</span>
+      <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s5">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">processNames</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+        <span class="s0">const </span><span class="s1">processName </span><span class="s2">= </span><span class="s1">processNames</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">output</span><span class="s2">.</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s1">processName</span><span class="s2">) !== -</span><span class="s5">1</span><span class="s2">) {</span>
+          <span class="s0">return </span><span class="s2">[</span><span class="s1">COMMON_EDITORS_LINUX</span><span class="s2">[</span><span class="s1">processName</span><span class="s2">]]</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">error</span><span class="s2">) {</span>
+    <span class="s4">// Ignore...</span>
+  <span class="s2">}</span>
+
+  <span class="s4">// Last resort, use old skool env vars</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">VISUAL</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s2">[</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">VISUAL</span><span class="s2">]</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">EDITOR</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s2">[</span><span class="s1">process</span><span class="s2">.</span><span class="s1">env</span><span class="s2">.</span><span class="s1">EDITOR</span><span class="s2">]</span>
+  <span class="s2">}</span>
+
+  <span class="s0">return </span><span class="s2">[</span><span class="s0">null</span><span class="s2">]</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

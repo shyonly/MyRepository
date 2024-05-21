@@ -1,0 +1,132 @@
+<html>
+<head>
+<title>dep.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #2aacb8;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #67a37c; font-style: italic;}
+.s7 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+dep.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">config from </span><span class="s2">'../config'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">DebuggerOptions</span><span class="s3">, </span><span class="s1">DebuggerEventExtraInfo </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'v3'</span>
+
+<span class="s0">let </span><span class="s1">uid </span><span class="s3">= </span><span class="s4">0</span>
+
+<span class="s0">const </span><span class="s1">pendingCleanupDeps</span><span class="s3">: </span><span class="s1">Dep</span><span class="s3">[] = []</span>
+
+<span class="s0">export const </span><span class="s1">cleanupDeps </span><span class="s3">= () =&gt; {</span>
+  <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s4">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">pendingCleanupDeps</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+    <span class="s0">const </span><span class="s1">dep </span><span class="s3">= </span><span class="s1">pendingCleanupDeps</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+    <span class="s1">dep</span><span class="s3">.</span><span class="s1">subs </span><span class="s3">= </span><span class="s1">dep</span><span class="s3">.</span><span class="s1">subs</span><span class="s3">.</span><span class="s1">filter</span><span class="s3">(</span><span class="s1">s </span><span class="s3">=&gt; </span><span class="s1">s</span><span class="s3">)</span>
+    <span class="s1">dep</span><span class="s3">.</span><span class="s1">_pending </span><span class="s3">= </span><span class="s0">false</span>
+  <span class="s3">}</span>
+  <span class="s1">pendingCleanupDeps</span><span class="s3">.</span><span class="s1">length </span><span class="s3">= </span><span class="s4">0</span>
+<span class="s3">}</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@internal</span>
+ <span class="s5">*/</span>
+<span class="s0">export interface </span><span class="s1">DepTarget </span><span class="s0">extends </span><span class="s1">DebuggerOptions </span><span class="s3">{</span>
+  <span class="s1">id</span><span class="s3">: </span><span class="s1">number</span>
+  <span class="s1">addDep</span><span class="s3">(</span><span class="s1">dep</span><span class="s3">: </span><span class="s1">Dep</span><span class="s3">): </span><span class="s0">void</span>
+  <span class="s1">update</span><span class="s3">(): </span><span class="s0">void</span>
+<span class="s3">}</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* A dep is an observable that can have multiple</span>
+ <span class="s5">* directives subscribing to it.</span>
+ <span class="s5">* </span><span class="s6">@internal</span>
+ <span class="s5">*/</span>
+<span class="s0">export default class </span><span class="s1">Dep </span><span class="s3">{</span>
+  <span class="s0">static </span><span class="s1">target</span><span class="s3">?: </span><span class="s1">DepTarget </span><span class="s3">| </span><span class="s0">null</span>
+  <span class="s1">id</span><span class="s3">: </span><span class="s1">number</span>
+  <span class="s1">subs</span><span class="s3">: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">DepTarget </span><span class="s3">| </span><span class="s0">null</span><span class="s3">&gt;</span>
+  <span class="s7">// pending subs cleanup</span>
+  <span class="s1">_pending </span><span class="s3">= </span><span class="s0">false</span>
+
+  <span class="s1">constructor</span><span class="s3">() {</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">id </span><span class="s3">= </span><span class="s1">uid</span><span class="s3">++</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">subs </span><span class="s3">= []</span>
+  <span class="s3">}</span>
+
+  <span class="s1">addSub</span><span class="s3">(</span><span class="s1">sub</span><span class="s3">: </span><span class="s1">DepTarget</span><span class="s3">) {</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">subs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">sub</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s1">removeSub</span><span class="s3">(</span><span class="s1">sub</span><span class="s3">: </span><span class="s1">DepTarget</span><span class="s3">) {</span>
+    <span class="s7">// #12696 deps with massive amount of subscribers are extremely slow to</span>
+    <span class="s7">// clean up in Chromium</span>
+    <span class="s7">// to workaround this, we unset the sub for now, and clear them on</span>
+    <span class="s7">// next scheduler flush.</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">subs</span><span class="s3">[</span><span class="s0">this</span><span class="s3">.</span><span class="s1">subs</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s1">sub</span><span class="s3">)] = </span><span class="s0">null</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s0">this</span><span class="s3">.</span><span class="s1">_pending</span><span class="s3">) {</span>
+      <span class="s0">this</span><span class="s3">.</span><span class="s1">_pending </span><span class="s3">= </span><span class="s0">true</span>
+      <span class="s1">pendingCleanupDeps</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s0">this</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">depend</span><span class="s3">(</span><span class="s1">info</span><span class="s3">?: </span><span class="s1">DebuggerEventExtraInfo</span><span class="s3">) {</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">Dep</span><span class="s3">.</span><span class="s1">target</span><span class="s3">) {</span>
+      <span class="s1">Dep</span><span class="s3">.</span><span class="s1">target</span><span class="s3">.</span><span class="s1">addDep</span><span class="s3">(</span><span class="s0">this</span><span class="s3">)</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__ </span><span class="s3">&amp;&amp; </span><span class="s1">info </span><span class="s3">&amp;&amp; </span><span class="s1">Dep</span><span class="s3">.</span><span class="s1">target</span><span class="s3">.</span><span class="s1">onTrack</span><span class="s3">) {</span>
+        <span class="s1">Dep</span><span class="s3">.</span><span class="s1">target</span><span class="s3">.</span><span class="s1">onTrack</span><span class="s3">({</span>
+          <span class="s1">effect</span><span class="s3">: </span><span class="s1">Dep</span><span class="s3">.</span><span class="s1">target</span><span class="s3">,</span>
+          <span class="s1">...info</span>
+        <span class="s3">})</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">notify</span><span class="s3">(</span><span class="s1">info</span><span class="s3">?: </span><span class="s1">DebuggerEventExtraInfo</span><span class="s3">) {</span>
+    <span class="s7">// stabilize the subscriber list first</span>
+    <span class="s0">const </span><span class="s1">subs </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">subs</span><span class="s3">.</span><span class="s1">filter</span><span class="s3">(</span><span class="s1">s </span><span class="s3">=&gt; </span><span class="s1">s</span><span class="s3">) as </span><span class="s1">DepTarget</span><span class="s3">[]</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__ </span><span class="s3">&amp;&amp; !</span><span class="s1">config</span><span class="s3">.</span><span class="s1">async</span><span class="s3">) {</span>
+      <span class="s7">// subs aren't sorted in scheduler if not running async</span>
+      <span class="s7">// we need to sort them now to make sure they fire in correct</span>
+      <span class="s7">// order</span>
+      <span class="s1">subs</span><span class="s3">.</span><span class="s1">sort</span><span class="s3">((</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">) =&gt; </span><span class="s1">a</span><span class="s3">.</span><span class="s1">id </span><span class="s3">- </span><span class="s1">b</span><span class="s3">.</span><span class="s1">id</span><span class="s3">)</span>
+    <span class="s3">}</span>
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s4">0</span><span class="s3">, </span><span class="s1">l </span><span class="s3">= </span><span class="s1">subs</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">l</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+      <span class="s0">const </span><span class="s1">sub </span><span class="s3">= </span><span class="s1">subs</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__ </span><span class="s3">&amp;&amp; </span><span class="s1">info</span><span class="s3">) {</span>
+        <span class="s1">sub</span><span class="s3">.</span><span class="s1">onTrigger </span><span class="s3">&amp;&amp;</span>
+          <span class="s1">sub</span><span class="s3">.</span><span class="s1">onTrigger</span><span class="s3">({</span>
+            <span class="s1">effect</span><span class="s3">: </span><span class="s1">subs</span><span class="s3">[</span><span class="s1">i</span><span class="s3">],</span>
+            <span class="s1">...info</span>
+          <span class="s3">})</span>
+      <span class="s3">}</span>
+      <span class="s1">sub</span><span class="s3">.</span><span class="s1">update</span><span class="s3">()</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s7">// The current target watcher being evaluated.</span>
+<span class="s7">// This is globally unique because only one watcher</span>
+<span class="s7">// can be evaluated at a time.</span>
+<span class="s1">Dep</span><span class="s3">.</span><span class="s1">target </span><span class="s3">= </span><span class="s0">null</span>
+<span class="s0">const </span><span class="s1">targetStack</span><span class="s3">: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">DepTarget </span><span class="s3">| </span><span class="s0">null </span><span class="s3">| </span><span class="s1">undefined</span><span class="s3">&gt; = []</span>
+
+<span class="s0">export function </span><span class="s1">pushTarget</span><span class="s3">(</span><span class="s1">target</span><span class="s3">?: </span><span class="s1">DepTarget </span><span class="s3">| </span><span class="s0">null</span><span class="s3">) {</span>
+  <span class="s1">targetStack</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">target</span><span class="s3">)</span>
+  <span class="s1">Dep</span><span class="s3">.</span><span class="s1">target </span><span class="s3">= </span><span class="s1">target</span>
+<span class="s3">}</span>
+
+<span class="s0">export function </span><span class="s1">popTarget</span><span class="s3">() {</span>
+  <span class="s1">targetStack</span><span class="s3">.</span><span class="s1">pop</span><span class="s3">()</span>
+  <span class="s1">Dep</span><span class="s3">.</span><span class="s1">target </span><span class="s3">= </span><span class="s1">targetStack</span><span class="s3">[</span><span class="s1">targetStack</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s4">1</span><span class="s3">]</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

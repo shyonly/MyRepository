@@ -1,0 +1,69 @@
+<html>
+<head>
+<title>traverse.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+traverse.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">_Set </span><span class="s2">as </span><span class="s1">Set</span><span class="s2">, </span><span class="s1">isObject</span><span class="s2">, </span><span class="s1">isArray </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../util/index'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">SimpleSet </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../util/index'</span>
+<span class="s0">import </span><span class="s1">VNode from </span><span class="s3">'../vdom/vnode'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">isRef </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../../v3'</span>
+
+<span class="s0">const </span><span class="s1">seenObjects </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Set</span><span class="s2">()</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* Recursively traverse an object to evoke all converted</span>
+ <span class="s4">* getters, so that every nested property inside the object</span>
+ <span class="s4">* is collected as a &quot;deep&quot; dependency.</span>
+ <span class="s4">*/</span>
+<span class="s0">export function </span><span class="s1">traverse</span><span class="s2">(</span><span class="s1">val</span><span class="s2">: </span><span class="s1">any</span><span class="s2">) {</span>
+  <span class="s1">_traverse</span><span class="s2">(</span><span class="s1">val</span><span class="s2">, </span><span class="s1">seenObjects</span><span class="s2">)</span>
+  <span class="s1">seenObjects</span><span class="s2">.</span><span class="s1">clear</span><span class="s2">()</span>
+  <span class="s0">return </span><span class="s1">val</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">_traverse</span><span class="s2">(</span><span class="s1">val</span><span class="s2">: </span><span class="s1">any</span><span class="s2">, </span><span class="s1">seen</span><span class="s2">: </span><span class="s1">SimpleSet</span><span class="s2">) {</span>
+  <span class="s0">let </span><span class="s1">i</span><span class="s2">, </span><span class="s1">keys</span>
+  <span class="s0">const </span><span class="s1">isA </span><span class="s2">= </span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">val</span><span class="s2">)</span>
+  <span class="s0">if </span><span class="s2">(</span>
+    <span class="s2">(!</span><span class="s1">isA </span><span class="s2">&amp;&amp; !</span><span class="s1">isObject</span><span class="s2">(</span><span class="s1">val</span><span class="s2">)) ||</span>
+    <span class="s1">val</span><span class="s2">.</span><span class="s1">__v_skip </span><span class="s5">/* ReactiveFlags.SKIP */ </span><span class="s2">||</span>
+    <span class="s1">Object</span><span class="s2">.</span><span class="s1">isFrozen</span><span class="s2">(</span><span class="s1">val</span><span class="s2">) ||</span>
+    <span class="s1">val </span><span class="s0">instanceof </span><span class="s1">VNode</span>
+  <span class="s2">) {</span>
+    <span class="s0">return</span>
+  <span class="s2">}</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">val</span><span class="s2">.</span><span class="s1">__ob__</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">depId </span><span class="s2">= </span><span class="s1">val</span><span class="s2">.</span><span class="s1">__ob__</span><span class="s2">.</span><span class="s1">dep</span><span class="s2">.</span><span class="s1">id</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">seen</span><span class="s2">.</span><span class="s1">has</span><span class="s2">(</span><span class="s1">depId</span><span class="s2">)) {</span>
+      <span class="s0">return</span>
+    <span class="s2">}</span>
+    <span class="s1">seen</span><span class="s2">.</span><span class="s1">add</span><span class="s2">(</span><span class="s1">depId</span><span class="s2">)</span>
+  <span class="s2">}</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isA</span><span class="s2">) {</span>
+    <span class="s1">i </span><span class="s2">= </span><span class="s1">val</span><span class="s2">.</span><span class="s1">length</span>
+    <span class="s0">while </span><span class="s2">(</span><span class="s1">i</span><span class="s2">--) </span><span class="s1">_traverse</span><span class="s2">(</span><span class="s1">val</span><span class="s2">[</span><span class="s1">i</span><span class="s2">], </span><span class="s1">seen</span><span class="s2">)</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isRef</span><span class="s2">(</span><span class="s1">val</span><span class="s2">)) {</span>
+    <span class="s1">_traverse</span><span class="s2">(</span><span class="s1">val</span><span class="s2">.</span><span class="s1">value</span><span class="s2">, </span><span class="s1">seen</span><span class="s2">)</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s1">keys </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">val</span><span class="s2">)</span>
+    <span class="s1">i </span><span class="s2">= </span><span class="s1">keys</span><span class="s2">.</span><span class="s1">length</span>
+    <span class="s0">while </span><span class="s2">(</span><span class="s1">i</span><span class="s2">--) </span><span class="s1">_traverse</span><span class="s2">(</span><span class="s1">val</span><span class="s2">[</span><span class="s1">keys</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]], </span><span class="s1">seen</span><span class="s2">)</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

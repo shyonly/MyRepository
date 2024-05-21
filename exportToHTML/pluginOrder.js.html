@@ -1,0 +1,134 @@
+<html>
+<head>
+<title>pluginOrder.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #67a37c; font-style: italic;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+pluginOrder.js</font>
+</center></td></tr></table>
+<pre><span class="s0">// @ts-check</span>
+<span class="s2">const </span><span class="s3">{ </span><span class="s1">warn </span><span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'./logger'</span><span class="s3">)</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{{after?: string|Array&lt;string&gt;}} Apply */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{{id: string, apply: Apply}} Plugin */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{{after: Set&lt;string&gt;}} OrderParams */</span>
+
+<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Map&lt;string, OrderParams&gt;} */</span>
+<span class="s2">const </span><span class="s1">orderParamsCache </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Map</span><span class="s3">()</span>
+
+<span class="s5">/**</span>
+ <span class="s5">*</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Plugin} plugin</span>
+ <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{OrderParams}</span>
+ <span class="s5">*/</span>
+<span class="s2">function </span><span class="s1">getOrderParams </span><span class="s3">(</span><span class="s1">plugin</span><span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">process</span><span class="s3">.</span><span class="s1">env</span><span class="s3">.</span><span class="s1">VUE_CLI_TEST </span><span class="s3">&amp;&amp; </span><span class="s1">orderParamsCache</span><span class="s3">.</span><span class="s1">has</span><span class="s3">(</span><span class="s1">plugin</span><span class="s3">.</span><span class="s1">id</span><span class="s3">)) {</span>
+    <span class="s2">return </span><span class="s1">orderParamsCache</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">plugin</span><span class="s3">.</span><span class="s1">id</span><span class="s3">)</span>
+  <span class="s3">}</span>
+  <span class="s2">const </span><span class="s1">apply </span><span class="s3">= </span><span class="s1">plugin</span><span class="s3">.</span><span class="s1">apply</span>
+
+  <span class="s2">let </span><span class="s1">after </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Set</span><span class="s3">()</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">typeof </span><span class="s1">apply</span><span class="s3">.</span><span class="s1">after </span><span class="s3">=== </span><span class="s4">'string'</span><span class="s3">) {</span>
+    <span class="s1">after </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Set</span><span class="s3">([</span><span class="s1">apply</span><span class="s3">.</span><span class="s1">after</span><span class="s3">])</span>
+  <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s1">Array</span><span class="s3">.</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">apply</span><span class="s3">.</span><span class="s1">after</span><span class="s3">)) {</span>
+    <span class="s1">after </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Set</span><span class="s3">(</span><span class="s1">apply</span><span class="s3">.</span><span class="s1">after</span><span class="s3">)</span>
+  <span class="s3">}</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">process</span><span class="s3">.</span><span class="s1">env</span><span class="s3">.</span><span class="s1">VUE_CLI_TEST</span><span class="s3">) {</span>
+    <span class="s1">orderParamsCache</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">plugin</span><span class="s3">.</span><span class="s1">id</span><span class="s3">, { </span><span class="s1">after </span><span class="s3">})</span>
+  <span class="s3">}</span>
+
+  <span class="s2">return </span><span class="s3">{ </span><span class="s1">after </span><span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* See leetcode 210</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Array&lt;Plugin&gt;} plugins</span>
+ <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{Array&lt;Plugin&gt;}</span>
+ <span class="s5">*/</span>
+<span class="s2">function </span><span class="s1">topologicalSorting </span><span class="s3">(</span><span class="s1">plugins</span><span class="s3">) {</span>
+  <span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Map&lt;string, Plugin&gt;} */</span>
+  <span class="s2">const </span><span class="s1">pluginsMap </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Map</span><span class="s3">(</span><span class="s1">plugins</span><span class="s3">.</span><span class="s1">map</span><span class="s3">(</span><span class="s1">p </span><span class="s3">=&gt; [</span><span class="s1">p</span><span class="s3">.</span><span class="s1">id</span><span class="s3">, </span><span class="s1">p</span><span class="s3">]))</span>
+
+  <span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Map&lt;Plugin, number&gt;} */</span>
+  <span class="s2">const </span><span class="s1">indegrees </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Map</span><span class="s3">()</span>
+
+  <span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Map&lt;Plugin, Array&lt;Plugin&gt;&gt;} */</span>
+  <span class="s2">const </span><span class="s1">graph </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Map</span><span class="s3">()</span>
+
+  <span class="s1">plugins</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">(</span><span class="s1">p </span><span class="s3">=&gt; {</span>
+    <span class="s2">const </span><span class="s1">after </span><span class="s3">= </span><span class="s1">getOrderParams</span><span class="s3">(</span><span class="s1">p</span><span class="s3">).</span><span class="s1">after</span>
+    <span class="s1">indegrees</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">p</span><span class="s3">, </span><span class="s1">after</span><span class="s3">.</span><span class="s1">size</span><span class="s3">)</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">after</span><span class="s3">.</span><span class="s1">size </span><span class="s3">=== </span><span class="s7">0</span><span class="s3">) </span><span class="s2">return</span>
+    <span class="s2">for </span><span class="s3">(</span><span class="s2">const </span><span class="s1">id of after</span><span class="s3">) {</span>
+      <span class="s2">const </span><span class="s1">prerequisite </span><span class="s3">= </span><span class="s1">pluginsMap</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">id</span><span class="s3">)</span>
+      <span class="s0">// remove invalid data</span>
+      <span class="s2">if </span><span class="s3">(!</span><span class="s1">prerequisite</span><span class="s3">) {</span>
+        <span class="s1">indegrees</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">p</span><span class="s3">, </span><span class="s1">indegrees</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">p</span><span class="s3">) - </span><span class="s7">1</span><span class="s3">)</span>
+        <span class="s2">continue</span>
+      <span class="s3">}</span>
+
+      <span class="s2">if </span><span class="s3">(!</span><span class="s1">graph</span><span class="s3">.</span><span class="s1">has</span><span class="s3">(</span><span class="s1">prerequisite</span><span class="s3">)) {</span>
+        <span class="s1">graph</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">prerequisite</span><span class="s3">, [])</span>
+      <span class="s3">}</span>
+      <span class="s1">graph</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">prerequisite</span><span class="s3">).</span><span class="s1">push</span><span class="s3">(</span><span class="s1">p</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">})</span>
+
+  <span class="s2">const </span><span class="s1">res </span><span class="s3">= []</span>
+  <span class="s2">const </span><span class="s1">queue </span><span class="s3">= []</span>
+  <span class="s1">indegrees</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">((</span><span class="s1">d</span><span class="s3">, </span><span class="s1">p</span><span class="s3">) =&gt; {</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">d </span><span class="s3">=== </span><span class="s7">0</span><span class="s3">) </span><span class="s1">queue</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">p</span><span class="s3">)</span>
+  <span class="s3">})</span>
+  <span class="s2">while </span><span class="s3">(</span><span class="s1">queue</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) {</span>
+    <span class="s2">const </span><span class="s1">cur </span><span class="s3">= </span><span class="s1">queue</span><span class="s3">.</span><span class="s1">shift</span><span class="s3">()</span>
+    <span class="s1">res</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">cur</span><span class="s3">)</span>
+    <span class="s2">const </span><span class="s1">neighbors </span><span class="s3">= </span><span class="s1">graph</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">cur</span><span class="s3">)</span>
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">neighbors</span><span class="s3">) </span><span class="s2">continue</span>
+
+    <span class="s1">neighbors</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">(</span><span class="s1">n </span><span class="s3">=&gt; {</span>
+      <span class="s2">const </span><span class="s1">degree </span><span class="s3">= </span><span class="s1">indegrees</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">n</span><span class="s3">) - </span><span class="s7">1</span>
+      <span class="s1">indegrees</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">n</span><span class="s3">, </span><span class="s1">degree</span><span class="s3">)</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">degree </span><span class="s3">=== </span><span class="s7">0</span><span class="s3">) {</span>
+        <span class="s1">queue</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">n</span><span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">})</span>
+  <span class="s3">}</span>
+  <span class="s2">const </span><span class="s1">valid </span><span class="s3">= </span><span class="s1">res</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s1">plugins</span><span class="s3">.</span><span class="s1">length</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">valid</span><span class="s3">) {</span>
+    <span class="s1">warn</span><span class="s3">(</span><span class="s4">`No proper plugin execution order found.`</span><span class="s3">)</span>
+    <span class="s2">return </span><span class="s1">plugins</span>
+  <span class="s3">}</span>
+  <span class="s2">return </span><span class="s1">res</span>
+<span class="s3">}</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* Arrange plugins by 'after' property.</span>
+ <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Array&lt;Plugin&gt;} plugins</span>
+ <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{Array&lt;Plugin&gt;}</span>
+ <span class="s5">*/</span>
+<span class="s2">function </span><span class="s1">sortPlugins </span><span class="s3">(</span><span class="s1">plugins</span><span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">plugins</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&lt; </span><span class="s7">2</span><span class="s3">) </span><span class="s2">return </span><span class="s1">plugins</span>
+
+  <span class="s2">return </span><span class="s1">topologicalSorting</span><span class="s3">(</span><span class="s1">plugins</span><span class="s3">)</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= {</span>
+  <span class="s1">topologicalSorting</span><span class="s3">,</span>
+  <span class="s1">sortPlugins</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

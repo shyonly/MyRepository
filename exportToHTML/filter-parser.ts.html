@@ -1,0 +1,139 @@
+<html>
+<head>
+<title>filter-parser.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #42c3d4;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+.s6 { color: #6aab73;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+filter-parser.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">const </span><span class="s1">validDivisionCharRE </span><span class="s2">= </span><span class="s3">/[\w).+\-_$\]]/</span>
+
+<span class="s0">export function </span><span class="s1">parseFilters</span><span class="s2">(</span><span class="s1">exp</span><span class="s2">: </span><span class="s1">string</span><span class="s2">): </span><span class="s1">string </span><span class="s2">{</span>
+  <span class="s0">let </span><span class="s1">inSingle </span><span class="s2">= </span><span class="s0">false</span>
+  <span class="s0">let </span><span class="s1">inDouble </span><span class="s2">= </span><span class="s0">false</span>
+  <span class="s0">let </span><span class="s1">inTemplateString </span><span class="s2">= </span><span class="s0">false</span>
+  <span class="s0">let </span><span class="s1">inRegex </span><span class="s2">= </span><span class="s0">false</span>
+  <span class="s0">let </span><span class="s1">curly </span><span class="s2">= </span><span class="s4">0</span>
+  <span class="s0">let </span><span class="s1">square </span><span class="s2">= </span><span class="s4">0</span>
+  <span class="s0">let </span><span class="s1">paren </span><span class="s2">= </span><span class="s4">0</span>
+  <span class="s0">let </span><span class="s1">lastFilterIndex </span><span class="s2">= </span><span class="s4">0</span>
+  <span class="s0">let </span><span class="s1">c</span><span class="s2">, </span><span class="s1">prev</span><span class="s2">, </span><span class="s1">i</span><span class="s2">, </span><span class="s1">expression</span><span class="s2">, </span><span class="s1">filters</span>
+
+  <span class="s0">for </span><span class="s2">(</span><span class="s1">i </span><span class="s2">= </span><span class="s4">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">exp</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+    <span class="s1">prev </span><span class="s2">= </span><span class="s1">c</span>
+    <span class="s1">c </span><span class="s2">= </span><span class="s1">exp</span><span class="s2">.</span><span class="s1">charCodeAt</span><span class="s2">(</span><span class="s1">i</span><span class="s2">)</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">inSingle</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">c </span><span class="s2">=== </span><span class="s4">0x27 </span><span class="s2">&amp;&amp; </span><span class="s1">prev </span><span class="s2">!== </span><span class="s4">0x5c</span><span class="s2">) </span><span class="s1">inSingle </span><span class="s2">= </span><span class="s0">false</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">inDouble</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">c </span><span class="s2">=== </span><span class="s4">0x22 </span><span class="s2">&amp;&amp; </span><span class="s1">prev </span><span class="s2">!== </span><span class="s4">0x5c</span><span class="s2">) </span><span class="s1">inDouble </span><span class="s2">= </span><span class="s0">false</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">inTemplateString</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">c </span><span class="s2">=== </span><span class="s4">0x60 </span><span class="s2">&amp;&amp; </span><span class="s1">prev </span><span class="s2">!== </span><span class="s4">0x5c</span><span class="s2">) </span><span class="s1">inTemplateString </span><span class="s2">= </span><span class="s0">false</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">inRegex</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">c </span><span class="s2">=== </span><span class="s4">0x2f </span><span class="s2">&amp;&amp; </span><span class="s1">prev </span><span class="s2">!== </span><span class="s4">0x5c</span><span class="s2">) </span><span class="s1">inRegex </span><span class="s2">= </span><span class="s0">false</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span>
+      <span class="s1">c </span><span class="s2">=== </span><span class="s4">0x7c </span><span class="s2">&amp;&amp; </span><span class="s5">// pipe</span>
+      <span class="s1">exp</span><span class="s2">.</span><span class="s1">charCodeAt</span><span class="s2">(</span><span class="s1">i </span><span class="s2">+ </span><span class="s4">1</span><span class="s2">) !== </span><span class="s4">0x7c </span><span class="s2">&amp;&amp;</span>
+      <span class="s1">exp</span><span class="s2">.</span><span class="s1">charCodeAt</span><span class="s2">(</span><span class="s1">i </span><span class="s2">- </span><span class="s4">1</span><span class="s2">) !== </span><span class="s4">0x7c </span><span class="s2">&amp;&amp;</span>
+      <span class="s2">!</span><span class="s1">curly </span><span class="s2">&amp;&amp;</span>
+      <span class="s2">!</span><span class="s1">square </span><span class="s2">&amp;&amp;</span>
+      <span class="s2">!</span><span class="s1">paren</span>
+    <span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">expression </span><span class="s2">=== </span><span class="s1">undefined</span><span class="s2">) {</span>
+        <span class="s5">// first filter, end of expression</span>
+        <span class="s1">lastFilterIndex </span><span class="s2">= </span><span class="s1">i </span><span class="s2">+ </span><span class="s4">1</span>
+        <span class="s1">expression </span><span class="s2">= </span><span class="s1">exp</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s4">0</span><span class="s2">, </span><span class="s1">i</span><span class="s2">).</span><span class="s1">trim</span><span class="s2">()</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s1">pushFilter</span><span class="s2">()</span>
+      <span class="s2">}</span>
+    <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+      <span class="s0">switch </span><span class="s2">(</span><span class="s1">c</span><span class="s2">) {</span>
+        <span class="s0">case </span><span class="s4">0x22</span><span class="s2">:</span>
+          <span class="s1">inDouble </span><span class="s2">= </span><span class="s0">true</span>
+          <span class="s0">break </span><span class="s5">// &quot;</span>
+        <span class="s0">case </span><span class="s4">0x27</span><span class="s2">:</span>
+          <span class="s1">inSingle </span><span class="s2">= </span><span class="s0">true</span>
+          <span class="s0">break </span><span class="s5">// '</span>
+        <span class="s0">case </span><span class="s4">0x60</span><span class="s2">:</span>
+          <span class="s1">inTemplateString </span><span class="s2">= </span><span class="s0">true</span>
+          <span class="s0">break </span><span class="s5">// `</span>
+        <span class="s0">case </span><span class="s4">0x28</span><span class="s2">:</span>
+          <span class="s1">paren</span><span class="s2">++</span>
+          <span class="s0">break </span><span class="s5">// (</span>
+        <span class="s0">case </span><span class="s4">0x29</span><span class="s2">:</span>
+          <span class="s1">paren</span><span class="s2">--</span>
+          <span class="s0">break </span><span class="s5">// )</span>
+        <span class="s0">case </span><span class="s4">0x5b</span><span class="s2">:</span>
+          <span class="s1">square</span><span class="s2">++</span>
+          <span class="s0">break </span><span class="s5">// [</span>
+        <span class="s0">case </span><span class="s4">0x5d</span><span class="s2">:</span>
+          <span class="s1">square</span><span class="s2">--</span>
+          <span class="s0">break </span><span class="s5">// ]</span>
+        <span class="s0">case </span><span class="s4">0x7b</span><span class="s2">:</span>
+          <span class="s1">curly</span><span class="s2">++</span>
+          <span class="s0">break </span><span class="s5">// {</span>
+        <span class="s0">case </span><span class="s4">0x7d</span><span class="s2">:</span>
+          <span class="s1">curly</span><span class="s2">--</span>
+          <span class="s0">break </span><span class="s5">// }</span>
+      <span class="s2">}</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">c </span><span class="s2">=== </span><span class="s4">0x2f</span><span class="s2">) {</span>
+        <span class="s5">// /</span>
+        <span class="s0">let </span><span class="s1">j </span><span class="s2">= </span><span class="s1">i </span><span class="s2">- </span><span class="s4">1</span>
+        <span class="s0">let </span><span class="s1">p</span>
+        <span class="s5">// find first non-whitespace prev char</span>
+        <span class="s0">for </span><span class="s2">(; </span><span class="s1">j </span><span class="s2">&gt;= </span><span class="s4">0</span><span class="s2">; </span><span class="s1">j</span><span class="s2">--) {</span>
+          <span class="s1">p </span><span class="s2">= </span><span class="s1">exp</span><span class="s2">.</span><span class="s1">charAt</span><span class="s2">(</span><span class="s1">j</span><span class="s2">)</span>
+          <span class="s0">if </span><span class="s2">(</span><span class="s1">p </span><span class="s2">!== </span><span class="s6">' '</span><span class="s2">) </span><span class="s0">break</span>
+        <span class="s2">}</span>
+        <span class="s0">if </span><span class="s2">(!</span><span class="s1">p </span><span class="s2">|| !</span><span class="s1">validDivisionCharRE</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">p</span><span class="s2">)) {</span>
+          <span class="s1">inRegex </span><span class="s2">= </span><span class="s0">true</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">expression </span><span class="s2">=== </span><span class="s1">undefined</span><span class="s2">) {</span>
+    <span class="s1">expression </span><span class="s2">= </span><span class="s1">exp</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s4">0</span><span class="s2">, </span><span class="s1">i</span><span class="s2">).</span><span class="s1">trim</span><span class="s2">()</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">lastFilterIndex </span><span class="s2">!== </span><span class="s4">0</span><span class="s2">) {</span>
+    <span class="s1">pushFilter</span><span class="s2">()</span>
+  <span class="s2">}</span>
+
+  <span class="s0">function </span><span class="s1">pushFilter</span><span class="s2">() {</span>
+    <span class="s2">;(</span><span class="s1">filters </span><span class="s2">|| (</span><span class="s1">filters </span><span class="s2">= [])).</span><span class="s1">push</span><span class="s2">(</span><span class="s1">exp</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s1">lastFilterIndex</span><span class="s2">, </span><span class="s1">i</span><span class="s2">).</span><span class="s1">trim</span><span class="s2">())</span>
+    <span class="s1">lastFilterIndex </span><span class="s2">= </span><span class="s1">i </span><span class="s2">+ </span><span class="s4">1</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">filters</span><span class="s2">) {</span>
+    <span class="s0">for </span><span class="s2">(</span><span class="s1">i </span><span class="s2">= </span><span class="s4">0</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">filters</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+      <span class="s1">expression </span><span class="s2">= </span><span class="s1">wrapFilter</span><span class="s2">(</span><span class="s1">expression</span><span class="s2">, </span><span class="s1">filters</span><span class="s2">[</span><span class="s1">i</span><span class="s2">])</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+  <span class="s0">return </span><span class="s1">expression</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">wrapFilter</span><span class="s2">(</span><span class="s1">exp</span><span class="s2">: </span><span class="s1">string</span><span class="s2">, </span><span class="s1">filter</span><span class="s2">: </span><span class="s1">string</span><span class="s2">): </span><span class="s1">string </span><span class="s2">{</span>
+  <span class="s0">const </span><span class="s1">i </span><span class="s2">= </span><span class="s1">filter</span><span class="s2">.</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s6">'('</span><span class="s2">)</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">i </span><span class="s2">&lt; </span><span class="s4">0</span><span class="s2">) {</span>
+    <span class="s5">// _f: resolveFilter</span>
+    <span class="s0">return </span><span class="s6">`_f(&quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">filter</span><span class="s2">}</span><span class="s6">&quot;)(</span><span class="s1">$</span><span class="s2">{</span><span class="s1">exp</span><span class="s2">}</span><span class="s6">)`</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s0">const </span><span class="s1">name </span><span class="s2">= </span><span class="s1">filter</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s4">0</span><span class="s2">, </span><span class="s1">i</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">args </span><span class="s2">= </span><span class="s1">filter</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s1">i </span><span class="s2">+ </span><span class="s4">1</span><span class="s2">)</span>
+    <span class="s0">return </span><span class="s6">`_f(&quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span><span class="s6">&quot;)(</span><span class="s1">$</span><span class="s2">{</span><span class="s1">exp</span><span class="s2">}</span><span class="s1">$</span><span class="s2">{</span><span class="s1">args </span><span class="s2">!== </span><span class="s6">')' </span><span class="s2">? </span><span class="s6">',' </span><span class="s2">+ </span><span class="s1">args </span><span class="s2">: </span><span class="s1">args</span><span class="s2">}</span><span class="s6">`</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

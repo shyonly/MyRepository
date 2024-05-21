@@ -1,0 +1,107 @@
+<html>
+<head>
+<title>cache.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #67a37c; font-style: italic;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #bcbec4;}
+.s5 { color: #6aab73;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+cache.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* </span><span class="s1">@description </span><span class="s0">双栈实现撤销恢复</span>
+ <span class="s0">* </span><span class="s1">@author </span><span class="s0">fangzhicong</span>
+ <span class="s0">*/</span>
+
+<span class="s3">import </span><span class="s4">{ </span><span class="s2">CeilStack </span><span class="s4">} </span><span class="s2">from </span><span class="s5">'./stack'</span>
+
+<span class="s3">export default class </span><span class="s2">Cache</span><span class="s4">&lt;</span><span class="s2">T</span><span class="s4">&gt; {</span>
+    <span class="s0">/**</span>
+     <span class="s0">* 正常操作（用户输入、js代码修改内容、恢复操作）产生的缓存</span>
+     <span class="s0">*/</span>
+    <span class="s3">protected </span><span class="s2">data</span><span class="s4">: </span><span class="s2">CeilStack</span><span class="s4">&lt;</span><span class="s2">T</span><span class="s4">&gt;</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 撤销操作产生的缓存（恢复操作时需要这些数据）</span>
+     <span class="s0">*/</span>
+    <span class="s3">protected </span><span class="s2">revokeData</span><span class="s4">: </span><span class="s2">CeilStack</span><span class="s4">&lt;</span><span class="s2">T</span><span class="s4">&gt;</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 上一步操作是否为 撤销/恢复</span>
+     <span class="s0">*/</span>
+    <span class="s3">protected </span><span class="s2">isRe</span><span class="s4">: </span><span class="s2">boolean </span><span class="s4">= </span><span class="s3">false</span>
+
+    <span class="s2">constructor</span><span class="s4">(</span><span class="s3">protected </span><span class="s2">maxSize</span><span class="s4">: </span><span class="s2">number</span><span class="s4">) {</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">data </span><span class="s4">= </span><span class="s3">new </span><span class="s2">CeilStack</span><span class="s4">(</span><span class="s2">maxSize</span><span class="s4">)</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">revokeData </span><span class="s4">= </span><span class="s3">new </span><span class="s2">CeilStack</span><span class="s4">(</span><span class="s2">maxSize</span><span class="s4">)</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 返回当前栈中的数据长度。格式为：[正常的数据的条数，被撤销的数据的条数]</span>
+     <span class="s0">*/</span>
+    <span class="s3">public </span><span class="s2">get size</span><span class="s4">() {</span>
+        <span class="s3">return </span><span class="s4">[</span><span class="s3">this</span><span class="s4">.</span><span class="s2">data</span><span class="s4">.</span><span class="s2">size</span><span class="s4">, </span><span class="s3">this</span><span class="s4">.</span><span class="s2">revokeData</span><span class="s4">.</span><span class="s2">size</span><span class="s4">]</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 重设数据缓存器的缓存长度（第一次有效）</span>
+     <span class="s0">*/</span>
+    <span class="s3">public </span><span class="s2">resetMaxSize</span><span class="s4">(</span><span class="s2">maxSize</span><span class="s4">: </span><span class="s2">number</span><span class="s4">) {</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">data</span><span class="s4">.</span><span class="s2">resetMax</span><span class="s4">(</span><span class="s2">maxSize</span><span class="s4">)</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">revokeData</span><span class="s4">.</span><span class="s2">resetMax</span><span class="s4">(</span><span class="s2">maxSize</span><span class="s4">)</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 保存数据</span>
+     <span class="s0">*/</span>
+    <span class="s3">public </span><span class="s2">save</span><span class="s4">(</span><span class="s2">data</span><span class="s4">: </span><span class="s2">T</span><span class="s4">) {</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s3">this</span><span class="s4">.</span><span class="s2">isRe</span><span class="s4">) {</span>
+            <span class="s3">this</span><span class="s4">.</span><span class="s2">revokeData</span><span class="s4">.</span><span class="s2">clear</span><span class="s4">()</span>
+            <span class="s3">this</span><span class="s4">.</span><span class="s2">isRe </span><span class="s4">= </span><span class="s3">false</span>
+        <span class="s4">}</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">data</span><span class="s4">.</span><span class="s2">instack</span><span class="s4">(</span><span class="s2">data</span><span class="s4">)</span>
+        <span class="s3">return this</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 撤销</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">fn 撤销时，如果有数据，执行的回调函数</span>
+     <span class="s0">*/</span>
+    <span class="s3">public </span><span class="s2">revoke</span><span class="s4">(</span><span class="s2">fn</span><span class="s4">: (</span><span class="s2">data</span><span class="s4">: </span><span class="s2">T</span><span class="s4">) =&gt; </span><span class="s3">void</span><span class="s4">) {</span>
+        <span class="s4">!</span><span class="s3">this</span><span class="s4">.</span><span class="s2">isRe </span><span class="s4">&amp;&amp; (</span><span class="s3">this</span><span class="s4">.</span><span class="s2">isRe </span><span class="s4">= </span><span class="s3">true</span><span class="s4">)</span>
+        <span class="s3">let </span><span class="s2">data </span><span class="s4">= </span><span class="s3">this</span><span class="s4">.</span><span class="s2">data</span><span class="s4">.</span><span class="s2">outstack</span><span class="s4">()</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">data</span><span class="s4">) {</span>
+            <span class="s3">this</span><span class="s4">.</span><span class="s2">revokeData</span><span class="s4">.</span><span class="s2">instack</span><span class="s4">(</span><span class="s2">data</span><span class="s4">)</span>
+            <span class="s2">fn</span><span class="s4">(</span><span class="s2">data</span><span class="s4">)</span>
+            <span class="s3">return true</span>
+        <span class="s4">}</span>
+        <span class="s3">return false</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 恢复</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">fn 恢复时，如果有数据，执行的回调函数</span>
+     <span class="s0">*/</span>
+    <span class="s3">public </span><span class="s2">restore</span><span class="s4">(</span><span class="s2">fn</span><span class="s4">: (</span><span class="s2">data</span><span class="s4">: </span><span class="s2">T</span><span class="s4">) =&gt; </span><span class="s3">void</span><span class="s4">) {</span>
+        <span class="s4">!</span><span class="s3">this</span><span class="s4">.</span><span class="s2">isRe </span><span class="s4">&amp;&amp; (</span><span class="s3">this</span><span class="s4">.</span><span class="s2">isRe </span><span class="s4">= </span><span class="s3">true</span><span class="s4">)</span>
+        <span class="s3">let </span><span class="s2">data </span><span class="s4">= </span><span class="s3">this</span><span class="s4">.</span><span class="s2">revokeData</span><span class="s4">.</span><span class="s2">outstack</span><span class="s4">()</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">data</span><span class="s4">) {</span>
+            <span class="s3">this</span><span class="s4">.</span><span class="s2">data</span><span class="s4">.</span><span class="s2">instack</span><span class="s4">(</span><span class="s2">data</span><span class="s4">)</span>
+            <span class="s2">fn</span><span class="s4">(</span><span class="s2">data</span><span class="s4">)</span>
+            <span class="s3">return true</span>
+        <span class="s4">}</span>
+        <span class="s3">return false</span>
+    <span class="s4">}</span>
+<span class="s4">}</span>
+</pre>
+</body>
+</html>

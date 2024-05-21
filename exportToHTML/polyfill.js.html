@@ -1,0 +1,77 @@
+<html>
+<head>
+<title>polyfill.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+polyfill.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span><span class="s1">;</span>
+
+<span class="s3">var </span><span class="s2">implementation </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./implementation'</span><span class="s1">);</span>
+
+<span class="s3">var </span><span class="s2">lacksProperEnumerationOrder </span><span class="s1">= </span><span class="s3">function </span><span class="s1">() {</span>
+	<span class="s3">if </span><span class="s1">(!</span><span class="s2">Object</span><span class="s1">.</span><span class="s2">assign</span><span class="s1">) {</span>
+		<span class="s3">return false</span><span class="s1">;</span>
+	<span class="s1">}</span>
+	<span class="s4">/* 
+     * v8, specifically in node 4.x, has a bug with incorrect property enumeration order 
+     * note: this does not detect the bug unless there's 20 characters 
+     */</span>
+	<span class="s3">var </span><span class="s2">str </span><span class="s1">= </span><span class="s0">'abcdefghijklmnopqrst'</span><span class="s1">;</span>
+	<span class="s3">var </span><span class="s2">letters </span><span class="s1">= </span><span class="s2">str</span><span class="s1">.</span><span class="s2">split</span><span class="s1">(</span><span class="s0">''</span><span class="s1">);</span>
+	<span class="s3">var </span><span class="s2">map </span><span class="s1">= {};</span>
+	<span class="s3">for </span><span class="s1">(</span><span class="s3">var </span><span class="s2">i </span><span class="s1">= </span><span class="s5">0</span><span class="s1">; </span><span class="s2">i </span><span class="s1">&lt; </span><span class="s2">letters</span><span class="s1">.</span><span class="s2">length</span><span class="s1">; ++</span><span class="s2">i</span><span class="s1">) {</span>
+		<span class="s2">map</span><span class="s1">[</span><span class="s2">letters</span><span class="s1">[</span><span class="s2">i</span><span class="s1">]] = </span><span class="s2">letters</span><span class="s1">[</span><span class="s2">i</span><span class="s1">];</span>
+	<span class="s1">}</span>
+	<span class="s3">var </span><span class="s2">obj </span><span class="s1">= </span><span class="s2">Object</span><span class="s1">.</span><span class="s2">assign</span><span class="s1">({}, </span><span class="s2">map</span><span class="s1">);</span>
+	<span class="s3">var </span><span class="s2">actual </span><span class="s1">= </span><span class="s0">''</span><span class="s1">;</span>
+	<span class="s3">for </span><span class="s1">(</span><span class="s3">var </span><span class="s2">k </span><span class="s3">in </span><span class="s2">obj</span><span class="s1">) {</span>
+		<span class="s2">actual </span><span class="s1">+= </span><span class="s2">k</span><span class="s1">;</span>
+	<span class="s1">}</span>
+	<span class="s3">return </span><span class="s2">str </span><span class="s1">!== </span><span class="s2">actual</span><span class="s1">;</span>
+<span class="s1">};</span>
+
+<span class="s3">var </span><span class="s2">assignHasPendingExceptions </span><span class="s1">= </span><span class="s3">function </span><span class="s1">() {</span>
+	<span class="s3">if </span><span class="s1">(!</span><span class="s2">Object</span><span class="s1">.</span><span class="s2">assign </span><span class="s1">|| !</span><span class="s2">Object</span><span class="s1">.</span><span class="s2">preventExtensions</span><span class="s1">) {</span>
+		<span class="s3">return false</span><span class="s1">;</span>
+	<span class="s1">}</span>
+	<span class="s4">/* 
+     * Firefox 37 still has &quot;pending exception&quot; logic in its Object.assign implementation, 
+     * which is 72% slower than our shim, and Firefox 40's native implementation. 
+     */</span>
+	<span class="s3">var </span><span class="s2">thrower </span><span class="s1">= </span><span class="s2">Object</span><span class="s1">.</span><span class="s2">preventExtensions</span><span class="s1">({ </span><span class="s5">1</span><span class="s1">: </span><span class="s5">2 </span><span class="s1">});</span>
+	<span class="s3">try </span><span class="s1">{</span>
+		<span class="s2">Object</span><span class="s1">.</span><span class="s2">assign</span><span class="s1">(</span><span class="s2">thrower</span><span class="s1">, </span><span class="s0">'xy'</span><span class="s1">);</span>
+	<span class="s1">} </span><span class="s3">catch </span><span class="s1">(</span><span class="s2">e</span><span class="s1">) {</span>
+		<span class="s3">return </span><span class="s2">thrower</span><span class="s1">[</span><span class="s5">1</span><span class="s1">] === </span><span class="s0">'y'</span><span class="s1">;</span>
+	<span class="s1">}</span>
+	<span class="s3">return false</span><span class="s1">;</span>
+<span class="s1">};</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= </span><span class="s3">function </span><span class="s2">getPolyfill</span><span class="s1">() {</span>
+	<span class="s3">if </span><span class="s1">(!</span><span class="s2">Object</span><span class="s1">.</span><span class="s2">assign</span><span class="s1">) {</span>
+		<span class="s3">return </span><span class="s2">implementation</span><span class="s1">;</span>
+	<span class="s1">}</span>
+	<span class="s3">if </span><span class="s1">(</span><span class="s2">lacksProperEnumerationOrder</span><span class="s1">()) {</span>
+		<span class="s3">return </span><span class="s2">implementation</span><span class="s1">;</span>
+	<span class="s1">}</span>
+	<span class="s3">if </span><span class="s1">(</span><span class="s2">assignHasPendingExceptions</span><span class="s1">()) {</span>
+		<span class="s3">return </span><span class="s2">implementation</span><span class="s1">;</span>
+	<span class="s1">}</span>
+	<span class="s3">return </span><span class="s2">Object</span><span class="s1">.</span><span class="s2">assign</span><span class="s1">;</span>
+<span class="s1">};</span>
+</pre>
+</body>
+</html>

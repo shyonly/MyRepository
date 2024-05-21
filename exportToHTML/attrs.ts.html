@@ -1,0 +1,137 @@
+<html>
+<head>
+<title>attrs.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+attrs.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">isIE</span><span class="s2">, </span><span class="s1">isIE9</span><span class="s2">, </span><span class="s1">isEdge </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'core/util/env'</span>
+
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">extend</span><span class="s2">, </span><span class="s1">isDef</span><span class="s2">, </span><span class="s1">isUndef</span><span class="s2">, </span><span class="s1">isTrue </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'shared/util'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">VNodeWithData </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/vnode'</span>
+
+<span class="s0">import </span><span class="s2">{</span>
+  <span class="s1">isXlink</span><span class="s2">,</span>
+  <span class="s1">xlinkNS</span><span class="s2">,</span>
+  <span class="s1">getXlinkProp</span><span class="s2">,</span>
+  <span class="s1">isBooleanAttr</span><span class="s2">,</span>
+  <span class="s1">isEnumeratedAttr</span><span class="s2">,</span>
+  <span class="s1">isFalsyAttrValue</span><span class="s2">,</span>
+  <span class="s1">convertEnumeratedValue</span>
+<span class="s2">} </span><span class="s1">from </span><span class="s3">'web/util/index'</span>
+
+<span class="s0">function </span><span class="s1">updateAttrs</span><span class="s2">(</span><span class="s1">oldVnode</span><span class="s2">: </span><span class="s1">VNodeWithData</span><span class="s2">, </span><span class="s1">vnode</span><span class="s2">: </span><span class="s1">VNodeWithData</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">opts </span><span class="s2">= </span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">componentOptions</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">opts</span><span class="s2">) &amp;&amp; </span><span class="s1">opts</span><span class="s2">.</span><span class="s1">Ctor</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">inheritAttrs </span><span class="s2">=== </span><span class="s0">false</span><span class="s2">) {</span>
+    <span class="s0">return</span>
+  <span class="s2">}</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isUndef</span><span class="s2">(</span><span class="s1">oldVnode</span><span class="s2">.</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">) &amp;&amp; </span><span class="s1">isUndef</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">)) {</span>
+    <span class="s0">return</span>
+  <span class="s2">}</span>
+  <span class="s0">let </span><span class="s1">key</span><span class="s2">, </span><span class="s1">cur</span><span class="s2">, </span><span class="s1">old</span>
+  <span class="s0">const </span><span class="s1">elm </span><span class="s2">= </span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">elm</span>
+  <span class="s0">const </span><span class="s1">oldAttrs </span><span class="s2">= </span><span class="s1">oldVnode</span><span class="s2">.</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs </span><span class="s2">|| {}</span>
+  <span class="s0">let </span><span class="s1">attrs</span><span class="s2">: </span><span class="s1">any </span><span class="s2">= </span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs </span><span class="s2">|| {}</span>
+  <span class="s4">// clone observed objects, as the user probably wants to mutate it</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">__ob__</span><span class="s2">) || </span><span class="s1">isTrue</span><span class="s2">(</span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">_v_attr_proxy</span><span class="s2">)) {</span>
+    <span class="s1">attrs </span><span class="s2">= </span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">data</span><span class="s2">.</span><span class="s1">attrs </span><span class="s2">= </span><span class="s1">extend</span><span class="s2">({}, </span><span class="s1">attrs</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s0">for </span><span class="s2">(</span><span class="s1">key </span><span class="s0">in </span><span class="s1">attrs</span><span class="s2">) {</span>
+    <span class="s1">cur </span><span class="s2">= </span><span class="s1">attrs</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+    <span class="s1">old </span><span class="s2">= </span><span class="s1">oldAttrs</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">old </span><span class="s2">!== </span><span class="s1">cur</span><span class="s2">) {</span>
+      <span class="s1">setAttr</span><span class="s2">(</span><span class="s1">elm</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">cur</span><span class="s2">, </span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">data</span><span class="s2">.</span><span class="s1">pre</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+  <span class="s4">// #4391: in IE9, setting type can reset value for input[type=radio]</span>
+  <span class="s4">// #6666: IE/Edge forces progress value down to 1 before setting a max</span>
+  <span class="s4">/* istanbul ignore if */</span>
+  <span class="s0">if </span><span class="s2">((</span><span class="s1">isIE </span><span class="s2">|| </span><span class="s1">isEdge</span><span class="s2">) &amp;&amp; </span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">value </span><span class="s2">!== </span><span class="s1">oldAttrs</span><span class="s2">.</span><span class="s1">value</span><span class="s2">) {</span>
+    <span class="s1">setAttr</span><span class="s2">(</span><span class="s1">elm</span><span class="s2">, </span><span class="s3">'value'</span><span class="s2">, </span><span class="s1">attrs</span><span class="s2">.</span><span class="s1">value</span><span class="s2">)</span>
+  <span class="s2">}</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s1">key </span><span class="s0">in </span><span class="s1">oldAttrs</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isUndef</span><span class="s2">(</span><span class="s1">attrs</span><span class="s2">[</span><span class="s1">key</span><span class="s2">])) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">isXlink</span><span class="s2">(</span><span class="s1">key</span><span class="s2">)) {</span>
+        <span class="s1">elm</span><span class="s2">.</span><span class="s1">removeAttributeNS</span><span class="s2">(</span><span class="s1">xlinkNS</span><span class="s2">, </span><span class="s1">getXlinkProp</span><span class="s2">(</span><span class="s1">key</span><span class="s2">))</span>
+      <span class="s2">} </span><span class="s0">else if </span><span class="s2">(!</span><span class="s1">isEnumeratedAttr</span><span class="s2">(</span><span class="s1">key</span><span class="s2">)) {</span>
+        <span class="s1">elm</span><span class="s2">.</span><span class="s1">removeAttribute</span><span class="s2">(</span><span class="s1">key</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">setAttr</span><span class="s2">(</span><span class="s1">el</span><span class="s2">: </span><span class="s1">Element</span><span class="s2">, </span><span class="s1">key</span><span class="s2">: </span><span class="s1">string</span><span class="s2">, </span><span class="s1">value</span><span class="s2">: </span><span class="s1">any</span><span class="s2">, </span><span class="s1">isInPre</span><span class="s2">?: </span><span class="s1">any</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isInPre </span><span class="s2">|| </span><span class="s1">el</span><span class="s2">.</span><span class="s1">tagName</span><span class="s2">.</span><span class="s1">indexOf</span><span class="s2">(</span><span class="s3">'-'</span><span class="s2">) &gt; -</span><span class="s5">1</span><span class="s2">) {</span>
+    <span class="s1">baseSetAttr</span><span class="s2">(</span><span class="s1">el</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">value</span><span class="s2">)</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isBooleanAttr</span><span class="s2">(</span><span class="s1">key</span><span class="s2">)) {</span>
+    <span class="s4">// set attribute for blank value</span>
+    <span class="s4">// e.g. &lt;option disabled&gt;Select one&lt;/option&gt;</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isFalsyAttrValue</span><span class="s2">(</span><span class="s1">value</span><span class="s2">)) {</span>
+      <span class="s1">el</span><span class="s2">.</span><span class="s1">removeAttribute</span><span class="s2">(</span><span class="s1">key</span><span class="s2">)</span>
+    <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+      <span class="s4">// technically allowfullscreen is a boolean attribute for &lt;iframe&gt;,</span>
+      <span class="s4">// but Flash expects a value of &quot;true&quot; when used on &lt;embed&gt; tag</span>
+      <span class="s1">value </span><span class="s2">= </span><span class="s1">key </span><span class="s2">=== </span><span class="s3">'allowfullscreen' </span><span class="s2">&amp;&amp; </span><span class="s1">el</span><span class="s2">.</span><span class="s1">tagName </span><span class="s2">=== </span><span class="s3">'EMBED' </span><span class="s2">? </span><span class="s3">'true' </span><span class="s2">: </span><span class="s1">key</span>
+      <span class="s1">el</span><span class="s2">.</span><span class="s1">setAttribute</span><span class="s2">(</span><span class="s1">key</span><span class="s2">, </span><span class="s1">value</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isEnumeratedAttr</span><span class="s2">(</span><span class="s1">key</span><span class="s2">)) {</span>
+    <span class="s1">el</span><span class="s2">.</span><span class="s1">setAttribute</span><span class="s2">(</span><span class="s1">key</span><span class="s2">, </span><span class="s1">convertEnumeratedValue</span><span class="s2">(</span><span class="s1">key</span><span class="s2">, </span><span class="s1">value</span><span class="s2">))</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isXlink</span><span class="s2">(</span><span class="s1">key</span><span class="s2">)) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isFalsyAttrValue</span><span class="s2">(</span><span class="s1">value</span><span class="s2">)) {</span>
+      <span class="s1">el</span><span class="s2">.</span><span class="s1">removeAttributeNS</span><span class="s2">(</span><span class="s1">xlinkNS</span><span class="s2">, </span><span class="s1">getXlinkProp</span><span class="s2">(</span><span class="s1">key</span><span class="s2">))</span>
+    <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+      <span class="s1">el</span><span class="s2">.</span><span class="s1">setAttributeNS</span><span class="s2">(</span><span class="s1">xlinkNS</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">value</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s1">baseSetAttr</span><span class="s2">(</span><span class="s1">el</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">value</span><span class="s2">)</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">baseSetAttr</span><span class="s2">(</span><span class="s1">el</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">value</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isFalsyAttrValue</span><span class="s2">(</span><span class="s1">value</span><span class="s2">)) {</span>
+    <span class="s1">el</span><span class="s2">.</span><span class="s1">removeAttribute</span><span class="s2">(</span><span class="s1">key</span><span class="s2">)</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s4">// #7138: IE10 &amp; 11 fires input event when setting placeholder on</span>
+    <span class="s4">// &lt;textarea&gt;... block the first input event and remove the blocker</span>
+    <span class="s4">// immediately.</span>
+    <span class="s4">/* istanbul ignore if */</span>
+    <span class="s0">if </span><span class="s2">(</span>
+      <span class="s1">isIE </span><span class="s2">&amp;&amp;</span>
+      <span class="s2">!</span><span class="s1">isIE9 </span><span class="s2">&amp;&amp;</span>
+      <span class="s1">el</span><span class="s2">.</span><span class="s1">tagName </span><span class="s2">=== </span><span class="s3">'TEXTAREA' </span><span class="s2">&amp;&amp;</span>
+      <span class="s1">key </span><span class="s2">=== </span><span class="s3">'placeholder' </span><span class="s2">&amp;&amp;</span>
+      <span class="s1">value </span><span class="s2">!== </span><span class="s3">'' </span><span class="s2">&amp;&amp;</span>
+      <span class="s2">!</span><span class="s1">el</span><span class="s2">.</span><span class="s1">__ieph</span>
+    <span class="s2">) {</span>
+      <span class="s0">const </span><span class="s1">blocker </span><span class="s2">= </span><span class="s1">e </span><span class="s2">=&gt; {</span>
+        <span class="s1">e</span><span class="s2">.</span><span class="s1">stopImmediatePropagation</span><span class="s2">()</span>
+        <span class="s1">el</span><span class="s2">.</span><span class="s1">removeEventListener</span><span class="s2">(</span><span class="s3">'input'</span><span class="s2">, </span><span class="s1">blocker</span><span class="s2">)</span>
+      <span class="s2">}</span>
+      <span class="s1">el</span><span class="s2">.</span><span class="s1">addEventListener</span><span class="s2">(</span><span class="s3">'input'</span><span class="s2">, </span><span class="s1">blocker</span><span class="s2">)</span>
+      <span class="s4">// $flow-disable-line</span>
+      <span class="s1">el</span><span class="s2">.</span><span class="s1">__ieph </span><span class="s2">= </span><span class="s0">true </span><span class="s4">/* IE placeholder patched */</span>
+    <span class="s2">}</span>
+    <span class="s1">el</span><span class="s2">.</span><span class="s1">setAttribute</span><span class="s2">(</span><span class="s1">key</span><span class="s2">, </span><span class="s1">value</span><span class="s2">)</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">export default </span><span class="s2">{</span>
+  <span class="s1">create</span><span class="s2">: </span><span class="s1">updateAttrs</span><span class="s2">,</span>
+  <span class="s1">update</span><span class="s2">: </span><span class="s1">updateAttrs</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

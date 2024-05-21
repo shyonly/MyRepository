@@ -1,0 +1,412 @@
+<html>
+<head>
+<title>loader.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #7a7e85;}
+.s7 { color: #2aacb8;}
+.s8 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+loader.js</font>
+</center></td></tr></table>
+<pre><span class="s0">&quot;use strict&quot;</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s2">path </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;path&quot;</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s1">{</span>
+  <span class="s2">findModuleById</span><span class="s1">,</span>
+  <span class="s2">evalModuleCode</span><span class="s1">,</span>
+  <span class="s2">AUTO_PUBLIC_PATH</span><span class="s1">,</span>
+  <span class="s2">ABSOLUTE_PUBLIC_PATH</span><span class="s1">,</span>
+  <span class="s2">BASE_URI</span><span class="s1">,</span>
+  <span class="s2">SINGLE_DOT_PATH_SEGMENT</span><span class="s1">,</span>
+  <span class="s2">stringifyRequest</span><span class="s1">,</span>
+  <span class="s2">stringifyLocal</span>
+<span class="s1">} = </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./utils&quot;</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">schema </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./loader-options.json&quot;</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s2">MiniCssExtractPlugin </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./index&quot;</span><span class="s1">);</span>
+
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;schema-utils/declarations/validate&quot;).Schema} Schema */</span>
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;webpack&quot;).Compiler} Compiler */</span>
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;webpack&quot;).Compilation} Compilation */</span>
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;webpack&quot;).Chunk} Chunk */</span>
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;webpack&quot;).Module} Module */</span>
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;webpack&quot;).sources.Source} Source */</span>
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;webpack&quot;).AssetInfo} AssetInfo */</span>
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;webpack&quot;).NormalModule} NormalModule */</span>
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;./index.js&quot;).LoaderOptions} LoaderOptions */</span>
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{{ [key: string]: string | function }} Locals */</span>
+
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{any} TODO */</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@typedef </span><span class="s4">{Object} Dependency</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{string} identifier</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{string | null} context</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{Buffer} content</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{string} media</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{string} [supports]</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{string} [layer]</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{Buffer} [sourceMap]</span>
+ <span class="s4">*/</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} content</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{{ loaderContext: import(&quot;webpack&quot;).LoaderContext&lt;LoaderOptions&gt;, options: LoaderOptions, locals: Locals | undefined }} context</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{string}</span>
+ <span class="s4">*/</span>
+<span class="s3">function </span><span class="s2">hotLoader</span><span class="s1">(</span><span class="s2">content</span><span class="s1">, </span><span class="s2">context</span><span class="s1">) {</span>
+  <span class="s3">const </span><span class="s2">accept </span><span class="s1">= </span><span class="s2">context</span><span class="s1">.</span><span class="s2">locals </span><span class="s1">? </span><span class="s0">&quot;&quot; </span><span class="s1">: </span><span class="s0">&quot;module.hot.accept(undefined, cssReload);&quot;</span><span class="s1">;</span>
+  <span class="s3">return </span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">content</span><span class="s1">}</span>
+    <span class="s0">if(module.hot) { 
+      // </span><span class="s2">$</span><span class="s1">{</span><span class="s2">Date</span><span class="s1">.</span><span class="s2">now</span><span class="s1">()}</span>
+      <span class="s0">var cssReload = require(</span><span class="s2">$</span><span class="s1">{</span><span class="s2">stringifyRequest</span><span class="s1">(</span><span class="s2">context</span><span class="s1">.</span><span class="s2">loaderContext</span><span class="s1">, </span><span class="s2">path</span><span class="s1">.</span><span class="s2">join</span><span class="s1">(</span><span class="s2">__dirname</span><span class="s1">, </span><span class="s0">&quot;hmr/hotModuleReplacement.js&quot;</span><span class="s1">))}</span><span class="s0">)(module.id, </span><span class="s2">$</span><span class="s1">{</span><span class="s2">JSON</span><span class="s1">.</span><span class="s2">stringify</span><span class="s1">({</span>
+    <span class="s2">...context</span><span class="s1">.</span><span class="s2">options</span><span class="s1">,</span>
+    <span class="s2">locals</span><span class="s1">: !!</span><span class="s2">context</span><span class="s1">.</span><span class="s2">locals</span>
+  <span class="s1">})}</span><span class="s0">); 
+      module.hot.dispose(cssReload); 
+      </span><span class="s2">$</span><span class="s1">{</span><span class="s2">accept</span><span class="s1">}</span>
+    <span class="s0">} 
+  `</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@this </span><span class="s4">{import(&quot;webpack&quot;).LoaderContext&lt;LoaderOptions&gt;}</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} request</span>
+ <span class="s4">*/</span>
+<span class="s3">function </span><span class="s2">pitch</span><span class="s1">(</span><span class="s2">request</span><span class="s1">) {</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_compiler </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_compiler</span><span class="s1">.</span><span class="s2">options </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_compiler</span><span class="s1">.</span><span class="s2">options</span><span class="s1">.</span><span class="s2">experiments </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_compiler</span><span class="s1">.</span><span class="s2">options</span><span class="s1">.</span><span class="s2">experiments</span><span class="s1">.</span><span class="s2">css </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_module </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_module</span><span class="s1">.</span><span class="s2">type </span><span class="s1">=== </span><span class="s0">&quot;css&quot;</span><span class="s1">) {</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">emitWarning</span><span class="s1">(</span><span class="s3">new </span><span class="s2">Error</span><span class="s1">(</span><span class="s0">'You can</span><span class="s3">\'</span><span class="s0">t use `experiments.css` (`experiments.futureDefaults` enable built-in CSS support by default) and `mini-css-extract-plugin` together, please set `experiments.css` to `false` or set `{ type: &quot;javascript/auto&quot; }` for rules with `mini-css-extract-plugin` in your webpack config (now `mini-css-extract-plugin` does nothing).'</span><span class="s1">));</span>
+    <span class="s3">return</span><span class="s1">;</span>
+  <span class="s1">}</span>
+
+  <span class="s6">// @ts-ignore</span>
+  <span class="s3">const </span><span class="s2">options </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">getOptions</span><span class="s1">( </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Schema} */</span><span class="s2">schema</span><span class="s1">);</span>
+  <span class="s3">const </span><span class="s2">emit </span><span class="s1">= </span><span class="s3">typeof </span><span class="s2">options</span><span class="s1">.</span><span class="s2">emit </span><span class="s1">!== </span><span class="s0">&quot;undefined&quot; </span><span class="s1">? </span><span class="s2">options</span><span class="s1">.</span><span class="s2">emit </span><span class="s1">: </span><span class="s3">true</span><span class="s1">;</span>
+  <span class="s3">const </span><span class="s2">callback </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">async</span><span class="s1">();</span>
+  <span class="s3">const </span><span class="s2">optionsFromPlugin </span><span class="s1">= </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{TODO} */</span><span class="s3">this</span><span class="s1">[</span><span class="s2">MiniCssExtractPlugin</span><span class="s1">.</span><span class="s2">pluginSymbol</span><span class="s1">];</span>
+  <span class="s3">if </span><span class="s1">(!</span><span class="s2">optionsFromPlugin</span><span class="s1">) {</span>
+    <span class="s2">callback</span><span class="s1">(</span><span class="s3">new </span><span class="s2">Error</span><span class="s1">(</span><span class="s0">&quot;You forgot to add 'mini-css-extract-plugin' plugin (i.e. `{ plugins: [new MiniCssExtractPlugin()] }`), please read https://github.com/webpack-contrib/mini-css-extract-plugin#getting-started&quot;</span><span class="s1">));</span>
+    <span class="s3">return</span><span class="s1">;</span>
+  <span class="s1">}</span>
+  <span class="s3">const </span><span class="s1">{</span>
+    <span class="s2">webpack</span>
+  <span class="s1">} = </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Compiler} */</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_compiler</span><span class="s1">;</span>
+
+  <span class="s4">/**</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{TODO} originalExports</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Compilation} [compilation]</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{{ [name: string]: Source }} [assets]</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Map&lt;string, AssetInfo&gt;} [assetsInfo]</span>
+   <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{void}</span>
+   <span class="s4">*/</span>
+  <span class="s3">const </span><span class="s2">handleExports </span><span class="s1">= (</span><span class="s2">originalExports</span><span class="s1">, </span><span class="s2">compilation</span><span class="s1">, </span><span class="s2">assets</span><span class="s1">, </span><span class="s2">assetsInfo</span><span class="s1">) =&gt; {</span>
+    <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Locals | undefined} */</span>
+    <span class="s3">let </span><span class="s2">locals</span><span class="s1">;</span>
+    <span class="s3">let </span><span class="s2">namedExport</span><span class="s1">;</span>
+    <span class="s3">const </span><span class="s2">esModule </span><span class="s1">= </span><span class="s3">typeof </span><span class="s2">options</span><span class="s1">.</span><span class="s2">esModule </span><span class="s1">!== </span><span class="s0">&quot;undefined&quot; </span><span class="s1">? </span><span class="s2">options</span><span class="s1">.</span><span class="s2">esModule </span><span class="s1">: </span><span class="s3">true</span><span class="s1">;</span>
+
+    <span class="s4">/**</span>
+     <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Dependency[] | [null, object][]} dependencies</span>
+     <span class="s4">*/</span>
+    <span class="s3">const </span><span class="s2">addDependencies </span><span class="s1">= </span><span class="s2">dependencies </span><span class="s1">=&gt; {</span>
+      <span class="s3">if </span><span class="s1">(!</span><span class="s2">Array</span><span class="s1">.</span><span class="s2">isArray</span><span class="s1">(</span><span class="s2">dependencies</span><span class="s1">) &amp;&amp; </span><span class="s2">dependencies </span><span class="s1">!= </span><span class="s3">null</span><span class="s1">) {</span>
+        <span class="s3">throw new </span><span class="s2">Error</span><span class="s1">(</span><span class="s0">`Exported value was not extracted as an array: </span><span class="s2">$</span><span class="s1">{</span><span class="s2">JSON</span><span class="s1">.</span><span class="s2">stringify</span><span class="s1">(</span><span class="s2">dependencies</span><span class="s1">)}</span><span class="s0">`</span><span class="s1">);</span>
+      <span class="s1">}</span>
+      <span class="s3">const </span><span class="s2">identifierCountMap </span><span class="s1">= </span><span class="s3">new </span><span class="s2">Map</span><span class="s1">();</span>
+      <span class="s3">let </span><span class="s2">lastDep</span><span class="s1">;</span>
+      <span class="s3">for </span><span class="s1">(</span><span class="s3">const </span><span class="s2">dependency of dependencies</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(! </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Dependency} */</span><span class="s2">dependency</span><span class="s1">.</span><span class="s2">identifier </span><span class="s1">|| !</span><span class="s2">emit</span><span class="s1">) {</span>
+          <span class="s6">// eslint-disable-next-line no-continue</span>
+          <span class="s3">continue</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s3">const </span><span class="s2">count </span><span class="s1">= </span><span class="s2">identifierCountMap</span><span class="s1">.</span><span class="s2">get</span><span class="s1">( </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Dependency} */</span><span class="s2">dependency</span><span class="s1">.</span><span class="s2">identifier</span><span class="s1">) || </span><span class="s7">0</span><span class="s1">;</span>
+        <span class="s3">const </span><span class="s2">CssDependency </span><span class="s1">= </span><span class="s2">MiniCssExtractPlugin</span><span class="s1">.</span><span class="s2">getCssDependency</span><span class="s1">(</span><span class="s2">webpack</span><span class="s1">);</span>
+
+        <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{NormalModule} */</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_module</span><span class="s1">.</span><span class="s2">addDependency</span><span class="s1">(</span><span class="s2">lastDep </span><span class="s1">= </span><span class="s3">new </span><span class="s2">CssDependency</span><span class="s1">( </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Dependency} */</span>
+        <span class="s2">dependency</span><span class="s1">, </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Dependency} */</span>
+        <span class="s2">dependency</span><span class="s1">.</span><span class="s2">context</span><span class="s1">, </span><span class="s2">count</span><span class="s1">));</span>
+        <span class="s2">identifierCountMap</span><span class="s1">.</span><span class="s2">set</span><span class="s1">( </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Dependency} */</span>
+        <span class="s2">dependency</span><span class="s1">.</span><span class="s2">identifier</span><span class="s1">, </span><span class="s2">count </span><span class="s1">+ </span><span class="s7">1</span><span class="s1">);</span>
+      <span class="s1">}</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">lastDep </span><span class="s1">&amp;&amp; </span><span class="s2">assets</span><span class="s1">) {</span>
+        <span class="s2">lastDep</span><span class="s1">.</span><span class="s2">assets </span><span class="s1">= </span><span class="s2">assets</span><span class="s1">;</span>
+        <span class="s2">lastDep</span><span class="s1">.</span><span class="s2">assetsInfo </span><span class="s1">= </span><span class="s2">assetsInfo</span><span class="s1">;</span>
+      <span class="s1">}</span>
+    <span class="s1">};</span>
+    <span class="s3">try </span><span class="s1">{</span>
+      <span class="s6">// eslint-disable-next-line no-underscore-dangle</span>
+      <span class="s3">const </span><span class="s2">exports </span><span class="s1">= </span><span class="s2">originalExports</span><span class="s1">.</span><span class="s2">__esModule </span><span class="s1">? </span><span class="s2">originalExports</span><span class="s1">.</span><span class="s2">default </span><span class="s1">: </span><span class="s2">originalExports</span><span class="s1">;</span>
+      <span class="s2">namedExport </span><span class="s1">=</span>
+      <span class="s6">// eslint-disable-next-line no-underscore-dangle</span>
+      <span class="s2">originalExports</span><span class="s1">.</span><span class="s2">__esModule </span><span class="s1">&amp;&amp; (!</span><span class="s2">originalExports</span><span class="s1">.</span><span class="s2">default </span><span class="s1">|| !(</span><span class="s0">&quot;locals&quot; </span><span class="s3">in </span><span class="s2">originalExports</span><span class="s1">.</span><span class="s2">default</span><span class="s1">));</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">namedExport</span><span class="s1">) {</span>
+        <span class="s2">Object</span><span class="s1">.</span><span class="s2">keys</span><span class="s1">(</span><span class="s2">originalExports</span><span class="s1">).</span><span class="s2">forEach</span><span class="s1">(</span><span class="s2">key </span><span class="s1">=&gt; {</span>
+          <span class="s3">if </span><span class="s1">(</span><span class="s2">key </span><span class="s1">!== </span><span class="s0">&quot;default&quot;</span><span class="s1">) {</span>
+            <span class="s3">if </span><span class="s1">(!</span><span class="s2">locals</span><span class="s1">) {</span>
+              <span class="s2">locals </span><span class="s1">= {};</span>
+            <span class="s1">}</span>
+
+            <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Locals} */</span>
+            <span class="s2">locals</span><span class="s1">[</span><span class="s2">key</span><span class="s1">] = </span><span class="s2">originalExports</span><span class="s1">[</span><span class="s2">key</span><span class="s1">];</span>
+          <span class="s1">}</span>
+        <span class="s1">});</span>
+      <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+        <span class="s2">locals </span><span class="s1">= </span><span class="s2">exports </span><span class="s1">&amp;&amp; </span><span class="s2">exports</span><span class="s1">.</span><span class="s2">locals</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Dependency[] | [null, object][]} */</span>
+      <span class="s3">let </span><span class="s2">dependencies</span><span class="s1">;</span>
+      <span class="s3">if </span><span class="s1">(!</span><span class="s2">Array</span><span class="s1">.</span><span class="s2">isArray</span><span class="s1">(</span><span class="s2">exports</span><span class="s1">)) {</span>
+        <span class="s2">dependencies </span><span class="s1">= [[</span><span class="s3">null</span><span class="s1">, </span><span class="s2">exports</span><span class="s1">]];</span>
+      <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+        <span class="s2">dependencies </span><span class="s1">= </span><span class="s2">exports</span><span class="s1">.</span><span class="s2">map</span><span class="s1">(([</span><span class="s2">id</span><span class="s1">, </span><span class="s2">content</span><span class="s1">, </span><span class="s2">media</span><span class="s1">, </span><span class="s2">sourceMap</span><span class="s1">, </span><span class="s2">supports</span><span class="s1">, </span><span class="s2">layer</span><span class="s1">]) =&gt; {</span>
+          <span class="s3">let </span><span class="s2">identifier </span><span class="s1">= </span><span class="s2">id</span><span class="s1">;</span>
+          <span class="s3">let </span><span class="s2">context</span><span class="s1">;</span>
+          <span class="s3">if </span><span class="s1">(</span><span class="s2">compilation</span><span class="s1">) {</span>
+            <span class="s3">const </span><span class="s2">module </span><span class="s1">= </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Module} */</span>
+            <span class="s2">findModuleById</span><span class="s1">(</span><span class="s2">compilation</span><span class="s1">, </span><span class="s2">id</span><span class="s1">);</span>
+            <span class="s2">identifier </span><span class="s1">= </span><span class="s2">module</span><span class="s1">.</span><span class="s2">identifier</span><span class="s1">();</span>
+            <span class="s1">({</span>
+              <span class="s2">context</span>
+            <span class="s1">} = </span><span class="s2">module</span><span class="s1">);</span>
+          <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+            <span class="s6">// TODO check if this context is used somewhere</span>
+            <span class="s2">context </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">rootContext</span><span class="s1">;</span>
+          <span class="s1">}</span>
+          <span class="s3">return </span><span class="s1">{</span>
+            <span class="s2">identifier</span><span class="s1">,</span>
+            <span class="s2">context</span><span class="s1">,</span>
+            <span class="s2">content</span><span class="s1">: </span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">from</span><span class="s1">(</span><span class="s2">content</span><span class="s1">),</span>
+            <span class="s2">media</span><span class="s1">,</span>
+            <span class="s2">supports</span><span class="s1">,</span>
+            <span class="s2">layer</span><span class="s1">,</span>
+            <span class="s2">sourceMap</span><span class="s1">: </span><span class="s2">sourceMap </span><span class="s1">? </span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">from</span><span class="s1">(</span><span class="s2">JSON</span><span class="s1">.</span><span class="s2">stringify</span><span class="s1">(</span><span class="s2">sourceMap</span><span class="s1">)) :</span>
+            <span class="s6">// eslint-disable-next-line no-undefined</span>
+            <span class="s2">undefined</span>
+          <span class="s1">};</span>
+        <span class="s1">});</span>
+      <span class="s1">}</span>
+      <span class="s2">addDependencies</span><span class="s1">(</span><span class="s2">dependencies</span><span class="s1">);</span>
+    <span class="s1">} </span><span class="s3">catch </span><span class="s1">(</span><span class="s2">e</span><span class="s1">) {</span>
+      <span class="s2">callback</span><span class="s1">( </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Error} */</span><span class="s2">e</span><span class="s1">);</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s3">const </span><span class="s2">result </span><span class="s1">= </span><span class="s2">locals </span><span class="s1">? </span><span class="s2">namedExport </span><span class="s1">? </span><span class="s2">Object</span><span class="s1">.</span><span class="s2">keys</span><span class="s1">(</span><span class="s2">locals</span><span class="s1">).</span><span class="s2">map</span><span class="s1">(</span><span class="s2">key </span><span class="s1">=&gt; </span><span class="s0">`</span><span class="s3">\n</span><span class="s0">export var </span><span class="s2">$</span><span class="s1">{</span><span class="s2">key</span><span class="s1">} </span><span class="s0">= </span><span class="s2">$</span><span class="s1">{</span><span class="s2">stringifyLocal</span><span class="s1">( </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Locals} */</span><span class="s2">locals</span><span class="s1">[</span><span class="s2">key</span><span class="s1">])}</span><span class="s0">;`</span><span class="s1">).</span><span class="s2">join</span><span class="s1">(</span><span class="s0">&quot;&quot;</span><span class="s1">) : </span><span class="s0">`</span><span class="s3">\n</span><span class="s2">$</span><span class="s1">{</span><span class="s2">esModule </span><span class="s1">? </span><span class="s0">&quot;export default&quot; </span><span class="s1">: </span><span class="s0">&quot;module.exports =&quot;</span><span class="s1">} </span><span class="s2">$</span><span class="s1">{</span><span class="s2">JSON</span><span class="s1">.</span><span class="s2">stringify</span><span class="s1">(</span><span class="s2">locals</span><span class="s1">)}</span><span class="s0">;` </span><span class="s1">: </span><span class="s2">esModule </span><span class="s1">? </span><span class="s0">`</span><span class="s3">\n</span><span class="s0">export {};` </span><span class="s1">: </span><span class="s0">&quot;&quot;</span><span class="s1">;</span>
+    <span class="s3">let </span><span class="s2">resultSource </span><span class="s1">= </span><span class="s0">`// extracted by </span><span class="s2">$</span><span class="s1">{</span><span class="s2">MiniCssExtractPlugin</span><span class="s1">.</span><span class="s2">pluginName</span><span class="s1">}</span><span class="s0">`</span><span class="s1">;</span>
+
+    <span class="s6">// only attempt hotreloading if the css is actually used for something other than hash values</span>
+    <span class="s2">resultSource </span><span class="s1">+= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">hot </span><span class="s1">&amp;&amp; </span><span class="s2">emit </span><span class="s1">? </span><span class="s2">hotLoader</span><span class="s1">(</span><span class="s2">result</span><span class="s1">, {</span>
+      <span class="s2">loaderContext</span><span class="s1">: </span><span class="s3">this</span><span class="s1">,</span>
+      <span class="s2">options</span><span class="s1">,</span>
+      <span class="s2">locals</span>
+    <span class="s1">}) : </span><span class="s2">result</span><span class="s1">;</span>
+    <span class="s2">callback</span><span class="s1">(</span><span class="s3">null</span><span class="s1">, </span><span class="s2">resultSource</span><span class="s1">);</span>
+  <span class="s1">};</span>
+  <span class="s3">let </span><span class="s1">{</span>
+    <span class="s2">publicPath</span>
+  <span class="s1">} = </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Compilation} */</span>
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">_compilation</span><span class="s1">.</span><span class="s2">outputOptions</span><span class="s1">;</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">options</span><span class="s1">.</span><span class="s2">publicPath </span><span class="s1">=== </span><span class="s0">&quot;string&quot;</span><span class="s1">) {</span>
+    <span class="s6">// eslint-disable-next-line prefer-destructuring</span>
+    <span class="s2">publicPath </span><span class="s1">= </span><span class="s2">options</span><span class="s1">.</span><span class="s2">publicPath</span><span class="s1">;</span>
+  <span class="s1">} </span><span class="s3">else if </span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">options</span><span class="s1">.</span><span class="s2">publicPath </span><span class="s1">=== </span><span class="s0">&quot;function&quot;</span><span class="s1">) {</span>
+    <span class="s2">publicPath </span><span class="s1">= </span><span class="s2">options</span><span class="s1">.</span><span class="s2">publicPath</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">resourcePath</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">rootContext</span><span class="s1">);</span>
+  <span class="s1">}</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s2">publicPath </span><span class="s1">=== </span><span class="s0">&quot;auto&quot;</span><span class="s1">) {</span>
+    <span class="s2">publicPath </span><span class="s1">= </span><span class="s2">AUTO_PUBLIC_PATH</span><span class="s1">;</span>
+  <span class="s1">}</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">optionsFromPlugin</span><span class="s1">.</span><span class="s2">experimentalUseImportModule </span><span class="s1">=== </span><span class="s0">&quot;undefined&quot; </span><span class="s1">&amp;&amp; </span><span class="s3">typeof this</span><span class="s1">.</span><span class="s2">importModule </span><span class="s1">=== </span><span class="s0">&quot;function&quot; </span><span class="s1">|| </span><span class="s2">optionsFromPlugin</span><span class="s1">.</span><span class="s2">experimentalUseImportModule</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">importModule</span><span class="s1">) {</span>
+      <span class="s2">callback</span><span class="s1">(</span><span class="s3">new </span><span class="s2">Error</span><span class="s1">(</span><span class="s0">&quot;You are using 'experimentalUseImportModule' but 'this.importModule' is not available in loader context. You need to have at least webpack 5.33.2.&quot;</span><span class="s1">));</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s3">let </span><span class="s2">publicPathForExtract</span><span class="s1">;</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">publicPath </span><span class="s1">=== </span><span class="s0">&quot;string&quot;</span><span class="s1">) {</span>
+      <span class="s3">const </span><span class="s2">isAbsolutePublicPath </span><span class="s1">= </span><span class="s8">/^[a-zA-Z][a-zA-Z\d+\-.]*?:/</span><span class="s1">.</span><span class="s2">test</span><span class="s1">(</span><span class="s2">publicPath</span><span class="s1">);</span>
+      <span class="s2">publicPathForExtract </span><span class="s1">= </span><span class="s2">isAbsolutePublicPath </span><span class="s1">? </span><span class="s2">publicPath </span><span class="s1">: </span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">ABSOLUTE_PUBLIC_PATH</span><span class="s1">}</span><span class="s2">$</span><span class="s1">{</span><span class="s2">publicPath</span><span class="s1">.</span><span class="s2">replace</span><span class="s1">(</span><span class="s8">/\./g</span><span class="s1">, </span><span class="s2">SINGLE_DOT_PATH_SEGMENT</span><span class="s1">)}</span><span class="s0">`</span><span class="s1">;</span>
+    <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+      <span class="s2">publicPathForExtract </span><span class="s1">= </span><span class="s2">publicPath</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">importModule</span><span class="s1">(</span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s3">this</span><span class="s1">.</span><span class="s2">resourcePath</span><span class="s1">}</span><span class="s0">.webpack[javascript/auto]!=!!!</span><span class="s2">$</span><span class="s1">{</span><span class="s2">request</span><span class="s1">}</span><span class="s0">`</span><span class="s1">, {</span>
+      <span class="s2">layer</span><span class="s1">: </span><span class="s2">options</span><span class="s1">.</span><span class="s2">layer</span><span class="s1">,</span>
+      <span class="s2">publicPath</span><span class="s1">: </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{string} */</span><span class="s2">publicPathForExtract</span><span class="s1">,</span>
+      <span class="s2">baseUri</span><span class="s1">: </span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">BASE_URI</span><span class="s1">}</span><span class="s0">/`</span>
+    <span class="s1">},</span>
+    <span class="s4">/**</span>
+     <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Error | null | undefined} error</span>
+     <span class="s4">* </span><span class="s5">@param </span><span class="s4">{object} exports</span>
+     <span class="s4">*/</span>
+    <span class="s1">(</span><span class="s2">error</span><span class="s1">, </span><span class="s2">exports</span><span class="s1">) =&gt; {</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">error</span><span class="s1">) {</span>
+        <span class="s2">callback</span><span class="s1">(</span><span class="s2">error</span><span class="s1">);</span>
+        <span class="s3">return</span><span class="s1">;</span>
+      <span class="s1">}</span>
+      <span class="s2">handleExports</span><span class="s1">(</span><span class="s2">exports</span><span class="s1">);</span>
+    <span class="s1">});</span>
+    <span class="s3">return</span><span class="s1">;</span>
+  <span class="s1">}</span>
+  <span class="s3">const </span><span class="s2">loaders </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">loaders</span><span class="s1">.</span><span class="s2">slice</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">loaderIndex </span><span class="s1">+ </span><span class="s7">1</span><span class="s1">);</span>
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">addDependency</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">resourcePath</span><span class="s1">);</span>
+  <span class="s3">const </span><span class="s2">childFilename </span><span class="s1">= </span><span class="s0">&quot;*&quot;</span><span class="s1">;</span>
+  <span class="s3">const </span><span class="s2">outputOptions </span><span class="s1">= {</span>
+    <span class="s2">filename</span><span class="s1">: </span><span class="s2">childFilename</span><span class="s1">,</span>
+    <span class="s2">publicPath</span>
+  <span class="s1">};</span>
+  <span class="s3">const </span><span class="s2">childCompiler </span><span class="s1">= </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Compilation} */</span>
+  <span class="s3">this</span><span class="s1">.</span><span class="s2">_compilation</span><span class="s1">.</span><span class="s2">createChildCompiler</span><span class="s1">(</span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">MiniCssExtractPlugin</span><span class="s1">.</span><span class="s2">pluginName</span><span class="s1">} </span><span class="s2">$</span><span class="s1">{</span><span class="s2">request</span><span class="s1">}</span><span class="s0">`</span><span class="s1">, </span><span class="s2">outputOptions</span><span class="s1">);</span>
+
+  <span class="s6">// The templates are compiled and executed by NodeJS - similar to server side rendering</span>
+  <span class="s6">// Unfortunately this causes issues as some loaders require an absolute URL to support ES Modules</span>
+  <span class="s6">// The following config enables relative URL support for the child compiler</span>
+  <span class="s2">childCompiler</span><span class="s1">.</span><span class="s2">options</span><span class="s1">.</span><span class="s2">module </span><span class="s1">= {</span>
+    <span class="s2">...childCompiler</span><span class="s1">.</span><span class="s2">options</span><span class="s1">.</span><span class="s2">module</span>
+  <span class="s1">};</span>
+  <span class="s2">childCompiler</span><span class="s1">.</span><span class="s2">options</span><span class="s1">.</span><span class="s2">module</span><span class="s1">.</span><span class="s2">parser </span><span class="s1">= {</span>
+    <span class="s2">...childCompiler</span><span class="s1">.</span><span class="s2">options</span><span class="s1">.</span><span class="s2">module</span><span class="s1">.</span><span class="s2">parser</span>
+  <span class="s1">};</span>
+  <span class="s2">childCompiler</span><span class="s1">.</span><span class="s2">options</span><span class="s1">.</span><span class="s2">module</span><span class="s1">.</span><span class="s2">parser</span><span class="s1">.</span><span class="s2">javascript </span><span class="s1">= {</span>
+    <span class="s2">...childCompiler</span><span class="s1">.</span><span class="s2">options</span><span class="s1">.</span><span class="s2">module</span><span class="s1">.</span><span class="s2">parser</span><span class="s1">.</span><span class="s2">javascript</span><span class="s1">,</span>
+    <span class="s2">url</span><span class="s1">: </span><span class="s0">&quot;relative&quot;</span>
+  <span class="s1">};</span>
+  <span class="s3">const </span><span class="s1">{</span>
+    <span class="s2">NodeTemplatePlugin</span>
+  <span class="s1">} = </span><span class="s2">webpack</span><span class="s1">.</span><span class="s2">node</span><span class="s1">;</span>
+  <span class="s3">const </span><span class="s1">{</span>
+    <span class="s2">NodeTargetPlugin</span>
+  <span class="s1">} = </span><span class="s2">webpack</span><span class="s1">.</span><span class="s2">node</span><span class="s1">;</span>
+  <span class="s3">new </span><span class="s2">NodeTemplatePlugin</span><span class="s1">(</span><span class="s2">outputOptions</span><span class="s1">).</span><span class="s2">apply</span><span class="s1">(</span><span class="s2">childCompiler</span><span class="s1">);</span>
+  <span class="s3">new </span><span class="s2">NodeTargetPlugin</span><span class="s1">().</span><span class="s2">apply</span><span class="s1">(</span><span class="s2">childCompiler</span><span class="s1">);</span>
+  <span class="s3">const </span><span class="s1">{</span>
+    <span class="s2">EntryOptionPlugin</span>
+  <span class="s1">} = </span><span class="s2">webpack</span><span class="s1">;</span>
+  <span class="s3">const </span><span class="s1">{</span>
+    <span class="s2">library</span><span class="s1">: {</span>
+      <span class="s2">EnableLibraryPlugin</span>
+    <span class="s1">}</span>
+  <span class="s1">} = </span><span class="s2">webpack</span><span class="s1">;</span>
+  <span class="s3">new </span><span class="s2">EnableLibraryPlugin</span><span class="s1">(</span><span class="s0">&quot;commonjs2&quot;</span><span class="s1">).</span><span class="s2">apply</span><span class="s1">(</span><span class="s2">childCompiler</span><span class="s1">);</span>
+  <span class="s2">EntryOptionPlugin</span><span class="s1">.</span><span class="s2">applyEntryOption</span><span class="s1">(</span><span class="s2">childCompiler</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">context</span><span class="s1">, {</span>
+    <span class="s2">child</span><span class="s1">: {</span>
+      <span class="s2">library</span><span class="s1">: {</span>
+        <span class="s2">type</span><span class="s1">: </span><span class="s0">&quot;commonjs2&quot;</span>
+      <span class="s1">},</span>
+      <span class="s3">import</span><span class="s1">: [</span><span class="s0">`!!</span><span class="s2">$</span><span class="s1">{</span><span class="s2">request</span><span class="s1">}</span><span class="s0">`</span><span class="s1">]</span>
+    <span class="s1">}</span>
+  <span class="s1">});</span>
+  <span class="s3">const </span><span class="s1">{</span>
+    <span class="s2">LimitChunkCountPlugin</span>
+  <span class="s1">} = </span><span class="s2">webpack</span><span class="s1">.</span><span class="s2">optimize</span><span class="s1">;</span>
+  <span class="s3">new </span><span class="s2">LimitChunkCountPlugin</span><span class="s1">({</span>
+    <span class="s2">maxChunks</span><span class="s1">: </span><span class="s7">1</span>
+  <span class="s1">}).</span><span class="s2">apply</span><span class="s1">(</span><span class="s2">childCompiler</span><span class="s1">);</span>
+  <span class="s3">const </span><span class="s1">{</span>
+    <span class="s2">NormalModule</span>
+  <span class="s1">} = </span><span class="s2">webpack</span><span class="s1">;</span>
+  <span class="s2">childCompiler</span><span class="s1">.</span><span class="s2">hooks</span><span class="s1">.</span><span class="s2">thisCompilation</span><span class="s1">.</span><span class="s2">tap</span><span class="s1">(</span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">MiniCssExtractPlugin</span><span class="s1">.</span><span class="s2">pluginName</span><span class="s1">} </span><span class="s0">loader`</span><span class="s1">,</span>
+  <span class="s4">/**</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Compilation} compilation</span>
+   <span class="s4">*/</span>
+  <span class="s2">compilation </span><span class="s1">=&gt; {</span>
+    <span class="s3">const </span><span class="s2">normalModuleHook </span><span class="s1">= </span><span class="s2">NormalModule</span><span class="s1">.</span><span class="s2">getCompilationHooks</span><span class="s1">(</span><span class="s2">compilation</span><span class="s1">).</span><span class="s2">loader</span><span class="s1">;</span>
+    <span class="s2">normalModuleHook</span><span class="s1">.</span><span class="s2">tap</span><span class="s1">(</span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">MiniCssExtractPlugin</span><span class="s1">.</span><span class="s2">pluginName</span><span class="s1">} </span><span class="s0">loader`</span><span class="s1">, (</span><span class="s2">loaderContext</span><span class="s1">, </span><span class="s2">module</span><span class="s1">) =&gt; {</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">module</span><span class="s1">.</span><span class="s2">request </span><span class="s1">=== </span><span class="s2">request</span><span class="s1">) {</span>
+        <span class="s6">// eslint-disable-next-line no-param-reassign</span>
+        <span class="s2">module</span><span class="s1">.</span><span class="s2">loaders </span><span class="s1">= </span><span class="s2">loaders</span><span class="s1">.</span><span class="s2">map</span><span class="s1">(</span><span class="s2">loader </span><span class="s1">=&gt; {</span>
+          <span class="s3">return </span><span class="s1">{</span>
+            <span class="s2">type</span><span class="s1">: </span><span class="s3">null</span><span class="s1">,</span>
+            <span class="s2">loader</span><span class="s1">: </span><span class="s2">loader</span><span class="s1">.</span><span class="s2">path</span><span class="s1">,</span>
+            <span class="s2">options</span><span class="s1">: </span><span class="s2">loader</span><span class="s1">.</span><span class="s2">options</span><span class="s1">,</span>
+            <span class="s2">ident</span><span class="s1">: </span><span class="s2">loader</span><span class="s1">.</span><span class="s2">ident</span>
+          <span class="s1">};</span>
+        <span class="s1">});</span>
+      <span class="s1">}</span>
+    <span class="s1">});</span>
+  <span class="s1">});</span>
+
+  <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{string | Buffer} */</span>
+  <span class="s3">let </span><span class="s2">source</span><span class="s1">;</span>
+  <span class="s2">childCompiler</span><span class="s1">.</span><span class="s2">hooks</span><span class="s1">.</span><span class="s2">compilation</span><span class="s1">.</span><span class="s2">tap</span><span class="s1">(</span><span class="s2">MiniCssExtractPlugin</span><span class="s1">.</span><span class="s2">pluginName</span><span class="s1">,</span>
+  <span class="s4">/**</span>
+   <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Compilation} compilation</span>
+   <span class="s4">*/</span>
+  <span class="s2">compilation </span><span class="s1">=&gt; {</span>
+    <span class="s2">compilation</span><span class="s1">.</span><span class="s2">hooks</span><span class="s1">.</span><span class="s2">processAssets</span><span class="s1">.</span><span class="s2">tap</span><span class="s1">(</span><span class="s2">MiniCssExtractPlugin</span><span class="s1">.</span><span class="s2">pluginName</span><span class="s1">, () =&gt; {</span>
+      <span class="s2">source </span><span class="s1">= </span><span class="s2">compilation</span><span class="s1">.</span><span class="s2">assets</span><span class="s1">[</span><span class="s2">childFilename</span><span class="s1">] &amp;&amp; </span><span class="s2">compilation</span><span class="s1">.</span><span class="s2">assets</span><span class="s1">[</span><span class="s2">childFilename</span><span class="s1">].</span><span class="s2">source</span><span class="s1">();</span>
+
+      <span class="s6">// Remove all chunk assets</span>
+      <span class="s2">compilation</span><span class="s1">.</span><span class="s2">chunks</span><span class="s1">.</span><span class="s2">forEach</span><span class="s1">(</span><span class="s2">chunk </span><span class="s1">=&gt; {</span>
+        <span class="s2">chunk</span><span class="s1">.</span><span class="s2">files</span><span class="s1">.</span><span class="s2">forEach</span><span class="s1">(</span><span class="s2">file </span><span class="s1">=&gt; {</span>
+          <span class="s2">compilation</span><span class="s1">.</span><span class="s2">deleteAsset</span><span class="s1">(</span><span class="s2">file</span><span class="s1">);</span>
+        <span class="s1">});</span>
+      <span class="s1">});</span>
+    <span class="s1">});</span>
+  <span class="s1">});</span>
+  <span class="s2">childCompiler</span><span class="s1">.</span><span class="s2">runAsChild</span><span class="s1">((</span><span class="s2">error</span><span class="s1">, </span><span class="s2">entries</span><span class="s1">, </span><span class="s2">compilation</span><span class="s1">) =&gt; {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">error</span><span class="s1">) {</span>
+      <span class="s2">callback</span><span class="s1">(</span><span class="s2">error</span><span class="s1">);</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s3">if </span><span class="s1">( </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Compilation} */</span><span class="s2">compilation</span><span class="s1">.</span><span class="s2">errors</span><span class="s1">.</span><span class="s2">length </span><span class="s1">&gt; </span><span class="s7">0</span><span class="s1">) {</span>
+      <span class="s2">callback</span><span class="s1">( </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Compilation} */</span><span class="s2">compilation</span><span class="s1">.</span><span class="s2">errors</span><span class="s1">[</span><span class="s7">0</span><span class="s1">]);</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{{ [name: string]: Source }} */</span>
+    <span class="s3">const </span><span class="s2">assets </span><span class="s1">= </span><span class="s2">Object</span><span class="s1">.</span><span class="s2">create</span><span class="s1">(</span><span class="s3">null</span><span class="s1">);</span>
+    <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Map&lt;string, AssetInfo&gt;} */</span>
+    <span class="s3">const </span><span class="s2">assetsInfo </span><span class="s1">= </span><span class="s3">new </span><span class="s2">Map</span><span class="s1">();</span>
+    <span class="s3">for </span><span class="s1">(</span><span class="s3">const </span><span class="s2">asset of </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Compilation} */</span><span class="s2">compilation</span><span class="s1">.</span><span class="s2">getAssets</span><span class="s1">()) {</span>
+      <span class="s2">assets</span><span class="s1">[</span><span class="s2">asset</span><span class="s1">.</span><span class="s2">name</span><span class="s1">] = </span><span class="s2">asset</span><span class="s1">.</span><span class="s2">source</span><span class="s1">;</span>
+      <span class="s2">assetsInfo</span><span class="s1">.</span><span class="s2">set</span><span class="s1">(</span><span class="s2">asset</span><span class="s1">.</span><span class="s2">name</span><span class="s1">, </span><span class="s2">asset</span><span class="s1">.</span><span class="s2">info</span><span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Compilation} */</span>
+    <span class="s2">compilation</span><span class="s1">.</span><span class="s2">fileDependencies</span><span class="s1">.</span><span class="s2">forEach</span><span class="s1">(</span><span class="s2">dep </span><span class="s1">=&gt; {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">addDependency</span><span class="s1">(</span><span class="s2">dep</span><span class="s1">);</span>
+    <span class="s1">}, </span><span class="s3">this</span><span class="s1">);</span>
+
+    <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Compilation} */</span>
+    <span class="s2">compilation</span><span class="s1">.</span><span class="s2">contextDependencies</span><span class="s1">.</span><span class="s2">forEach</span><span class="s1">(</span><span class="s2">dep </span><span class="s1">=&gt; {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">addContextDependency</span><span class="s1">(</span><span class="s2">dep</span><span class="s1">);</span>
+    <span class="s1">}, </span><span class="s3">this</span><span class="s1">);</span>
+    <span class="s3">if </span><span class="s1">(!</span><span class="s2">source</span><span class="s1">) {</span>
+      <span class="s2">callback</span><span class="s1">(</span><span class="s3">new </span><span class="s2">Error</span><span class="s1">(</span><span class="s0">&quot;Didn't get a result from child compiler&quot;</span><span class="s1">));</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s3">let </span><span class="s2">originalExports</span><span class="s1">;</span>
+    <span class="s3">try </span><span class="s1">{</span>
+      <span class="s2">originalExports </span><span class="s1">= </span><span class="s2">evalModuleCode</span><span class="s1">(</span><span class="s3">this</span><span class="s1">, </span><span class="s2">source</span><span class="s1">, </span><span class="s2">request</span><span class="s1">);</span>
+    <span class="s1">} </span><span class="s3">catch </span><span class="s1">(</span><span class="s2">e</span><span class="s1">) {</span>
+      <span class="s2">callback</span><span class="s1">( </span><span class="s4">/** </span><span class="s5">@type </span><span class="s4">{Error} */</span><span class="s2">e</span><span class="s1">);</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+    <span class="s2">handleExports</span><span class="s1">(</span><span class="s2">originalExports</span><span class="s1">, </span><span class="s2">compilation</span><span class="s1">, </span><span class="s2">assets</span><span class="s1">, </span><span class="s2">assetsInfo</span><span class="s1">);</span>
+  <span class="s1">});</span>
+<span class="s1">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@this </span><span class="s4">{import(&quot;webpack&quot;).LoaderContext&lt;LoaderOptions&gt;}</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} content</span>
+ <span class="s4">*/</span>
+<span class="s6">// eslint-disable-next-line consistent-return</span>
+<span class="s3">function </span><span class="s2">loader</span><span class="s1">(</span><span class="s2">content</span><span class="s1">) {</span>
+  <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_compiler </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_compiler</span><span class="s1">.</span><span class="s2">options </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_compiler</span><span class="s1">.</span><span class="s2">options</span><span class="s1">.</span><span class="s2">experiments </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_compiler</span><span class="s1">.</span><span class="s2">options</span><span class="s1">.</span><span class="s2">experiments</span><span class="s1">.</span><span class="s2">css </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_module </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_module</span><span class="s1">.</span><span class="s2">type </span><span class="s1">=== </span><span class="s0">&quot;css&quot;</span><span class="s1">) {</span>
+    <span class="s3">return </span><span class="s2">content</span><span class="s1">;</span>
+  <span class="s1">}</span>
+<span class="s1">}</span>
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= </span><span class="s2">loader</span><span class="s1">;</span>
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports</span><span class="s1">.</span><span class="s2">pitch </span><span class="s1">= </span><span class="s2">pitch</span><span class="s1">;</span></pre>
+</body>
+</html>

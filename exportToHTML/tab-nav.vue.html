@@ -1,0 +1,318 @@
+<html>
+<head>
+<title>tab-nav.vue</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #d5b778;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #6aab73;}
+.s4 { color: #42c3d4;}
+.s5 { color: #2aacb8;}
+.s6 { color: #7a7e85;}
+.s7 { color: #bababa;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+tab-nav.vue</font>
+</center></td></tr></table>
+<pre><span class="s0">&lt;script&gt;</span>
+  <span class="s2">import </span><span class="s1">TabBar from </span><span class="s3">'./tab-bar'</span><span class="s1">;</span>
+  <span class="s2">import </span><span class="s1">{ addResizeListener, removeResizeListener } from </span><span class="s3">'element-ui/src/utils/resize-event'</span><span class="s1">;</span>
+
+  <span class="s2">function </span><span class="s1">noop() {}</span>
+  <span class="s2">const </span><span class="s1">firstUpperCase = str =&gt; {</span>
+    <span class="s2">return </span><span class="s1">str.toLowerCase().replace(</span><span class="s4">/( |^)[a-z]/g</span><span class="s1">, (L) =&gt; L.toUpperCase());</span>
+  <span class="s1">};</span>
+
+  <span class="s2">export default </span><span class="s1">{</span>
+    <span class="s1">name: </span><span class="s3">'TabNav'</span><span class="s1">,</span>
+
+    <span class="s1">components: {</span>
+      <span class="s1">TabBar</span>
+    <span class="s1">},</span>
+
+    <span class="s1">inject: [</span><span class="s3">'rootTabs'</span><span class="s1">],</span>
+
+    <span class="s1">props: {</span>
+      <span class="s1">panes: Array,</span>
+      <span class="s1">currentName: String,</span>
+      <span class="s1">editable: Boolean,</span>
+      <span class="s1">onTabClick: {</span>
+        <span class="s1">type: Function,</span>
+        <span class="s2">default</span><span class="s1">: noop</span>
+      <span class="s1">},</span>
+      <span class="s1">onTabRemove: {</span>
+        <span class="s1">type: Function,</span>
+        <span class="s2">default</span><span class="s1">: noop</span>
+      <span class="s1">},</span>
+      <span class="s1">type: String,</span>
+      <span class="s1">stretch: Boolean</span>
+    <span class="s1">},</span>
+
+    <span class="s1">data() {</span>
+      <span class="s2">return </span><span class="s1">{</span>
+        <span class="s1">scrollable: </span><span class="s2">false</span><span class="s1">,</span>
+        <span class="s1">navOffset: </span><span class="s5">0</span><span class="s1">,</span>
+        <span class="s1">isFocus: </span><span class="s2">false</span><span class="s1">,</span>
+        <span class="s1">focusable: </span><span class="s2">true</span>
+      <span class="s1">};</span>
+    <span class="s1">},</span>
+
+    <span class="s1">computed: {</span>
+      <span class="s1">navStyle() {</span>
+        <span class="s2">const </span><span class="s1">dir = [</span><span class="s3">'top'</span><span class="s1">, </span><span class="s3">'bottom'</span><span class="s1">].indexOf(</span><span class="s2">this</span><span class="s1">.rootTabs.tabPosition) !== -</span><span class="s5">1 </span><span class="s1">? </span><span class="s3">'X' </span><span class="s1">: </span><span class="s3">'Y'</span><span class="s1">;</span>
+        <span class="s2">return </span><span class="s1">{</span>
+          <span class="s1">transform: </span><span class="s3">`translate</span><span class="s1">${dir}</span><span class="s3">(-</span><span class="s1">${</span><span class="s2">this</span><span class="s1">.navOffset}</span><span class="s3">px)`</span>
+        <span class="s1">};</span>
+      <span class="s1">},</span>
+      <span class="s1">sizeName() {</span>
+        <span class="s2">return </span><span class="s1">[</span><span class="s3">'top'</span><span class="s1">, </span><span class="s3">'bottom'</span><span class="s1">].indexOf(</span><span class="s2">this</span><span class="s1">.rootTabs.tabPosition) !== -</span><span class="s5">1 </span><span class="s1">? </span><span class="s3">'width' </span><span class="s1">: </span><span class="s3">'height'</span><span class="s1">;</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+
+    <span class="s1">methods: {</span>
+      <span class="s1">scrollPrev() {</span>
+        <span class="s2">const </span><span class="s1">containerSize = </span><span class="s2">this</span><span class="s1">.$refs.navScroll[</span><span class="s3">`offset</span><span class="s1">${firstUpperCase(</span><span class="s2">this</span><span class="s1">.sizeName)}</span><span class="s3">`</span><span class="s1">];</span>
+        <span class="s2">const </span><span class="s1">currentOffset = </span><span class="s2">this</span><span class="s1">.navOffset;</span>
+
+        <span class="s2">if </span><span class="s1">(!currentOffset) </span><span class="s2">return</span><span class="s1">;</span>
+
+        <span class="s2">let </span><span class="s1">newOffset = currentOffset &gt; containerSize</span>
+          <span class="s1">? currentOffset - containerSize</span>
+          <span class="s1">: </span><span class="s5">0</span><span class="s1">;</span>
+
+        <span class="s2">this</span><span class="s1">.navOffset = newOffset;</span>
+      <span class="s1">},</span>
+      <span class="s1">scrollNext() {</span>
+        <span class="s2">const </span><span class="s1">navSize = </span><span class="s2">this</span><span class="s1">.$refs.nav[</span><span class="s3">`offset</span><span class="s1">${firstUpperCase(</span><span class="s2">this</span><span class="s1">.sizeName)}</span><span class="s3">`</span><span class="s1">];</span>
+        <span class="s2">const </span><span class="s1">containerSize = </span><span class="s2">this</span><span class="s1">.$refs.navScroll[</span><span class="s3">`offset</span><span class="s1">${firstUpperCase(</span><span class="s2">this</span><span class="s1">.sizeName)}</span><span class="s3">`</span><span class="s1">];</span>
+        <span class="s2">const </span><span class="s1">currentOffset = </span><span class="s2">this</span><span class="s1">.navOffset;</span>
+
+        <span class="s2">if </span><span class="s1">(navSize - currentOffset &lt;= containerSize) </span><span class="s2">return</span><span class="s1">;</span>
+
+        <span class="s2">let </span><span class="s1">newOffset = navSize - currentOffset &gt; containerSize * </span><span class="s5">2</span>
+          <span class="s1">? currentOffset + containerSize</span>
+          <span class="s1">: (navSize - containerSize);</span>
+
+        <span class="s2">this</span><span class="s1">.navOffset = newOffset;</span>
+      <span class="s1">},</span>
+      <span class="s1">scrollToActiveTab() {</span>
+        <span class="s2">if </span><span class="s1">(!</span><span class="s2">this</span><span class="s1">.scrollable) </span><span class="s2">return</span><span class="s1">;</span>
+        <span class="s2">const </span><span class="s1">nav = </span><span class="s2">this</span><span class="s1">.$refs.nav;</span>
+        <span class="s2">const </span><span class="s1">activeTab = </span><span class="s2">this</span><span class="s1">.$el.querySelector(</span><span class="s3">'.is-active'</span><span class="s1">);</span>
+        <span class="s2">if </span><span class="s1">(!activeTab) </span><span class="s2">return</span><span class="s1">;</span>
+        <span class="s2">const </span><span class="s1">navScroll = </span><span class="s2">this</span><span class="s1">.$refs.navScroll;</span>
+        <span class="s2">const </span><span class="s1">isHorizontal = [</span><span class="s3">'top'</span><span class="s1">, </span><span class="s3">'bottom'</span><span class="s1">].indexOf(</span><span class="s2">this</span><span class="s1">.rootTabs.tabPosition) !== -</span><span class="s5">1</span><span class="s1">;</span>
+        <span class="s2">const </span><span class="s1">activeTabBounding = activeTab.getBoundingClientRect();</span>
+        <span class="s2">const </span><span class="s1">navScrollBounding = navScroll.getBoundingClientRect();</span>
+        <span class="s2">const </span><span class="s1">maxOffset = isHorizontal</span>
+          <span class="s1">? nav.offsetWidth - navScrollBounding.width</span>
+          <span class="s1">: nav.offsetHeight - navScrollBounding.height;</span>
+        <span class="s2">const </span><span class="s1">currentOffset = </span><span class="s2">this</span><span class="s1">.navOffset;</span>
+        <span class="s2">let </span><span class="s1">newOffset = currentOffset;</span>
+
+        <span class="s2">if </span><span class="s1">(isHorizontal) {</span>
+          <span class="s2">if </span><span class="s1">(activeTabBounding.left &lt; navScrollBounding.left) {</span>
+            <span class="s1">newOffset = currentOffset - (navScrollBounding.left - activeTabBounding.left);</span>
+          <span class="s1">}</span>
+          <span class="s2">if </span><span class="s1">(activeTabBounding.right &gt; navScrollBounding.right) {</span>
+            <span class="s1">newOffset = currentOffset + activeTabBounding.right - navScrollBounding.right;</span>
+          <span class="s1">}</span>
+        <span class="s1">} </span><span class="s2">else </span><span class="s1">{</span>
+          <span class="s2">if </span><span class="s1">(activeTabBounding.top &lt; navScrollBounding.top) {</span>
+            <span class="s1">newOffset = currentOffset - (navScrollBounding.top - activeTabBounding.top);</span>
+          <span class="s1">}</span>
+          <span class="s2">if </span><span class="s1">(activeTabBounding.bottom &gt; navScrollBounding.bottom) {</span>
+            <span class="s1">newOffset = currentOffset + (activeTabBounding.bottom - navScrollBounding.bottom);</span>
+          <span class="s1">}</span>
+        <span class="s1">}</span>
+        <span class="s1">newOffset = Math.max(newOffset, </span><span class="s5">0</span><span class="s1">);</span>
+        <span class="s2">this</span><span class="s1">.navOffset = Math.min(newOffset, maxOffset);</span>
+      <span class="s1">},</span>
+      <span class="s1">update() {</span>
+        <span class="s2">if </span><span class="s1">(!</span><span class="s2">this</span><span class="s1">.$refs.nav) </span><span class="s2">return</span><span class="s1">;</span>
+        <span class="s2">const </span><span class="s1">sizeName = </span><span class="s2">this</span><span class="s1">.sizeName;</span>
+        <span class="s2">const </span><span class="s1">navSize = </span><span class="s2">this</span><span class="s1">.$refs.nav[</span><span class="s3">`offset</span><span class="s1">${firstUpperCase(sizeName)}</span><span class="s3">`</span><span class="s1">];</span>
+        <span class="s2">const </span><span class="s1">containerSize = </span><span class="s2">this</span><span class="s1">.$refs.navScroll[</span><span class="s3">`offset</span><span class="s1">${firstUpperCase(sizeName)}</span><span class="s3">`</span><span class="s1">];</span>
+        <span class="s2">const </span><span class="s1">currentOffset = </span><span class="s2">this</span><span class="s1">.navOffset;</span>
+
+        <span class="s2">if </span><span class="s1">(containerSize &lt; navSize) {</span>
+          <span class="s2">const </span><span class="s1">currentOffset = </span><span class="s2">this</span><span class="s1">.navOffset;</span>
+          <span class="s2">this</span><span class="s1">.scrollable = </span><span class="s2">this</span><span class="s1">.scrollable || {};</span>
+          <span class="s2">this</span><span class="s1">.scrollable.prev = currentOffset;</span>
+          <span class="s2">this</span><span class="s1">.scrollable.next = currentOffset + containerSize &lt; navSize;</span>
+          <span class="s2">if </span><span class="s1">(navSize - currentOffset &lt; containerSize) {</span>
+            <span class="s2">this</span><span class="s1">.navOffset = navSize - containerSize;</span>
+          <span class="s1">}</span>
+        <span class="s1">} </span><span class="s2">else </span><span class="s1">{</span>
+          <span class="s2">this</span><span class="s1">.scrollable = </span><span class="s2">false</span><span class="s1">;</span>
+          <span class="s2">if </span><span class="s1">(currentOffset &gt; </span><span class="s5">0</span><span class="s1">) {</span>
+            <span class="s2">this</span><span class="s1">.navOffset = </span><span class="s5">0</span><span class="s1">;</span>
+          <span class="s1">}</span>
+        <span class="s1">}</span>
+      <span class="s1">},</span>
+      <span class="s1">changeTab(e) {</span>
+        <span class="s2">const </span><span class="s1">keyCode = e.keyCode;</span>
+        <span class="s2">let </span><span class="s1">nextIndex;</span>
+        <span class="s2">let </span><span class="s1">currentIndex, tabList;</span>
+        <span class="s2">if </span><span class="s1">([</span><span class="s5">37</span><span class="s1">, </span><span class="s5">38</span><span class="s1">, </span><span class="s5">39</span><span class="s1">, </span><span class="s5">40</span><span class="s1">].indexOf(keyCode) !== -</span><span class="s5">1</span><span class="s1">) { </span><span class="s6">// 左右上下键更换tab</span>
+          <span class="s1">tabList = e.currentTarget.querySelectorAll(</span><span class="s3">'[role=tab]'</span><span class="s1">);</span>
+          <span class="s1">currentIndex = Array.prototype.indexOf.call(tabList, e.target);</span>
+        <span class="s1">} </span><span class="s2">else </span><span class="s1">{</span>
+          <span class="s2">return</span><span class="s1">;</span>
+        <span class="s1">}</span>
+        <span class="s2">if </span><span class="s1">(keyCode === </span><span class="s5">37 </span><span class="s1">|| keyCode === </span><span class="s5">38</span><span class="s1">) { </span><span class="s6">// left</span>
+          <span class="s2">if </span><span class="s1">(currentIndex === </span><span class="s5">0</span><span class="s1">) { </span><span class="s6">// first</span>
+            <span class="s1">nextIndex = tabList.length - </span><span class="s5">1</span><span class="s1">;</span>
+          <span class="s1">} </span><span class="s2">else </span><span class="s1">{</span>
+            <span class="s1">nextIndex = currentIndex - </span><span class="s5">1</span><span class="s1">;</span>
+          <span class="s1">}</span>
+        <span class="s1">} </span><span class="s2">else </span><span class="s1">{ </span><span class="s6">// right</span>
+          <span class="s2">if </span><span class="s1">(currentIndex &lt; tabList.length - </span><span class="s5">1</span><span class="s1">) { </span><span class="s6">// not last</span>
+            <span class="s1">nextIndex = currentIndex + </span><span class="s5">1</span><span class="s1">;</span>
+          <span class="s1">} </span><span class="s2">else </span><span class="s1">{</span>
+            <span class="s1">nextIndex = </span><span class="s5">0</span><span class="s1">;</span>
+          <span class="s1">}</span>
+        <span class="s1">}</span>
+        <span class="s1">tabList[nextIndex].focus(); </span><span class="s6">// 改变焦点元素</span>
+        <span class="s1">tabList[nextIndex].click(); </span><span class="s6">// 选中下一个tab</span>
+        <span class="s2">this</span><span class="s1">.setFocus();</span>
+      <span class="s1">},</span>
+      <span class="s1">setFocus() {</span>
+        <span class="s2">if </span><span class="s1">(</span><span class="s2">this</span><span class="s1">.focusable) {</span>
+          <span class="s2">this</span><span class="s1">.isFocus = </span><span class="s2">true</span><span class="s1">;</span>
+        <span class="s1">}</span>
+      <span class="s1">},</span>
+      <span class="s1">removeFocus() {</span>
+        <span class="s2">this</span><span class="s1">.isFocus = </span><span class="s2">false</span><span class="s1">;</span>
+      <span class="s1">},</span>
+      <span class="s1">visibilityChangeHandler() {</span>
+        <span class="s2">const </span><span class="s1">visibility = document.visibilityState;</span>
+        <span class="s2">if </span><span class="s1">(visibility === </span><span class="s3">'hidden'</span><span class="s1">) {</span>
+          <span class="s2">this</span><span class="s1">.focusable = </span><span class="s2">false</span><span class="s1">;</span>
+        <span class="s1">} </span><span class="s2">else if </span><span class="s1">(visibility === </span><span class="s3">'visible'</span><span class="s1">) {</span>
+          <span class="s1">setTimeout(() =&gt; {</span>
+            <span class="s2">this</span><span class="s1">.focusable = </span><span class="s2">true</span><span class="s1">;</span>
+          <span class="s1">}, </span><span class="s5">50</span><span class="s1">);</span>
+        <span class="s1">}</span>
+      <span class="s1">},</span>
+      <span class="s1">windowBlurHandler() {</span>
+        <span class="s2">this</span><span class="s1">.focusable = </span><span class="s2">false</span><span class="s1">;</span>
+      <span class="s1">},</span>
+      <span class="s1">windowFocusHandler() {</span>
+        <span class="s1">setTimeout(() =&gt; {</span>
+          <span class="s2">this</span><span class="s1">.focusable = </span><span class="s2">true</span><span class="s1">;</span>
+        <span class="s1">}, </span><span class="s5">50</span><span class="s1">);</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+
+    <span class="s1">updated() {</span>
+      <span class="s2">this</span><span class="s1">.update();</span>
+    <span class="s1">},</span>
+
+    <span class="s1">render(h) {</span>
+      <span class="s2">const </span><span class="s1">{</span>
+        <span class="s1">type,</span>
+        <span class="s1">panes,</span>
+        <span class="s1">editable,</span>
+        <span class="s1">stretch,</span>
+        <span class="s1">onTabClick,</span>
+        <span class="s1">onTabRemove,</span>
+        <span class="s1">navStyle,</span>
+        <span class="s1">scrollable,</span>
+        <span class="s1">scrollNext,</span>
+        <span class="s1">scrollPrev,</span>
+        <span class="s1">changeTab,</span>
+        <span class="s1">setFocus,</span>
+        <span class="s1">removeFocus</span>
+      <span class="s1">} = </span><span class="s2">this</span><span class="s1">;</span>
+      <span class="s2">const </span><span class="s1">scrollBtn = scrollable</span>
+        <span class="s1">? [</span>
+          <span class="s0">&lt;span </span><span class="s7">class</span><span class="s3">=</span><span class="s1">{[</span><span class="s3">'el-tabs__nav-prev'</span><span class="s1">, scrollable.prev ? </span><span class="s3">'' </span><span class="s1">: </span><span class="s3">'is-disabled'</span><span class="s1">]} </span><span class="s7">on-click</span><span class="s3">=</span><span class="s1">{scrollPrev}</span><span class="s0">&gt;&lt;i </span><span class="s7">class</span><span class="s3">=&quot;el-icon-arrow-left&quot;</span><span class="s0">&gt;&lt;/i&gt;&lt;/span&gt;</span><span class="s1">,</span>
+          <span class="s0">&lt;span </span><span class="s7">class</span><span class="s3">=</span><span class="s1">{[</span><span class="s3">'el-tabs__nav-next'</span><span class="s1">, scrollable.next ? </span><span class="s3">'' </span><span class="s1">: </span><span class="s3">'is-disabled'</span><span class="s1">]} </span><span class="s7">on-click</span><span class="s3">=</span><span class="s1">{scrollNext}</span><span class="s0">&gt;&lt;i </span><span class="s7">class</span><span class="s3">=&quot;el-icon-arrow-right&quot;</span><span class="s0">&gt;&lt;/i&gt;&lt;/span&gt;</span>
+        <span class="s1">] : </span><span class="s2">null</span><span class="s1">;</span>
+
+      <span class="s2">const </span><span class="s1">tabs = </span><span class="s2">this</span><span class="s1">._l(panes, (pane, index) =&gt; {</span>
+        <span class="s2">let </span><span class="s1">tabName = pane.name || pane.index || index;</span>
+        <span class="s2">const </span><span class="s1">closable = pane.isClosable || editable;</span>
+
+        <span class="s1">pane.index = </span><span class="s3">`</span><span class="s1">${index}</span><span class="s3">`</span><span class="s1">;</span>
+
+        <span class="s2">const </span><span class="s1">btnClose = closable</span>
+          <span class="s1">? </span><span class="s0">&lt;span </span><span class="s7">class</span><span class="s3">=&quot;el-icon-close&quot; </span><span class="s7">on-click</span><span class="s3">=</span><span class="s1">{(ev) =&gt; { onTabRemove(pane, ev); }}</span><span class="s0">&gt;&lt;/span&gt;</span>
+          <span class="s1">: </span><span class="s2">null</span><span class="s1">;</span>
+
+        <span class="s2">const </span><span class="s1">tabLabelContent = pane.$slots.label || pane.label;</span>
+        <span class="s2">const </span><span class="s1">tabindex = pane.active ? </span><span class="s5">0 </span><span class="s1">: -</span><span class="s5">1</span><span class="s1">;</span>
+        <span class="s2">return </span><span class="s1">(</span>
+          <span class="s0">&lt;div</span>
+            <span class="s7">class</span><span class="s3">=</span><span class="s1">{{</span>
+              <span class="s3">'el-tabs__item'</span><span class="s1">: </span><span class="s2">true</span><span class="s1">,</span>
+              <span class="s1">[</span><span class="s3">`is-</span><span class="s1">${ </span><span class="s2">this</span><span class="s1">.rootTabs.tabPosition }</span><span class="s3">`</span><span class="s1">]: </span><span class="s2">true</span><span class="s1">,</span>
+              <span class="s3">'is-active'</span><span class="s1">: pane.active,</span>
+              <span class="s3">'is-disabled'</span><span class="s1">: pane.disabled,</span>
+              <span class="s3">'is-closable'</span><span class="s1">: closable,</span>
+              <span class="s3">'is-focus'</span><span class="s1">: </span><span class="s2">this</span><span class="s1">.isFocus</span>
+            <span class="s1">}}</span>
+            <span class="s7">id</span><span class="s3">=</span><span class="s1">{</span><span class="s3">`tab-</span><span class="s1">${tabName}</span><span class="s3">`</span><span class="s1">}</span>
+            <span class="s7">key</span><span class="s3">=</span><span class="s1">{</span><span class="s3">`tab-</span><span class="s1">${tabName}</span><span class="s3">`</span><span class="s1">}</span>
+            <span class="s7">aria-controls</span><span class="s3">=</span><span class="s1">{</span><span class="s3">`pane-</span><span class="s1">${tabName}</span><span class="s3">`</span><span class="s1">}</span>
+            <span class="s7">role</span><span class="s3">=&quot;tab&quot;</span>
+            <span class="s7">aria-selected</span><span class="s3">=</span><span class="s1">{ pane.active }</span>
+            <span class="s7">ref</span><span class="s3">=&quot;tabs&quot;</span>
+            <span class="s7">tabindex</span><span class="s3">=</span><span class="s1">{tabindex}</span>
+            <span class="s7">refInFor</span>
+            <span class="s7">on-focus</span><span class="s3">=</span><span class="s1">{ ()=&gt; { setFocus(); }}</span>
+            <span class="s7">on-blur </span><span class="s3">=</span><span class="s1">{ ()=&gt; { removeFocus(); }}</span>
+            <span class="s7">on-click</span><span class="s3">=</span><span class="s1">{(ev) =&gt; { removeFocus(); onTabClick(pane, tabName, ev); }}</span>
+            <span class="s7">on-keydown</span><span class="s3">=</span><span class="s1">{(ev) =&gt; { </span><span class="s2">if </span><span class="s1">(closable &amp;&amp; (ev.keyCode === </span><span class="s5">46 </span><span class="s1">|| ev.keyCode === </span><span class="s5">8</span><span class="s1">)) { onTabRemove(pane, ev);} }}</span>
+          <span class="s0">&gt;</span>
+            <span class="s1">{tabLabelContent}</span>
+            <span class="s1">{btnClose}</span>
+          <span class="s0">&lt;/div&gt;</span>
+        <span class="s1">);</span>
+      <span class="s1">});</span>
+      <span class="s2">return </span><span class="s1">(</span>
+        <span class="s0">&lt;div </span><span class="s7">class</span><span class="s3">=</span><span class="s1">{[</span><span class="s3">'el-tabs__nav-wrap'</span><span class="s1">, scrollable ? </span><span class="s3">'is-scrollable' </span><span class="s1">: </span><span class="s3">''</span><span class="s1">, </span><span class="s3">`is-</span><span class="s1">${ </span><span class="s2">this</span><span class="s1">.rootTabs.tabPosition }</span><span class="s3">`</span><span class="s1">]}</span><span class="s0">&gt;</span>
+          <span class="s1">{scrollBtn}</span>
+          <span class="s0">&lt;div </span><span class="s7">class</span><span class="s3">=</span><span class="s1">{[</span><span class="s3">'el-tabs__nav-scroll'</span><span class="s1">]} </span><span class="s7">ref</span><span class="s3">=&quot;navScroll&quot;</span><span class="s0">&gt;</span>
+            <span class="s0">&lt;div</span>
+              <span class="s7">class</span><span class="s3">=</span><span class="s1">{[</span><span class="s3">'el-tabs__nav'</span><span class="s1">, </span><span class="s3">`is-</span><span class="s1">${ </span><span class="s2">this</span><span class="s1">.rootTabs.tabPosition }</span><span class="s3">`</span><span class="s1">, stretch &amp;&amp; [</span><span class="s3">'top'</span><span class="s1">, </span><span class="s3">'bottom'</span><span class="s1">].indexOf(</span><span class="s2">this</span><span class="s1">.rootTabs.tabPosition) !== -</span><span class="s5">1 </span><span class="s1">? </span><span class="s3">'is-stretch' </span><span class="s1">: </span><span class="s3">''</span><span class="s1">]}</span>
+              <span class="s7">ref</span><span class="s3">=&quot;nav&quot;</span>
+              <span class="s7">style</span><span class="s3">=</span><span class="s1">{navStyle}</span>
+              <span class="s7">role</span><span class="s3">=&quot;tablist&quot;</span>
+              <span class="s7">on-keydown</span><span class="s3">=</span><span class="s1">{ changeTab }</span>
+            <span class="s0">&gt;</span>
+              <span class="s1">{!type ? </span><span class="s0">&lt;tab-bar </span><span class="s7">tabs</span><span class="s3">=</span><span class="s1">{panes}</span><span class="s0">&gt;&lt;/tab-bar&gt; </span><span class="s1">: </span><span class="s2">null</span><span class="s1">}</span>
+              <span class="s1">{tabs}</span>
+            <span class="s0">&lt;/div&gt;</span>
+          <span class="s0">&lt;/div&gt;</span>
+        <span class="s0">&lt;/div&gt;</span>
+      <span class="s1">);</span>
+    <span class="s1">},</span>
+
+    <span class="s1">mounted() {</span>
+      <span class="s1">addResizeListener(</span><span class="s2">this</span><span class="s1">.$el, </span><span class="s2">this</span><span class="s1">.update);</span>
+      <span class="s1">document.addEventListener(</span><span class="s3">'visibilitychange'</span><span class="s1">, </span><span class="s2">this</span><span class="s1">.visibilityChangeHandler);</span>
+      <span class="s1">window.addEventListener(</span><span class="s3">'blur'</span><span class="s1">, </span><span class="s2">this</span><span class="s1">.windowBlurHandler);</span>
+      <span class="s1">window.addEventListener(</span><span class="s3">'focus'</span><span class="s1">, </span><span class="s2">this</span><span class="s1">.windowFocusHandler);</span>
+      <span class="s1">setTimeout(() =&gt; {</span>
+        <span class="s2">this</span><span class="s1">.scrollToActiveTab();</span>
+      <span class="s1">}, </span><span class="s5">0</span><span class="s1">);</span>
+    <span class="s1">},</span>
+
+    <span class="s1">beforeDestroy() {</span>
+      <span class="s2">if </span><span class="s1">(</span><span class="s2">this</span><span class="s1">.$el &amp;&amp; </span><span class="s2">this</span><span class="s1">.update) removeResizeListener(</span><span class="s2">this</span><span class="s1">.$el, </span><span class="s2">this</span><span class="s1">.update);</span>
+      <span class="s1">document.removeEventListener(</span><span class="s3">'visibilitychange'</span><span class="s1">, </span><span class="s2">this</span><span class="s1">.visibilityChangeHandler);</span>
+      <span class="s1">window.removeEventListener(</span><span class="s3">'blur'</span><span class="s1">, </span><span class="s2">this</span><span class="s1">.windowBlurHandler);</span>
+      <span class="s1">window.removeEventListener(</span><span class="s3">'focus'</span><span class="s1">, </span><span class="s2">this</span><span class="s1">.windowFocusHandler);</span>
+    <span class="s1">}</span>
+  <span class="s1">};</span>
+<span class="s0">&lt;/script&gt;</span>
+</pre>
+</body>
+</html>

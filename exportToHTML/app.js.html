@@ -1,0 +1,292 @@
+<html>
+<head>
+<title>app.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #42c3d4;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+app.js</font>
+</center></td></tr></table>
+<pre><span class="s0">// config that are specific to --target app</span>
+<span class="s2">const </span><span class="s1">fs </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'fs'</span><span class="s3">)</span>
+<span class="s2">const </span><span class="s1">path </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'path'</span><span class="s3">)</span>
+
+<span class="s0">// ensure the filename passed to html-webpack-plugin is a relative path</span>
+<span class="s0">// because it cannot correctly handle absolute paths</span>
+<span class="s2">function </span><span class="s1">ensureRelative </span><span class="s3">(</span><span class="s1">outputDir</span><span class="s3">, </span><span class="s1">_path</span><span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">isAbsolute</span><span class="s3">(</span><span class="s1">_path</span><span class="s3">)) {</span>
+    <span class="s2">return </span><span class="s1">path</span><span class="s3">.</span><span class="s1">relative</span><span class="s3">(</span><span class="s1">outputDir</span><span class="s3">, </span><span class="s1">_path</span><span class="s3">)</span>
+  <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+    <span class="s2">return </span><span class="s1">_path</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= (</span><span class="s1">api</span><span class="s3">, </span><span class="s1">options</span><span class="s3">) =&gt; {</span>
+  <span class="s1">api</span><span class="s3">.</span><span class="s1">chainWebpack</span><span class="s3">(</span><span class="s1">webpackConfig </span><span class="s3">=&gt; {</span>
+    <span class="s0">// only apply when there's no alternative target</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">process</span><span class="s3">.</span><span class="s1">env</span><span class="s3">.</span><span class="s1">VUE_CLI_BUILD_TARGET </span><span class="s3">&amp;&amp; </span><span class="s1">process</span><span class="s3">.</span><span class="s1">env</span><span class="s3">.</span><span class="s1">VUE_CLI_BUILD_TARGET </span><span class="s3">!== </span><span class="s4">'app'</span><span class="s3">) {</span>
+      <span class="s2">return</span>
+    <span class="s3">}</span>
+
+    <span class="s2">const </span><span class="s1">isProd </span><span class="s3">= </span><span class="s1">process</span><span class="s3">.</span><span class="s1">env</span><span class="s3">.</span><span class="s1">NODE_ENV </span><span class="s3">=== </span><span class="s4">'production'</span>
+    <span class="s2">const </span><span class="s1">isLegacyBundle </span><span class="s3">= </span><span class="s1">process</span><span class="s3">.</span><span class="s1">env</span><span class="s3">.</span><span class="s1">VUE_CLI_MODERN_MODE </span><span class="s3">&amp;&amp; !</span><span class="s1">process</span><span class="s3">.</span><span class="s1">env</span><span class="s3">.</span><span class="s1">VUE_CLI_MODERN_BUILD</span>
+    <span class="s2">const </span><span class="s1">outputDir </span><span class="s3">= </span><span class="s1">api</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s1">options</span><span class="s3">.</span><span class="s1">outputDir</span><span class="s3">)</span>
+
+    <span class="s2">const </span><span class="s1">getAssetPath </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'../util/getAssetPath'</span><span class="s3">)</span>
+    <span class="s2">const </span><span class="s1">outputFilename </span><span class="s3">= </span><span class="s1">getAssetPath</span><span class="s3">(</span>
+      <span class="s1">options</span><span class="s3">,</span>
+      <span class="s4">`js/[name]</span><span class="s1">$</span><span class="s3">{</span><span class="s1">isLegacyBundle </span><span class="s3">? </span><span class="s4">`-legacy` </span><span class="s3">: </span><span class="s4">``</span><span class="s3">}</span><span class="s1">$</span><span class="s3">{</span><span class="s1">isProd </span><span class="s3">&amp;&amp; </span><span class="s1">options</span><span class="s3">.</span><span class="s1">filenameHashing </span><span class="s3">? </span><span class="s4">'.[contenthash:8]' </span><span class="s3">: </span><span class="s4">''</span><span class="s3">}</span><span class="s4">.js`</span>
+    <span class="s3">)</span>
+    <span class="s1">webpackConfig</span>
+      <span class="s3">.</span><span class="s1">output</span>
+        <span class="s3">.</span><span class="s1">filename</span><span class="s3">(</span><span class="s1">outputFilename</span><span class="s3">)</span>
+        <span class="s3">.</span><span class="s1">chunkFilename</span><span class="s3">(</span><span class="s1">outputFilename</span><span class="s3">)</span>
+
+    <span class="s0">// FIXME: a temporary workaround to get accurate contenthash in `applyLegacy`</span>
+    <span class="s0">// Should use a better fix per discussions at &lt;https://github.com/jantimon/html-webpack-plugin/issues/1554#issuecomment-753653580&gt;</span>
+    <span class="s1">webpackConfig</span><span class="s3">.</span><span class="s1">optimization</span>
+      <span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s4">'realContentHash'</span><span class="s3">, </span><span class="s2">false</span><span class="s3">)</span>
+
+    <span class="s0">// code splitting</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">process</span><span class="s3">.</span><span class="s1">env</span><span class="s3">.</span><span class="s1">NODE_ENV </span><span class="s3">!== </span><span class="s4">'test'</span><span class="s3">) {</span>
+      <span class="s1">webpackConfig</span><span class="s3">.</span><span class="s1">optimization</span><span class="s3">.</span><span class="s1">splitChunks</span><span class="s3">({</span>
+        <span class="s1">cacheGroups</span><span class="s3">: {</span>
+          <span class="s1">defaultVendors</span><span class="s3">: {</span>
+            <span class="s1">name</span><span class="s3">: </span><span class="s4">`chunk-vendors`</span><span class="s3">,</span>
+            <span class="s1">test</span><span class="s3">: </span><span class="s5">/[\\/]node_modules[\\/]/</span><span class="s3">,</span>
+            <span class="s1">priority</span><span class="s3">: -</span><span class="s6">10</span><span class="s3">,</span>
+            <span class="s1">chunks</span><span class="s3">: </span><span class="s4">'initial'</span>
+          <span class="s3">},</span>
+          <span class="s1">common</span><span class="s3">: {</span>
+            <span class="s1">name</span><span class="s3">: </span><span class="s4">`chunk-common`</span><span class="s3">,</span>
+            <span class="s1">minChunks</span><span class="s3">: </span><span class="s6">2</span><span class="s3">,</span>
+            <span class="s1">priority</span><span class="s3">: -</span><span class="s6">20</span><span class="s3">,</span>
+            <span class="s1">chunks</span><span class="s3">: </span><span class="s4">'initial'</span><span class="s3">,</span>
+            <span class="s1">reuseExistingChunk</span><span class="s3">: </span><span class="s2">true</span>
+          <span class="s3">}</span>
+        <span class="s3">}</span>
+      <span class="s3">})</span>
+    <span class="s3">}</span>
+
+    <span class="s0">// HTML plugin</span>
+    <span class="s2">const </span><span class="s1">resolveClientEnv </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'../util/resolveClientEnv'</span><span class="s3">)</span>
+
+    <span class="s2">const </span><span class="s1">htmlOptions </span><span class="s3">= {</span>
+      <span class="s1">title</span><span class="s3">: </span><span class="s1">api</span><span class="s3">.</span><span class="s1">service</span><span class="s3">.</span><span class="s1">pkg</span><span class="s3">.</span><span class="s1">name</span><span class="s3">,</span>
+      <span class="s1">scriptLoading</span><span class="s3">: </span><span class="s4">'defer'</span><span class="s3">,</span>
+      <span class="s1">templateParameters</span><span class="s3">: (</span><span class="s1">compilation</span><span class="s3">, </span><span class="s1">assets</span><span class="s3">, </span><span class="s1">assetTags</span><span class="s3">, </span><span class="s1">pluginOptions</span><span class="s3">) =&gt; {</span>
+        <span class="s0">// enhance html-webpack-plugin's built in template params</span>
+        <span class="s2">return </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">assign</span><span class="s3">({</span>
+          <span class="s1">compilation</span><span class="s3">: </span><span class="s1">compilation</span><span class="s3">,</span>
+          <span class="s1">webpackConfig</span><span class="s3">: </span><span class="s1">compilation</span><span class="s3">.</span><span class="s1">options</span><span class="s3">,</span>
+          <span class="s1">htmlWebpackPlugin</span><span class="s3">: {</span>
+            <span class="s1">tags</span><span class="s3">: </span><span class="s1">assetTags</span><span class="s3">,</span>
+            <span class="s1">files</span><span class="s3">: </span><span class="s1">assets</span><span class="s3">,</span>
+            <span class="s1">options</span><span class="s3">: </span><span class="s1">pluginOptions</span>
+          <span class="s3">}</span>
+        <span class="s3">}, </span><span class="s1">resolveClientEnv</span><span class="s3">(</span><span class="s1">options</span><span class="s3">, </span><span class="s2">true </span><span class="s0">/* raw */</span><span class="s3">))</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s0">// handle indexPath</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">options</span><span class="s3">.</span><span class="s1">indexPath </span><span class="s3">!== </span><span class="s4">'index.html'</span><span class="s3">) {</span>
+      <span class="s0">// why not set filename for html-webpack-plugin?</span>
+      <span class="s0">// 1. It cannot handle absolute paths</span>
+      <span class="s0">// 2. Relative paths causes incorrect SW manifest to be generated (#2007)</span>
+      <span class="s1">webpackConfig</span>
+        <span class="s3">.</span><span class="s1">plugin</span><span class="s3">(</span><span class="s4">'move-index'</span><span class="s3">)</span>
+        <span class="s3">.</span><span class="s1">use</span><span class="s3">(</span><span class="s1">require</span><span class="s3">(</span><span class="s4">'../webpack/MovePlugin'</span><span class="s3">), [</span>
+          <span class="s1">path</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s1">outputDir</span><span class="s3">, </span><span class="s4">'index.html'</span><span class="s3">),</span>
+          <span class="s1">path</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s1">outputDir</span><span class="s3">, </span><span class="s1">options</span><span class="s3">.</span><span class="s1">indexPath</span><span class="s3">)</span>
+        <span class="s3">])</span>
+    <span class="s3">}</span>
+
+    <span class="s0">// resolve HTML file(s)</span>
+    <span class="s2">const </span><span class="s1">HTMLPlugin </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'html-webpack-plugin'</span><span class="s3">)</span>
+    <span class="s0">// const PreloadPlugin = require('@vue/preload-webpack-plugin')</span>
+    <span class="s2">const </span><span class="s1">multiPageConfig </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">pages</span>
+    <span class="s2">const </span><span class="s1">htmlPath </span><span class="s3">= </span><span class="s1">api</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s4">'public/index.html'</span><span class="s3">)</span>
+    <span class="s2">const </span><span class="s1">defaultHtmlPath </span><span class="s3">= </span><span class="s1">path</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s1">__dirname</span><span class="s3">, </span><span class="s4">'index-default.html'</span><span class="s3">)</span>
+    <span class="s2">const </span><span class="s1">publicCopyIgnore </span><span class="s3">= [</span><span class="s4">'**/.DS_Store'</span><span class="s3">]</span>
+
+    <span class="s2">if </span><span class="s3">(!</span><span class="s1">multiPageConfig</span><span class="s3">) {</span>
+      <span class="s0">// default, single page setup.</span>
+      <span class="s1">htmlOptions</span><span class="s3">.</span><span class="s1">template </span><span class="s3">= </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">existsSync</span><span class="s3">(</span><span class="s1">htmlPath</span><span class="s3">)</span>
+        <span class="s3">? </span><span class="s1">htmlPath</span>
+        <span class="s3">: </span><span class="s1">defaultHtmlPath</span>
+
+      <span class="s1">publicCopyIgnore</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">api</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s1">htmlOptions</span><span class="s3">.</span><span class="s1">template</span><span class="s3">).</span><span class="s1">replace</span><span class="s3">(</span><span class="s5">/\\/g</span><span class="s3">, </span><span class="s4">'/'</span><span class="s3">))</span>
+
+      <span class="s1">webpackConfig</span>
+        <span class="s3">.</span><span class="s1">plugin</span><span class="s3">(</span><span class="s4">'html'</span><span class="s3">)</span>
+          <span class="s3">.</span><span class="s1">use</span><span class="s3">(</span><span class="s1">HTMLPlugin</span><span class="s3">, [</span><span class="s1">htmlOptions</span><span class="s3">])</span>
+
+      <span class="s0">// FIXME: need to test out preload plugin's compatibility with html-webpack-plugin 4/5</span>
+      <span class="s0">// if (!isLegacyBundle) {</span>
+      <span class="s0">//   // inject preload/prefetch to HTML</span>
+      <span class="s0">//   webpackConfig</span>
+      <span class="s0">//     .plugin('preload')</span>
+      <span class="s0">//       .use(PreloadPlugin, [{</span>
+      <span class="s0">//         rel: 'preload',</span>
+      <span class="s0">//         include: 'initial',</span>
+      <span class="s0">//         fileBlacklist: [/\.map$/, /hot-update\.js$/]</span>
+      <span class="s0">//       }])</span>
+
+      <span class="s0">//   webpackConfig</span>
+      <span class="s0">//     .plugin('prefetch')</span>
+      <span class="s0">//       .use(PreloadPlugin, [{</span>
+      <span class="s0">//         rel: 'prefetch',</span>
+      <span class="s0">//         include: 'asyncChunks'</span>
+      <span class="s0">//       }])</span>
+      <span class="s0">// }</span>
+    <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+      <span class="s0">// multi-page setup</span>
+      <span class="s1">webpackConfig</span><span class="s3">.</span><span class="s1">entryPoints</span><span class="s3">.</span><span class="s1">clear</span><span class="s3">()</span>
+
+      <span class="s2">const </span><span class="s1">pages </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">(</span><span class="s1">multiPageConfig</span><span class="s3">)</span>
+      <span class="s2">const </span><span class="s1">normalizePageConfig </span><span class="s3">= </span><span class="s1">c </span><span class="s3">=&gt; </span><span class="s2">typeof </span><span class="s1">c </span><span class="s3">=== </span><span class="s4">'string' </span><span class="s3">? { </span><span class="s1">entry</span><span class="s3">: </span><span class="s1">c </span><span class="s3">} : </span><span class="s1">c</span>
+
+      <span class="s1">pages</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">(</span><span class="s1">name </span><span class="s3">=&gt; {</span>
+        <span class="s2">const </span><span class="s1">pageConfig </span><span class="s3">= </span><span class="s1">normalizePageConfig</span><span class="s3">(</span><span class="s1">multiPageConfig</span><span class="s3">[</span><span class="s1">name</span><span class="s3">])</span>
+        <span class="s2">const </span><span class="s3">{</span>
+          <span class="s1">entry</span><span class="s3">,</span>
+          <span class="s1">template </span><span class="s3">= </span><span class="s4">`public/</span><span class="s1">$</span><span class="s3">{</span><span class="s1">name</span><span class="s3">}</span><span class="s4">.html`</span><span class="s3">,</span>
+          <span class="s1">filename </span><span class="s3">= </span><span class="s4">`</span><span class="s1">$</span><span class="s3">{</span><span class="s1">name</span><span class="s3">}</span><span class="s4">.html`</span><span class="s3">,</span>
+          <span class="s1">chunks </span><span class="s3">= [</span><span class="s4">'chunk-vendors'</span><span class="s3">, </span><span class="s4">'chunk-common'</span><span class="s3">, </span><span class="s1">name</span><span class="s3">]</span>
+        <span class="s3">} = </span><span class="s1">pageConfig</span>
+
+        <span class="s0">// Currently Cypress v3.1.0 comes with a very old version of Node,</span>
+        <span class="s0">// which does not support object rest syntax.</span>
+        <span class="s0">// (https://github.com/cypress-io/cypress/issues/2253)</span>
+        <span class="s0">// So here we have to extract the customHtmlOptions manually.</span>
+        <span class="s2">const </span><span class="s1">customHtmlOptions </span><span class="s3">= {}</span>
+        <span class="s2">for </span><span class="s3">(</span><span class="s2">const </span><span class="s1">key </span><span class="s2">in </span><span class="s1">pageConfig</span><span class="s3">) {</span>
+          <span class="s2">if </span><span class="s3">(</span>
+            <span class="s3">![</span><span class="s4">'entry'</span><span class="s3">, </span><span class="s4">'template'</span><span class="s3">, </span><span class="s4">'filename'</span><span class="s3">, </span><span class="s4">'chunks'</span><span class="s3">].</span><span class="s1">includes</span><span class="s3">(</span><span class="s1">key</span><span class="s3">)</span>
+          <span class="s3">) {</span>
+            <span class="s1">customHtmlOptions</span><span class="s3">[</span><span class="s1">key</span><span class="s3">] = </span><span class="s1">pageConfig</span><span class="s3">[</span><span class="s1">key</span><span class="s3">]</span>
+          <span class="s3">}</span>
+        <span class="s3">}</span>
+
+        <span class="s0">// inject entry</span>
+        <span class="s2">const </span><span class="s1">entries </span><span class="s3">= </span><span class="s1">Array</span><span class="s3">.</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">entry</span><span class="s3">) ? </span><span class="s1">entry </span><span class="s3">: [</span><span class="s1">entry</span><span class="s3">]</span>
+        <span class="s1">webpackConfig</span><span class="s3">.</span><span class="s1">entry</span><span class="s3">(</span><span class="s1">name</span><span class="s3">).</span><span class="s1">merge</span><span class="s3">(</span><span class="s1">entries</span><span class="s3">.</span><span class="s1">map</span><span class="s3">(</span><span class="s1">e </span><span class="s3">=&gt; </span><span class="s1">api</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s1">e</span><span class="s3">)))</span>
+
+        <span class="s0">// trim inline loader</span>
+        <span class="s0">// * See https://github.com/jantimon/html-webpack-plugin/blob/master/docs/template-option.md#2-setting-a-loader-directly-for-the-template</span>
+        <span class="s2">const </span><span class="s1">templateWithoutLoader </span><span class="s3">= </span><span class="s1">template</span><span class="s3">.</span><span class="s1">replace</span><span class="s3">(</span><span class="s5">/^.+!/</span><span class="s3">, </span><span class="s4">''</span><span class="s3">).</span><span class="s1">replace</span><span class="s3">(</span><span class="s5">/\?.+$/</span><span class="s3">, </span><span class="s4">''</span><span class="s3">)</span>
+
+        <span class="s0">// resolve page index template</span>
+        <span class="s2">const </span><span class="s1">hasDedicatedTemplate </span><span class="s3">= </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">existsSync</span><span class="s3">(</span><span class="s1">api</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s1">templateWithoutLoader</span><span class="s3">))</span>
+        <span class="s2">const </span><span class="s1">templatePath </span><span class="s3">= </span><span class="s1">hasDedicatedTemplate</span>
+          <span class="s3">? </span><span class="s1">template</span>
+          <span class="s3">: </span><span class="s1">fs</span><span class="s3">.</span><span class="s1">existsSync</span><span class="s3">(</span><span class="s1">htmlPath</span><span class="s3">)</span>
+            <span class="s3">? </span><span class="s1">htmlPath</span>
+            <span class="s3">: </span><span class="s1">defaultHtmlPath</span>
+
+        <span class="s1">publicCopyIgnore</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">api</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s1">templateWithoutLoader</span><span class="s3">).</span><span class="s1">replace</span><span class="s3">(</span><span class="s5">/\\/g</span><span class="s3">, </span><span class="s4">'/'</span><span class="s3">))</span>
+
+        <span class="s0">// inject html plugin for the page</span>
+        <span class="s2">const </span><span class="s1">pageHtmlOptions </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">assign</span><span class="s3">(</span>
+          <span class="s3">{},</span>
+          <span class="s1">htmlOptions</span><span class="s3">,</span>
+          <span class="s3">{</span>
+            <span class="s1">chunks</span><span class="s3">,</span>
+            <span class="s1">template</span><span class="s3">: </span><span class="s1">templatePath</span><span class="s3">,</span>
+            <span class="s1">filename</span><span class="s3">: </span><span class="s1">ensureRelative</span><span class="s3">(</span><span class="s1">outputDir</span><span class="s3">, </span><span class="s1">filename</span><span class="s3">)</span>
+          <span class="s3">},</span>
+          <span class="s1">customHtmlOptions</span>
+        <span class="s3">)</span>
+
+        <span class="s1">webpackConfig</span>
+          <span class="s3">.</span><span class="s1">plugin</span><span class="s3">(</span><span class="s4">`html-</span><span class="s1">$</span><span class="s3">{</span><span class="s1">name</span><span class="s3">}</span><span class="s4">`</span><span class="s3">)</span>
+            <span class="s3">.</span><span class="s1">use</span><span class="s3">(</span><span class="s1">HTMLPlugin</span><span class="s3">, [</span><span class="s1">pageHtmlOptions</span><span class="s3">])</span>
+      <span class="s3">})</span>
+
+      <span class="s0">// FIXME: preload plugin is not compatible with webpack 5 / html-webpack-plugin 4 yet</span>
+      <span class="s0">// if (!isLegacyBundle) {</span>
+      <span class="s0">//   pages.forEach(name =&gt; {</span>
+      <span class="s0">//     const filename = ensureRelative(</span>
+      <span class="s0">//       outputDir,</span>
+      <span class="s0">//       normalizePageConfig(multiPageConfig[name]).filename || `${name}.html`</span>
+      <span class="s0">//     )</span>
+      <span class="s0">//     webpackConfig</span>
+      <span class="s0">//       .plugin(`preload-${name}`)</span>
+      <span class="s0">//         .use(PreloadPlugin, [{</span>
+      <span class="s0">//           rel: 'preload',</span>
+      <span class="s0">//           includeHtmlNames: [filename],</span>
+      <span class="s0">//           include: {</span>
+      <span class="s0">//             type: 'initial',</span>
+      <span class="s0">//             entries: [name]</span>
+      <span class="s0">//           },</span>
+      <span class="s0">//           fileBlacklist: [/\.map$/, /hot-update\.js$/]</span>
+      <span class="s0">//         }])</span>
+
+      <span class="s0">//     webpackConfig</span>
+      <span class="s0">//       .plugin(`prefetch-${name}`)</span>
+      <span class="s0">//         .use(PreloadPlugin, [{</span>
+      <span class="s0">//           rel: 'prefetch',</span>
+      <span class="s0">//           includeHtmlNames: [filename],</span>
+      <span class="s0">//           include: {</span>
+      <span class="s0">//             type: 'asyncChunks',</span>
+      <span class="s0">//             entries: [name]</span>
+      <span class="s0">//           }</span>
+      <span class="s0">//         }])</span>
+      <span class="s0">//   })</span>
+      <span class="s0">// }</span>
+    <span class="s3">}</span>
+
+    <span class="s0">// CORS and Subresource Integrity</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">options</span><span class="s3">.</span><span class="s1">crossorigin </span><span class="s3">!= </span><span class="s2">null </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">.</span><span class="s1">integrity</span><span class="s3">) {</span>
+      <span class="s1">webpackConfig</span>
+        <span class="s3">.</span><span class="s1">plugin</span><span class="s3">(</span><span class="s4">'cors'</span><span class="s3">)</span>
+          <span class="s3">.</span><span class="s1">use</span><span class="s3">(</span><span class="s1">require</span><span class="s3">(</span><span class="s4">'../webpack/CorsPlugin'</span><span class="s3">), [{</span>
+            <span class="s1">crossorigin</span><span class="s3">: </span><span class="s1">options</span><span class="s3">.</span><span class="s1">crossorigin</span><span class="s3">,</span>
+            <span class="s1">integrity</span><span class="s3">: </span><span class="s1">options</span><span class="s3">.</span><span class="s1">integrity</span><span class="s3">,</span>
+            <span class="s1">publicPath</span><span class="s3">: </span><span class="s1">options</span><span class="s3">.</span><span class="s1">publicPath</span>
+          <span class="s3">}])</span>
+    <span class="s3">}</span>
+
+    <span class="s0">// copy static assets in public/</span>
+    <span class="s2">const </span><span class="s1">publicDir </span><span class="s3">= </span><span class="s1">api</span><span class="s3">.</span><span class="s1">resolve</span><span class="s3">(</span><span class="s4">'public'</span><span class="s3">)</span>
+    <span class="s2">const </span><span class="s1">CopyWebpackPlugin </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'copy-webpack-plugin'</span><span class="s3">)</span>
+    <span class="s2">const </span><span class="s1">PlaceholderPlugin </span><span class="s3">= </span><span class="s2">class </span><span class="s1">PlaceholderPlugin </span><span class="s3">{ </span><span class="s1">apply </span><span class="s3">() {} }</span>
+
+    <span class="s2">const </span><span class="s1">copyOptions </span><span class="s3">= {</span>
+      <span class="s1">patterns</span><span class="s3">: [{</span>
+        <span class="s1">from</span><span class="s3">: </span><span class="s1">publicDir</span><span class="s3">,</span>
+        <span class="s1">to</span><span class="s3">: </span><span class="s1">outputDir</span><span class="s3">,</span>
+        <span class="s1">toType</span><span class="s3">: </span><span class="s4">'dir'</span><span class="s3">,</span>
+        <span class="s1">noErrorOnMissing</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+        <span class="s1">globOptions</span><span class="s3">: {</span>
+          <span class="s1">ignore</span><span class="s3">: </span><span class="s1">publicCopyIgnore</span>
+        <span class="s3">},</span>
+        <span class="s1">info</span><span class="s3">: {</span>
+          <span class="s1">minimized</span><span class="s3">: </span><span class="s2">true</span>
+        <span class="s3">}</span>
+      <span class="s3">}]</span>
+    <span class="s3">}</span>
+
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">fs</span><span class="s3">.</span><span class="s1">existsSync</span><span class="s3">(</span><span class="s1">publicDir</span><span class="s3">)) {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">isLegacyBundle</span><span class="s3">) {</span>
+        <span class="s1">webpackConfig</span><span class="s3">.</span><span class="s1">plugin</span><span class="s3">(</span><span class="s4">'copy'</span><span class="s3">).</span><span class="s1">use</span><span class="s3">(</span><span class="s1">PlaceholderPlugin</span><span class="s3">, [</span><span class="s1">copyOptions</span><span class="s3">])</span>
+      <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+        <span class="s1">webpackConfig</span><span class="s3">.</span><span class="s1">plugin</span><span class="s3">(</span><span class="s4">'copy'</span><span class="s3">).</span><span class="s1">use</span><span class="s3">(</span><span class="s1">CopyWebpackPlugin</span><span class="s3">, [</span><span class="s1">copyOptions</span><span class="s3">])</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">})</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

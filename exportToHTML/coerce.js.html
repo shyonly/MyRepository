@@ -1,0 +1,74 @@
+<html>
+<head>
+<title>coerce.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+coerce.js</font>
+</center></td></tr></table>
+<pre><span class="s0">const </span><span class="s1">SemVer </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'../classes/semver'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s1">parse </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./parse'</span><span class="s2">)</span>
+<span class="s0">const </span><span class="s2">{ </span><span class="s1">safeRe</span><span class="s2">: </span><span class="s1">re</span><span class="s2">, </span><span class="s1">t </span><span class="s2">} = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'../internal/re'</span><span class="s2">)</span>
+
+<span class="s0">const </span><span class="s1">coerce </span><span class="s2">= (</span><span class="s1">version</span><span class="s2">, </span><span class="s1">options</span><span class="s2">) =&gt; {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">version </span><span class="s0">instanceof </span><span class="s1">SemVer</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">version</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">version </span><span class="s2">=== </span><span class="s3">'number'</span><span class="s2">) {</span>
+    <span class="s1">version </span><span class="s2">= </span><span class="s1">String</span><span class="s2">(</span><span class="s1">version</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">version </span><span class="s2">!== </span><span class="s3">'string'</span><span class="s2">) {</span>
+    <span class="s0">return null</span>
+  <span class="s2">}</span>
+
+  <span class="s1">options </span><span class="s2">= </span><span class="s1">options </span><span class="s2">|| {}</span>
+
+  <span class="s0">let </span><span class="s1">match </span><span class="s2">= </span><span class="s0">null</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">options</span><span class="s2">.</span><span class="s1">rtl</span><span class="s2">) {</span>
+    <span class="s1">match </span><span class="s2">= </span><span class="s1">version</span><span class="s2">.</span><span class="s1">match</span><span class="s2">(</span><span class="s1">re</span><span class="s2">[</span><span class="s1">t</span><span class="s2">.</span><span class="s1">COERCE</span><span class="s2">])</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s4">// Find the right-most coercible string that does not share</span>
+    <span class="s4">// a terminus with a more left-ward coercible string.</span>
+    <span class="s4">// Eg, '1.2.3.4' wants to coerce '2.3.4', not '3.4' or '4'</span>
+    <span class="s4">//</span>
+    <span class="s4">// Walk through the string checking with a /g regexp</span>
+    <span class="s4">// Manually set the index so as to pick up overlapping matches.</span>
+    <span class="s4">// Stop when we get a match that ends at the string end, since no</span>
+    <span class="s4">// coercible string can be more right-ward without the same terminus.</span>
+    <span class="s0">let </span><span class="s1">next</span>
+    <span class="s0">while </span><span class="s2">((</span><span class="s1">next </span><span class="s2">= </span><span class="s1">re</span><span class="s2">[</span><span class="s1">t</span><span class="s2">.</span><span class="s1">COERCERTL</span><span class="s2">].</span><span class="s1">exec</span><span class="s2">(</span><span class="s1">version</span><span class="s2">)) &amp;&amp;</span>
+        <span class="s2">(!</span><span class="s1">match </span><span class="s2">|| </span><span class="s1">match</span><span class="s2">.</span><span class="s1">index </span><span class="s2">+ </span><span class="s1">match</span><span class="s2">[</span><span class="s5">0</span><span class="s2">].</span><span class="s1">length </span><span class="s2">!== </span><span class="s1">version</span><span class="s2">.</span><span class="s1">length</span><span class="s2">)</span>
+    <span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(!</span><span class="s1">match </span><span class="s2">||</span>
+            <span class="s1">next</span><span class="s2">.</span><span class="s1">index </span><span class="s2">+ </span><span class="s1">next</span><span class="s2">[</span><span class="s5">0</span><span class="s2">].</span><span class="s1">length </span><span class="s2">!== </span><span class="s1">match</span><span class="s2">.</span><span class="s1">index </span><span class="s2">+ </span><span class="s1">match</span><span class="s2">[</span><span class="s5">0</span><span class="s2">].</span><span class="s1">length</span><span class="s2">) {</span>
+        <span class="s1">match </span><span class="s2">= </span><span class="s1">next</span>
+      <span class="s2">}</span>
+      <span class="s1">re</span><span class="s2">[</span><span class="s1">t</span><span class="s2">.</span><span class="s1">COERCERTL</span><span class="s2">].</span><span class="s1">lastIndex </span><span class="s2">= </span><span class="s1">next</span><span class="s2">.</span><span class="s1">index </span><span class="s2">+ </span><span class="s1">next</span><span class="s2">[</span><span class="s5">1</span><span class="s2">].</span><span class="s1">length </span><span class="s2">+ </span><span class="s1">next</span><span class="s2">[</span><span class="s5">2</span><span class="s2">].</span><span class="s1">length</span>
+    <span class="s2">}</span>
+    <span class="s4">// leave it in a clean state</span>
+    <span class="s1">re</span><span class="s2">[</span><span class="s1">t</span><span class="s2">.</span><span class="s1">COERCERTL</span><span class="s2">].</span><span class="s1">lastIndex </span><span class="s2">= -</span><span class="s5">1</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">match </span><span class="s2">=== </span><span class="s0">null</span><span class="s2">) {</span>
+    <span class="s0">return null</span>
+  <span class="s2">}</span>
+
+  <span class="s0">return </span><span class="s1">parse</span><span class="s2">(</span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">match</span><span class="s2">[</span><span class="s5">2</span><span class="s2">]}</span><span class="s3">.</span><span class="s1">$</span><span class="s2">{</span><span class="s1">match</span><span class="s2">[</span><span class="s5">3</span><span class="s2">] || </span><span class="s3">'0'</span><span class="s2">}</span><span class="s3">.</span><span class="s1">$</span><span class="s2">{</span><span class="s1">match</span><span class="s2">[</span><span class="s5">4</span><span class="s2">] || </span><span class="s3">'0'</span><span class="s2">}</span><span class="s3">`</span><span class="s2">, </span><span class="s1">options</span><span class="s2">)</span>
+<span class="s2">}</span>
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= </span><span class="s1">coerce</span>
+</pre>
+</body>
+</html>

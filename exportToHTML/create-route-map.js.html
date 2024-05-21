@@ -1,0 +1,243 @@
+<html>
+<head>
+<title>create-route-map.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #6aab73;}
+.s4 { color: #bcbec4;}
+.s5 { color: #2aacb8;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+create-route-map.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* @flow */</span>
+
+<span class="s2">import </span><span class="s1">Regexp from </span><span class="s3">'path-to-regexp'</span>
+<span class="s2">import </span><span class="s4">{ </span><span class="s1">cleanPath </span><span class="s4">} </span><span class="s1">from </span><span class="s3">'./util/path'</span>
+<span class="s2">import </span><span class="s4">{ </span><span class="s1">assert</span><span class="s4">, </span><span class="s1">warn </span><span class="s4">} </span><span class="s1">from </span><span class="s3">'./util/warn'</span>
+
+<span class="s2">export function </span><span class="s1">createRouteMap </span><span class="s4">(</span>
+  <span class="s1">routes</span><span class="s4">: </span><span class="s1">Array</span><span class="s4">&lt;</span><span class="s1">RouteConfig</span><span class="s4">&gt;,</span>
+  <span class="s1">oldPathList</span><span class="s4">?: </span><span class="s1">Array</span><span class="s4">&lt;</span><span class="s1">string</span><span class="s4">&gt;,</span>
+  <span class="s1">oldPathMap</span><span class="s4">?: </span><span class="s1">Dictionary</span><span class="s4">&lt;</span><span class="s1">RouteRecord</span><span class="s4">&gt;,</span>
+  <span class="s1">oldNameMap</span><span class="s4">?: </span><span class="s1">Dictionary</span><span class="s4">&lt;</span><span class="s1">RouteRecord</span><span class="s4">&gt;,</span>
+  <span class="s1">parentRoute</span><span class="s4">?: </span><span class="s1">RouteRecord</span>
+<span class="s4">): {</span>
+  <span class="s1">pathList</span><span class="s4">: </span><span class="s1">Array</span><span class="s4">&lt;</span><span class="s1">string</span><span class="s4">&gt;,</span>
+  <span class="s1">pathMap</span><span class="s4">: </span><span class="s1">Dictionary</span><span class="s4">&lt;</span><span class="s1">RouteRecord</span><span class="s4">&gt;,</span>
+  <span class="s1">nameMap</span><span class="s4">: </span><span class="s1">Dictionary</span><span class="s4">&lt;</span><span class="s1">RouteRecord</span><span class="s4">&gt;</span>
+<span class="s4">} {</span>
+  <span class="s0">// the path list is used to control path matching priority</span>
+  <span class="s2">const </span><span class="s1">pathList</span><span class="s4">: </span><span class="s1">Array</span><span class="s4">&lt;</span><span class="s1">string</span><span class="s4">&gt; = </span><span class="s1">oldPathList </span><span class="s4">|| []</span>
+  <span class="s0">// $flow-disable-line</span>
+  <span class="s2">const </span><span class="s1">pathMap</span><span class="s4">: </span><span class="s1">Dictionary</span><span class="s4">&lt;</span><span class="s1">RouteRecord</span><span class="s4">&gt; = </span><span class="s1">oldPathMap </span><span class="s4">|| </span><span class="s1">Object</span><span class="s4">.</span><span class="s1">create</span><span class="s4">(</span><span class="s2">null</span><span class="s4">)</span>
+  <span class="s0">// $flow-disable-line</span>
+  <span class="s2">const </span><span class="s1">nameMap</span><span class="s4">: </span><span class="s1">Dictionary</span><span class="s4">&lt;</span><span class="s1">RouteRecord</span><span class="s4">&gt; = </span><span class="s1">oldNameMap </span><span class="s4">|| </span><span class="s1">Object</span><span class="s4">.</span><span class="s1">create</span><span class="s4">(</span><span class="s2">null</span><span class="s4">)</span>
+
+  <span class="s1">routes</span><span class="s4">.</span><span class="s1">forEach</span><span class="s4">(</span><span class="s1">route </span><span class="s4">=&gt; {</span>
+    <span class="s1">addRouteRecord</span><span class="s4">(</span><span class="s1">pathList</span><span class="s4">, </span><span class="s1">pathMap</span><span class="s4">, </span><span class="s1">nameMap</span><span class="s4">, </span><span class="s1">route</span><span class="s4">, </span><span class="s1">parentRoute</span><span class="s4">)</span>
+  <span class="s4">})</span>
+
+  <span class="s0">// ensure wildcard routes are always at the end</span>
+  <span class="s2">for </span><span class="s4">(</span><span class="s2">let </span><span class="s1">i </span><span class="s4">= </span><span class="s5">0</span><span class="s4">, </span><span class="s1">l </span><span class="s4">= </span><span class="s1">pathList</span><span class="s4">.</span><span class="s1">length</span><span class="s4">; </span><span class="s1">i </span><span class="s4">&lt; </span><span class="s1">l</span><span class="s4">; </span><span class="s1">i</span><span class="s4">++) {</span>
+    <span class="s2">if </span><span class="s4">(</span><span class="s1">pathList</span><span class="s4">[</span><span class="s1">i</span><span class="s4">] === </span><span class="s3">'*'</span><span class="s4">) {</span>
+      <span class="s1">pathList</span><span class="s4">.</span><span class="s1">push</span><span class="s4">(</span><span class="s1">pathList</span><span class="s4">.</span><span class="s1">splice</span><span class="s4">(</span><span class="s1">i</span><span class="s4">, </span><span class="s5">1</span><span class="s4">)[</span><span class="s5">0</span><span class="s4">])</span>
+      <span class="s1">l</span><span class="s4">--</span>
+      <span class="s1">i</span><span class="s4">--</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">process</span><span class="s4">.</span><span class="s1">env</span><span class="s4">.</span><span class="s1">NODE_ENV </span><span class="s4">=== </span><span class="s3">'development'</span><span class="s4">) {</span>
+    <span class="s0">// warn if routes do not include leading slashes</span>
+    <span class="s2">const </span><span class="s1">found </span><span class="s4">= </span><span class="s1">pathList</span>
+    <span class="s0">// check for missing leading slash</span>
+      <span class="s4">.</span><span class="s1">filter</span><span class="s4">(</span><span class="s1">path </span><span class="s4">=&gt; </span><span class="s1">path </span><span class="s4">&amp;&amp; </span><span class="s1">path</span><span class="s4">.</span><span class="s1">charAt</span><span class="s4">(</span><span class="s5">0</span><span class="s4">) !== </span><span class="s3">'*' </span><span class="s4">&amp;&amp; </span><span class="s1">path</span><span class="s4">.</span><span class="s1">charAt</span><span class="s4">(</span><span class="s5">0</span><span class="s4">) !== </span><span class="s3">'/'</span><span class="s4">)</span>
+
+    <span class="s2">if </span><span class="s4">(</span><span class="s1">found</span><span class="s4">.</span><span class="s1">length </span><span class="s4">&gt; </span><span class="s5">0</span><span class="s4">) {</span>
+      <span class="s2">const </span><span class="s1">pathNames </span><span class="s4">= </span><span class="s1">found</span><span class="s4">.</span><span class="s1">map</span><span class="s4">(</span><span class="s1">path </span><span class="s4">=&gt; </span><span class="s3">`- </span><span class="s1">$</span><span class="s4">{</span><span class="s1">path</span><span class="s4">}</span><span class="s3">`</span><span class="s4">).</span><span class="s1">join</span><span class="s4">(</span><span class="s3">'</span><span class="s2">\n</span><span class="s3">'</span><span class="s4">)</span>
+      <span class="s1">warn</span><span class="s4">(</span><span class="s2">false</span><span class="s4">, </span><span class="s3">`Non-nested routes must include a leading slash character. Fix the following routes: </span><span class="s2">\n</span><span class="s1">$</span><span class="s4">{</span><span class="s1">pathNames</span><span class="s4">}</span><span class="s3">`</span><span class="s4">)</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+
+  <span class="s2">return </span><span class="s4">{</span>
+    <span class="s1">pathList</span><span class="s4">,</span>
+    <span class="s1">pathMap</span><span class="s4">,</span>
+    <span class="s1">nameMap</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s2">function </span><span class="s1">addRouteRecord </span><span class="s4">(</span>
+  <span class="s1">pathList</span><span class="s4">: </span><span class="s1">Array</span><span class="s4">&lt;</span><span class="s1">string</span><span class="s4">&gt;,</span>
+  <span class="s1">pathMap</span><span class="s4">: </span><span class="s1">Dictionary</span><span class="s4">&lt;</span><span class="s1">RouteRecord</span><span class="s4">&gt;,</span>
+  <span class="s1">nameMap</span><span class="s4">: </span><span class="s1">Dictionary</span><span class="s4">&lt;</span><span class="s1">RouteRecord</span><span class="s4">&gt;,</span>
+  <span class="s1">route</span><span class="s4">: </span><span class="s1">RouteConfig</span><span class="s4">,</span>
+  <span class="s1">parent</span><span class="s4">?: </span><span class="s1">RouteRecord</span><span class="s4">,</span>
+  <span class="s1">matchAs</span><span class="s4">?: </span><span class="s1">string</span>
+<span class="s4">) {</span>
+  <span class="s2">const </span><span class="s4">{ </span><span class="s1">path</span><span class="s4">, </span><span class="s1">name </span><span class="s4">} = </span><span class="s1">route</span>
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">process</span><span class="s4">.</span><span class="s1">env</span><span class="s4">.</span><span class="s1">NODE_ENV </span><span class="s4">!== </span><span class="s3">'production'</span><span class="s4">) {</span>
+    <span class="s1">assert</span><span class="s4">(</span><span class="s1">path </span><span class="s4">!= </span><span class="s2">null</span><span class="s4">, </span><span class="s3">`&quot;path&quot; is required in a route configuration.`</span><span class="s4">)</span>
+    <span class="s1">assert</span><span class="s4">(</span>
+      <span class="s2">typeof </span><span class="s1">route</span><span class="s4">.</span><span class="s1">component </span><span class="s4">!== </span><span class="s3">'string'</span><span class="s4">,</span>
+      <span class="s3">`route config &quot;component&quot; for path: </span><span class="s1">$</span><span class="s4">{</span><span class="s1">String</span><span class="s4">(</span>
+        <span class="s1">path </span><span class="s4">|| </span><span class="s1">name</span>
+      <span class="s4">)} </span><span class="s3">cannot be a ` </span><span class="s4">+ </span><span class="s3">`string id. Use an actual component instead.`</span>
+    <span class="s4">)</span>
+
+    <span class="s1">warn</span><span class="s4">(</span>
+      <span class="s0">// eslint-disable-next-line no-control-regex</span>
+      <span class="s4">!</span><span class="s6">/[^\u0000-\u007F]+/</span><span class="s4">.</span><span class="s1">test</span><span class="s4">(</span><span class="s1">path</span><span class="s4">),</span>
+      <span class="s3">`Route with path &quot;</span><span class="s1">$</span><span class="s4">{</span><span class="s1">path</span><span class="s4">}</span><span class="s3">&quot; contains unencoded characters, make sure ` </span><span class="s4">+</span>
+        <span class="s3">`your path is correctly encoded before passing it to the router. Use ` </span><span class="s4">+</span>
+        <span class="s3">`encodeURI to encode static segments of your path.`</span>
+    <span class="s4">)</span>
+  <span class="s4">}</span>
+
+  <span class="s2">const </span><span class="s1">pathToRegexpOptions</span><span class="s4">: </span><span class="s1">PathToRegexpOptions </span><span class="s4">=</span>
+    <span class="s1">route</span><span class="s4">.</span><span class="s1">pathToRegexpOptions </span><span class="s4">|| {}</span>
+  <span class="s2">const </span><span class="s1">normalizedPath </span><span class="s4">= </span><span class="s1">normalizePath</span><span class="s4">(</span><span class="s1">path</span><span class="s4">, </span><span class="s1">parent</span><span class="s4">, </span><span class="s1">pathToRegexpOptions</span><span class="s4">.</span><span class="s1">strict</span><span class="s4">)</span>
+
+  <span class="s2">if </span><span class="s4">(</span><span class="s2">typeof </span><span class="s1">route</span><span class="s4">.</span><span class="s1">caseSensitive </span><span class="s4">=== </span><span class="s3">'boolean'</span><span class="s4">) {</span>
+    <span class="s1">pathToRegexpOptions</span><span class="s4">.</span><span class="s1">sensitive </span><span class="s4">= </span><span class="s1">route</span><span class="s4">.</span><span class="s1">caseSensitive</span>
+  <span class="s4">}</span>
+
+  <span class="s2">const </span><span class="s1">record</span><span class="s4">: </span><span class="s1">RouteRecord </span><span class="s4">= {</span>
+    <span class="s1">path</span><span class="s4">: </span><span class="s1">normalizedPath</span><span class="s4">,</span>
+    <span class="s1">regex</span><span class="s4">: </span><span class="s1">compileRouteRegex</span><span class="s4">(</span><span class="s1">normalizedPath</span><span class="s4">, </span><span class="s1">pathToRegexpOptions</span><span class="s4">),</span>
+    <span class="s1">components</span><span class="s4">: </span><span class="s1">route</span><span class="s4">.</span><span class="s1">components </span><span class="s4">|| { </span><span class="s2">default</span><span class="s4">: </span><span class="s1">route</span><span class="s4">.</span><span class="s1">component </span><span class="s4">},</span>
+    <span class="s1">alias</span><span class="s4">: </span><span class="s1">route</span><span class="s4">.</span><span class="s1">alias</span>
+      <span class="s4">? </span><span class="s2">typeof </span><span class="s1">route</span><span class="s4">.</span><span class="s1">alias </span><span class="s4">=== </span><span class="s3">'string'</span>
+        <span class="s4">? [</span><span class="s1">route</span><span class="s4">.</span><span class="s1">alias</span><span class="s4">]</span>
+        <span class="s4">: </span><span class="s1">route</span><span class="s4">.</span><span class="s1">alias</span>
+      <span class="s4">: [],</span>
+    <span class="s1">instances</span><span class="s4">: {},</span>
+    <span class="s1">enteredCbs</span><span class="s4">: {},</span>
+    <span class="s1">name</span><span class="s4">,</span>
+    <span class="s1">parent</span><span class="s4">,</span>
+    <span class="s1">matchAs</span><span class="s4">,</span>
+    <span class="s1">redirect</span><span class="s4">: </span><span class="s1">route</span><span class="s4">.</span><span class="s1">redirect</span><span class="s4">,</span>
+    <span class="s1">beforeEnter</span><span class="s4">: </span><span class="s1">route</span><span class="s4">.</span><span class="s1">beforeEnter</span><span class="s4">,</span>
+    <span class="s1">meta</span><span class="s4">: </span><span class="s1">route</span><span class="s4">.</span><span class="s1">meta </span><span class="s4">|| {},</span>
+    <span class="s1">props</span><span class="s4">:</span>
+      <span class="s1">route</span><span class="s4">.</span><span class="s1">props </span><span class="s4">== </span><span class="s2">null</span>
+        <span class="s4">? {}</span>
+        <span class="s4">: </span><span class="s1">route</span><span class="s4">.</span><span class="s1">components</span>
+          <span class="s4">? </span><span class="s1">route</span><span class="s4">.</span><span class="s1">props</span>
+          <span class="s4">: { </span><span class="s2">default</span><span class="s4">: </span><span class="s1">route</span><span class="s4">.</span><span class="s1">props </span><span class="s4">}</span>
+  <span class="s4">}</span>
+
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">route</span><span class="s4">.</span><span class="s1">children</span><span class="s4">) {</span>
+    <span class="s0">// Warn if route is named, does not redirect and has a default child route.</span>
+    <span class="s0">// If users navigate to this route by name, the default child will</span>
+    <span class="s0">// not be rendered (GH Issue #629)</span>
+    <span class="s2">if </span><span class="s4">(</span><span class="s1">process</span><span class="s4">.</span><span class="s1">env</span><span class="s4">.</span><span class="s1">NODE_ENV </span><span class="s4">!== </span><span class="s3">'production'</span><span class="s4">) {</span>
+      <span class="s2">if </span><span class="s4">(</span>
+        <span class="s1">route</span><span class="s4">.</span><span class="s1">name </span><span class="s4">&amp;&amp;</span>
+        <span class="s4">!</span><span class="s1">route</span><span class="s4">.</span><span class="s1">redirect </span><span class="s4">&amp;&amp;</span>
+        <span class="s1">route</span><span class="s4">.</span><span class="s1">children</span><span class="s4">.</span><span class="s1">some</span><span class="s4">(</span><span class="s1">child </span><span class="s4">=&gt; </span><span class="s6">/^\/?$/</span><span class="s4">.</span><span class="s1">test</span><span class="s4">(</span><span class="s1">child</span><span class="s4">.</span><span class="s1">path</span><span class="s4">))</span>
+      <span class="s4">) {</span>
+        <span class="s1">warn</span><span class="s4">(</span>
+          <span class="s2">false</span><span class="s4">,</span>
+          <span class="s3">`Named Route '</span><span class="s1">$</span><span class="s4">{</span><span class="s1">route</span><span class="s4">.</span><span class="s1">name</span><span class="s4">}</span><span class="s3">' has a default child route. ` </span><span class="s4">+</span>
+            <span class="s3">`When navigating to this named route (:to=&quot;{name: '</span><span class="s1">$</span><span class="s4">{</span>
+              <span class="s1">route</span><span class="s4">.</span><span class="s1">name</span>
+            <span class="s4">}</span><span class="s3">'}&quot;), ` </span><span class="s4">+</span>
+            <span class="s3">`the default child route will not be rendered. Remove the name from ` </span><span class="s4">+</span>
+            <span class="s3">`this route and use the name of the default child route for named ` </span><span class="s4">+</span>
+            <span class="s3">`links instead.`</span>
+        <span class="s4">)</span>
+      <span class="s4">}</span>
+    <span class="s4">}</span>
+    <span class="s1">route</span><span class="s4">.</span><span class="s1">children</span><span class="s4">.</span><span class="s1">forEach</span><span class="s4">(</span><span class="s1">child </span><span class="s4">=&gt; {</span>
+      <span class="s2">const </span><span class="s1">childMatchAs </span><span class="s4">= </span><span class="s1">matchAs</span>
+        <span class="s4">? </span><span class="s1">cleanPath</span><span class="s4">(</span><span class="s3">`</span><span class="s1">$</span><span class="s4">{</span><span class="s1">matchAs</span><span class="s4">}</span><span class="s3">/</span><span class="s1">$</span><span class="s4">{</span><span class="s1">child</span><span class="s4">.</span><span class="s1">path</span><span class="s4">}</span><span class="s3">`</span><span class="s4">)</span>
+        <span class="s4">: </span><span class="s1">undefined</span>
+      <span class="s1">addRouteRecord</span><span class="s4">(</span><span class="s1">pathList</span><span class="s4">, </span><span class="s1">pathMap</span><span class="s4">, </span><span class="s1">nameMap</span><span class="s4">, </span><span class="s1">child</span><span class="s4">, </span><span class="s1">record</span><span class="s4">, </span><span class="s1">childMatchAs</span><span class="s4">)</span>
+    <span class="s4">})</span>
+  <span class="s4">}</span>
+
+  <span class="s2">if </span><span class="s4">(!</span><span class="s1">pathMap</span><span class="s4">[</span><span class="s1">record</span><span class="s4">.</span><span class="s1">path</span><span class="s4">]) {</span>
+    <span class="s1">pathList</span><span class="s4">.</span><span class="s1">push</span><span class="s4">(</span><span class="s1">record</span><span class="s4">.</span><span class="s1">path</span><span class="s4">)</span>
+    <span class="s1">pathMap</span><span class="s4">[</span><span class="s1">record</span><span class="s4">.</span><span class="s1">path</span><span class="s4">] = </span><span class="s1">record</span>
+  <span class="s4">}</span>
+
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">route</span><span class="s4">.</span><span class="s1">alias </span><span class="s4">!== </span><span class="s1">undefined</span><span class="s4">) {</span>
+    <span class="s2">const </span><span class="s1">aliases </span><span class="s4">= </span><span class="s1">Array</span><span class="s4">.</span><span class="s1">isArray</span><span class="s4">(</span><span class="s1">route</span><span class="s4">.</span><span class="s1">alias</span><span class="s4">) ? </span><span class="s1">route</span><span class="s4">.</span><span class="s1">alias </span><span class="s4">: [</span><span class="s1">route</span><span class="s4">.</span><span class="s1">alias</span><span class="s4">]</span>
+    <span class="s2">for </span><span class="s4">(</span><span class="s2">let </span><span class="s1">i </span><span class="s4">= </span><span class="s5">0</span><span class="s4">; </span><span class="s1">i </span><span class="s4">&lt; </span><span class="s1">aliases</span><span class="s4">.</span><span class="s1">length</span><span class="s4">; ++</span><span class="s1">i</span><span class="s4">) {</span>
+      <span class="s2">const </span><span class="s1">alias </span><span class="s4">= </span><span class="s1">aliases</span><span class="s4">[</span><span class="s1">i</span><span class="s4">]</span>
+      <span class="s2">if </span><span class="s4">(</span><span class="s1">process</span><span class="s4">.</span><span class="s1">env</span><span class="s4">.</span><span class="s1">NODE_ENV </span><span class="s4">!== </span><span class="s3">'production' </span><span class="s4">&amp;&amp; </span><span class="s1">alias </span><span class="s4">=== </span><span class="s1">path</span><span class="s4">) {</span>
+        <span class="s1">warn</span><span class="s4">(</span>
+          <span class="s2">false</span><span class="s4">,</span>
+          <span class="s3">`Found an alias with the same value as the path: &quot;</span><span class="s1">$</span><span class="s4">{</span><span class="s1">path</span><span class="s4">}</span><span class="s3">&quot;. You have to remove that alias. It will be ignored in development.`</span>
+        <span class="s4">)</span>
+        <span class="s0">// skip in dev to make it work</span>
+        <span class="s2">continue</span>
+      <span class="s4">}</span>
+
+      <span class="s2">const </span><span class="s1">aliasRoute </span><span class="s4">= {</span>
+        <span class="s1">path</span><span class="s4">: </span><span class="s1">alias</span><span class="s4">,</span>
+        <span class="s1">children</span><span class="s4">: </span><span class="s1">route</span><span class="s4">.</span><span class="s1">children</span>
+      <span class="s4">}</span>
+      <span class="s1">addRouteRecord</span><span class="s4">(</span>
+        <span class="s1">pathList</span><span class="s4">,</span>
+        <span class="s1">pathMap</span><span class="s4">,</span>
+        <span class="s1">nameMap</span><span class="s4">,</span>
+        <span class="s1">aliasRoute</span><span class="s4">,</span>
+        <span class="s1">parent</span><span class="s4">,</span>
+        <span class="s1">record</span><span class="s4">.</span><span class="s1">path </span><span class="s4">|| </span><span class="s3">'/' </span><span class="s0">// matchAs</span>
+      <span class="s4">)</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">name</span><span class="s4">) {</span>
+    <span class="s2">if </span><span class="s4">(!</span><span class="s1">nameMap</span><span class="s4">[</span><span class="s1">name</span><span class="s4">]) {</span>
+      <span class="s1">nameMap</span><span class="s4">[</span><span class="s1">name</span><span class="s4">] = </span><span class="s1">record</span>
+    <span class="s4">} </span><span class="s2">else if </span><span class="s4">(</span><span class="s1">process</span><span class="s4">.</span><span class="s1">env</span><span class="s4">.</span><span class="s1">NODE_ENV </span><span class="s4">!== </span><span class="s3">'production' </span><span class="s4">&amp;&amp; !</span><span class="s1">matchAs</span><span class="s4">) {</span>
+      <span class="s1">warn</span><span class="s4">(</span>
+        <span class="s2">false</span><span class="s4">,</span>
+        <span class="s3">`Duplicate named routes definition: ` </span><span class="s4">+</span>
+          <span class="s3">`{ name: &quot;</span><span class="s1">$</span><span class="s4">{</span><span class="s1">name</span><span class="s4">}</span><span class="s3">&quot;, path: &quot;</span><span class="s1">$</span><span class="s4">{</span><span class="s1">record</span><span class="s4">.</span><span class="s1">path</span><span class="s4">}</span><span class="s3">&quot; }`</span>
+      <span class="s4">)</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s2">function </span><span class="s1">compileRouteRegex </span><span class="s4">(</span>
+  <span class="s1">path</span><span class="s4">: </span><span class="s1">string</span><span class="s4">,</span>
+  <span class="s1">pathToRegexpOptions</span><span class="s4">: </span><span class="s1">PathToRegexpOptions</span>
+<span class="s4">): </span><span class="s1">RouteRegExp </span><span class="s4">{</span>
+  <span class="s2">const </span><span class="s1">regex </span><span class="s4">= </span><span class="s1">Regexp</span><span class="s4">(</span><span class="s1">path</span><span class="s4">, [], </span><span class="s1">pathToRegexpOptions</span><span class="s4">)</span>
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">process</span><span class="s4">.</span><span class="s1">env</span><span class="s4">.</span><span class="s1">NODE_ENV </span><span class="s4">!== </span><span class="s3">'production'</span><span class="s4">) {</span>
+    <span class="s2">const </span><span class="s1">keys</span><span class="s4">: </span><span class="s1">any </span><span class="s4">= </span><span class="s1">Object</span><span class="s4">.</span><span class="s1">create</span><span class="s4">(</span><span class="s2">null</span><span class="s4">)</span>
+    <span class="s1">regex</span><span class="s4">.</span><span class="s1">keys</span><span class="s4">.</span><span class="s1">forEach</span><span class="s4">(</span><span class="s1">key </span><span class="s4">=&gt; {</span>
+      <span class="s1">warn</span><span class="s4">(</span>
+        <span class="s4">!</span><span class="s1">keys</span><span class="s4">[</span><span class="s1">key</span><span class="s4">.</span><span class="s1">name</span><span class="s4">],</span>
+        <span class="s3">`Duplicate param keys in route with path: &quot;</span><span class="s1">$</span><span class="s4">{</span><span class="s1">path</span><span class="s4">}</span><span class="s3">&quot;`</span>
+      <span class="s4">)</span>
+      <span class="s1">keys</span><span class="s4">[</span><span class="s1">key</span><span class="s4">.</span><span class="s1">name</span><span class="s4">] = </span><span class="s2">true</span>
+    <span class="s4">})</span>
+  <span class="s4">}</span>
+  <span class="s2">return </span><span class="s1">regex</span>
+<span class="s4">}</span>
+
+<span class="s2">function </span><span class="s1">normalizePath </span><span class="s4">(</span>
+  <span class="s1">path</span><span class="s4">: </span><span class="s1">string</span><span class="s4">,</span>
+  <span class="s1">parent</span><span class="s4">?: </span><span class="s1">RouteRecord</span><span class="s4">,</span>
+  <span class="s1">strict</span><span class="s4">?: </span><span class="s1">boolean</span>
+<span class="s4">): </span><span class="s1">string </span><span class="s4">{</span>
+  <span class="s2">if </span><span class="s4">(!</span><span class="s1">strict</span><span class="s4">) </span><span class="s1">path </span><span class="s4">= </span><span class="s1">path</span><span class="s4">.</span><span class="s1">replace</span><span class="s4">(</span><span class="s6">/\/$/</span><span class="s4">, </span><span class="s3">''</span><span class="s4">)</span>
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">path</span><span class="s4">[</span><span class="s5">0</span><span class="s4">] === </span><span class="s3">'/'</span><span class="s4">) </span><span class="s2">return </span><span class="s1">path</span>
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">parent </span><span class="s4">== </span><span class="s2">null</span><span class="s4">) </span><span class="s2">return </span><span class="s1">path</span>
+  <span class="s2">return </span><span class="s1">cleanPath</span><span class="s4">(</span><span class="s3">`</span><span class="s1">$</span><span class="s4">{</span><span class="s1">parent</span><span class="s4">.</span><span class="s1">path</span><span class="s4">}</span><span class="s3">/</span><span class="s1">$</span><span class="s4">{</span><span class="s1">path</span><span class="s4">}</span><span class="s3">`</span><span class="s4">)</span>
+<span class="s4">}</span>
+</pre>
+</body>
+</html>

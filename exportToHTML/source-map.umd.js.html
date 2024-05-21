@@ -1,0 +1,963 @@
+<html>
+<head>
+<title>source-map.umd.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #bcbec4;}
+.s1 { color: #cf8e6d;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+.s6 { color: #42c3d4;}
+.s7 { color: #5f826b; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+source-map.umd.js</font>
+</center></td></tr></table>
+<pre><span class="s0">(</span><span class="s1">function </span><span class="s0">(</span><span class="s2">global</span><span class="s0">, </span><span class="s2">factory</span><span class="s0">) {</span>
+    <span class="s1">typeof </span><span class="s2">exports </span><span class="s0">=== </span><span class="s3">'object' </span><span class="s0">&amp;&amp; </span><span class="s1">typeof </span><span class="s2">module </span><span class="s0">!== </span><span class="s3">'undefined' </span><span class="s0">? </span><span class="s2">factory</span><span class="s0">(</span><span class="s2">exports</span><span class="s0">) :</span>
+    <span class="s1">typeof </span><span class="s2">define </span><span class="s0">=== </span><span class="s3">'function' </span><span class="s0">&amp;&amp; </span><span class="s2">define</span><span class="s0">.</span><span class="s2">amd </span><span class="s0">? </span><span class="s2">define</span><span class="s0">([</span><span class="s3">'exports'</span><span class="s0">], </span><span class="s2">factory</span><span class="s0">) :</span>
+    <span class="s0">(</span><span class="s2">global </span><span class="s0">= </span><span class="s1">typeof </span><span class="s2">globalThis </span><span class="s0">!== </span><span class="s3">'undefined' </span><span class="s0">? </span><span class="s2">globalThis </span><span class="s0">: </span><span class="s2">global </span><span class="s0">|| </span><span class="s2">self</span><span class="s0">, </span><span class="s2">factory</span><span class="s0">(</span><span class="s2">global</span><span class="s0">.</span><span class="s2">sourceMap </span><span class="s0">= {}));</span>
+<span class="s0">})(</span><span class="s1">this</span><span class="s0">, (</span><span class="s1">function </span><span class="s0">(</span><span class="s2">exports</span><span class="s0">) { </span><span class="s3">'use strict'</span><span class="s0">;</span>
+
+    <span class="s1">const </span><span class="s2">comma </span><span class="s0">= </span><span class="s3">','</span><span class="s0">.</span><span class="s2">charCodeAt</span><span class="s0">(</span><span class="s4">0</span><span class="s0">);</span>
+    <span class="s1">const </span><span class="s2">semicolon </span><span class="s0">= </span><span class="s3">';'</span><span class="s0">.</span><span class="s2">charCodeAt</span><span class="s0">(</span><span class="s4">0</span><span class="s0">);</span>
+    <span class="s1">const </span><span class="s2">chars </span><span class="s0">= </span><span class="s3">'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">intToChar </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Uint8Array</span><span class="s0">(</span><span class="s4">64</span><span class="s0">); </span><span class="s5">// 64 possible chars.</span>
+    <span class="s1">const </span><span class="s2">charToInteger </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Uint8Array</span><span class="s0">(</span><span class="s4">128</span><span class="s0">); </span><span class="s5">// z is 122 in ASCII</span>
+    <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">chars</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+        <span class="s1">const </span><span class="s2">c </span><span class="s0">= </span><span class="s2">chars</span><span class="s0">.</span><span class="s2">charCodeAt</span><span class="s0">(</span><span class="s2">i</span><span class="s0">);</span>
+        <span class="s2">charToInteger</span><span class="s0">[</span><span class="s2">c</span><span class="s0">] = </span><span class="s2">i</span><span class="s0">;</span>
+        <span class="s2">intToChar</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] = </span><span class="s2">c</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s5">// Provide a fallback for older environments.</span>
+    <span class="s1">const </span><span class="s2">td </span><span class="s0">= </span><span class="s1">typeof </span><span class="s2">TextDecoder </span><span class="s0">!== </span><span class="s3">'undefined'</span>
+        <span class="s0">? </span><span class="s1">new </span><span class="s2">TextDecoder</span><span class="s0">()</span>
+        <span class="s0">: </span><span class="s1">typeof </span><span class="s2">Buffer </span><span class="s0">!== </span><span class="s3">'undefined'</span>
+            <span class="s0">? {</span>
+                <span class="s2">decode</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">) {</span>
+                    <span class="s1">const </span><span class="s2">out </span><span class="s0">= </span><span class="s2">Buffer</span><span class="s0">.</span><span class="s2">from</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">.</span><span class="s2">buffer</span><span class="s0">, </span><span class="s2">buf</span><span class="s0">.</span><span class="s2">byteOffset</span><span class="s0">, </span><span class="s2">buf</span><span class="s0">.</span><span class="s2">byteLength</span><span class="s0">);</span>
+                    <span class="s1">return </span><span class="s2">out</span><span class="s0">.</span><span class="s2">toString</span><span class="s0">();</span>
+                <span class="s0">},</span>
+            <span class="s0">}</span>
+            <span class="s0">: {</span>
+                <span class="s2">decode</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">) {</span>
+                    <span class="s1">let </span><span class="s2">out </span><span class="s0">= </span><span class="s3">''</span><span class="s0">;</span>
+                    <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">buf</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+                        <span class="s2">out </span><span class="s0">+= </span><span class="s2">String</span><span class="s0">.</span><span class="s2">fromCharCode</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">[</span><span class="s2">i</span><span class="s0">]);</span>
+                    <span class="s0">}</span>
+                    <span class="s1">return </span><span class="s2">out</span><span class="s0">;</span>
+                <span class="s0">},</span>
+            <span class="s0">};</span>
+    <span class="s1">function </span><span class="s2">decode</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">) {</span>
+        <span class="s1">const </span><span class="s2">state </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Int32Array</span><span class="s0">(</span><span class="s4">5</span><span class="s0">);</span>
+        <span class="s1">const </span><span class="s2">decoded </span><span class="s0">= [];</span>
+        <span class="s1">let </span><span class="s2">line </span><span class="s0">= [];</span>
+        <span class="s1">let </span><span class="s2">sorted </span><span class="s0">= </span><span class="s1">true</span><span class="s0">;</span>
+        <span class="s1">let </span><span class="s2">lastCol </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">mappings</span><span class="s0">.</span><span class="s2">length</span><span class="s0">;) {</span>
+            <span class="s1">const </span><span class="s2">c </span><span class="s0">= </span><span class="s2">mappings</span><span class="s0">.</span><span class="s2">charCodeAt</span><span class="s0">(</span><span class="s2">i</span><span class="s0">);</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">c </span><span class="s0">=== </span><span class="s2">comma</span><span class="s0">) {</span>
+                <span class="s2">i</span><span class="s0">++;</span>
+            <span class="s0">}</span>
+            <span class="s1">else if </span><span class="s0">(</span><span class="s2">c </span><span class="s0">=== </span><span class="s2">semicolon</span><span class="s0">) {</span>
+                <span class="s2">state</span><span class="s0">[</span><span class="s4">0</span><span class="s0">] = </span><span class="s2">lastCol </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+                <span class="s1">if </span><span class="s0">(!</span><span class="s2">sorted</span><span class="s0">)</span>
+                    <span class="s2">sort</span><span class="s0">(</span><span class="s2">line</span><span class="s0">);</span>
+                <span class="s2">sorted </span><span class="s0">= </span><span class="s1">true</span><span class="s0">;</span>
+                <span class="s2">decoded</span><span class="s0">.</span><span class="s2">push</span><span class="s0">(</span><span class="s2">line</span><span class="s0">);</span>
+                <span class="s2">line </span><span class="s0">= [];</span>
+                <span class="s2">i</span><span class="s0">++;</span>
+            <span class="s0">}</span>
+            <span class="s1">else </span><span class="s0">{</span>
+                <span class="s2">i </span><span class="s0">= </span><span class="s2">decodeInteger</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">i</span><span class="s0">, </span><span class="s2">state</span><span class="s0">, </span><span class="s4">0</span><span class="s0">); </span><span class="s5">// generatedCodeColumn</span>
+                <span class="s1">const </span><span class="s2">col </span><span class="s0">= </span><span class="s2">state</span><span class="s0">[</span><span class="s4">0</span><span class="s0">];</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">col </span><span class="s0">&lt; </span><span class="s2">lastCol</span><span class="s0">)</span>
+                    <span class="s2">sorted </span><span class="s0">= </span><span class="s1">false</span><span class="s0">;</span>
+                <span class="s2">lastCol </span><span class="s0">= </span><span class="s2">col</span><span class="s0">;</span>
+                <span class="s1">if </span><span class="s0">(!</span><span class="s2">hasMoreSegments</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">i</span><span class="s0">)) {</span>
+                    <span class="s2">line</span><span class="s0">.</span><span class="s2">push</span><span class="s0">([</span><span class="s2">col</span><span class="s0">]);</span>
+                    <span class="s1">continue</span><span class="s0">;</span>
+                <span class="s0">}</span>
+                <span class="s2">i </span><span class="s0">= </span><span class="s2">decodeInteger</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">i</span><span class="s0">, </span><span class="s2">state</span><span class="s0">, </span><span class="s4">1</span><span class="s0">); </span><span class="s5">// sourceFileIndex</span>
+                <span class="s2">i </span><span class="s0">= </span><span class="s2">decodeInteger</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">i</span><span class="s0">, </span><span class="s2">state</span><span class="s0">, </span><span class="s4">2</span><span class="s0">); </span><span class="s5">// sourceCodeLine</span>
+                <span class="s2">i </span><span class="s0">= </span><span class="s2">decodeInteger</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">i</span><span class="s0">, </span><span class="s2">state</span><span class="s0">, </span><span class="s4">3</span><span class="s0">); </span><span class="s5">// sourceCodeColumn</span>
+                <span class="s1">if </span><span class="s0">(!</span><span class="s2">hasMoreSegments</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">i</span><span class="s0">)) {</span>
+                    <span class="s2">line</span><span class="s0">.</span><span class="s2">push</span><span class="s0">([</span><span class="s2">col</span><span class="s0">, </span><span class="s2">state</span><span class="s0">[</span><span class="s4">1</span><span class="s0">], </span><span class="s2">state</span><span class="s0">[</span><span class="s4">2</span><span class="s0">], </span><span class="s2">state</span><span class="s0">[</span><span class="s4">3</span><span class="s0">]]);</span>
+                    <span class="s1">continue</span><span class="s0">;</span>
+                <span class="s0">}</span>
+                <span class="s2">i </span><span class="s0">= </span><span class="s2">decodeInteger</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">i</span><span class="s0">, </span><span class="s2">state</span><span class="s0">, </span><span class="s4">4</span><span class="s0">); </span><span class="s5">// nameIndex</span>
+                <span class="s2">line</span><span class="s0">.</span><span class="s2">push</span><span class="s0">([</span><span class="s2">col</span><span class="s0">, </span><span class="s2">state</span><span class="s0">[</span><span class="s4">1</span><span class="s0">], </span><span class="s2">state</span><span class="s0">[</span><span class="s4">2</span><span class="s0">], </span><span class="s2">state</span><span class="s0">[</span><span class="s4">3</span><span class="s0">], </span><span class="s2">state</span><span class="s0">[</span><span class="s4">4</span><span class="s0">]]);</span>
+            <span class="s0">}</span>
+        <span class="s0">}</span>
+        <span class="s1">if </span><span class="s0">(!</span><span class="s2">sorted</span><span class="s0">)</span>
+            <span class="s2">sort</span><span class="s0">(</span><span class="s2">line</span><span class="s0">);</span>
+        <span class="s2">decoded</span><span class="s0">.</span><span class="s2">push</span><span class="s0">(</span><span class="s2">line</span><span class="s0">);</span>
+        <span class="s1">return </span><span class="s2">decoded</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">decodeInteger</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">pos</span><span class="s0">, </span><span class="s2">state</span><span class="s0">, </span><span class="s2">j</span><span class="s0">) {</span>
+        <span class="s1">let </span><span class="s2">value </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+        <span class="s1">let </span><span class="s2">shift </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+        <span class="s1">let </span><span class="s2">integer </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+        <span class="s1">do </span><span class="s0">{</span>
+            <span class="s1">const </span><span class="s2">c </span><span class="s0">= </span><span class="s2">mappings</span><span class="s0">.</span><span class="s2">charCodeAt</span><span class="s0">(</span><span class="s2">pos</span><span class="s0">++);</span>
+            <span class="s2">integer </span><span class="s0">= </span><span class="s2">charToInteger</span><span class="s0">[</span><span class="s2">c</span><span class="s0">];</span>
+            <span class="s2">value </span><span class="s0">|= (</span><span class="s2">integer </span><span class="s0">&amp; </span><span class="s4">31</span><span class="s0">) &lt;&lt; </span><span class="s2">shift</span><span class="s0">;</span>
+            <span class="s2">shift </span><span class="s0">+= </span><span class="s4">5</span><span class="s0">;</span>
+        <span class="s0">} </span><span class="s1">while </span><span class="s0">(</span><span class="s2">integer </span><span class="s0">&amp; </span><span class="s4">32</span><span class="s0">);</span>
+        <span class="s1">const </span><span class="s2">shouldNegate </span><span class="s0">= </span><span class="s2">value </span><span class="s0">&amp; </span><span class="s4">1</span><span class="s0">;</span>
+        <span class="s2">value </span><span class="s0">&gt;&gt;&gt;= </span><span class="s4">1</span><span class="s0">;</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">shouldNegate</span><span class="s0">) {</span>
+            <span class="s2">value </span><span class="s0">= -</span><span class="s4">0x80000000 </span><span class="s0">| -</span><span class="s2">value</span><span class="s0">;</span>
+        <span class="s0">}</span>
+        <span class="s2">state</span><span class="s0">[</span><span class="s2">j</span><span class="s0">] += </span><span class="s2">value</span><span class="s0">;</span>
+        <span class="s1">return </span><span class="s2">pos</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">hasMoreSegments</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">i</span><span class="s0">) {</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">i </span><span class="s0">&gt;= </span><span class="s2">mappings</span><span class="s0">.</span><span class="s2">length</span><span class="s0">)</span>
+            <span class="s1">return false</span><span class="s0">;</span>
+        <span class="s1">const </span><span class="s2">c </span><span class="s0">= </span><span class="s2">mappings</span><span class="s0">.</span><span class="s2">charCodeAt</span><span class="s0">(</span><span class="s2">i</span><span class="s0">);</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">c </span><span class="s0">=== </span><span class="s2">comma </span><span class="s0">|| </span><span class="s2">c </span><span class="s0">=== </span><span class="s2">semicolon</span><span class="s0">)</span>
+            <span class="s1">return false</span><span class="s0">;</span>
+        <span class="s1">return true</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">sort</span><span class="s0">(</span><span class="s2">line</span><span class="s0">) {</span>
+        <span class="s2">line</span><span class="s0">.</span><span class="s2">sort</span><span class="s0">(</span><span class="s2">sortComparator$1</span><span class="s0">);</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">sortComparator$1</span><span class="s0">(</span><span class="s2">a</span><span class="s0">, </span><span class="s2">b</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s2">a</span><span class="s0">[</span><span class="s4">0</span><span class="s0">] - </span><span class="s2">b</span><span class="s0">[</span><span class="s4">0</span><span class="s0">];</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">encode</span><span class="s0">(</span><span class="s2">decoded</span><span class="s0">) {</span>
+        <span class="s1">const </span><span class="s2">state </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Int32Array</span><span class="s0">(</span><span class="s4">5</span><span class="s0">);</span>
+        <span class="s1">let </span><span class="s2">buf </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Uint8Array</span><span class="s0">(</span><span class="s4">1024</span><span class="s0">);</span>
+        <span class="s1">let </span><span class="s2">pos </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">decoded</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+            <span class="s1">const </span><span class="s2">line </span><span class="s0">= </span><span class="s2">decoded</span><span class="s0">[</span><span class="s2">i</span><span class="s0">];</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">i </span><span class="s0">&gt; </span><span class="s4">0</span><span class="s0">) {</span>
+                <span class="s2">buf </span><span class="s0">= </span><span class="s2">reserve</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">, </span><span class="s2">pos</span><span class="s0">, </span><span class="s4">1</span><span class="s0">);</span>
+                <span class="s2">buf</span><span class="s0">[</span><span class="s2">pos</span><span class="s0">++] = </span><span class="s2">semicolon</span><span class="s0">;</span>
+            <span class="s0">}</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">line</span><span class="s0">.</span><span class="s2">length </span><span class="s0">=== </span><span class="s4">0</span><span class="s0">)</span>
+                <span class="s1">continue</span><span class="s0">;</span>
+            <span class="s2">state</span><span class="s0">[</span><span class="s4">0</span><span class="s0">] = </span><span class="s4">0</span><span class="s0">;</span>
+            <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">j </span><span class="s0">= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">j </span><span class="s0">&lt; </span><span class="s2">line</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">j</span><span class="s0">++) {</span>
+                <span class="s1">const </span><span class="s2">segment </span><span class="s0">= </span><span class="s2">line</span><span class="s0">[</span><span class="s2">j</span><span class="s0">];</span>
+                <span class="s5">// We can push up to 5 ints, each int can take at most 7 chars, and we</span>
+                <span class="s5">// may push a comma.</span>
+                <span class="s2">buf </span><span class="s0">= </span><span class="s2">reserve</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">, </span><span class="s2">pos</span><span class="s0">, </span><span class="s4">36</span><span class="s0">);</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">j </span><span class="s0">&gt; </span><span class="s4">0</span><span class="s0">)</span>
+                    <span class="s2">buf</span><span class="s0">[</span><span class="s2">pos</span><span class="s0">++] = </span><span class="s2">comma</span><span class="s0">;</span>
+                <span class="s2">pos </span><span class="s0">= </span><span class="s2">encodeInteger</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">, </span><span class="s2">pos</span><span class="s0">, </span><span class="s2">state</span><span class="s0">, </span><span class="s2">segment</span><span class="s0">, </span><span class="s4">0</span><span class="s0">); </span><span class="s5">// generatedCodeColumn</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">segment</span><span class="s0">.</span><span class="s2">length </span><span class="s0">=== </span><span class="s4">1</span><span class="s0">)</span>
+                    <span class="s1">continue</span><span class="s0">;</span>
+                <span class="s2">pos </span><span class="s0">= </span><span class="s2">encodeInteger</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">, </span><span class="s2">pos</span><span class="s0">, </span><span class="s2">state</span><span class="s0">, </span><span class="s2">segment</span><span class="s0">, </span><span class="s4">1</span><span class="s0">); </span><span class="s5">// sourceFileIndex</span>
+                <span class="s2">pos </span><span class="s0">= </span><span class="s2">encodeInteger</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">, </span><span class="s2">pos</span><span class="s0">, </span><span class="s2">state</span><span class="s0">, </span><span class="s2">segment</span><span class="s0">, </span><span class="s4">2</span><span class="s0">); </span><span class="s5">// sourceCodeLine</span>
+                <span class="s2">pos </span><span class="s0">= </span><span class="s2">encodeInteger</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">, </span><span class="s2">pos</span><span class="s0">, </span><span class="s2">state</span><span class="s0">, </span><span class="s2">segment</span><span class="s0">, </span><span class="s4">3</span><span class="s0">); </span><span class="s5">// sourceCodeColumn</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">segment</span><span class="s0">.</span><span class="s2">length </span><span class="s0">=== </span><span class="s4">4</span><span class="s0">)</span>
+                    <span class="s1">continue</span><span class="s0">;</span>
+                <span class="s2">pos </span><span class="s0">= </span><span class="s2">encodeInteger</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">, </span><span class="s2">pos</span><span class="s0">, </span><span class="s2">state</span><span class="s0">, </span><span class="s2">segment</span><span class="s0">, </span><span class="s4">4</span><span class="s0">); </span><span class="s5">// nameIndex</span>
+            <span class="s0">}</span>
+        <span class="s0">}</span>
+        <span class="s1">return </span><span class="s2">td</span><span class="s0">.</span><span class="s2">decode</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">.</span><span class="s2">subarray</span><span class="s0">(</span><span class="s4">0</span><span class="s0">, </span><span class="s2">pos</span><span class="s0">));</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">reserve</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">, </span><span class="s2">pos</span><span class="s0">, </span><span class="s2">count</span><span class="s0">) {</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">buf</span><span class="s0">.</span><span class="s2">length </span><span class="s0">&gt; </span><span class="s2">pos </span><span class="s0">+ </span><span class="s2">count</span><span class="s0">)</span>
+            <span class="s1">return </span><span class="s2">buf</span><span class="s0">;</span>
+        <span class="s1">const </span><span class="s2">swap </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Uint8Array</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">.</span><span class="s2">length </span><span class="s0">* </span><span class="s4">2</span><span class="s0">);</span>
+        <span class="s2">swap</span><span class="s0">.</span><span class="s2">set</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">);</span>
+        <span class="s1">return </span><span class="s2">swap</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">encodeInteger</span><span class="s0">(</span><span class="s2">buf</span><span class="s0">, </span><span class="s2">pos</span><span class="s0">, </span><span class="s2">state</span><span class="s0">, </span><span class="s2">segment</span><span class="s0">, </span><span class="s2">j</span><span class="s0">) {</span>
+        <span class="s1">const </span><span class="s2">next </span><span class="s0">= </span><span class="s2">segment</span><span class="s0">[</span><span class="s2">j</span><span class="s0">];</span>
+        <span class="s1">let </span><span class="s2">num </span><span class="s0">= </span><span class="s2">next </span><span class="s0">- </span><span class="s2">state</span><span class="s0">[</span><span class="s2">j</span><span class="s0">];</span>
+        <span class="s2">state</span><span class="s0">[</span><span class="s2">j</span><span class="s0">] = </span><span class="s2">next</span><span class="s0">;</span>
+        <span class="s2">num </span><span class="s0">= </span><span class="s2">num </span><span class="s0">&lt; </span><span class="s4">0 </span><span class="s0">? (-</span><span class="s2">num </span><span class="s0">&lt;&lt; </span><span class="s4">1</span><span class="s0">) | </span><span class="s4">1 </span><span class="s0">: </span><span class="s2">num </span><span class="s0">&lt;&lt; </span><span class="s4">1</span><span class="s0">;</span>
+        <span class="s1">do </span><span class="s0">{</span>
+            <span class="s1">let </span><span class="s2">clamped </span><span class="s0">= </span><span class="s2">num </span><span class="s0">&amp; </span><span class="s4">0b011111</span><span class="s0">;</span>
+            <span class="s2">num </span><span class="s0">&gt;&gt;&gt;= </span><span class="s4">5</span><span class="s0">;</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">num </span><span class="s0">&gt; </span><span class="s4">0</span><span class="s0">)</span>
+                <span class="s2">clamped </span><span class="s0">|= </span><span class="s4">0b100000</span><span class="s0">;</span>
+            <span class="s2">buf</span><span class="s0">[</span><span class="s2">pos</span><span class="s0">++] = </span><span class="s2">intToChar</span><span class="s0">[</span><span class="s2">clamped</span><span class="s0">];</span>
+        <span class="s0">} </span><span class="s1">while </span><span class="s0">(</span><span class="s2">num </span><span class="s0">&gt; </span><span class="s4">0</span><span class="s0">);</span>
+        <span class="s1">return </span><span class="s2">pos</span><span class="s0">;</span>
+    <span class="s0">}</span>
+
+    <span class="s5">// Matches the scheme of a URL, eg &quot;http://&quot;</span>
+    <span class="s1">const </span><span class="s2">schemeRegex </span><span class="s0">= </span><span class="s6">/^[\w+.-]+:\/\//</span><span class="s0">;</span>
+    <span class="s7">/**</span>
+     <span class="s7">* Matches the parts of a URL:</span>
+     <span class="s7">* 1. Scheme, including &quot;:&quot;, guaranteed.</span>
+     <span class="s7">* 2. User/password, including &quot;@&quot;, optional.</span>
+     <span class="s7">* 3. Host, guaranteed.</span>
+     <span class="s7">* 4. Port, including &quot;:&quot;, optional.</span>
+     <span class="s7">* 5. Path, including &quot;/&quot;, optional.</span>
+     <span class="s7">*/</span>
+    <span class="s1">const </span><span class="s2">urlRegex </span><span class="s0">= </span><span class="s6">/^([\w+.-]+:)\/\/([^@/#?]*@)?([^:/#?]*)(:\d+)?(\/[^#?]*)?/</span><span class="s0">;</span>
+    <span class="s7">/**</span>
+     <span class="s7">* File URLs are weird. They dont' need the regular `//` in the scheme, they may or may not start</span>
+     <span class="s7">* with a leading `/`, they can have a domain (but only if they don't start with a Windows drive).</span>
+     <span class="s7">*</span>
+     <span class="s7">* 1. Host, optional.</span>
+     <span class="s7">* 2. Path, which may inclue &quot;/&quot;, guaranteed.</span>
+     <span class="s7">*/</span>
+    <span class="s1">const </span><span class="s2">fileRegex </span><span class="s0">= </span><span class="s6">/^file:(?:\/\/((?![a-z]:)[^/]*)?)?(\/?.*)/i</span><span class="s0">;</span>
+    <span class="s1">function </span><span class="s2">isAbsoluteUrl</span><span class="s0">(</span><span class="s2">input</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s2">schemeRegex</span><span class="s0">.</span><span class="s2">test</span><span class="s0">(</span><span class="s2">input</span><span class="s0">);</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">isSchemeRelativeUrl</span><span class="s0">(</span><span class="s2">input</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s2">input</span><span class="s0">.</span><span class="s2">startsWith</span><span class="s0">(</span><span class="s3">'//'</span><span class="s0">);</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">isAbsolutePath</span><span class="s0">(</span><span class="s2">input</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s2">input</span><span class="s0">.</span><span class="s2">startsWith</span><span class="s0">(</span><span class="s3">'/'</span><span class="s0">);</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">isFileUrl</span><span class="s0">(</span><span class="s2">input</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s2">input</span><span class="s0">.</span><span class="s2">startsWith</span><span class="s0">(</span><span class="s3">'file:'</span><span class="s0">);</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">parseAbsoluteUrl</span><span class="s0">(</span><span class="s2">input</span><span class="s0">) {</span>
+        <span class="s1">const </span><span class="s2">match </span><span class="s0">= </span><span class="s2">urlRegex</span><span class="s0">.</span><span class="s2">exec</span><span class="s0">(</span><span class="s2">input</span><span class="s0">);</span>
+        <span class="s1">return </span><span class="s2">makeUrl</span><span class="s0">(</span><span class="s2">match</span><span class="s0">[</span><span class="s4">1</span><span class="s0">], </span><span class="s2">match</span><span class="s0">[</span><span class="s4">2</span><span class="s0">] || </span><span class="s3">''</span><span class="s0">, </span><span class="s2">match</span><span class="s0">[</span><span class="s4">3</span><span class="s0">], </span><span class="s2">match</span><span class="s0">[</span><span class="s4">4</span><span class="s0">] || </span><span class="s3">''</span><span class="s0">, </span><span class="s2">match</span><span class="s0">[</span><span class="s4">5</span><span class="s0">] || </span><span class="s3">'/'</span><span class="s0">);</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">parseFileUrl</span><span class="s0">(</span><span class="s2">input</span><span class="s0">) {</span>
+        <span class="s1">const </span><span class="s2">match </span><span class="s0">= </span><span class="s2">fileRegex</span><span class="s0">.</span><span class="s2">exec</span><span class="s0">(</span><span class="s2">input</span><span class="s0">);</span>
+        <span class="s1">const </span><span class="s2">path </span><span class="s0">= </span><span class="s2">match</span><span class="s0">[</span><span class="s4">2</span><span class="s0">];</span>
+        <span class="s1">return </span><span class="s2">makeUrl</span><span class="s0">(</span><span class="s3">'file:'</span><span class="s0">, </span><span class="s3">''</span><span class="s0">, </span><span class="s2">match</span><span class="s0">[</span><span class="s4">1</span><span class="s0">] || </span><span class="s3">''</span><span class="s0">, </span><span class="s3">''</span><span class="s0">, </span><span class="s2">isAbsolutePath</span><span class="s0">(</span><span class="s2">path</span><span class="s0">) ? </span><span class="s2">path </span><span class="s0">: </span><span class="s3">'/' </span><span class="s0">+ </span><span class="s2">path</span><span class="s0">);</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">makeUrl</span><span class="s0">(</span><span class="s2">scheme</span><span class="s0">, </span><span class="s2">user</span><span class="s0">, </span><span class="s2">host</span><span class="s0">, </span><span class="s2">port</span><span class="s0">, </span><span class="s2">path</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s0">{</span>
+            <span class="s2">scheme</span><span class="s0">,</span>
+            <span class="s2">user</span><span class="s0">,</span>
+            <span class="s2">host</span><span class="s0">,</span>
+            <span class="s2">port</span><span class="s0">,</span>
+            <span class="s2">path</span><span class="s0">,</span>
+            <span class="s2">relativePath</span><span class="s0">: </span><span class="s1">false</span><span class="s0">,</span>
+        <span class="s0">};</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">parseUrl</span><span class="s0">(</span><span class="s2">input</span><span class="s0">) {</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">isSchemeRelativeUrl</span><span class="s0">(</span><span class="s2">input</span><span class="s0">)) {</span>
+            <span class="s1">const </span><span class="s2">url </span><span class="s0">= </span><span class="s2">parseAbsoluteUrl</span><span class="s0">(</span><span class="s3">'http:' </span><span class="s0">+ </span><span class="s2">input</span><span class="s0">);</span>
+            <span class="s2">url</span><span class="s0">.</span><span class="s2">scheme </span><span class="s0">= </span><span class="s3">''</span><span class="s0">;</span>
+            <span class="s1">return </span><span class="s2">url</span><span class="s0">;</span>
+        <span class="s0">}</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">isAbsolutePath</span><span class="s0">(</span><span class="s2">input</span><span class="s0">)) {</span>
+            <span class="s1">const </span><span class="s2">url </span><span class="s0">= </span><span class="s2">parseAbsoluteUrl</span><span class="s0">(</span><span class="s3">'http://foo.com' </span><span class="s0">+ </span><span class="s2">input</span><span class="s0">);</span>
+            <span class="s2">url</span><span class="s0">.</span><span class="s2">scheme </span><span class="s0">= </span><span class="s3">''</span><span class="s0">;</span>
+            <span class="s2">url</span><span class="s0">.</span><span class="s2">host </span><span class="s0">= </span><span class="s3">''</span><span class="s0">;</span>
+            <span class="s1">return </span><span class="s2">url</span><span class="s0">;</span>
+        <span class="s0">}</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">isFileUrl</span><span class="s0">(</span><span class="s2">input</span><span class="s0">))</span>
+            <span class="s1">return </span><span class="s2">parseFileUrl</span><span class="s0">(</span><span class="s2">input</span><span class="s0">);</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">isAbsoluteUrl</span><span class="s0">(</span><span class="s2">input</span><span class="s0">))</span>
+            <span class="s1">return </span><span class="s2">parseAbsoluteUrl</span><span class="s0">(</span><span class="s2">input</span><span class="s0">);</span>
+        <span class="s1">const </span><span class="s2">url </span><span class="s0">= </span><span class="s2">parseAbsoluteUrl</span><span class="s0">(</span><span class="s3">'http://foo.com/' </span><span class="s0">+ </span><span class="s2">input</span><span class="s0">);</span>
+        <span class="s2">url</span><span class="s0">.</span><span class="s2">scheme </span><span class="s0">= </span><span class="s3">''</span><span class="s0">;</span>
+        <span class="s2">url</span><span class="s0">.</span><span class="s2">host </span><span class="s0">= </span><span class="s3">''</span><span class="s0">;</span>
+        <span class="s2">url</span><span class="s0">.</span><span class="s2">relativePath </span><span class="s0">= </span><span class="s1">true</span><span class="s0">;</span>
+        <span class="s1">return </span><span class="s2">url</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">stripPathFilename</span><span class="s0">(</span><span class="s2">path</span><span class="s0">) {</span>
+        <span class="s5">// If a path ends with a parent directory &quot;..&quot;, then it's a relative path with excess parent</span>
+        <span class="s5">// paths. It's not a file, so we can't strip it.</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">path</span><span class="s0">.</span><span class="s2">endsWith</span><span class="s0">(</span><span class="s3">'/..'</span><span class="s0">))</span>
+            <span class="s1">return </span><span class="s2">path</span><span class="s0">;</span>
+        <span class="s1">const </span><span class="s2">index </span><span class="s0">= </span><span class="s2">path</span><span class="s0">.</span><span class="s2">lastIndexOf</span><span class="s0">(</span><span class="s3">'/'</span><span class="s0">);</span>
+        <span class="s1">return </span><span class="s2">path</span><span class="s0">.</span><span class="s2">slice</span><span class="s0">(</span><span class="s4">0</span><span class="s0">, </span><span class="s2">index </span><span class="s0">+ </span><span class="s4">1</span><span class="s0">);</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">mergePaths</span><span class="s0">(</span><span class="s2">url</span><span class="s0">, </span><span class="s2">base</span><span class="s0">) {</span>
+        <span class="s5">// If we're not a relative path, then we're an absolute path, and it doesn't matter what base is.</span>
+        <span class="s1">if </span><span class="s0">(!</span><span class="s2">url</span><span class="s0">.</span><span class="s2">relativePath</span><span class="s0">)</span>
+            <span class="s1">return</span><span class="s0">;</span>
+        <span class="s2">normalizePath</span><span class="s0">(</span><span class="s2">base</span><span class="s0">);</span>
+        <span class="s5">// If the path is just a &quot;/&quot;, then it was an empty path to begin with (remember, we're a relative</span>
+        <span class="s5">// path).</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">url</span><span class="s0">.</span><span class="s2">path </span><span class="s0">=== </span><span class="s3">'/'</span><span class="s0">) {</span>
+            <span class="s2">url</span><span class="s0">.</span><span class="s2">path </span><span class="s0">= </span><span class="s2">base</span><span class="s0">.</span><span class="s2">path</span><span class="s0">;</span>
+        <span class="s0">}</span>
+        <span class="s1">else </span><span class="s0">{</span>
+            <span class="s5">// Resolution happens relative to the base path's directory, not the file.</span>
+            <span class="s2">url</span><span class="s0">.</span><span class="s2">path </span><span class="s0">= </span><span class="s2">stripPathFilename</span><span class="s0">(</span><span class="s2">base</span><span class="s0">.</span><span class="s2">path</span><span class="s0">) + </span><span class="s2">url</span><span class="s0">.</span><span class="s2">path</span><span class="s0">;</span>
+        <span class="s0">}</span>
+        <span class="s5">// If the base path is absolute, then our path is now absolute too.</span>
+        <span class="s2">url</span><span class="s0">.</span><span class="s2">relativePath </span><span class="s0">= </span><span class="s2">base</span><span class="s0">.</span><span class="s2">relativePath</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s7">/**</span>
+     <span class="s7">* The path can have empty directories &quot;//&quot;, unneeded parents &quot;foo/..&quot;, or current directory</span>
+     <span class="s7">* &quot;foo/.&quot;. We need to normalize to a standard representation.</span>
+     <span class="s7">*/</span>
+    <span class="s1">function </span><span class="s2">normalizePath</span><span class="s0">(</span><span class="s2">url</span><span class="s0">) {</span>
+        <span class="s1">const </span><span class="s0">{ </span><span class="s2">relativePath </span><span class="s0">} = </span><span class="s2">url</span><span class="s0">;</span>
+        <span class="s1">const </span><span class="s2">pieces </span><span class="s0">= </span><span class="s2">url</span><span class="s0">.</span><span class="s2">path</span><span class="s0">.</span><span class="s2">split</span><span class="s0">(</span><span class="s3">'/'</span><span class="s0">);</span>
+        <span class="s5">// We need to preserve the first piece always, so that we output a leading slash. The item at</span>
+        <span class="s5">// pieces[0] is an empty string.</span>
+        <span class="s1">let </span><span class="s2">pointer </span><span class="s0">= </span><span class="s4">1</span><span class="s0">;</span>
+        <span class="s5">// Positive is the number of real directories we've output, used for popping a parent directory.</span>
+        <span class="s5">// Eg, &quot;foo/bar/..&quot; will have a positive 2, and we can decrement to be left with just &quot;foo&quot;.</span>
+        <span class="s1">let </span><span class="s2">positive </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+        <span class="s5">// We need to keep a trailing slash if we encounter an empty directory (eg, splitting &quot;foo/&quot; will</span>
+        <span class="s5">// generate `[&quot;foo&quot;, &quot;&quot;]` pieces). And, if we pop a parent directory. But once we encounter a</span>
+        <span class="s5">// real directory, we won't need to append, unless the other conditions happen again.</span>
+        <span class="s1">let </span><span class="s2">addTrailingSlash </span><span class="s0">= </span><span class="s1">false</span><span class="s0">;</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s4">1</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">pieces</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+            <span class="s1">const </span><span class="s2">piece </span><span class="s0">= </span><span class="s2">pieces</span><span class="s0">[</span><span class="s2">i</span><span class="s0">];</span>
+            <span class="s5">// An empty directory, could be a trailing slash, or just a double &quot;//&quot; in the path.</span>
+            <span class="s1">if </span><span class="s0">(!</span><span class="s2">piece</span><span class="s0">) {</span>
+                <span class="s2">addTrailingSlash </span><span class="s0">= </span><span class="s1">true</span><span class="s0">;</span>
+                <span class="s1">continue</span><span class="s0">;</span>
+            <span class="s0">}</span>
+            <span class="s5">// If we encounter a real directory, then we don't need to append anymore.</span>
+            <span class="s2">addTrailingSlash </span><span class="s0">= </span><span class="s1">false</span><span class="s0">;</span>
+            <span class="s5">// A current directory, which we can always drop.</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">piece </span><span class="s0">=== </span><span class="s3">'.'</span><span class="s0">)</span>
+                <span class="s1">continue</span><span class="s0">;</span>
+            <span class="s5">// A parent directory, we need to see if there are any real directories we can pop. Else, we</span>
+            <span class="s5">// have an excess of parents, and we'll need to keep the &quot;..&quot;.</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">piece </span><span class="s0">=== </span><span class="s3">'..'</span><span class="s0">) {</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">positive</span><span class="s0">) {</span>
+                    <span class="s2">addTrailingSlash </span><span class="s0">= </span><span class="s1">true</span><span class="s0">;</span>
+                    <span class="s2">positive</span><span class="s0">--;</span>
+                    <span class="s2">pointer</span><span class="s0">--;</span>
+                <span class="s0">}</span>
+                <span class="s1">else if </span><span class="s0">(</span><span class="s2">relativePath</span><span class="s0">) {</span>
+                    <span class="s5">// If we're in a relativePath, then we need to keep the excess parents. Else, in an absolute</span>
+                    <span class="s5">// URL, protocol relative URL, or an absolute path, we don't need to keep excess.</span>
+                    <span class="s2">pieces</span><span class="s0">[</span><span class="s2">pointer</span><span class="s0">++] = </span><span class="s2">piece</span><span class="s0">;</span>
+                <span class="s0">}</span>
+                <span class="s1">continue</span><span class="s0">;</span>
+            <span class="s0">}</span>
+            <span class="s5">// We've encountered a real directory. Move it to the next insertion pointer, which accounts for</span>
+            <span class="s5">// any popped or dropped directories.</span>
+            <span class="s2">pieces</span><span class="s0">[</span><span class="s2">pointer</span><span class="s0">++] = </span><span class="s2">piece</span><span class="s0">;</span>
+            <span class="s2">positive</span><span class="s0">++;</span>
+        <span class="s0">}</span>
+        <span class="s1">let </span><span class="s2">path </span><span class="s0">= </span><span class="s3">''</span><span class="s0">;</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s4">1</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">pointer</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+            <span class="s2">path </span><span class="s0">+= </span><span class="s3">'/' </span><span class="s0">+ </span><span class="s2">pieces</span><span class="s0">[</span><span class="s2">i</span><span class="s0">];</span>
+        <span class="s0">}</span>
+        <span class="s1">if </span><span class="s0">(!</span><span class="s2">path </span><span class="s0">|| (</span><span class="s2">addTrailingSlash </span><span class="s0">&amp;&amp; !</span><span class="s2">path</span><span class="s0">.</span><span class="s2">endsWith</span><span class="s0">(</span><span class="s3">'/..'</span><span class="s0">))) {</span>
+            <span class="s2">path </span><span class="s0">+= </span><span class="s3">'/'</span><span class="s0">;</span>
+        <span class="s0">}</span>
+        <span class="s2">url</span><span class="s0">.</span><span class="s2">path </span><span class="s0">= </span><span class="s2">path</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s7">/**</span>
+     <span class="s7">* Attempts to resolve `input` URL/path relative to `base`.</span>
+     <span class="s7">*/</span>
+    <span class="s1">function </span><span class="s2">resolve$1</span><span class="s0">(</span><span class="s2">input</span><span class="s0">, </span><span class="s2">base</span><span class="s0">) {</span>
+        <span class="s1">if </span><span class="s0">(!</span><span class="s2">input </span><span class="s0">&amp;&amp; !</span><span class="s2">base</span><span class="s0">)</span>
+            <span class="s1">return </span><span class="s3">''</span><span class="s0">;</span>
+        <span class="s1">const </span><span class="s2">url </span><span class="s0">= </span><span class="s2">parseUrl</span><span class="s0">(</span><span class="s2">input</span><span class="s0">);</span>
+        <span class="s5">// If we have a base, and the input isn't already an absolute URL, then we need to merge.</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">base </span><span class="s0">&amp;&amp; !</span><span class="s2">url</span><span class="s0">.</span><span class="s2">scheme</span><span class="s0">) {</span>
+            <span class="s1">const </span><span class="s2">baseUrl </span><span class="s0">= </span><span class="s2">parseUrl</span><span class="s0">(</span><span class="s2">base</span><span class="s0">);</span>
+            <span class="s2">url</span><span class="s0">.</span><span class="s2">scheme </span><span class="s0">= </span><span class="s2">baseUrl</span><span class="s0">.</span><span class="s2">scheme</span><span class="s0">;</span>
+            <span class="s5">// If there's no host, then we were just a path.</span>
+            <span class="s1">if </span><span class="s0">(!</span><span class="s2">url</span><span class="s0">.</span><span class="s2">host</span><span class="s0">) {</span>
+                <span class="s5">// The host, user, and port are joined, you can't copy one without the others.</span>
+                <span class="s2">url</span><span class="s0">.</span><span class="s2">user </span><span class="s0">= </span><span class="s2">baseUrl</span><span class="s0">.</span><span class="s2">user</span><span class="s0">;</span>
+                <span class="s2">url</span><span class="s0">.</span><span class="s2">host </span><span class="s0">= </span><span class="s2">baseUrl</span><span class="s0">.</span><span class="s2">host</span><span class="s0">;</span>
+                <span class="s2">url</span><span class="s0">.</span><span class="s2">port </span><span class="s0">= </span><span class="s2">baseUrl</span><span class="s0">.</span><span class="s2">port</span><span class="s0">;</span>
+            <span class="s0">}</span>
+            <span class="s2">mergePaths</span><span class="s0">(</span><span class="s2">url</span><span class="s0">, </span><span class="s2">baseUrl</span><span class="s0">);</span>
+        <span class="s0">}</span>
+        <span class="s2">normalizePath</span><span class="s0">(</span><span class="s2">url</span><span class="s0">);</span>
+        <span class="s5">// If the input (and base, if there was one) are both relative, then we need to output a relative.</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">url</span><span class="s0">.</span><span class="s2">relativePath</span><span class="s0">) {</span>
+            <span class="s5">// The first char is always a &quot;/&quot;.</span>
+            <span class="s1">const </span><span class="s2">path </span><span class="s0">= </span><span class="s2">url</span><span class="s0">.</span><span class="s2">path</span><span class="s0">.</span><span class="s2">slice</span><span class="s0">(</span><span class="s4">1</span><span class="s0">);</span>
+            <span class="s1">if </span><span class="s0">(!</span><span class="s2">path</span><span class="s0">)</span>
+                <span class="s1">return </span><span class="s3">'.'</span><span class="s0">;</span>
+            <span class="s5">// If base started with a leading &quot;.&quot;, or there is no base and input started with a &quot;.&quot;, then we</span>
+            <span class="s5">// need to ensure that the relative path starts with a &quot;.&quot;. We don't know if relative starts</span>
+            <span class="s5">// with a &quot;..&quot;, though, so check before prepending.</span>
+            <span class="s1">const </span><span class="s2">keepRelative </span><span class="s0">= (</span><span class="s2">base </span><span class="s0">|| </span><span class="s2">input</span><span class="s0">).</span><span class="s2">startsWith</span><span class="s0">(</span><span class="s3">'.'</span><span class="s0">);</span>
+            <span class="s1">return </span><span class="s0">!</span><span class="s2">keepRelative </span><span class="s0">|| </span><span class="s2">path</span><span class="s0">.</span><span class="s2">startsWith</span><span class="s0">(</span><span class="s3">'.'</span><span class="s0">) ? </span><span class="s2">path </span><span class="s0">: </span><span class="s3">'./' </span><span class="s0">+ </span><span class="s2">path</span><span class="s0">;</span>
+        <span class="s0">}</span>
+        <span class="s5">// If there's no host (and no scheme/user/port), then we need to output an absolute path.</span>
+        <span class="s1">if </span><span class="s0">(!</span><span class="s2">url</span><span class="s0">.</span><span class="s2">scheme </span><span class="s0">&amp;&amp; !</span><span class="s2">url</span><span class="s0">.</span><span class="s2">host</span><span class="s0">)</span>
+            <span class="s1">return </span><span class="s2">url</span><span class="s0">.</span><span class="s2">path</span><span class="s0">;</span>
+        <span class="s5">// We're outputting either an absolute URL, or a protocol relative one.</span>
+        <span class="s1">return </span><span class="s3">`</span><span class="s2">$</span><span class="s0">{</span><span class="s2">url</span><span class="s0">.</span><span class="s2">scheme</span><span class="s0">}</span><span class="s3">//</span><span class="s2">$</span><span class="s0">{</span><span class="s2">url</span><span class="s0">.</span><span class="s2">user</span><span class="s0">}</span><span class="s2">$</span><span class="s0">{</span><span class="s2">url</span><span class="s0">.</span><span class="s2">host</span><span class="s0">}</span><span class="s2">$</span><span class="s0">{</span><span class="s2">url</span><span class="s0">.</span><span class="s2">port</span><span class="s0">}</span><span class="s2">$</span><span class="s0">{</span><span class="s2">url</span><span class="s0">.</span><span class="s2">path</span><span class="s0">}</span><span class="s3">`</span><span class="s0">;</span>
+    <span class="s0">}</span>
+
+    <span class="s1">function </span><span class="s2">resolve</span><span class="s0">(</span><span class="s2">input</span><span class="s0">, </span><span class="s2">base</span><span class="s0">) {</span>
+        <span class="s5">// The base is always treated as a directory, if it's not empty.</span>
+        <span class="s5">// https://github.com/mozilla/source-map/blob/8cb3ee57/lib/util.js#L327</span>
+        <span class="s5">// https://github.com/chromium/chromium/blob/da4adbb3/third_party/blink/renderer/devtools/front_end/sdk/SourceMap.js#L400-L401</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">base </span><span class="s0">&amp;&amp; !</span><span class="s2">base</span><span class="s0">.</span><span class="s2">endsWith</span><span class="s0">(</span><span class="s3">'/'</span><span class="s0">))</span>
+            <span class="s2">base </span><span class="s0">+= </span><span class="s3">'/'</span><span class="s0">;</span>
+        <span class="s1">return </span><span class="s2">resolve$1</span><span class="s0">(</span><span class="s2">input</span><span class="s0">, </span><span class="s2">base</span><span class="s0">);</span>
+    <span class="s0">}</span>
+
+    <span class="s7">/**</span>
+     <span class="s7">* Removes everything after the last &quot;/&quot;, but leaves the slash.</span>
+     <span class="s7">*/</span>
+    <span class="s1">function </span><span class="s2">stripFilename</span><span class="s0">(</span><span class="s2">path</span><span class="s0">) {</span>
+        <span class="s1">if </span><span class="s0">(!</span><span class="s2">path</span><span class="s0">)</span>
+            <span class="s1">return </span><span class="s3">''</span><span class="s0">;</span>
+        <span class="s1">const </span><span class="s2">index </span><span class="s0">= </span><span class="s2">path</span><span class="s0">.</span><span class="s2">lastIndexOf</span><span class="s0">(</span><span class="s3">'/'</span><span class="s0">);</span>
+        <span class="s1">return </span><span class="s2">path</span><span class="s0">.</span><span class="s2">slice</span><span class="s0">(</span><span class="s4">0</span><span class="s0">, </span><span class="s2">index </span><span class="s0">+ </span><span class="s4">1</span><span class="s0">);</span>
+    <span class="s0">}</span>
+
+    <span class="s1">const </span><span class="s2">COLUMN$1 </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">SOURCES_INDEX$1 </span><span class="s0">= </span><span class="s4">1</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">SOURCE_LINE$1 </span><span class="s0">= </span><span class="s4">2</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">SOURCE_COLUMN$1 </span><span class="s0">= </span><span class="s4">3</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">NAMES_INDEX$1 </span><span class="s0">= </span><span class="s4">4</span><span class="s0">;</span>
+
+    <span class="s1">function </span><span class="s2">maybeSort</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">owned</span><span class="s0">) {</span>
+        <span class="s1">const </span><span class="s2">unsortedIndex </span><span class="s0">= </span><span class="s2">nextUnsortedSegmentLine</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s4">0</span><span class="s0">);</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">unsortedIndex </span><span class="s0">=== </span><span class="s2">mappings</span><span class="s0">.</span><span class="s2">length</span><span class="s0">)</span>
+            <span class="s1">return </span><span class="s2">mappings</span><span class="s0">;</span>
+        <span class="s5">// If we own the array (meaning we parsed it from JSON), then we're free to directly mutate it. If</span>
+        <span class="s5">// not, we do not want to modify the consumer's input array.</span>
+        <span class="s1">if </span><span class="s0">(!</span><span class="s2">owned</span><span class="s0">)</span>
+            <span class="s2">mappings </span><span class="s0">= </span><span class="s2">mappings</span><span class="s0">.</span><span class="s2">slice</span><span class="s0">();</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s2">unsortedIndex</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">mappings</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i </span><span class="s0">= </span><span class="s2">nextUnsortedSegmentLine</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">i </span><span class="s0">+ </span><span class="s4">1</span><span class="s0">)) {</span>
+            <span class="s2">mappings</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] = </span><span class="s2">sortSegments</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">[</span><span class="s2">i</span><span class="s0">], </span><span class="s2">owned</span><span class="s0">);</span>
+        <span class="s0">}</span>
+        <span class="s1">return </span><span class="s2">mappings</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">nextUnsortedSegmentLine</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">start</span><span class="s0">) {</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s2">start</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">mappings</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+            <span class="s1">if </span><span class="s0">(!</span><span class="s2">isSorted</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">[</span><span class="s2">i</span><span class="s0">]))</span>
+                <span class="s1">return </span><span class="s2">i</span><span class="s0">;</span>
+        <span class="s0">}</span>
+        <span class="s1">return </span><span class="s2">mappings</span><span class="s0">.</span><span class="s2">length</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">isSorted</span><span class="s0">(</span><span class="s2">line</span><span class="s0">) {</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">j </span><span class="s0">= </span><span class="s4">1</span><span class="s0">; </span><span class="s2">j </span><span class="s0">&lt; </span><span class="s2">line</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">j</span><span class="s0">++) {</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">line</span><span class="s0">[</span><span class="s2">j</span><span class="s0">][</span><span class="s2">COLUMN$1</span><span class="s0">] &lt; </span><span class="s2">line</span><span class="s0">[</span><span class="s2">j </span><span class="s0">- </span><span class="s4">1</span><span class="s0">][</span><span class="s2">COLUMN$1</span><span class="s0">]) {</span>
+                <span class="s1">return false</span><span class="s0">;</span>
+            <span class="s0">}</span>
+        <span class="s0">}</span>
+        <span class="s1">return true</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">sortSegments</span><span class="s0">(</span><span class="s2">line</span><span class="s0">, </span><span class="s2">owned</span><span class="s0">) {</span>
+        <span class="s1">if </span><span class="s0">(!</span><span class="s2">owned</span><span class="s0">)</span>
+            <span class="s2">line </span><span class="s0">= </span><span class="s2">line</span><span class="s0">.</span><span class="s2">slice</span><span class="s0">();</span>
+        <span class="s1">return </span><span class="s2">line</span><span class="s0">.</span><span class="s2">sort</span><span class="s0">(</span><span class="s2">sortComparator</span><span class="s0">);</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">sortComparator</span><span class="s0">(</span><span class="s2">a</span><span class="s0">, </span><span class="s2">b</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s2">a</span><span class="s0">[</span><span class="s2">COLUMN$1</span><span class="s0">] - </span><span class="s2">b</span><span class="s0">[</span><span class="s2">COLUMN$1</span><span class="s0">];</span>
+    <span class="s0">}</span>
+
+    <span class="s1">let </span><span class="s2">found </span><span class="s0">= </span><span class="s1">false</span><span class="s0">;</span>
+    <span class="s7">/**</span>
+     <span class="s7">* A binary search implementation that returns the index if a match is found.</span>
+     <span class="s7">* If no match is found, then the left-index (the index associated with the item that comes just</span>
+     <span class="s7">* before the desired index) is returned. To maintain proper sort order, a splice would happen at</span>
+     <span class="s7">* the next index:</span>
+     <span class="s7">*</span>
+     <span class="s7">* ```js</span>
+     <span class="s7">* const array = [1, 3];</span>
+     <span class="s7">* const needle = 2;</span>
+     <span class="s7">* const index = binarySearch(array, needle, (item, needle) =&gt; item - needle);</span>
+     <span class="s7">*</span>
+     <span class="s7">* assert.equal(index, 0);</span>
+     <span class="s7">* array.splice(index + 1, 0, needle);</span>
+     <span class="s7">* assert.deepEqual(array, [1, 2, 3]);</span>
+     <span class="s7">* ```</span>
+     <span class="s7">*/</span>
+    <span class="s1">function </span><span class="s2">binarySearch</span><span class="s0">(</span><span class="s2">haystack</span><span class="s0">, </span><span class="s2">needle</span><span class="s0">, </span><span class="s2">low</span><span class="s0">, </span><span class="s2">high</span><span class="s0">) {</span>
+        <span class="s1">while </span><span class="s0">(</span><span class="s2">low </span><span class="s0">&lt;= </span><span class="s2">high</span><span class="s0">) {</span>
+            <span class="s1">const </span><span class="s2">mid </span><span class="s0">= </span><span class="s2">low </span><span class="s0">+ ((</span><span class="s2">high </span><span class="s0">- </span><span class="s2">low</span><span class="s0">) &gt;&gt; </span><span class="s4">1</span><span class="s0">);</span>
+            <span class="s1">const </span><span class="s2">cmp </span><span class="s0">= </span><span class="s2">haystack</span><span class="s0">[</span><span class="s2">mid</span><span class="s0">][</span><span class="s2">COLUMN$1</span><span class="s0">] - </span><span class="s2">needle</span><span class="s0">;</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">cmp </span><span class="s0">=== </span><span class="s4">0</span><span class="s0">) {</span>
+                <span class="s2">found </span><span class="s0">= </span><span class="s1">true</span><span class="s0">;</span>
+                <span class="s1">return </span><span class="s2">mid</span><span class="s0">;</span>
+            <span class="s0">}</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">cmp </span><span class="s0">&lt; </span><span class="s4">0</span><span class="s0">) {</span>
+                <span class="s2">low </span><span class="s0">= </span><span class="s2">mid </span><span class="s0">+ </span><span class="s4">1</span><span class="s0">;</span>
+            <span class="s0">}</span>
+            <span class="s1">else </span><span class="s0">{</span>
+                <span class="s2">high </span><span class="s0">= </span><span class="s2">mid </span><span class="s0">- </span><span class="s4">1</span><span class="s0">;</span>
+            <span class="s0">}</span>
+        <span class="s0">}</span>
+        <span class="s2">found </span><span class="s0">= </span><span class="s1">false</span><span class="s0">;</span>
+        <span class="s1">return </span><span class="s2">low </span><span class="s0">- </span><span class="s4">1</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">upperBound</span><span class="s0">(</span><span class="s2">haystack</span><span class="s0">, </span><span class="s2">needle</span><span class="s0">, </span><span class="s2">index</span><span class="s0">) {</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s2">index </span><span class="s0">+ </span><span class="s4">1</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">haystack</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++, </span><span class="s2">index</span><span class="s0">++) {</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">haystack</span><span class="s0">[</span><span class="s2">i</span><span class="s0">][</span><span class="s2">COLUMN$1</span><span class="s0">] !== </span><span class="s2">needle</span><span class="s0">)</span>
+                <span class="s1">break</span><span class="s0">;</span>
+        <span class="s0">}</span>
+        <span class="s1">return </span><span class="s2">index</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">lowerBound</span><span class="s0">(</span><span class="s2">haystack</span><span class="s0">, </span><span class="s2">needle</span><span class="s0">, </span><span class="s2">index</span><span class="s0">) {</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s2">index </span><span class="s0">- </span><span class="s4">1</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&gt;= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">i</span><span class="s0">--, </span><span class="s2">index</span><span class="s0">--) {</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">haystack</span><span class="s0">[</span><span class="s2">i</span><span class="s0">][</span><span class="s2">COLUMN$1</span><span class="s0">] !== </span><span class="s2">needle</span><span class="s0">)</span>
+                <span class="s1">break</span><span class="s0">;</span>
+        <span class="s0">}</span>
+        <span class="s1">return </span><span class="s2">index</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">memoizedState</span><span class="s0">() {</span>
+        <span class="s1">return </span><span class="s0">{</span>
+            <span class="s2">lastKey</span><span class="s0">: -</span><span class="s4">1</span><span class="s0">,</span>
+            <span class="s2">lastNeedle</span><span class="s0">: -</span><span class="s4">1</span><span class="s0">,</span>
+            <span class="s2">lastIndex</span><span class="s0">: -</span><span class="s4">1</span><span class="s0">,</span>
+        <span class="s0">};</span>
+    <span class="s0">}</span>
+    <span class="s7">/**</span>
+     <span class="s7">* This overly complicated beast is just to record the last tested line/column and the resulting</span>
+     <span class="s7">* index, allowing us to skip a few tests if mappings are monotonically increasing.</span>
+     <span class="s7">*/</span>
+    <span class="s1">function </span><span class="s2">memoizedBinarySearch</span><span class="s0">(</span><span class="s2">haystack</span><span class="s0">, </span><span class="s2">needle</span><span class="s0">, </span><span class="s2">state</span><span class="s0">, </span><span class="s2">key</span><span class="s0">) {</span>
+        <span class="s1">const </span><span class="s0">{ </span><span class="s2">lastKey</span><span class="s0">, </span><span class="s2">lastNeedle</span><span class="s0">, </span><span class="s2">lastIndex </span><span class="s0">} = </span><span class="s2">state</span><span class="s0">;</span>
+        <span class="s1">let </span><span class="s2">low </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+        <span class="s1">let </span><span class="s2">high </span><span class="s0">= </span><span class="s2">haystack</span><span class="s0">.</span><span class="s2">length </span><span class="s0">- </span><span class="s4">1</span><span class="s0">;</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">key </span><span class="s0">=== </span><span class="s2">lastKey</span><span class="s0">) {</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">needle </span><span class="s0">=== </span><span class="s2">lastNeedle</span><span class="s0">) {</span>
+                <span class="s2">found </span><span class="s0">= </span><span class="s2">lastIndex </span><span class="s0">!== -</span><span class="s4">1 </span><span class="s0">&amp;&amp; </span><span class="s2">haystack</span><span class="s0">[</span><span class="s2">lastIndex</span><span class="s0">][</span><span class="s2">COLUMN$1</span><span class="s0">] === </span><span class="s2">needle</span><span class="s0">;</span>
+                <span class="s1">return </span><span class="s2">lastIndex</span><span class="s0">;</span>
+            <span class="s0">}</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">needle </span><span class="s0">&gt;= </span><span class="s2">lastNeedle</span><span class="s0">) {</span>
+                <span class="s5">// lastIndex may be -1 if the previous needle was not found.</span>
+                <span class="s2">low </span><span class="s0">= </span><span class="s2">lastIndex </span><span class="s0">=== -</span><span class="s4">1 </span><span class="s0">? </span><span class="s4">0 </span><span class="s0">: </span><span class="s2">lastIndex</span><span class="s0">;</span>
+            <span class="s0">}</span>
+            <span class="s1">else </span><span class="s0">{</span>
+                <span class="s2">high </span><span class="s0">= </span><span class="s2">lastIndex</span><span class="s0">;</span>
+            <span class="s0">}</span>
+        <span class="s0">}</span>
+        <span class="s2">state</span><span class="s0">.</span><span class="s2">lastKey </span><span class="s0">= </span><span class="s2">key</span><span class="s0">;</span>
+        <span class="s2">state</span><span class="s0">.</span><span class="s2">lastNeedle </span><span class="s0">= </span><span class="s2">needle</span><span class="s0">;</span>
+        <span class="s1">return </span><span class="s0">(</span><span class="s2">state</span><span class="s0">.</span><span class="s2">lastIndex </span><span class="s0">= </span><span class="s2">binarySearch</span><span class="s0">(</span><span class="s2">haystack</span><span class="s0">, </span><span class="s2">needle</span><span class="s0">, </span><span class="s2">low</span><span class="s0">, </span><span class="s2">high</span><span class="s0">));</span>
+    <span class="s0">}</span>
+
+    <span class="s1">const </span><span class="s2">AnyMap </span><span class="s0">= </span><span class="s1">function </span><span class="s0">(</span><span class="s2">map</span><span class="s0">, </span><span class="s2">mapUrl</span><span class="s0">) {</span>
+        <span class="s1">const </span><span class="s2">parsed </span><span class="s0">= </span><span class="s1">typeof </span><span class="s2">map </span><span class="s0">=== </span><span class="s3">'string' </span><span class="s0">? </span><span class="s2">JSON</span><span class="s0">.</span><span class="s2">parse</span><span class="s0">(</span><span class="s2">map</span><span class="s0">) : </span><span class="s2">map</span><span class="s0">;</span>
+        <span class="s1">if </span><span class="s0">(!(</span><span class="s3">'sections' </span><span class="s1">in </span><span class="s2">parsed</span><span class="s0">))</span>
+            <span class="s1">return new </span><span class="s2">TraceMap</span><span class="s0">(</span><span class="s2">parsed</span><span class="s0">, </span><span class="s2">mapUrl</span><span class="s0">);</span>
+        <span class="s1">const </span><span class="s2">mappings </span><span class="s0">= [];</span>
+        <span class="s1">const </span><span class="s2">sources </span><span class="s0">= [];</span>
+        <span class="s1">const </span><span class="s2">sourcesContent </span><span class="s0">= [];</span>
+        <span class="s1">const </span><span class="s2">names </span><span class="s0">= [];</span>
+        <span class="s1">const </span><span class="s0">{ </span><span class="s2">sections </span><span class="s0">} = </span><span class="s2">parsed</span><span class="s0">;</span>
+        <span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+        <span class="s1">for </span><span class="s0">(; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">sections</span><span class="s0">.</span><span class="s2">length </span><span class="s0">- </span><span class="s4">1</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+            <span class="s1">const </span><span class="s2">no </span><span class="s0">= </span><span class="s2">sections</span><span class="s0">[</span><span class="s2">i </span><span class="s0">+ </span><span class="s4">1</span><span class="s0">].</span><span class="s2">offset</span><span class="s0">;</span>
+            <span class="s2">addSection</span><span class="s0">(</span><span class="s2">sections</span><span class="s0">[</span><span class="s2">i</span><span class="s0">], </span><span class="s2">mapUrl</span><span class="s0">, </span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">sources</span><span class="s0">, </span><span class="s2">sourcesContent</span><span class="s0">, </span><span class="s2">names</span><span class="s0">, </span><span class="s2">no</span><span class="s0">.</span><span class="s2">line</span><span class="s0">, </span><span class="s2">no</span><span class="s0">.</span><span class="s2">column</span><span class="s0">);</span>
+        <span class="s0">}</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">sections</span><span class="s0">.</span><span class="s2">length </span><span class="s0">&gt; </span><span class="s4">0</span><span class="s0">) {</span>
+            <span class="s2">addSection</span><span class="s0">(</span><span class="s2">sections</span><span class="s0">[</span><span class="s2">i</span><span class="s0">], </span><span class="s2">mapUrl</span><span class="s0">, </span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">sources</span><span class="s0">, </span><span class="s2">sourcesContent</span><span class="s0">, </span><span class="s2">names</span><span class="s0">, </span><span class="s2">Infinity</span><span class="s0">, </span><span class="s2">Infinity</span><span class="s0">);</span>
+        <span class="s0">}</span>
+        <span class="s1">const </span><span class="s2">joined </span><span class="s0">= {</span>
+            <span class="s2">version</span><span class="s0">: </span><span class="s4">3</span><span class="s0">,</span>
+            <span class="s2">file</span><span class="s0">: </span><span class="s2">parsed</span><span class="s0">.</span><span class="s2">file</span><span class="s0">,</span>
+            <span class="s2">names</span><span class="s0">,</span>
+            <span class="s2">sources</span><span class="s0">,</span>
+            <span class="s2">sourcesContent</span><span class="s0">,</span>
+            <span class="s2">mappings</span><span class="s0">,</span>
+        <span class="s0">};</span>
+        <span class="s1">return </span><span class="s2">presortedDecodedMap</span><span class="s0">(</span><span class="s2">joined</span><span class="s0">);</span>
+    <span class="s0">};</span>
+    <span class="s1">function </span><span class="s2">addSection</span><span class="s0">(</span><span class="s2">section</span><span class="s0">, </span><span class="s2">mapUrl</span><span class="s0">, </span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">sources</span><span class="s0">, </span><span class="s2">sourcesContent</span><span class="s0">, </span><span class="s2">names</span><span class="s0">, </span><span class="s2">stopLine</span><span class="s0">, </span><span class="s2">stopColumn</span><span class="s0">) {</span>
+        <span class="s1">const </span><span class="s2">map </span><span class="s0">= </span><span class="s2">AnyMap</span><span class="s0">(</span><span class="s2">section</span><span class="s0">.</span><span class="s2">map</span><span class="s0">, </span><span class="s2">mapUrl</span><span class="s0">);</span>
+        <span class="s1">const </span><span class="s0">{ </span><span class="s2">line</span><span class="s0">: </span><span class="s2">lineOffset</span><span class="s0">, </span><span class="s2">column</span><span class="s0">: </span><span class="s2">columnOffset </span><span class="s0">} = </span><span class="s2">section</span><span class="s0">.</span><span class="s2">offset</span><span class="s0">;</span>
+        <span class="s1">const </span><span class="s2">sourcesOffset </span><span class="s0">= </span><span class="s2">sources</span><span class="s0">.</span><span class="s2">length</span><span class="s0">;</span>
+        <span class="s1">const </span><span class="s2">namesOffset </span><span class="s0">= </span><span class="s2">names</span><span class="s0">.</span><span class="s2">length</span><span class="s0">;</span>
+        <span class="s1">const </span><span class="s2">decoded </span><span class="s0">= </span><span class="s2">decodedMappings</span><span class="s0">(</span><span class="s2">map</span><span class="s0">);</span>
+        <span class="s1">const </span><span class="s0">{ </span><span class="s2">resolvedSources </span><span class="s0">} = </span><span class="s2">map</span><span class="s0">;</span>
+        <span class="s2">append</span><span class="s0">(</span><span class="s2">sources</span><span class="s0">, </span><span class="s2">resolvedSources</span><span class="s0">);</span>
+        <span class="s2">append</span><span class="s0">(</span><span class="s2">sourcesContent</span><span class="s0">, </span><span class="s2">map</span><span class="s0">.</span><span class="s2">sourcesContent </span><span class="s0">|| </span><span class="s2">fillSourcesContent</span><span class="s0">(</span><span class="s2">resolvedSources</span><span class="s0">.</span><span class="s2">length</span><span class="s0">));</span>
+        <span class="s2">append</span><span class="s0">(</span><span class="s2">names</span><span class="s0">, </span><span class="s2">map</span><span class="s0">.</span><span class="s2">names</span><span class="s0">);</span>
+        <span class="s5">// If this section jumps forwards several lines, we need to add lines to the output mappings catch up.</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s2">mappings</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt;= </span><span class="s2">lineOffset</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++)</span>
+            <span class="s2">mappings</span><span class="s0">.</span><span class="s2">push</span><span class="s0">([]);</span>
+        <span class="s5">// We can only add so many lines before we step into the range that the next section's map</span>
+        <span class="s5">// controls. When we get to the last line, then we'll start checking the segments to see if</span>
+        <span class="s5">// they've crossed into the column range.</span>
+        <span class="s1">const </span><span class="s2">stopI </span><span class="s0">= </span><span class="s2">stopLine </span><span class="s0">- </span><span class="s2">lineOffset</span><span class="s0">;</span>
+        <span class="s1">const </span><span class="s2">len </span><span class="s0">= </span><span class="s2">Math</span><span class="s0">.</span><span class="s2">min</span><span class="s0">(</span><span class="s2">decoded</span><span class="s0">.</span><span class="s2">length</span><span class="s0">, </span><span class="s2">stopI </span><span class="s0">+ </span><span class="s4">1</span><span class="s0">);</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">len</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+            <span class="s1">const </span><span class="s2">line </span><span class="s0">= </span><span class="s2">decoded</span><span class="s0">[</span><span class="s2">i</span><span class="s0">];</span>
+            <span class="s5">// On the 0th loop, the line will already exist due to a previous section, or the line catch up</span>
+            <span class="s5">// loop above.</span>
+            <span class="s1">const </span><span class="s2">out </span><span class="s0">= </span><span class="s2">i </span><span class="s0">=== </span><span class="s4">0 </span><span class="s0">? </span><span class="s2">mappings</span><span class="s0">[</span><span class="s2">lineOffset</span><span class="s0">] : (</span><span class="s2">mappings</span><span class="s0">[</span><span class="s2">lineOffset </span><span class="s0">+ </span><span class="s2">i</span><span class="s0">] = []);</span>
+            <span class="s5">// On the 0th loop, the section's column offset shifts us forward. On all other lines (since the</span>
+            <span class="s5">// map can be multiple lines), it doesn't.</span>
+            <span class="s1">const </span><span class="s2">cOffset </span><span class="s0">= </span><span class="s2">i </span><span class="s0">=== </span><span class="s4">0 </span><span class="s0">? </span><span class="s2">columnOffset </span><span class="s0">: </span><span class="s4">0</span><span class="s0">;</span>
+            <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">j </span><span class="s0">= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">j </span><span class="s0">&lt; </span><span class="s2">line</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">j</span><span class="s0">++) {</span>
+                <span class="s1">const </span><span class="s2">seg </span><span class="s0">= </span><span class="s2">line</span><span class="s0">[</span><span class="s2">j</span><span class="s0">];</span>
+                <span class="s1">const </span><span class="s2">column </span><span class="s0">= </span><span class="s2">cOffset </span><span class="s0">+ </span><span class="s2">seg</span><span class="s0">[</span><span class="s2">COLUMN$1</span><span class="s0">];</span>
+                <span class="s5">// If this segment steps into the column range that the next section's map controls, we need</span>
+                <span class="s5">// to stop early.</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">i </span><span class="s0">=== </span><span class="s2">stopI </span><span class="s0">&amp;&amp; </span><span class="s2">column </span><span class="s0">&gt;= </span><span class="s2">stopColumn</span><span class="s0">)</span>
+                    <span class="s1">break</span><span class="s0">;</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">seg</span><span class="s0">.</span><span class="s2">length </span><span class="s0">=== </span><span class="s4">1</span><span class="s0">) {</span>
+                    <span class="s2">out</span><span class="s0">.</span><span class="s2">push</span><span class="s0">([</span><span class="s2">column</span><span class="s0">]);</span>
+                    <span class="s1">continue</span><span class="s0">;</span>
+                <span class="s0">}</span>
+                <span class="s1">const </span><span class="s2">sourcesIndex </span><span class="s0">= </span><span class="s2">sourcesOffset </span><span class="s0">+ </span><span class="s2">seg</span><span class="s0">[</span><span class="s2">SOURCES_INDEX$1</span><span class="s0">];</span>
+                <span class="s1">const </span><span class="s2">sourceLine </span><span class="s0">= </span><span class="s2">seg</span><span class="s0">[</span><span class="s2">SOURCE_LINE$1</span><span class="s0">];</span>
+                <span class="s1">const </span><span class="s2">sourceColumn </span><span class="s0">= </span><span class="s2">seg</span><span class="s0">[</span><span class="s2">SOURCE_COLUMN$1</span><span class="s0">];</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">seg</span><span class="s0">.</span><span class="s2">length </span><span class="s0">=== </span><span class="s4">4</span><span class="s0">) {</span>
+                    <span class="s2">out</span><span class="s0">.</span><span class="s2">push</span><span class="s0">([</span><span class="s2">column</span><span class="s0">, </span><span class="s2">sourcesIndex</span><span class="s0">, </span><span class="s2">sourceLine</span><span class="s0">, </span><span class="s2">sourceColumn</span><span class="s0">]);</span>
+                    <span class="s1">continue</span><span class="s0">;</span>
+                <span class="s0">}</span>
+                <span class="s2">out</span><span class="s0">.</span><span class="s2">push</span><span class="s0">([</span><span class="s2">column</span><span class="s0">, </span><span class="s2">sourcesIndex</span><span class="s0">, </span><span class="s2">sourceLine</span><span class="s0">, </span><span class="s2">sourceColumn</span><span class="s0">, </span><span class="s2">namesOffset </span><span class="s0">+ </span><span class="s2">seg</span><span class="s0">[</span><span class="s2">NAMES_INDEX$1</span><span class="s0">]]);</span>
+            <span class="s0">}</span>
+        <span class="s0">}</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">append</span><span class="s0">(</span><span class="s2">arr</span><span class="s0">, </span><span class="s2">other</span><span class="s0">) {</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">other</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++)</span>
+            <span class="s2">arr</span><span class="s0">.</span><span class="s2">push</span><span class="s0">(</span><span class="s2">other</span><span class="s0">[</span><span class="s2">i</span><span class="s0">]);</span>
+    <span class="s0">}</span>
+    <span class="s5">// Sourcemaps don't need to have sourcesContent, and if they don't, we need to create an array of</span>
+    <span class="s5">// equal length to the sources. This is because the sources and sourcesContent are paired arrays,</span>
+    <span class="s5">// where `sourcesContent[i]` is the content of the `sources[i]` file. If we didn't, then joined</span>
+    <span class="s5">// sourcemap would desynchronize the sources/contents.</span>
+    <span class="s1">function </span><span class="s2">fillSourcesContent</span><span class="s0">(</span><span class="s2">len</span><span class="s0">) {</span>
+        <span class="s1">const </span><span class="s2">sourcesContent </span><span class="s0">= [];</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">len</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++)</span>
+            <span class="s2">sourcesContent</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] = </span><span class="s1">null</span><span class="s0">;</span>
+        <span class="s1">return </span><span class="s2">sourcesContent</span><span class="s0">;</span>
+    <span class="s0">}</span>
+
+    <span class="s1">const </span><span class="s2">INVALID_ORIGINAL_MAPPING </span><span class="s0">= </span><span class="s2">Object</span><span class="s0">.</span><span class="s2">freeze</span><span class="s0">({</span>
+        <span class="s2">source</span><span class="s0">: </span><span class="s1">null</span><span class="s0">,</span>
+        <span class="s2">line</span><span class="s0">: </span><span class="s1">null</span><span class="s0">,</span>
+        <span class="s2">column</span><span class="s0">: </span><span class="s1">null</span><span class="s0">,</span>
+        <span class="s2">name</span><span class="s0">: </span><span class="s1">null</span><span class="s0">,</span>
+    <span class="s0">});</span>
+    <span class="s2">Object</span><span class="s0">.</span><span class="s2">freeze</span><span class="s0">({</span>
+        <span class="s2">line</span><span class="s0">: </span><span class="s1">null</span><span class="s0">,</span>
+        <span class="s2">column</span><span class="s0">: </span><span class="s1">null</span><span class="s0">,</span>
+    <span class="s0">});</span>
+    <span class="s1">const </span><span class="s2">LINE_GTR_ZERO </span><span class="s0">= </span><span class="s3">'`line` must be greater than 0 (lines start at line 1)'</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">COL_GTR_EQ_ZERO </span><span class="s0">= </span><span class="s3">'`column` must be greater than or equal to 0 (columns start at column 0)'</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">LEAST_UPPER_BOUND </span><span class="s0">= -</span><span class="s4">1</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">GREATEST_LOWER_BOUND </span><span class="s0">= </span><span class="s4">1</span><span class="s0">;</span>
+    <span class="s7">/**</span>
+     <span class="s7">* Returns the decoded (array of lines of segments) form of the SourceMap's mappings field.</span>
+     <span class="s7">*/</span>
+    <span class="s1">let </span><span class="s2">decodedMappings</span><span class="s0">;</span>
+    <span class="s7">/**</span>
+     <span class="s7">* A higher-level API to find the source/line/column associated with a generated line/column</span>
+     <span class="s7">* (think, from a stack trace). Line is 1-based, but column is 0-based, due to legacy behavior in</span>
+     <span class="s7">* `source-map` library.</span>
+     <span class="s7">*/</span>
+    <span class="s1">let </span><span class="s2">originalPositionFor</span><span class="s0">;</span>
+    <span class="s7">/**</span>
+     <span class="s7">* A helper that skips sorting of the input map's mappings array, which can be expensive for larger</span>
+     <span class="s7">* maps.</span>
+     <span class="s7">*/</span>
+    <span class="s1">let </span><span class="s2">presortedDecodedMap</span><span class="s0">;</span>
+    <span class="s1">class </span><span class="s2">TraceMap </span><span class="s0">{</span>
+        <span class="s2">constructor</span><span class="s0">(</span><span class="s2">map</span><span class="s0">, </span><span class="s2">mapUrl</span><span class="s0">) {</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">_decodedMemo </span><span class="s0">= </span><span class="s2">memoizedState</span><span class="s0">();</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">_bySources </span><span class="s0">= </span><span class="s2">undefined</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">_bySourceMemos </span><span class="s0">= </span><span class="s2">undefined</span><span class="s0">;</span>
+            <span class="s1">const </span><span class="s2">isString </span><span class="s0">= </span><span class="s1">typeof </span><span class="s2">map </span><span class="s0">=== </span><span class="s3">'string'</span><span class="s0">;</span>
+            <span class="s1">if </span><span class="s0">(!</span><span class="s2">isString </span><span class="s0">&amp;&amp; </span><span class="s2">map</span><span class="s0">.</span><span class="s2">constructor </span><span class="s0">=== </span><span class="s2">TraceMap</span><span class="s0">)</span>
+                <span class="s1">return </span><span class="s2">map</span><span class="s0">;</span>
+            <span class="s1">const </span><span class="s2">parsed </span><span class="s0">= (</span><span class="s2">isString </span><span class="s0">? </span><span class="s2">JSON</span><span class="s0">.</span><span class="s2">parse</span><span class="s0">(</span><span class="s2">map</span><span class="s0">) : </span><span class="s2">map</span><span class="s0">);</span>
+            <span class="s1">const </span><span class="s0">{ </span><span class="s2">version</span><span class="s0">, </span><span class="s2">file</span><span class="s0">, </span><span class="s2">names</span><span class="s0">, </span><span class="s2">sourceRoot</span><span class="s0">, </span><span class="s2">sources</span><span class="s0">, </span><span class="s2">sourcesContent </span><span class="s0">} = </span><span class="s2">parsed</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">version </span><span class="s0">= </span><span class="s2">version</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">file </span><span class="s0">= </span><span class="s2">file</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">names </span><span class="s0">= </span><span class="s2">names</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">sourceRoot </span><span class="s0">= </span><span class="s2">sourceRoot</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">sources </span><span class="s0">= </span><span class="s2">sources</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">sourcesContent </span><span class="s0">= </span><span class="s2">sourcesContent</span><span class="s0">;</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">sourceRoot </span><span class="s0">|| </span><span class="s2">mapUrl</span><span class="s0">) {</span>
+                <span class="s1">const </span><span class="s2">from </span><span class="s0">= </span><span class="s2">resolve</span><span class="s0">(</span><span class="s2">sourceRoot </span><span class="s0">|| </span><span class="s3">''</span><span class="s0">, </span><span class="s2">stripFilename</span><span class="s0">(</span><span class="s2">mapUrl</span><span class="s0">));</span>
+                <span class="s1">this</span><span class="s0">.</span><span class="s2">resolvedSources </span><span class="s0">= </span><span class="s2">sources</span><span class="s0">.</span><span class="s2">map</span><span class="s0">((</span><span class="s2">s</span><span class="s0">) =&gt; </span><span class="s2">resolve</span><span class="s0">(</span><span class="s2">s </span><span class="s0">|| </span><span class="s3">''</span><span class="s0">, </span><span class="s2">from</span><span class="s0">));</span>
+            <span class="s0">}</span>
+            <span class="s1">else </span><span class="s0">{</span>
+                <span class="s1">this</span><span class="s0">.</span><span class="s2">resolvedSources </span><span class="s0">= </span><span class="s2">sources</span><span class="s0">.</span><span class="s2">map</span><span class="s0">((</span><span class="s2">s</span><span class="s0">) =&gt; </span><span class="s2">s </span><span class="s0">|| </span><span class="s3">''</span><span class="s0">);</span>
+            <span class="s0">}</span>
+            <span class="s1">const </span><span class="s0">{ </span><span class="s2">mappings </span><span class="s0">} = </span><span class="s2">parsed</span><span class="s0">;</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">mappings </span><span class="s0">=== </span><span class="s3">'string'</span><span class="s0">) {</span>
+                <span class="s1">this</span><span class="s0">.</span><span class="s2">_encoded </span><span class="s0">= </span><span class="s2">mappings</span><span class="s0">;</span>
+                <span class="s1">this</span><span class="s0">.</span><span class="s2">_decoded </span><span class="s0">= </span><span class="s2">undefined</span><span class="s0">;</span>
+            <span class="s0">}</span>
+            <span class="s1">else </span><span class="s0">{</span>
+                <span class="s1">this</span><span class="s0">.</span><span class="s2">_encoded </span><span class="s0">= </span><span class="s2">undefined</span><span class="s0">;</span>
+                <span class="s1">this</span><span class="s0">.</span><span class="s2">_decoded </span><span class="s0">= </span><span class="s2">maybeSort</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">isString</span><span class="s0">);</span>
+            <span class="s0">}</span>
+        <span class="s0">}</span>
+    <span class="s0">}</span>
+    <span class="s0">(() =&gt; {</span>
+        <span class="s2">decodedMappings </span><span class="s0">= (</span><span class="s2">map</span><span class="s0">) =&gt; {</span>
+            <span class="s1">return </span><span class="s0">(</span><span class="s2">map</span><span class="s0">.</span><span class="s2">_decoded </span><span class="s0">|| (</span><span class="s2">map</span><span class="s0">.</span><span class="s2">_decoded </span><span class="s0">= </span><span class="s2">decode</span><span class="s0">(</span><span class="s2">map</span><span class="s0">.</span><span class="s2">_encoded</span><span class="s0">)));</span>
+        <span class="s0">};</span>
+        <span class="s2">originalPositionFor </span><span class="s0">= (</span><span class="s2">map</span><span class="s0">, { </span><span class="s2">line</span><span class="s0">, </span><span class="s2">column</span><span class="s0">, </span><span class="s2">bias </span><span class="s0">}) =&gt; {</span>
+            <span class="s2">line</span><span class="s0">--;</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">line </span><span class="s0">&lt; </span><span class="s4">0</span><span class="s0">)</span>
+                <span class="s1">throw new </span><span class="s2">Error</span><span class="s0">(</span><span class="s2">LINE_GTR_ZERO</span><span class="s0">);</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">column </span><span class="s0">&lt; </span><span class="s4">0</span><span class="s0">)</span>
+                <span class="s1">throw new </span><span class="s2">Error</span><span class="s0">(</span><span class="s2">COL_GTR_EQ_ZERO</span><span class="s0">);</span>
+            <span class="s1">const </span><span class="s2">decoded </span><span class="s0">= </span><span class="s2">decodedMappings</span><span class="s0">(</span><span class="s2">map</span><span class="s0">);</span>
+            <span class="s5">// It's common for parent source maps to have pointers to lines that have no</span>
+            <span class="s5">// mapping (like a &quot;//# sourceMappingURL=&quot;) at the end of the child file.</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">line </span><span class="s0">&gt;= </span><span class="s2">decoded</span><span class="s0">.</span><span class="s2">length</span><span class="s0">)</span>
+                <span class="s1">return </span><span class="s2">INVALID_ORIGINAL_MAPPING</span><span class="s0">;</span>
+            <span class="s1">const </span><span class="s2">segment </span><span class="s0">= </span><span class="s2">traceSegmentInternal</span><span class="s0">(</span><span class="s2">decoded</span><span class="s0">[</span><span class="s2">line</span><span class="s0">], </span><span class="s2">map</span><span class="s0">.</span><span class="s2">_decodedMemo</span><span class="s0">, </span><span class="s2">line</span><span class="s0">, </span><span class="s2">column</span><span class="s0">, </span><span class="s2">bias </span><span class="s0">|| </span><span class="s2">GREATEST_LOWER_BOUND</span><span class="s0">);</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">segment </span><span class="s0">== </span><span class="s1">null</span><span class="s0">)</span>
+                <span class="s1">return </span><span class="s2">INVALID_ORIGINAL_MAPPING</span><span class="s0">;</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">segment</span><span class="s0">.</span><span class="s2">length </span><span class="s0">== </span><span class="s4">1</span><span class="s0">)</span>
+                <span class="s1">return </span><span class="s2">INVALID_ORIGINAL_MAPPING</span><span class="s0">;</span>
+            <span class="s1">const </span><span class="s0">{ </span><span class="s2">names</span><span class="s0">, </span><span class="s2">resolvedSources </span><span class="s0">} = </span><span class="s2">map</span><span class="s0">;</span>
+            <span class="s1">return </span><span class="s0">{</span>
+                <span class="s2">source</span><span class="s0">: </span><span class="s2">resolvedSources</span><span class="s0">[</span><span class="s2">segment</span><span class="s0">[</span><span class="s2">SOURCES_INDEX$1</span><span class="s0">]],</span>
+                <span class="s2">line</span><span class="s0">: </span><span class="s2">segment</span><span class="s0">[</span><span class="s2">SOURCE_LINE$1</span><span class="s0">] + </span><span class="s4">1</span><span class="s0">,</span>
+                <span class="s2">column</span><span class="s0">: </span><span class="s2">segment</span><span class="s0">[</span><span class="s2">SOURCE_COLUMN$1</span><span class="s0">],</span>
+                <span class="s2">name</span><span class="s0">: </span><span class="s2">segment</span><span class="s0">.</span><span class="s2">length </span><span class="s0">=== </span><span class="s4">5 </span><span class="s0">? </span><span class="s2">names</span><span class="s0">[</span><span class="s2">segment</span><span class="s0">[</span><span class="s2">NAMES_INDEX$1</span><span class="s0">]] : </span><span class="s1">null</span><span class="s0">,</span>
+            <span class="s0">};</span>
+        <span class="s0">};</span>
+        <span class="s2">presortedDecodedMap </span><span class="s0">= (</span><span class="s2">map</span><span class="s0">, </span><span class="s2">mapUrl</span><span class="s0">) =&gt; {</span>
+            <span class="s1">const </span><span class="s2">clone </span><span class="s0">= </span><span class="s2">Object</span><span class="s0">.</span><span class="s2">assign</span><span class="s0">({}, </span><span class="s2">map</span><span class="s0">);</span>
+            <span class="s2">clone</span><span class="s0">.</span><span class="s2">mappings </span><span class="s0">= [];</span>
+            <span class="s1">const </span><span class="s2">tracer </span><span class="s0">= </span><span class="s1">new </span><span class="s2">TraceMap</span><span class="s0">(</span><span class="s2">clone</span><span class="s0">, </span><span class="s2">mapUrl</span><span class="s0">);</span>
+            <span class="s2">tracer</span><span class="s0">.</span><span class="s2">_decoded </span><span class="s0">= </span><span class="s2">map</span><span class="s0">.</span><span class="s2">mappings</span><span class="s0">;</span>
+            <span class="s1">return </span><span class="s2">tracer</span><span class="s0">;</span>
+        <span class="s0">};</span>
+    <span class="s0">})();</span>
+    <span class="s1">function </span><span class="s2">traceSegmentInternal</span><span class="s0">(</span><span class="s2">segments</span><span class="s0">, </span><span class="s2">memo</span><span class="s0">, </span><span class="s2">line</span><span class="s0">, </span><span class="s2">column</span><span class="s0">, </span><span class="s2">bias</span><span class="s0">) {</span>
+        <span class="s1">let </span><span class="s2">index </span><span class="s0">= </span><span class="s2">memoizedBinarySearch</span><span class="s0">(</span><span class="s2">segments</span><span class="s0">, </span><span class="s2">column</span><span class="s0">, </span><span class="s2">memo</span><span class="s0">, </span><span class="s2">line</span><span class="s0">);</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">found</span><span class="s0">) {</span>
+            <span class="s2">index </span><span class="s0">= (</span><span class="s2">bias </span><span class="s0">=== </span><span class="s2">LEAST_UPPER_BOUND </span><span class="s0">? </span><span class="s2">upperBound </span><span class="s0">: </span><span class="s2">lowerBound</span><span class="s0">)(</span><span class="s2">segments</span><span class="s0">, </span><span class="s2">column</span><span class="s0">, </span><span class="s2">index</span><span class="s0">);</span>
+        <span class="s0">}</span>
+        <span class="s1">else if </span><span class="s0">(</span><span class="s2">bias </span><span class="s0">=== </span><span class="s2">LEAST_UPPER_BOUND</span><span class="s0">)</span>
+            <span class="s2">index</span><span class="s0">++;</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">index </span><span class="s0">=== -</span><span class="s4">1 </span><span class="s0">|| </span><span class="s2">index </span><span class="s0">=== </span><span class="s2">segments</span><span class="s0">.</span><span class="s2">length</span><span class="s0">)</span>
+            <span class="s1">return null</span><span class="s0">;</span>
+        <span class="s1">return </span><span class="s2">segments</span><span class="s0">[</span><span class="s2">index</span><span class="s0">];</span>
+    <span class="s0">}</span>
+
+    <span class="s7">/**</span>
+     <span class="s7">* Gets the index associated with `key` in the backing array, if it is already present.</span>
+     <span class="s7">*/</span>
+    <span class="s1">let </span><span class="s2">get</span><span class="s0">;</span>
+    <span class="s7">/**</span>
+     <span class="s7">* Puts `key` into the backing array, if it is not already present. Returns</span>
+     <span class="s7">* the index of the `key` in the backing array.</span>
+     <span class="s7">*/</span>
+    <span class="s1">let </span><span class="s2">put</span><span class="s0">;</span>
+    <span class="s7">/**</span>
+     <span class="s7">* SetArray acts like a `Set` (allowing only one occurrence of a string `key`), but provides the</span>
+     <span class="s7">* index of the `key` in the backing array.</span>
+     <span class="s7">*</span>
+     <span class="s7">* This is designed to allow synchronizing a second array with the contents of the backing array,</span>
+     <span class="s7">* like how in a sourcemap `sourcesContent[i]` is the source content associated with `source[i]`,</span>
+     <span class="s7">* and there are never duplicates.</span>
+     <span class="s7">*/</span>
+    <span class="s1">class </span><span class="s2">SetArray </span><span class="s0">{</span>
+        <span class="s2">constructor</span><span class="s0">() {</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">_indexes </span><span class="s0">= { </span><span class="s2">__proto__</span><span class="s0">: </span><span class="s1">null </span><span class="s0">};</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">array </span><span class="s0">= [];</span>
+        <span class="s0">}</span>
+    <span class="s0">}</span>
+    <span class="s0">(() =&gt; {</span>
+        <span class="s2">get </span><span class="s0">= (</span><span class="s2">strarr</span><span class="s0">, </span><span class="s2">key</span><span class="s0">) =&gt; </span><span class="s2">strarr</span><span class="s0">.</span><span class="s2">_indexes</span><span class="s0">[</span><span class="s2">key</span><span class="s0">];</span>
+        <span class="s2">put </span><span class="s0">= (</span><span class="s2">strarr</span><span class="s0">, </span><span class="s2">key</span><span class="s0">) =&gt; {</span>
+            <span class="s5">// The key may or may not be present. If it is present, it's a number.</span>
+            <span class="s1">const </span><span class="s2">index </span><span class="s0">= </span><span class="s2">get</span><span class="s0">(</span><span class="s2">strarr</span><span class="s0">, </span><span class="s2">key</span><span class="s0">);</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">index </span><span class="s0">!== </span><span class="s2">undefined</span><span class="s0">)</span>
+                <span class="s1">return </span><span class="s2">index</span><span class="s0">;</span>
+            <span class="s1">const </span><span class="s0">{ </span><span class="s2">array</span><span class="s0">, </span><span class="s2">_indexes</span><span class="s0">: </span><span class="s2">indexes </span><span class="s0">} = </span><span class="s2">strarr</span><span class="s0">;</span>
+            <span class="s1">return </span><span class="s0">(</span><span class="s2">indexes</span><span class="s0">[</span><span class="s2">key</span><span class="s0">] = </span><span class="s2">array</span><span class="s0">.</span><span class="s2">push</span><span class="s0">(</span><span class="s2">key</span><span class="s0">) - </span><span class="s4">1</span><span class="s0">);</span>
+        <span class="s0">};</span>
+    <span class="s0">})();</span>
+
+    <span class="s1">const </span><span class="s2">COLUMN </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">SOURCES_INDEX </span><span class="s0">= </span><span class="s4">1</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">SOURCE_LINE </span><span class="s0">= </span><span class="s4">2</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">SOURCE_COLUMN </span><span class="s0">= </span><span class="s4">3</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">NAMES_INDEX </span><span class="s0">= </span><span class="s4">4</span><span class="s0">;</span>
+
+    <span class="s1">const </span><span class="s2">NO_NAME </span><span class="s0">= -</span><span class="s4">1</span><span class="s0">;</span>
+    <span class="s7">/**</span>
+     <span class="s7">* Same as `addMapping`, but will only add the mapping if it generates useful information in the</span>
+     <span class="s7">* resulting map. This only works correctly if mappings are added **in order**, meaning you should</span>
+     <span class="s7">* not add a mapping with a lower generated line/column than one that came before.</span>
+     <span class="s7">*/</span>
+    <span class="s1">let </span><span class="s2">maybeAddMapping</span><span class="s0">;</span>
+    <span class="s7">/**</span>
+     <span class="s7">* Adds/removes the content of the source file to the source map.</span>
+     <span class="s7">*/</span>
+    <span class="s1">let </span><span class="s2">setSourceContent</span><span class="s0">;</span>
+    <span class="s7">/**</span>
+     <span class="s7">* Returns a sourcemap object (with decoded mappings) suitable for passing to a library that expects</span>
+     <span class="s7">* a sourcemap, or to JSON.stringify.</span>
+     <span class="s7">*/</span>
+    <span class="s1">let </span><span class="s2">toDecodedMap</span><span class="s0">;</span>
+    <span class="s7">/**</span>
+     <span class="s7">* Returns a sourcemap object (with encoded mappings) suitable for passing to a library that expects</span>
+     <span class="s7">* a sourcemap, or to JSON.stringify.</span>
+     <span class="s7">*/</span>
+    <span class="s1">let </span><span class="s2">toEncodedMap</span><span class="s0">;</span>
+    <span class="s5">// This split declaration is only so that terser can elminiate the static initialization block.</span>
+    <span class="s1">let </span><span class="s2">addSegmentInternal</span><span class="s0">;</span>
+    <span class="s7">/**</span>
+     <span class="s7">* Provides the state to generate a sourcemap.</span>
+     <span class="s7">*/</span>
+    <span class="s1">class </span><span class="s2">GenMapping </span><span class="s0">{</span>
+        <span class="s2">constructor</span><span class="s0">({ </span><span class="s2">file</span><span class="s0">, </span><span class="s2">sourceRoot </span><span class="s0">} = {}) {</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">_names </span><span class="s0">= </span><span class="s1">new </span><span class="s2">SetArray</span><span class="s0">();</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">_sources </span><span class="s0">= </span><span class="s1">new </span><span class="s2">SetArray</span><span class="s0">();</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">_sourcesContent </span><span class="s0">= [];</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">_mappings </span><span class="s0">= [];</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">file </span><span class="s0">= </span><span class="s2">file</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">sourceRoot </span><span class="s0">= </span><span class="s2">sourceRoot</span><span class="s0">;</span>
+        <span class="s0">}</span>
+    <span class="s0">}</span>
+    <span class="s0">(() =&gt; {</span>
+        <span class="s2">maybeAddMapping </span><span class="s0">= (</span><span class="s2">map</span><span class="s0">, </span><span class="s2">mapping</span><span class="s0">) =&gt; {</span>
+            <span class="s1">return </span><span class="s2">addMappingInternal</span><span class="s0">(</span><span class="s1">true</span><span class="s0">, </span><span class="s2">map</span><span class="s0">, </span><span class="s2">mapping</span><span class="s0">);</span>
+        <span class="s0">};</span>
+        <span class="s2">setSourceContent </span><span class="s0">= (</span><span class="s2">map</span><span class="s0">, </span><span class="s2">source</span><span class="s0">, </span><span class="s2">content</span><span class="s0">) =&gt; {</span>
+            <span class="s1">const </span><span class="s0">{ </span><span class="s2">_sources</span><span class="s0">: </span><span class="s2">sources</span><span class="s0">, </span><span class="s2">_sourcesContent</span><span class="s0">: </span><span class="s2">sourcesContent </span><span class="s0">} = </span><span class="s2">map</span><span class="s0">;</span>
+            <span class="s2">sourcesContent</span><span class="s0">[</span><span class="s2">put</span><span class="s0">(</span><span class="s2">sources</span><span class="s0">, </span><span class="s2">source</span><span class="s0">)] = </span><span class="s2">content</span><span class="s0">;</span>
+        <span class="s0">};</span>
+        <span class="s2">toDecodedMap </span><span class="s0">= (</span><span class="s2">map</span><span class="s0">) =&gt; {</span>
+            <span class="s1">const </span><span class="s0">{ </span><span class="s2">file</span><span class="s0">, </span><span class="s2">sourceRoot</span><span class="s0">, </span><span class="s2">_mappings</span><span class="s0">: </span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">_sources</span><span class="s0">: </span><span class="s2">sources</span><span class="s0">, </span><span class="s2">_sourcesContent</span><span class="s0">: </span><span class="s2">sourcesContent</span><span class="s0">, </span><span class="s2">_names</span><span class="s0">: </span><span class="s2">names</span><span class="s0">, } = </span><span class="s2">map</span><span class="s0">;</span>
+            <span class="s2">removeEmptyFinalLines</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">);</span>
+            <span class="s1">return </span><span class="s0">{</span>
+                <span class="s2">version</span><span class="s0">: </span><span class="s4">3</span><span class="s0">,</span>
+                <span class="s2">file</span><span class="s0">: </span><span class="s2">file </span><span class="s0">|| </span><span class="s2">undefined</span><span class="s0">,</span>
+                <span class="s2">names</span><span class="s0">: </span><span class="s2">names</span><span class="s0">.</span><span class="s2">array</span><span class="s0">,</span>
+                <span class="s2">sourceRoot</span><span class="s0">: </span><span class="s2">sourceRoot </span><span class="s0">|| </span><span class="s2">undefined</span><span class="s0">,</span>
+                <span class="s2">sources</span><span class="s0">: </span><span class="s2">sources</span><span class="s0">.</span><span class="s2">array</span><span class="s0">,</span>
+                <span class="s2">sourcesContent</span><span class="s0">,</span>
+                <span class="s2">mappings</span><span class="s0">,</span>
+            <span class="s0">};</span>
+        <span class="s0">};</span>
+        <span class="s2">toEncodedMap </span><span class="s0">= (</span><span class="s2">map</span><span class="s0">) =&gt; {</span>
+            <span class="s1">const </span><span class="s2">decoded </span><span class="s0">= </span><span class="s2">toDecodedMap</span><span class="s0">(</span><span class="s2">map</span><span class="s0">);</span>
+            <span class="s1">return </span><span class="s2">Object</span><span class="s0">.</span><span class="s2">assign</span><span class="s0">(</span><span class="s2">Object</span><span class="s0">.</span><span class="s2">assign</span><span class="s0">({}, </span><span class="s2">decoded</span><span class="s0">), { </span><span class="s2">mappings</span><span class="s0">: </span><span class="s2">encode</span><span class="s0">(</span><span class="s2">decoded</span><span class="s0">.</span><span class="s2">mappings</span><span class="s0">) });</span>
+        <span class="s0">};</span>
+        <span class="s5">// Internal helpers</span>
+        <span class="s2">addSegmentInternal </span><span class="s0">= (</span><span class="s2">skipable</span><span class="s0">, </span><span class="s2">map</span><span class="s0">, </span><span class="s2">genLine</span><span class="s0">, </span><span class="s2">genColumn</span><span class="s0">, </span><span class="s2">source</span><span class="s0">, </span><span class="s2">sourceLine</span><span class="s0">, </span><span class="s2">sourceColumn</span><span class="s0">, </span><span class="s2">name</span><span class="s0">) =&gt; {</span>
+            <span class="s1">const </span><span class="s0">{ </span><span class="s2">_mappings</span><span class="s0">: </span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">_sources</span><span class="s0">: </span><span class="s2">sources</span><span class="s0">, </span><span class="s2">_sourcesContent</span><span class="s0">: </span><span class="s2">sourcesContent</span><span class="s0">, </span><span class="s2">_names</span><span class="s0">: </span><span class="s2">names</span><span class="s0">, } = </span><span class="s2">map</span><span class="s0">;</span>
+            <span class="s1">const </span><span class="s2">line </span><span class="s0">= </span><span class="s2">getLine</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">genLine</span><span class="s0">);</span>
+            <span class="s1">const </span><span class="s2">index </span><span class="s0">= </span><span class="s2">getColumnIndex</span><span class="s0">(</span><span class="s2">line</span><span class="s0">, </span><span class="s2">genColumn</span><span class="s0">);</span>
+            <span class="s1">if </span><span class="s0">(!</span><span class="s2">source</span><span class="s0">) {</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">skipable </span><span class="s0">&amp;&amp; </span><span class="s2">skipSourceless</span><span class="s0">(</span><span class="s2">line</span><span class="s0">, </span><span class="s2">index</span><span class="s0">))</span>
+                    <span class="s1">return</span><span class="s0">;</span>
+                <span class="s1">return </span><span class="s2">insert</span><span class="s0">(</span><span class="s2">line</span><span class="s0">, </span><span class="s2">index</span><span class="s0">, [</span><span class="s2">genColumn</span><span class="s0">]);</span>
+            <span class="s0">}</span>
+            <span class="s1">const </span><span class="s2">sourcesIndex </span><span class="s0">= </span><span class="s2">put</span><span class="s0">(</span><span class="s2">sources</span><span class="s0">, </span><span class="s2">source</span><span class="s0">);</span>
+            <span class="s1">const </span><span class="s2">namesIndex </span><span class="s0">= </span><span class="s2">name </span><span class="s0">? </span><span class="s2">put</span><span class="s0">(</span><span class="s2">names</span><span class="s0">, </span><span class="s2">name</span><span class="s0">) : </span><span class="s2">NO_NAME</span><span class="s0">;</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">sourcesIndex </span><span class="s0">=== </span><span class="s2">sourcesContent</span><span class="s0">.</span><span class="s2">length</span><span class="s0">)</span>
+                <span class="s2">sourcesContent</span><span class="s0">[</span><span class="s2">sourcesIndex</span><span class="s0">] = </span><span class="s1">null</span><span class="s0">;</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">skipable </span><span class="s0">&amp;&amp; </span><span class="s2">skipSource</span><span class="s0">(</span><span class="s2">line</span><span class="s0">, </span><span class="s2">index</span><span class="s0">, </span><span class="s2">sourcesIndex</span><span class="s0">, </span><span class="s2">sourceLine</span><span class="s0">, </span><span class="s2">sourceColumn</span><span class="s0">, </span><span class="s2">namesIndex</span><span class="s0">)) {</span>
+                <span class="s1">return</span><span class="s0">;</span>
+            <span class="s0">}</span>
+            <span class="s1">return </span><span class="s2">insert</span><span class="s0">(</span><span class="s2">line</span><span class="s0">, </span><span class="s2">index</span><span class="s0">, </span><span class="s2">name</span>
+                <span class="s0">? [</span><span class="s2">genColumn</span><span class="s0">, </span><span class="s2">sourcesIndex</span><span class="s0">, </span><span class="s2">sourceLine</span><span class="s0">, </span><span class="s2">sourceColumn</span><span class="s0">, </span><span class="s2">namesIndex</span><span class="s0">]</span>
+                <span class="s0">: [</span><span class="s2">genColumn</span><span class="s0">, </span><span class="s2">sourcesIndex</span><span class="s0">, </span><span class="s2">sourceLine</span><span class="s0">, </span><span class="s2">sourceColumn</span><span class="s0">]);</span>
+        <span class="s0">};</span>
+    <span class="s0">})();</span>
+    <span class="s1">function </span><span class="s2">getLine</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">, </span><span class="s2">index</span><span class="s0">) {</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s2">mappings</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt;= </span><span class="s2">index</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+            <span class="s2">mappings</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] = [];</span>
+        <span class="s0">}</span>
+        <span class="s1">return </span><span class="s2">mappings</span><span class="s0">[</span><span class="s2">index</span><span class="s0">];</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">getColumnIndex</span><span class="s0">(</span><span class="s2">line</span><span class="s0">, </span><span class="s2">genColumn</span><span class="s0">) {</span>
+        <span class="s1">let </span><span class="s2">index </span><span class="s0">= </span><span class="s2">line</span><span class="s0">.</span><span class="s2">length</span><span class="s0">;</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s2">index </span><span class="s0">- </span><span class="s4">1</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&gt;= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">index </span><span class="s0">= </span><span class="s2">i</span><span class="s0">--) {</span>
+            <span class="s1">const </span><span class="s2">current </span><span class="s0">= </span><span class="s2">line</span><span class="s0">[</span><span class="s2">i</span><span class="s0">];</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">genColumn </span><span class="s0">&gt;= </span><span class="s2">current</span><span class="s0">[</span><span class="s2">COLUMN</span><span class="s0">])</span>
+                <span class="s1">break</span><span class="s0">;</span>
+        <span class="s0">}</span>
+        <span class="s1">return </span><span class="s2">index</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">insert</span><span class="s0">(</span><span class="s2">array</span><span class="s0">, </span><span class="s2">index</span><span class="s0">, </span><span class="s2">value</span><span class="s0">) {</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s2">array</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&gt; </span><span class="s2">index</span><span class="s0">; </span><span class="s2">i</span><span class="s0">--) {</span>
+            <span class="s2">array</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] = </span><span class="s2">array</span><span class="s0">[</span><span class="s2">i </span><span class="s0">- </span><span class="s4">1</span><span class="s0">];</span>
+        <span class="s0">}</span>
+        <span class="s2">array</span><span class="s0">[</span><span class="s2">index</span><span class="s0">] = </span><span class="s2">value</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">removeEmptyFinalLines</span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">) {</span>
+        <span class="s1">const </span><span class="s0">{ </span><span class="s2">length </span><span class="s0">} = </span><span class="s2">mappings</span><span class="s0">;</span>
+        <span class="s1">let </span><span class="s2">len </span><span class="s0">= </span><span class="s2">length</span><span class="s0">;</span>
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s2">len </span><span class="s0">- </span><span class="s4">1</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&gt;= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">len </span><span class="s0">= </span><span class="s2">i</span><span class="s0">, </span><span class="s2">i</span><span class="s0">--) {</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">mappings</span><span class="s0">[</span><span class="s2">i</span><span class="s0">].</span><span class="s2">length </span><span class="s0">&gt; </span><span class="s4">0</span><span class="s0">)</span>
+                <span class="s1">break</span><span class="s0">;</span>
+        <span class="s0">}</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">len </span><span class="s0">&lt; </span><span class="s2">length</span><span class="s0">)</span>
+            <span class="s2">mappings</span><span class="s0">.</span><span class="s2">length </span><span class="s0">= </span><span class="s2">len</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">skipSourceless</span><span class="s0">(</span><span class="s2">line</span><span class="s0">, </span><span class="s2">index</span><span class="s0">) {</span>
+        <span class="s5">// The start of a line is already sourceless, so adding a sourceless segment to the beginning</span>
+        <span class="s5">// doesn't generate any useful information.</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">index </span><span class="s0">=== </span><span class="s4">0</span><span class="s0">)</span>
+            <span class="s1">return true</span><span class="s0">;</span>
+        <span class="s1">const </span><span class="s2">prev </span><span class="s0">= </span><span class="s2">line</span><span class="s0">[</span><span class="s2">index </span><span class="s0">- </span><span class="s4">1</span><span class="s0">];</span>
+        <span class="s5">// If the previous segment is also sourceless, then adding another sourceless segment doesn't</span>
+        <span class="s5">// genrate any new information. Else, this segment will end the source/named segment and point to</span>
+        <span class="s5">// a sourceless position, which is useful.</span>
+        <span class="s1">return </span><span class="s2">prev</span><span class="s0">.</span><span class="s2">length </span><span class="s0">=== </span><span class="s4">1</span><span class="s0">;</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">skipSource</span><span class="s0">(</span><span class="s2">line</span><span class="s0">, </span><span class="s2">index</span><span class="s0">, </span><span class="s2">sourcesIndex</span><span class="s0">, </span><span class="s2">sourceLine</span><span class="s0">, </span><span class="s2">sourceColumn</span><span class="s0">, </span><span class="s2">namesIndex</span><span class="s0">) {</span>
+        <span class="s5">// A source/named segment at the start of a line gives position at that genColumn</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">index </span><span class="s0">=== </span><span class="s4">0</span><span class="s0">)</span>
+            <span class="s1">return false</span><span class="s0">;</span>
+        <span class="s1">const </span><span class="s2">prev </span><span class="s0">= </span><span class="s2">line</span><span class="s0">[</span><span class="s2">index </span><span class="s0">- </span><span class="s4">1</span><span class="s0">];</span>
+        <span class="s5">// If the previous segment is sourceless, then we're transitioning to a source.</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">prev</span><span class="s0">.</span><span class="s2">length </span><span class="s0">=== </span><span class="s4">1</span><span class="s0">)</span>
+            <span class="s1">return false</span><span class="s0">;</span>
+        <span class="s5">// If the previous segment maps to the exact same source position, then this segment doesn't</span>
+        <span class="s5">// provide any new position information.</span>
+        <span class="s1">return </span><span class="s0">(</span><span class="s2">sourcesIndex </span><span class="s0">=== </span><span class="s2">prev</span><span class="s0">[</span><span class="s2">SOURCES_INDEX</span><span class="s0">] &amp;&amp;</span>
+            <span class="s2">sourceLine </span><span class="s0">=== </span><span class="s2">prev</span><span class="s0">[</span><span class="s2">SOURCE_LINE</span><span class="s0">] &amp;&amp;</span>
+            <span class="s2">sourceColumn </span><span class="s0">=== </span><span class="s2">prev</span><span class="s0">[</span><span class="s2">SOURCE_COLUMN</span><span class="s0">] &amp;&amp;</span>
+            <span class="s2">namesIndex </span><span class="s0">=== (</span><span class="s2">prev</span><span class="s0">.</span><span class="s2">length </span><span class="s0">=== </span><span class="s4">5 </span><span class="s0">? </span><span class="s2">prev</span><span class="s0">[</span><span class="s2">NAMES_INDEX</span><span class="s0">] : </span><span class="s2">NO_NAME</span><span class="s0">));</span>
+    <span class="s0">}</span>
+    <span class="s1">function </span><span class="s2">addMappingInternal</span><span class="s0">(</span><span class="s2">skipable</span><span class="s0">, </span><span class="s2">map</span><span class="s0">, </span><span class="s2">mapping</span><span class="s0">) {</span>
+        <span class="s1">const </span><span class="s0">{ </span><span class="s2">generated</span><span class="s0">, </span><span class="s2">source</span><span class="s0">, </span><span class="s2">original</span><span class="s0">, </span><span class="s2">name </span><span class="s0">} = </span><span class="s2">mapping</span><span class="s0">;</span>
+        <span class="s1">if </span><span class="s0">(!</span><span class="s2">source</span><span class="s0">) {</span>
+            <span class="s1">return </span><span class="s2">addSegmentInternal</span><span class="s0">(</span><span class="s2">skipable</span><span class="s0">, </span><span class="s2">map</span><span class="s0">, </span><span class="s2">generated</span><span class="s0">.</span><span class="s2">line </span><span class="s0">- </span><span class="s4">1</span><span class="s0">, </span><span class="s2">generated</span><span class="s0">.</span><span class="s2">column</span><span class="s0">, </span><span class="s1">null</span><span class="s0">, </span><span class="s1">null</span><span class="s0">, </span><span class="s1">null</span><span class="s0">, </span><span class="s1">null</span><span class="s0">);</span>
+        <span class="s0">}</span>
+        <span class="s1">const </span><span class="s2">s </span><span class="s0">= </span><span class="s2">source</span><span class="s0">;</span>
+        <span class="s1">return </span><span class="s2">addSegmentInternal</span><span class="s0">(</span><span class="s2">skipable</span><span class="s0">, </span><span class="s2">map</span><span class="s0">, </span><span class="s2">generated</span><span class="s0">.</span><span class="s2">line </span><span class="s0">- </span><span class="s4">1</span><span class="s0">, </span><span class="s2">generated</span><span class="s0">.</span><span class="s2">column</span><span class="s0">, </span><span class="s2">s</span><span class="s0">, </span><span class="s2">original</span><span class="s0">.</span><span class="s2">line </span><span class="s0">- </span><span class="s4">1</span><span class="s0">, </span><span class="s2">original</span><span class="s0">.</span><span class="s2">column</span><span class="s0">, </span><span class="s2">name</span><span class="s0">);</span>
+    <span class="s0">}</span>
+
+    <span class="s1">class </span><span class="s2">SourceMapConsumer </span><span class="s0">{</span>
+        <span class="s2">constructor</span><span class="s0">(</span><span class="s2">map</span><span class="s0">, </span><span class="s2">mapUrl</span><span class="s0">) {</span>
+            <span class="s1">const </span><span class="s2">trace </span><span class="s0">= (</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_map </span><span class="s0">= </span><span class="s1">new </span><span class="s2">AnyMap</span><span class="s0">(</span><span class="s2">map</span><span class="s0">, </span><span class="s2">mapUrl</span><span class="s0">));</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">file </span><span class="s0">= </span><span class="s2">trace</span><span class="s0">.</span><span class="s2">file</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">names </span><span class="s0">= </span><span class="s2">trace</span><span class="s0">.</span><span class="s2">names</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">sourceRoot </span><span class="s0">= </span><span class="s2">trace</span><span class="s0">.</span><span class="s2">sourceRoot</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">sources </span><span class="s0">= </span><span class="s2">trace</span><span class="s0">.</span><span class="s2">resolvedSources</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">sourcesContent </span><span class="s0">= </span><span class="s2">trace</span><span class="s0">.</span><span class="s2">sourcesContent</span><span class="s0">;</span>
+        <span class="s0">}</span>
+        <span class="s2">originalPositionFor</span><span class="s0">(</span><span class="s2">needle</span><span class="s0">) {</span>
+            <span class="s1">return </span><span class="s2">originalPositionFor</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_map</span><span class="s0">, </span><span class="s2">needle</span><span class="s0">);</span>
+        <span class="s0">}</span>
+        <span class="s2">destroy</span><span class="s0">() {</span>
+            <span class="s5">// noop.</span>
+        <span class="s0">}</span>
+    <span class="s0">}</span>
+    <span class="s1">class </span><span class="s2">SourceMapGenerator </span><span class="s0">{</span>
+        <span class="s2">constructor</span><span class="s0">(</span><span class="s2">opts</span><span class="s0">) {</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">_map </span><span class="s0">= </span><span class="s1">new </span><span class="s2">GenMapping</span><span class="s0">(</span><span class="s2">opts</span><span class="s0">);</span>
+        <span class="s0">}</span>
+        <span class="s2">addMapping</span><span class="s0">(</span><span class="s2">mapping</span><span class="s0">) {</span>
+            <span class="s2">maybeAddMapping</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_map</span><span class="s0">, </span><span class="s2">mapping</span><span class="s0">);</span>
+        <span class="s0">}</span>
+        <span class="s2">setSourceContent</span><span class="s0">(</span><span class="s2">source</span><span class="s0">, </span><span class="s2">content</span><span class="s0">) {</span>
+            <span class="s2">setSourceContent</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_map</span><span class="s0">, </span><span class="s2">source</span><span class="s0">, </span><span class="s2">content</span><span class="s0">);</span>
+        <span class="s0">}</span>
+        <span class="s2">toJSON</span><span class="s0">() {</span>
+            <span class="s1">return </span><span class="s2">toEncodedMap</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_map</span><span class="s0">);</span>
+        <span class="s0">}</span>
+        <span class="s2">toDecodedMap</span><span class="s0">() {</span>
+            <span class="s1">return </span><span class="s2">toDecodedMap</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">_map</span><span class="s0">);</span>
+        <span class="s0">}</span>
+    <span class="s0">}</span>
+
+    <span class="s2">exports</span><span class="s0">.</span><span class="s2">SourceMapConsumer </span><span class="s0">= </span><span class="s2">SourceMapConsumer</span><span class="s0">;</span>
+    <span class="s2">exports</span><span class="s0">.</span><span class="s2">SourceMapGenerator </span><span class="s0">= </span><span class="s2">SourceMapGenerator</span><span class="s0">;</span>
+
+    <span class="s2">Object</span><span class="s0">.</span><span class="s2">defineProperty</span><span class="s0">(</span><span class="s2">exports</span><span class="s0">, </span><span class="s3">'__esModule'</span><span class="s0">, { </span><span class="s2">value</span><span class="s0">: </span><span class="s1">true </span><span class="s0">});</span>
+
+<span class="s0">}));</span>
+<span class="s5">//# sourceMappingURL=source-map.umd.js.map</span>
+</pre>
+</body>
+</html>

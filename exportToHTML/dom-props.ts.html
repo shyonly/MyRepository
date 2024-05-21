@@ -1,0 +1,145 @@
+<html>
+<head>
+<title>dom-props.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+dom-props.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">isDef</span><span class="s2">, </span><span class="s1">isUndef</span><span class="s2">, </span><span class="s1">extend</span><span class="s2">, </span><span class="s1">toNumber</span><span class="s2">, </span><span class="s1">isTrue </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'shared/util'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">VNodeWithData </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/vnode'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">isSVG </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'web/util/index'</span>
+
+<span class="s0">let </span><span class="s1">svgContainer</span>
+
+<span class="s0">function </span><span class="s1">updateDOMProps</span><span class="s2">(</span><span class="s1">oldVnode</span><span class="s2">: </span><span class="s1">VNodeWithData</span><span class="s2">, </span><span class="s1">vnode</span><span class="s2">: </span><span class="s1">VNodeWithData</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isUndef</span><span class="s2">(</span><span class="s1">oldVnode</span><span class="s2">.</span><span class="s1">data</span><span class="s2">.</span><span class="s1">domProps</span><span class="s2">) &amp;&amp; </span><span class="s1">isUndef</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">data</span><span class="s2">.</span><span class="s1">domProps</span><span class="s2">)) {</span>
+    <span class="s0">return</span>
+  <span class="s2">}</span>
+  <span class="s0">let </span><span class="s1">key</span><span class="s2">, </span><span class="s1">cur</span>
+  <span class="s0">const </span><span class="s1">elm</span><span class="s2">: </span><span class="s1">any </span><span class="s2">= </span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">elm</span>
+  <span class="s0">const </span><span class="s1">oldProps </span><span class="s2">= </span><span class="s1">oldVnode</span><span class="s2">.</span><span class="s1">data</span><span class="s2">.</span><span class="s1">domProps </span><span class="s2">|| {}</span>
+  <span class="s0">let </span><span class="s1">props </span><span class="s2">= </span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">data</span><span class="s2">.</span><span class="s1">domProps </span><span class="s2">|| {}</span>
+  <span class="s4">// clone observed objects, as the user probably wants to mutate it</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">props</span><span class="s2">.</span><span class="s1">__ob__</span><span class="s2">) || </span><span class="s1">isTrue</span><span class="s2">(</span><span class="s1">props</span><span class="s2">.</span><span class="s1">_v_attr_proxy</span><span class="s2">)) {</span>
+    <span class="s1">props </span><span class="s2">= </span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">data</span><span class="s2">.</span><span class="s1">domProps </span><span class="s2">= </span><span class="s1">extend</span><span class="s2">({}, </span><span class="s1">props</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s0">for </span><span class="s2">(</span><span class="s1">key </span><span class="s0">in </span><span class="s1">oldProps</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!(</span><span class="s1">key </span><span class="s0">in </span><span class="s1">props</span><span class="s2">)) {</span>
+      <span class="s1">elm</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = </span><span class="s3">''</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+
+  <span class="s0">for </span><span class="s2">(</span><span class="s1">key </span><span class="s0">in </span><span class="s1">props</span><span class="s2">) {</span>
+    <span class="s1">cur </span><span class="s2">= </span><span class="s1">props</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+    <span class="s4">// ignore children if the node has textContent or innerHTML,</span>
+    <span class="s4">// as these will throw away existing DOM nodes and cause removal errors</span>
+    <span class="s4">// on subsequent patches (#3360)</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">key </span><span class="s2">=== </span><span class="s3">'textContent' </span><span class="s2">|| </span><span class="s1">key </span><span class="s2">=== </span><span class="s3">'innerHTML'</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">) </span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">children</span><span class="s2">.</span><span class="s1">length </span><span class="s2">= </span><span class="s5">0</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">cur </span><span class="s2">=== </span><span class="s1">oldProps</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]) </span><span class="s0">continue</span>
+      <span class="s4">// #6601 work around Chrome version &lt;= 55 bug where single textNode</span>
+      <span class="s4">// replaced by innerHTML/textContent retains its parentNode property</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">elm</span><span class="s2">.</span><span class="s1">childNodes</span><span class="s2">.</span><span class="s1">length </span><span class="s2">=== </span><span class="s5">1</span><span class="s2">) {</span>
+        <span class="s1">elm</span><span class="s2">.</span><span class="s1">removeChild</span><span class="s2">(</span><span class="s1">elm</span><span class="s2">.</span><span class="s1">childNodes</span><span class="s2">[</span><span class="s5">0</span><span class="s2">])</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">key </span><span class="s2">=== </span><span class="s3">'value' </span><span class="s2">&amp;&amp; </span><span class="s1">elm</span><span class="s2">.</span><span class="s1">tagName </span><span class="s2">!== </span><span class="s3">'PROGRESS'</span><span class="s2">) {</span>
+      <span class="s4">// store value as _value as well since</span>
+      <span class="s4">// non-string values will be stringified</span>
+      <span class="s1">elm</span><span class="s2">.</span><span class="s1">_value </span><span class="s2">= </span><span class="s1">cur</span>
+      <span class="s4">// avoid resetting cursor position when value is the same</span>
+      <span class="s0">const </span><span class="s1">strCur </span><span class="s2">= </span><span class="s1">isUndef</span><span class="s2">(</span><span class="s1">cur</span><span class="s2">) ? </span><span class="s3">'' </span><span class="s2">: </span><span class="s1">String</span><span class="s2">(</span><span class="s1">cur</span><span class="s2">)</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">shouldUpdateValue</span><span class="s2">(</span><span class="s1">elm</span><span class="s2">, </span><span class="s1">strCur</span><span class="s2">)) {</span>
+        <span class="s1">elm</span><span class="s2">.</span><span class="s1">value </span><span class="s2">= </span><span class="s1">strCur</span>
+      <span class="s2">}</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span>
+      <span class="s1">key </span><span class="s2">=== </span><span class="s3">'innerHTML' </span><span class="s2">&amp;&amp;</span>
+      <span class="s1">isSVG</span><span class="s2">(</span><span class="s1">elm</span><span class="s2">.</span><span class="s1">tagName</span><span class="s2">) &amp;&amp;</span>
+      <span class="s1">isUndef</span><span class="s2">(</span><span class="s1">elm</span><span class="s2">.</span><span class="s1">innerHTML</span><span class="s2">)</span>
+    <span class="s2">) {</span>
+      <span class="s4">// IE doesn't support innerHTML for SVG elements</span>
+      <span class="s1">svgContainer </span><span class="s2">= </span><span class="s1">svgContainer </span><span class="s2">|| </span><span class="s1">document</span><span class="s2">.</span><span class="s1">createElement</span><span class="s2">(</span><span class="s3">'div'</span><span class="s2">)</span>
+      <span class="s1">svgContainer</span><span class="s2">.</span><span class="s1">innerHTML </span><span class="s2">= </span><span class="s3">`&lt;svg&gt;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">cur</span><span class="s2">}</span><span class="s3">&lt;/svg&gt;`</span>
+      <span class="s0">const </span><span class="s1">svg </span><span class="s2">= </span><span class="s1">svgContainer</span><span class="s2">.</span><span class="s1">firstChild</span>
+      <span class="s0">while </span><span class="s2">(</span><span class="s1">elm</span><span class="s2">.</span><span class="s1">firstChild</span><span class="s2">) {</span>
+        <span class="s1">elm</span><span class="s2">.</span><span class="s1">removeChild</span><span class="s2">(</span><span class="s1">elm</span><span class="s2">.</span><span class="s1">firstChild</span><span class="s2">)</span>
+      <span class="s2">}</span>
+      <span class="s0">while </span><span class="s2">(</span><span class="s1">svg</span><span class="s2">.</span><span class="s1">firstChild</span><span class="s2">) {</span>
+        <span class="s1">elm</span><span class="s2">.</span><span class="s1">appendChild</span><span class="s2">(</span><span class="s1">svg</span><span class="s2">.</span><span class="s1">firstChild</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span>
+      <span class="s4">// skip the update if old and new VDOM state is the same.</span>
+      <span class="s4">// `value` is handled separately because the DOM value may be temporarily</span>
+      <span class="s4">// out of sync with VDOM state due to focus, composition and modifiers.</span>
+      <span class="s4">// This  #4521 by skipping the unnecessary `checked` update.</span>
+      <span class="s1">cur </span><span class="s2">!== </span><span class="s1">oldProps</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+    <span class="s2">) {</span>
+      <span class="s4">// some property updates can throw</span>
+      <span class="s4">// e.g. `value` on &lt;progress&gt; w/ non-finite value</span>
+      <span class="s0">try </span><span class="s2">{</span>
+        <span class="s1">elm</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = </span><span class="s1">cur</span>
+      <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">e</span><span class="s2">: </span><span class="s1">any</span><span class="s2">) {}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s4">// check platforms/web/util/attrs.js acceptValue</span>
+<span class="s1">type acceptValueElm </span><span class="s2">= </span><span class="s1">HTMLInputElement </span><span class="s2">| </span><span class="s1">HTMLSelectElement </span><span class="s2">| </span><span class="s1">HTMLOptionElement</span>
+
+<span class="s0">function </span><span class="s1">shouldUpdateValue</span><span class="s2">(</span><span class="s1">elm</span><span class="s2">: </span><span class="s1">acceptValueElm</span><span class="s2">, </span><span class="s1">checkVal</span><span class="s2">: </span><span class="s1">string</span><span class="s2">): </span><span class="s1">boolean </span><span class="s2">{</span>
+  <span class="s0">return </span><span class="s2">(</span>
+    <span class="s4">//@ts-expect-error</span>
+    <span class="s2">!</span><span class="s1">elm</span><span class="s2">.</span><span class="s1">composing </span><span class="s2">&amp;&amp;</span>
+    <span class="s2">(</span><span class="s1">elm</span><span class="s2">.</span><span class="s1">tagName </span><span class="s2">=== </span><span class="s3">'OPTION' </span><span class="s2">||</span>
+      <span class="s1">isNotInFocusAndDirty</span><span class="s2">(</span><span class="s1">elm</span><span class="s2">, </span><span class="s1">checkVal</span><span class="s2">) ||</span>
+      <span class="s1">isDirtyWithModifiers</span><span class="s2">(</span><span class="s1">elm</span><span class="s2">, </span><span class="s1">checkVal</span><span class="s2">))</span>
+  <span class="s2">)</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">isNotInFocusAndDirty</span><span class="s2">(</span><span class="s1">elm</span><span class="s2">: </span><span class="s1">acceptValueElm</span><span class="s2">, </span><span class="s1">checkVal</span><span class="s2">: </span><span class="s1">string</span><span class="s2">): </span><span class="s1">boolean </span><span class="s2">{</span>
+  <span class="s4">// return true when textbox (.number and .trim) loses focus and its value is</span>
+  <span class="s4">// not equal to the updated value</span>
+  <span class="s0">let </span><span class="s1">notInFocus </span><span class="s2">= </span><span class="s0">true</span>
+  <span class="s4">// #6157</span>
+  <span class="s4">// work around IE bug when accessing document.activeElement in an iframe</span>
+  <span class="s0">try </span><span class="s2">{</span>
+    <span class="s1">notInFocus </span><span class="s2">= </span><span class="s1">document</span><span class="s2">.</span><span class="s1">activeElement </span><span class="s2">!== </span><span class="s1">elm</span>
+  <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">e</span><span class="s2">: </span><span class="s1">any</span><span class="s2">) {}</span>
+  <span class="s0">return </span><span class="s1">notInFocus </span><span class="s2">&amp;&amp; </span><span class="s1">elm</span><span class="s2">.</span><span class="s1">value </span><span class="s2">!== </span><span class="s1">checkVal</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">isDirtyWithModifiers</span><span class="s2">(</span><span class="s1">elm</span><span class="s2">: </span><span class="s1">any</span><span class="s2">, </span><span class="s1">newVal</span><span class="s2">: </span><span class="s1">string</span><span class="s2">): </span><span class="s1">boolean </span><span class="s2">{</span>
+  <span class="s0">const </span><span class="s1">value </span><span class="s2">= </span><span class="s1">elm</span><span class="s2">.</span><span class="s1">value</span>
+  <span class="s0">const </span><span class="s1">modifiers </span><span class="s2">= </span><span class="s1">elm</span><span class="s2">.</span><span class="s1">_vModifiers </span><span class="s4">// injected by v-model runtime</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isDef</span><span class="s2">(</span><span class="s1">modifiers</span><span class="s2">)) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">modifiers</span><span class="s2">.</span><span class="s1">number</span><span class="s2">) {</span>
+      <span class="s0">return </span><span class="s1">toNumber</span><span class="s2">(</span><span class="s1">value</span><span class="s2">) !== </span><span class="s1">toNumber</span><span class="s2">(</span><span class="s1">newVal</span><span class="s2">)</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">modifiers</span><span class="s2">.</span><span class="s1">trim</span><span class="s2">) {</span>
+      <span class="s0">return </span><span class="s1">value</span><span class="s2">.</span><span class="s1">trim</span><span class="s2">() !== </span><span class="s1">newVal</span><span class="s2">.</span><span class="s1">trim</span><span class="s2">()</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s1">value </span><span class="s2">!== </span><span class="s1">newVal</span>
+<span class="s2">}</span>
+
+<span class="s0">export default </span><span class="s2">{</span>
+  <span class="s1">create</span><span class="s2">: </span><span class="s1">updateDOMProps</span><span class="s2">,</span>
+  <span class="s1">update</span><span class="s2">: </span><span class="s1">updateDOMProps</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

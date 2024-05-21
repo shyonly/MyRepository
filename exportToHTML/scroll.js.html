@@ -1,0 +1,198 @@
+<html>
+<head>
+<title>scroll.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #6aab73;}
+.s4 { color: #bcbec4;}
+.s5 { color: #2aacb8;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+scroll.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* @flow */</span>
+
+<span class="s2">import </span><span class="s1">type Router from </span><span class="s3">'../index'</span>
+<span class="s2">import </span><span class="s4">{ </span><span class="s1">assert </span><span class="s4">} </span><span class="s1">from </span><span class="s3">'./warn'</span>
+<span class="s2">import </span><span class="s4">{ </span><span class="s1">getStateKey</span><span class="s4">, </span><span class="s1">setStateKey </span><span class="s4">} </span><span class="s1">from </span><span class="s3">'./state-key'</span>
+<span class="s2">import </span><span class="s4">{ </span><span class="s1">extend </span><span class="s4">} </span><span class="s1">from </span><span class="s3">'./misc'</span>
+
+<span class="s2">const </span><span class="s1">positionStore </span><span class="s4">= </span><span class="s1">Object</span><span class="s4">.</span><span class="s1">create</span><span class="s4">(</span><span class="s2">null</span><span class="s4">)</span>
+
+<span class="s2">export function </span><span class="s1">setupScroll </span><span class="s4">() {</span>
+  <span class="s0">// Prevent browser scroll behavior on History popstate</span>
+  <span class="s2">if </span><span class="s4">(</span><span class="s3">'scrollRestoration' </span><span class="s2">in </span><span class="s1">window</span><span class="s4">.</span><span class="s1">history</span><span class="s4">) {</span>
+    <span class="s1">window</span><span class="s4">.</span><span class="s1">history</span><span class="s4">.</span><span class="s1">scrollRestoration </span><span class="s4">= </span><span class="s3">'manual'</span>
+  <span class="s4">}</span>
+  <span class="s0">// Fix for #1585 for Firefox</span>
+  <span class="s0">// Fix for #2195 Add optional third attribute to workaround a bug in safari https://bugs.webkit.org/show_bug.cgi?id=182678</span>
+  <span class="s0">// Fix for #2774 Support for apps loaded from Windows file shares not mapped to network drives: replaced location.origin with</span>
+  <span class="s0">// window.location.protocol + '//' + window.location.host</span>
+  <span class="s0">// location.host contains the port and location.hostname doesn't</span>
+  <span class="s2">const </span><span class="s1">protocolAndPath </span><span class="s4">= </span><span class="s1">window</span><span class="s4">.</span><span class="s1">location</span><span class="s4">.</span><span class="s1">protocol </span><span class="s4">+ </span><span class="s3">'//' </span><span class="s4">+ </span><span class="s1">window</span><span class="s4">.</span><span class="s1">location</span><span class="s4">.</span><span class="s1">host</span>
+  <span class="s2">const </span><span class="s1">absolutePath </span><span class="s4">= </span><span class="s1">window</span><span class="s4">.</span><span class="s1">location</span><span class="s4">.</span><span class="s1">href</span><span class="s4">.</span><span class="s1">replace</span><span class="s4">(</span><span class="s1">protocolAndPath</span><span class="s4">, </span><span class="s3">''</span><span class="s4">)</span>
+  <span class="s0">// preserve existing history state as it could be overriden by the user</span>
+  <span class="s2">const </span><span class="s1">stateCopy </span><span class="s4">= </span><span class="s1">extend</span><span class="s4">({}, </span><span class="s1">window</span><span class="s4">.</span><span class="s1">history</span><span class="s4">.</span><span class="s1">state</span><span class="s4">)</span>
+  <span class="s1">stateCopy</span><span class="s4">.</span><span class="s1">key </span><span class="s4">= </span><span class="s1">getStateKey</span><span class="s4">()</span>
+  <span class="s1">window</span><span class="s4">.</span><span class="s1">history</span><span class="s4">.</span><span class="s1">replaceState</span><span class="s4">(</span><span class="s1">stateCopy</span><span class="s4">, </span><span class="s3">''</span><span class="s4">, </span><span class="s1">absolutePath</span><span class="s4">)</span>
+  <span class="s1">window</span><span class="s4">.</span><span class="s1">addEventListener</span><span class="s4">(</span><span class="s3">'popstate'</span><span class="s4">, </span><span class="s1">handlePopState</span><span class="s4">)</span>
+  <span class="s2">return </span><span class="s4">() =&gt; {</span>
+    <span class="s1">window</span><span class="s4">.</span><span class="s1">removeEventListener</span><span class="s4">(</span><span class="s3">'popstate'</span><span class="s4">, </span><span class="s1">handlePopState</span><span class="s4">)</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s2">export function </span><span class="s1">handleScroll </span><span class="s4">(</span>
+  <span class="s1">router</span><span class="s4">: </span><span class="s1">Router</span><span class="s4">,</span>
+  <span class="s1">to</span><span class="s4">: </span><span class="s1">Route</span><span class="s4">,</span>
+  <span class="s1">from</span><span class="s4">: </span><span class="s1">Route</span><span class="s4">,</span>
+  <span class="s1">isPop</span><span class="s4">: </span><span class="s1">boolean</span>
+<span class="s4">) {</span>
+  <span class="s2">if </span><span class="s4">(!</span><span class="s1">router</span><span class="s4">.</span><span class="s1">app</span><span class="s4">) {</span>
+    <span class="s2">return</span>
+  <span class="s4">}</span>
+
+  <span class="s2">const </span><span class="s1">behavior </span><span class="s4">= </span><span class="s1">router</span><span class="s4">.</span><span class="s1">options</span><span class="s4">.</span><span class="s1">scrollBehavior</span>
+  <span class="s2">if </span><span class="s4">(!</span><span class="s1">behavior</span><span class="s4">) {</span>
+    <span class="s2">return</span>
+  <span class="s4">}</span>
+
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">process</span><span class="s4">.</span><span class="s1">env</span><span class="s4">.</span><span class="s1">NODE_ENV </span><span class="s4">!== </span><span class="s3">'production'</span><span class="s4">) {</span>
+    <span class="s1">assert</span><span class="s4">(</span><span class="s2">typeof </span><span class="s1">behavior </span><span class="s4">=== </span><span class="s3">'function'</span><span class="s4">, </span><span class="s3">`scrollBehavior must be a function`</span><span class="s4">)</span>
+  <span class="s4">}</span>
+
+  <span class="s0">// wait until re-render finishes before scrolling</span>
+  <span class="s1">router</span><span class="s4">.</span><span class="s1">app</span><span class="s4">.</span><span class="s1">$nextTick</span><span class="s4">(() =&gt; {</span>
+    <span class="s2">const </span><span class="s1">position </span><span class="s4">= </span><span class="s1">getScrollPosition</span><span class="s4">()</span>
+    <span class="s2">const </span><span class="s1">shouldScroll </span><span class="s4">= </span><span class="s1">behavior</span><span class="s4">.</span><span class="s1">call</span><span class="s4">(</span>
+      <span class="s1">router</span><span class="s4">,</span>
+      <span class="s1">to</span><span class="s4">,</span>
+      <span class="s1">from</span><span class="s4">,</span>
+      <span class="s1">isPop </span><span class="s4">? </span><span class="s1">position </span><span class="s4">: </span><span class="s2">null</span>
+    <span class="s4">)</span>
+
+    <span class="s2">if </span><span class="s4">(!</span><span class="s1">shouldScroll</span><span class="s4">) {</span>
+      <span class="s2">return</span>
+    <span class="s4">}</span>
+
+    <span class="s2">if </span><span class="s4">(</span><span class="s2">typeof </span><span class="s1">shouldScroll</span><span class="s4">.</span><span class="s1">then </span><span class="s4">=== </span><span class="s3">'function'</span><span class="s4">) {</span>
+      <span class="s1">shouldScroll</span>
+        <span class="s4">.</span><span class="s1">then</span><span class="s4">(</span><span class="s1">shouldScroll </span><span class="s4">=&gt; {</span>
+          <span class="s1">scrollToPosition</span><span class="s4">((</span><span class="s1">shouldScroll</span><span class="s4">: </span><span class="s1">any</span><span class="s4">), </span><span class="s1">position</span><span class="s4">)</span>
+        <span class="s4">})</span>
+        <span class="s4">.</span><span class="s1">catch</span><span class="s4">(</span><span class="s1">err </span><span class="s4">=&gt; {</span>
+          <span class="s2">if </span><span class="s4">(</span><span class="s1">process</span><span class="s4">.</span><span class="s1">env</span><span class="s4">.</span><span class="s1">NODE_ENV </span><span class="s4">!== </span><span class="s3">'production'</span><span class="s4">) {</span>
+            <span class="s1">assert</span><span class="s4">(</span><span class="s2">false</span><span class="s4">, </span><span class="s1">err</span><span class="s4">.</span><span class="s1">toString</span><span class="s4">())</span>
+          <span class="s4">}</span>
+        <span class="s4">})</span>
+    <span class="s4">} </span><span class="s2">else </span><span class="s4">{</span>
+      <span class="s1">scrollToPosition</span><span class="s4">(</span><span class="s1">shouldScroll</span><span class="s4">, </span><span class="s1">position</span><span class="s4">)</span>
+    <span class="s4">}</span>
+  <span class="s4">})</span>
+<span class="s4">}</span>
+
+<span class="s2">export function </span><span class="s1">saveScrollPosition </span><span class="s4">() {</span>
+  <span class="s2">const </span><span class="s1">key </span><span class="s4">= </span><span class="s1">getStateKey</span><span class="s4">()</span>
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">key</span><span class="s4">) {</span>
+    <span class="s1">positionStore</span><span class="s4">[</span><span class="s1">key</span><span class="s4">] = {</span>
+      <span class="s1">x</span><span class="s4">: </span><span class="s1">window</span><span class="s4">.</span><span class="s1">pageXOffset</span><span class="s4">,</span>
+      <span class="s1">y</span><span class="s4">: </span><span class="s1">window</span><span class="s4">.</span><span class="s1">pageYOffset</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s2">function </span><span class="s1">handlePopState </span><span class="s4">(</span><span class="s1">e</span><span class="s4">) {</span>
+  <span class="s1">saveScrollPosition</span><span class="s4">()</span>
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">e</span><span class="s4">.</span><span class="s1">state </span><span class="s4">&amp;&amp; </span><span class="s1">e</span><span class="s4">.</span><span class="s1">state</span><span class="s4">.</span><span class="s1">key</span><span class="s4">) {</span>
+    <span class="s1">setStateKey</span><span class="s4">(</span><span class="s1">e</span><span class="s4">.</span><span class="s1">state</span><span class="s4">.</span><span class="s1">key</span><span class="s4">)</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s2">function </span><span class="s1">getScrollPosition </span><span class="s4">(): ?</span><span class="s1">Object </span><span class="s4">{</span>
+  <span class="s2">const </span><span class="s1">key </span><span class="s4">= </span><span class="s1">getStateKey</span><span class="s4">()</span>
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">key</span><span class="s4">) {</span>
+    <span class="s2">return </span><span class="s1">positionStore</span><span class="s4">[</span><span class="s1">key</span><span class="s4">]</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s2">function </span><span class="s1">getElementPosition </span><span class="s4">(</span><span class="s1">el</span><span class="s4">: </span><span class="s1">Element</span><span class="s4">, </span><span class="s1">offset</span><span class="s4">: </span><span class="s1">Object</span><span class="s4">): </span><span class="s1">Object </span><span class="s4">{</span>
+  <span class="s2">const </span><span class="s1">docEl</span><span class="s4">: </span><span class="s1">any </span><span class="s4">= </span><span class="s1">document</span><span class="s4">.</span><span class="s1">documentElement</span>
+  <span class="s2">const </span><span class="s1">docRect </span><span class="s4">= </span><span class="s1">docEl</span><span class="s4">.</span><span class="s1">getBoundingClientRect</span><span class="s4">()</span>
+  <span class="s2">const </span><span class="s1">elRect </span><span class="s4">= </span><span class="s1">el</span><span class="s4">.</span><span class="s1">getBoundingClientRect</span><span class="s4">()</span>
+  <span class="s2">return </span><span class="s4">{</span>
+    <span class="s1">x</span><span class="s4">: </span><span class="s1">elRect</span><span class="s4">.</span><span class="s1">left </span><span class="s4">- </span><span class="s1">docRect</span><span class="s4">.</span><span class="s1">left </span><span class="s4">- </span><span class="s1">offset</span><span class="s4">.</span><span class="s1">x</span><span class="s4">,</span>
+    <span class="s1">y</span><span class="s4">: </span><span class="s1">elRect</span><span class="s4">.</span><span class="s1">top </span><span class="s4">- </span><span class="s1">docRect</span><span class="s4">.</span><span class="s1">top </span><span class="s4">- </span><span class="s1">offset</span><span class="s4">.</span><span class="s1">y</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s2">function </span><span class="s1">isValidPosition </span><span class="s4">(</span><span class="s1">obj</span><span class="s4">: </span><span class="s1">Object</span><span class="s4">): </span><span class="s1">boolean </span><span class="s4">{</span>
+  <span class="s2">return </span><span class="s1">isNumber</span><span class="s4">(</span><span class="s1">obj</span><span class="s4">.</span><span class="s1">x</span><span class="s4">) || </span><span class="s1">isNumber</span><span class="s4">(</span><span class="s1">obj</span><span class="s4">.</span><span class="s1">y</span><span class="s4">)</span>
+<span class="s4">}</span>
+
+<span class="s2">function </span><span class="s1">normalizePosition </span><span class="s4">(</span><span class="s1">obj</span><span class="s4">: </span><span class="s1">Object</span><span class="s4">): </span><span class="s1">Object </span><span class="s4">{</span>
+  <span class="s2">return </span><span class="s4">{</span>
+    <span class="s1">x</span><span class="s4">: </span><span class="s1">isNumber</span><span class="s4">(</span><span class="s1">obj</span><span class="s4">.</span><span class="s1">x</span><span class="s4">) ? </span><span class="s1">obj</span><span class="s4">.</span><span class="s1">x </span><span class="s4">: </span><span class="s1">window</span><span class="s4">.</span><span class="s1">pageXOffset</span><span class="s4">,</span>
+    <span class="s1">y</span><span class="s4">: </span><span class="s1">isNumber</span><span class="s4">(</span><span class="s1">obj</span><span class="s4">.</span><span class="s1">y</span><span class="s4">) ? </span><span class="s1">obj</span><span class="s4">.</span><span class="s1">y </span><span class="s4">: </span><span class="s1">window</span><span class="s4">.</span><span class="s1">pageYOffset</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s2">function </span><span class="s1">normalizeOffset </span><span class="s4">(</span><span class="s1">obj</span><span class="s4">: </span><span class="s1">Object</span><span class="s4">): </span><span class="s1">Object </span><span class="s4">{</span>
+  <span class="s2">return </span><span class="s4">{</span>
+    <span class="s1">x</span><span class="s4">: </span><span class="s1">isNumber</span><span class="s4">(</span><span class="s1">obj</span><span class="s4">.</span><span class="s1">x</span><span class="s4">) ? </span><span class="s1">obj</span><span class="s4">.</span><span class="s1">x </span><span class="s4">: </span><span class="s5">0</span><span class="s4">,</span>
+    <span class="s1">y</span><span class="s4">: </span><span class="s1">isNumber</span><span class="s4">(</span><span class="s1">obj</span><span class="s4">.</span><span class="s1">y</span><span class="s4">) ? </span><span class="s1">obj</span><span class="s4">.</span><span class="s1">y </span><span class="s4">: </span><span class="s5">0</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s2">function </span><span class="s1">isNumber </span><span class="s4">(</span><span class="s1">v</span><span class="s4">: </span><span class="s1">any</span><span class="s4">): </span><span class="s1">boolean </span><span class="s4">{</span>
+  <span class="s2">return typeof </span><span class="s1">v </span><span class="s4">=== </span><span class="s3">'number'</span>
+<span class="s4">}</span>
+
+<span class="s2">const </span><span class="s1">hashStartsWithNumberRE </span><span class="s4">= </span><span class="s6">/^#\d/</span>
+
+<span class="s2">function </span><span class="s1">scrollToPosition </span><span class="s4">(</span><span class="s1">shouldScroll</span><span class="s4">, </span><span class="s1">position</span><span class="s4">) {</span>
+  <span class="s2">const </span><span class="s1">isObject </span><span class="s4">= </span><span class="s2">typeof </span><span class="s1">shouldScroll </span><span class="s4">=== </span><span class="s3">'object'</span>
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">isObject </span><span class="s4">&amp;&amp; </span><span class="s2">typeof </span><span class="s1">shouldScroll</span><span class="s4">.</span><span class="s1">selector </span><span class="s4">=== </span><span class="s3">'string'</span><span class="s4">) {</span>
+    <span class="s0">// getElementById would still fail if the selector contains a more complicated query like #main[data-attr]</span>
+    <span class="s0">// but at the same time, it doesn't make much sense to select an element with an id and an extra selector</span>
+    <span class="s2">const </span><span class="s1">el </span><span class="s4">= </span><span class="s1">hashStartsWithNumberRE</span><span class="s4">.</span><span class="s1">test</span><span class="s4">(</span><span class="s1">shouldScroll</span><span class="s4">.</span><span class="s1">selector</span><span class="s4">) </span><span class="s0">// $flow-disable-line</span>
+      <span class="s4">? </span><span class="s1">document</span><span class="s4">.</span><span class="s1">getElementById</span><span class="s4">(</span><span class="s1">shouldScroll</span><span class="s4">.</span><span class="s1">selector</span><span class="s4">.</span><span class="s1">slice</span><span class="s4">(</span><span class="s5">1</span><span class="s4">)) </span><span class="s0">// $flow-disable-line</span>
+      <span class="s4">: </span><span class="s1">document</span><span class="s4">.</span><span class="s1">querySelector</span><span class="s4">(</span><span class="s1">shouldScroll</span><span class="s4">.</span><span class="s1">selector</span><span class="s4">)</span>
+
+    <span class="s2">if </span><span class="s4">(</span><span class="s1">el</span><span class="s4">) {</span>
+      <span class="s2">let </span><span class="s1">offset </span><span class="s4">=</span>
+        <span class="s1">shouldScroll</span><span class="s4">.</span><span class="s1">offset </span><span class="s4">&amp;&amp; </span><span class="s2">typeof </span><span class="s1">shouldScroll</span><span class="s4">.</span><span class="s1">offset </span><span class="s4">=== </span><span class="s3">'object'</span>
+          <span class="s4">? </span><span class="s1">shouldScroll</span><span class="s4">.</span><span class="s1">offset</span>
+          <span class="s4">: {}</span>
+      <span class="s1">offset </span><span class="s4">= </span><span class="s1">normalizeOffset</span><span class="s4">(</span><span class="s1">offset</span><span class="s4">)</span>
+      <span class="s1">position </span><span class="s4">= </span><span class="s1">getElementPosition</span><span class="s4">(</span><span class="s1">el</span><span class="s4">, </span><span class="s1">offset</span><span class="s4">)</span>
+    <span class="s4">} </span><span class="s2">else if </span><span class="s4">(</span><span class="s1">isValidPosition</span><span class="s4">(</span><span class="s1">shouldScroll</span><span class="s4">)) {</span>
+      <span class="s1">position </span><span class="s4">= </span><span class="s1">normalizePosition</span><span class="s4">(</span><span class="s1">shouldScroll</span><span class="s4">)</span>
+    <span class="s4">}</span>
+  <span class="s4">} </span><span class="s2">else if </span><span class="s4">(</span><span class="s1">isObject </span><span class="s4">&amp;&amp; </span><span class="s1">isValidPosition</span><span class="s4">(</span><span class="s1">shouldScroll</span><span class="s4">)) {</span>
+    <span class="s1">position </span><span class="s4">= </span><span class="s1">normalizePosition</span><span class="s4">(</span><span class="s1">shouldScroll</span><span class="s4">)</span>
+  <span class="s4">}</span>
+
+  <span class="s2">if </span><span class="s4">(</span><span class="s1">position</span><span class="s4">) {</span>
+    <span class="s0">// $flow-disable-line</span>
+    <span class="s2">if </span><span class="s4">(</span><span class="s3">'scrollBehavior' </span><span class="s2">in </span><span class="s1">document</span><span class="s4">.</span><span class="s1">documentElement</span><span class="s4">.</span><span class="s1">style</span><span class="s4">) {</span>
+      <span class="s1">window</span><span class="s4">.</span><span class="s1">scrollTo</span><span class="s4">({</span>
+        <span class="s1">left</span><span class="s4">: </span><span class="s1">position</span><span class="s4">.</span><span class="s1">x</span><span class="s4">,</span>
+        <span class="s1">top</span><span class="s4">: </span><span class="s1">position</span><span class="s4">.</span><span class="s1">y</span><span class="s4">,</span>
+        <span class="s0">// $flow-disable-line</span>
+        <span class="s1">behavior</span><span class="s4">: </span><span class="s1">shouldScroll</span><span class="s4">.</span><span class="s1">behavior</span>
+      <span class="s4">})</span>
+    <span class="s4">} </span><span class="s2">else </span><span class="s4">{</span>
+      <span class="s1">window</span><span class="s4">.</span><span class="s1">scrollTo</span><span class="s4">(</span><span class="s1">position</span><span class="s4">.</span><span class="s1">x</span><span class="s4">, </span><span class="s1">position</span><span class="s4">.</span><span class="s1">y</span><span class="s4">)</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+</pre>
+</body>
+</html>

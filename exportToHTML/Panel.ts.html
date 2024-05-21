@@ -1,0 +1,268 @@
+<html>
+<head>
+<title>Panel.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #67a37c; font-style: italic;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #bcbec4;}
+.s5 { color: #6aab73;}
+.s6 { color: #7a7e85;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+Panel.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* </span><span class="s1">@description </span><span class="s0">panel class</span>
+ <span class="s0">* </span><span class="s1">@author </span><span class="s0">wangfupeng</span>
+ <span class="s0">*/</span>
+
+<span class="s3">import </span><span class="s2">$</span><span class="s4">, { </span><span class="s2">DomElement </span><span class="s4">} </span><span class="s2">from </span><span class="s5">'../../utils/dom-core'</span>
+<span class="s3">import </span><span class="s2">PanelMenu from </span><span class="s5">'./PanelMenu'</span>
+<span class="s3">import </span><span class="s4">{ </span><span class="s2">EMPTY_FN </span><span class="s4">} </span><span class="s2">from </span><span class="s5">'../../utils/const'</span>
+
+<span class="s6">// Panel 配置格式</span>
+<span class="s3">export </span><span class="s2">type TabEventConf </span><span class="s4">= {</span>
+    <span class="s2">selector</span><span class="s4">: </span><span class="s2">string</span>
+    <span class="s2">type</span><span class="s4">: </span><span class="s2">string</span>
+    <span class="s2">fn</span><span class="s4">: </span><span class="s2">Function</span>
+    <span class="s2">bindEnter</span><span class="s4">?: </span><span class="s2">Boolean</span>
+<span class="s4">}</span>
+<span class="s3">export </span><span class="s2">type PanelTabConf </span><span class="s4">= {</span>
+    <span class="s2">title</span><span class="s4">: </span><span class="s2">string</span>
+    <span class="s2">tpl</span><span class="s4">: </span><span class="s2">string</span>
+    <span class="s2">events</span><span class="s4">: </span><span class="s2">TabEventConf</span><span class="s4">[]</span>
+<span class="s4">}</span>
+<span class="s3">export </span><span class="s2">type PanelConf </span><span class="s4">= {</span>
+    <span class="s2">width</span><span class="s4">: </span><span class="s2">number </span><span class="s4">| </span><span class="s7">0</span>
+    <span class="s2">height</span><span class="s4">: </span><span class="s2">number </span><span class="s4">| </span><span class="s7">0</span>
+    <span class="s2">tabs</span><span class="s4">: </span><span class="s2">PanelTabConf</span><span class="s4">[]</span>
+    <span class="s2">setLinkValue</span><span class="s4">?: (</span><span class="s2">$container</span><span class="s4">: </span><span class="s2">DomElement</span><span class="s4">, </span><span class="s2">type</span><span class="s4">: </span><span class="s2">string</span><span class="s4">) =&gt; </span><span class="s3">void</span>
+<span class="s4">}</span>
+
+<span class="s3">class </span><span class="s2">Panel </span><span class="s4">{</span>
+    <span class="s6">// 记录已经创建过的 panelMenu</span>
+    <span class="s3">static </span><span class="s2">createdMenus</span><span class="s4">: </span><span class="s2">Set</span><span class="s4">&lt;</span><span class="s2">PanelMenu</span><span class="s4">&gt; = </span><span class="s3">new </span><span class="s2">Set</span><span class="s4">()</span>
+
+    <span class="s3">private </span><span class="s2">menu</span><span class="s4">: </span><span class="s2">PanelMenu</span>
+    <span class="s3">private </span><span class="s2">conf</span><span class="s4">: </span><span class="s2">PanelConf</span>
+    <span class="s3">public </span><span class="s2">$container</span><span class="s4">: </span><span class="s2">DomElement</span>
+
+    <span class="s2">constructor</span><span class="s4">(</span><span class="s2">menu</span><span class="s4">: </span><span class="s2">PanelMenu</span><span class="s4">, </span><span class="s2">conf</span><span class="s4">: </span><span class="s2">PanelConf</span><span class="s4">) {</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">menu </span><span class="s4">= </span><span class="s2">menu</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">conf </span><span class="s4">= </span><span class="s2">conf</span>
+        <span class="s3">this</span><span class="s4">.</span><span class="s2">$container </span><span class="s4">= </span><span class="s2">$</span><span class="s4">(</span><span class="s5">'&lt;div class=&quot;w-e-panel-container&quot;&gt;&lt;/div&gt;'</span><span class="s4">)</span>
+
+        <span class="s6">// 隐藏 panel</span>
+        <span class="s3">const </span><span class="s2">editor </span><span class="s4">= </span><span class="s2">menu</span><span class="s4">.</span><span class="s2">editor</span>
+        <span class="s2">editor</span><span class="s4">.</span><span class="s2">txt</span><span class="s4">.</span><span class="s2">eventHooks</span><span class="s4">.</span><span class="s2">clickEvents</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">Panel</span><span class="s4">.</span><span class="s2">hideCurAllPanels</span><span class="s4">)</span>
+        <span class="s2">editor</span><span class="s4">.</span><span class="s2">txt</span><span class="s4">.</span><span class="s2">eventHooks</span><span class="s4">.</span><span class="s2">toolbarClickEvents</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">Panel</span><span class="s4">.</span><span class="s2">hideCurAllPanels</span><span class="s4">)</span>
+        <span class="s2">editor</span><span class="s4">.</span><span class="s2">txt</span><span class="s4">.</span><span class="s2">eventHooks</span><span class="s4">.</span><span class="s2">dropListMenuHoverEvents</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">Panel</span><span class="s4">.</span><span class="s2">hideCurAllPanels</span><span class="s4">)</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 创建并展示 panel</span>
+     <span class="s0">*/</span>
+    <span class="s3">public </span><span class="s2">create</span><span class="s4">(): </span><span class="s3">void </span><span class="s4">{</span>
+        <span class="s3">const </span><span class="s2">menu </span><span class="s4">= </span><span class="s3">this</span><span class="s4">.</span><span class="s2">menu</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">Panel</span><span class="s4">.</span><span class="s2">createdMenus</span><span class="s4">.</span><span class="s2">has</span><span class="s4">(</span><span class="s2">menu</span><span class="s4">)) {</span>
+            <span class="s6">// 创建过了</span>
+            <span class="s3">return</span>
+        <span class="s4">}</span>
+
+        <span class="s3">const </span><span class="s2">conf </span><span class="s4">= </span><span class="s3">this</span><span class="s4">.</span><span class="s2">conf</span>
+
+        <span class="s6">// panel 的容器</span>
+        <span class="s3">const </span><span class="s2">$container </span><span class="s4">= </span><span class="s3">this</span><span class="s4">.</span><span class="s2">$container</span>
+        <span class="s3">const </span><span class="s2">width </span><span class="s4">= </span><span class="s2">conf</span><span class="s4">.</span><span class="s2">width </span><span class="s4">|| </span><span class="s7">300 </span><span class="s6">// 默认 300px</span>
+        <span class="s3">const </span><span class="s2">rect </span><span class="s4">= </span><span class="s2">menu</span><span class="s4">.</span><span class="s2">editor</span><span class="s4">.</span><span class="s2">$toolbarElem</span><span class="s4">.</span><span class="s2">getBoundingClientRect</span><span class="s4">()</span>
+        <span class="s3">const </span><span class="s2">menuRect </span><span class="s4">= </span><span class="s2">menu</span><span class="s4">.</span><span class="s2">$elem</span><span class="s4">.</span><span class="s2">getBoundingClientRect</span><span class="s4">()</span>
+        <span class="s3">const </span><span class="s2">top </span><span class="s4">= </span><span class="s2">rect</span><span class="s4">.</span><span class="s2">height </span><span class="s4">+ </span><span class="s2">rect</span><span class="s4">.</span><span class="s2">top </span><span class="s4">- </span><span class="s2">menuRect</span><span class="s4">.</span><span class="s2">top</span>
+        <span class="s3">let </span><span class="s2">left </span><span class="s4">= (</span><span class="s2">rect</span><span class="s4">.</span><span class="s2">width </span><span class="s4">- </span><span class="s2">width</span><span class="s4">) / </span><span class="s7">2 </span><span class="s4">+ </span><span class="s2">rect</span><span class="s4">.</span><span class="s2">left </span><span class="s4">- </span><span class="s2">menuRect</span><span class="s4">.</span><span class="s2">left</span>
+        <span class="s3">const </span><span class="s2">offset </span><span class="s4">= </span><span class="s7">300 </span><span class="s6">// icon与panel菜单距离偏移量暂定 300</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">Math</span><span class="s4">.</span><span class="s2">abs</span><span class="s4">(</span><span class="s2">left</span><span class="s4">) &gt; </span><span class="s2">offset</span><span class="s4">) {</span>
+            <span class="s6">// panel菜单离工具栏icon过远时，让panel菜单出现在icon正下方，处理边界逻辑</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">menuRect</span><span class="s4">.</span><span class="s2">left </span><span class="s4">&lt; </span><span class="s2">document</span><span class="s4">.</span><span class="s2">documentElement</span><span class="s4">.</span><span class="s2">clientWidth </span><span class="s4">/ </span><span class="s7">2</span><span class="s4">) {</span>
+                <span class="s6">// icon在左侧</span>
+                <span class="s2">left </span><span class="s4">= -</span><span class="s2">menuRect</span><span class="s4">.</span><span class="s2">width </span><span class="s4">/ </span><span class="s7">2</span>
+            <span class="s4">} </span><span class="s3">else </span><span class="s4">{</span>
+                <span class="s6">// icon在右侧</span>
+                <span class="s2">left </span><span class="s4">= -</span><span class="s2">width </span><span class="s4">+ </span><span class="s2">menuRect</span><span class="s4">.</span><span class="s2">width </span><span class="s4">/ </span><span class="s7">2</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+
+        <span class="s2">$container</span>
+            <span class="s4">.</span><span class="s2">css</span><span class="s4">(</span><span class="s5">'width'</span><span class="s4">, </span><span class="s2">width </span><span class="s4">+ </span><span class="s5">'px'</span><span class="s4">)</span>
+            <span class="s4">.</span><span class="s2">css</span><span class="s4">(</span><span class="s5">'margin-top'</span><span class="s4">, </span><span class="s5">`</span><span class="s2">$</span><span class="s4">{</span><span class="s2">top</span><span class="s4">}</span><span class="s5">px`</span><span class="s4">)</span>
+            <span class="s4">.</span><span class="s2">css</span><span class="s4">(</span><span class="s5">'margin-left'</span><span class="s4">, </span><span class="s5">`</span><span class="s2">$</span><span class="s4">{</span><span class="s2">left</span><span class="s4">}</span><span class="s5">px`</span><span class="s4">)</span>
+            <span class="s4">.</span><span class="s2">css</span><span class="s4">(</span><span class="s5">'z-index'</span><span class="s4">, </span><span class="s2">menu</span><span class="s4">.</span><span class="s2">editor</span><span class="s4">.</span><span class="s2">zIndex</span><span class="s4">.</span><span class="s2">get</span><span class="s4">(</span><span class="s5">'panel'</span><span class="s4">))</span>
+
+        <span class="s6">// 添加关闭按钮</span>
+        <span class="s3">const </span><span class="s2">$closeBtn </span><span class="s4">= </span><span class="s2">$</span><span class="s4">(</span><span class="s5">'&lt;i class=&quot;w-e-icon-close w-e-panel-close&quot;&gt;&lt;/i&gt;'</span><span class="s4">)</span>
+        <span class="s2">$container</span><span class="s4">.</span><span class="s2">append</span><span class="s4">(</span><span class="s2">$closeBtn</span><span class="s4">)</span>
+        <span class="s2">$closeBtn</span><span class="s4">.</span><span class="s2">on</span><span class="s4">(</span><span class="s5">'click'</span><span class="s4">, () =&gt; {</span>
+            <span class="s3">this</span><span class="s4">.</span><span class="s2">remove</span><span class="s4">()</span>
+        <span class="s4">})</span>
+
+        <span class="s6">// 准备 tabs 容器</span>
+        <span class="s3">const </span><span class="s2">$tabTitleContainer </span><span class="s4">= </span><span class="s2">$</span><span class="s4">(</span><span class="s5">'&lt;ul class=&quot;w-e-panel-tab-title&quot;&gt;&lt;/ul&gt;'</span><span class="s4">)</span>
+        <span class="s3">const </span><span class="s2">$tabContentContainer </span><span class="s4">= </span><span class="s2">$</span><span class="s4">(</span><span class="s5">'&lt;div class=&quot;w-e-panel-tab-content&quot;&gt;&lt;/div&gt;'</span><span class="s4">)</span>
+        <span class="s2">$container</span><span class="s4">.</span><span class="s2">append</span><span class="s4">(</span><span class="s2">$tabTitleContainer</span><span class="s4">).</span><span class="s2">append</span><span class="s4">(</span><span class="s2">$tabContentContainer</span><span class="s4">)</span>
+
+        <span class="s6">// 设置高度</span>
+        <span class="s3">const </span><span class="s2">height </span><span class="s4">= </span><span class="s2">conf</span><span class="s4">.</span><span class="s2">height </span><span class="s6">// height: 0 即不用设置</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">height</span><span class="s4">) {</span>
+            <span class="s2">$tabContentContainer</span><span class="s4">.</span><span class="s2">css</span><span class="s4">(</span><span class="s5">'height'</span><span class="s4">, </span><span class="s2">height </span><span class="s4">+ </span><span class="s5">'px'</span><span class="s4">).</span><span class="s2">css</span><span class="s4">(</span><span class="s5">'overflow-y'</span><span class="s4">, </span><span class="s5">'auto'</span><span class="s4">)</span>
+        <span class="s4">}</span>
+
+        <span class="s6">// tabs</span>
+        <span class="s3">const </span><span class="s2">tabs </span><span class="s4">= </span><span class="s2">conf</span><span class="s4">.</span><span class="s2">tabs </span><span class="s4">|| []</span>
+        <span class="s3">const </span><span class="s2">tabTitleArr</span><span class="s4">: </span><span class="s2">DomElement</span><span class="s4">[] = []</span>
+        <span class="s3">const </span><span class="s2">tabContentArr</span><span class="s4">: </span><span class="s2">DomElement</span><span class="s4">[] = []</span>
+
+        <span class="s2">tabs</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">((</span><span class="s2">tab</span><span class="s4">: </span><span class="s2">PanelTabConf</span><span class="s4">, </span><span class="s2">tabIndex</span><span class="s4">: </span><span class="s2">number</span><span class="s4">) =&gt; {</span>
+            <span class="s3">if </span><span class="s4">(!</span><span class="s2">tab</span><span class="s4">) {</span>
+                <span class="s3">return</span>
+            <span class="s4">}</span>
+            <span class="s3">const </span><span class="s2">title </span><span class="s4">= </span><span class="s2">tab</span><span class="s4">.</span><span class="s2">title </span><span class="s4">|| </span><span class="s5">''</span>
+            <span class="s3">const </span><span class="s2">tpl </span><span class="s4">= </span><span class="s2">tab</span><span class="s4">.</span><span class="s2">tpl </span><span class="s4">|| </span><span class="s5">''</span>
+
+            <span class="s6">// 添加到 DOM</span>
+            <span class="s3">const </span><span class="s2">$title </span><span class="s4">= </span><span class="s2">$</span><span class="s4">(</span><span class="s5">`&lt;li class=&quot;w-e-item&quot;&gt;</span><span class="s2">$</span><span class="s4">{</span><span class="s2">title</span><span class="s4">}</span><span class="s5">&lt;/li&gt;`</span><span class="s4">)</span>
+            <span class="s2">$tabTitleContainer</span><span class="s4">.</span><span class="s2">append</span><span class="s4">(</span><span class="s2">$title</span><span class="s4">)</span>
+            <span class="s3">const </span><span class="s2">$content </span><span class="s4">= </span><span class="s2">$</span><span class="s4">(</span><span class="s2">tpl</span><span class="s4">)</span>
+            <span class="s2">$tabContentContainer</span><span class="s4">.</span><span class="s2">append</span><span class="s4">(</span><span class="s2">$content</span><span class="s4">)</span>
+
+            <span class="s6">// 记录到内存</span>
+            <span class="s2">tabTitleArr</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">$title</span><span class="s4">)</span>
+            <span class="s2">tabContentArr</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">$content</span><span class="s4">)</span>
+
+            <span class="s6">// 设置 active 项</span>
+            <span class="s3">if </span><span class="s4">(</span><span class="s2">tabIndex </span><span class="s4">=== </span><span class="s7">0</span><span class="s4">) {</span>
+                <span class="s2">$title</span><span class="s4">.</span><span class="s2">data</span><span class="s4">(</span><span class="s5">'active'</span><span class="s4">, </span><span class="s3">true</span><span class="s4">)</span>
+                <span class="s2">$title</span><span class="s4">.</span><span class="s2">addClass</span><span class="s4">(</span><span class="s5">'w-e-active'</span><span class="s4">)</span>
+            <span class="s4">} </span><span class="s3">else </span><span class="s4">{</span>
+                <span class="s2">$content</span><span class="s4">.</span><span class="s2">hide</span><span class="s4">()</span>
+            <span class="s4">}</span>
+
+            <span class="s6">// 绑定 tab 的事件</span>
+            <span class="s2">$title</span><span class="s4">.</span><span class="s2">on</span><span class="s4">(</span><span class="s5">'click'</span><span class="s4">, () =&gt; {</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">$title</span><span class="s4">.</span><span class="s2">data</span><span class="s4">(</span><span class="s5">'active'</span><span class="s4">)) {</span>
+                    <span class="s3">return</span>
+                <span class="s4">}</span>
+                <span class="s6">// 隐藏所有的 tab</span>
+                <span class="s2">tabTitleArr</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">(</span><span class="s2">$title </span><span class="s4">=&gt; {</span>
+                    <span class="s2">$title</span><span class="s4">.</span><span class="s2">data</span><span class="s4">(</span><span class="s5">'active'</span><span class="s4">, </span><span class="s3">false</span><span class="s4">)</span>
+                    <span class="s2">$title</span><span class="s4">.</span><span class="s2">removeClass</span><span class="s4">(</span><span class="s5">'w-e-active'</span><span class="s4">)</span>
+                <span class="s4">})</span>
+                <span class="s2">tabContentArr</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">(</span><span class="s2">$content </span><span class="s4">=&gt; {</span>
+                    <span class="s2">$content</span><span class="s4">.</span><span class="s2">hide</span><span class="s4">()</span>
+                <span class="s4">})</span>
+
+                <span class="s6">// 显示当前的 tab</span>
+                <span class="s2">$title</span><span class="s4">.</span><span class="s2">data</span><span class="s4">(</span><span class="s5">'active'</span><span class="s4">, </span><span class="s3">true</span><span class="s4">)</span>
+                <span class="s2">$title</span><span class="s4">.</span><span class="s2">addClass</span><span class="s4">(</span><span class="s5">'w-e-active'</span><span class="s4">)</span>
+                <span class="s2">$content</span><span class="s4">.</span><span class="s2">show</span><span class="s4">()</span>
+            <span class="s4">})</span>
+        <span class="s4">})</span>
+
+        <span class="s6">// 绑定关闭事件</span>
+        <span class="s2">$container</span><span class="s4">.</span><span class="s2">on</span><span class="s4">(</span><span class="s5">'click'</span><span class="s4">, (</span><span class="s2">e</span><span class="s4">: </span><span class="s2">Event</span><span class="s4">) =&gt; {</span>
+            <span class="s6">// 点击时阻止冒泡</span>
+            <span class="s2">e</span><span class="s4">.</span><span class="s2">stopPropagation</span><span class="s4">()</span>
+        <span class="s4">})</span>
+
+        <span class="s6">// 添加到 DOM</span>
+        <span class="s2">menu</span><span class="s4">.</span><span class="s2">$elem</span><span class="s4">.</span><span class="s2">append</span><span class="s4">(</span><span class="s2">$container</span><span class="s4">)</span>
+
+        <span class="s6">// 设置tab内input的值</span>
+        <span class="s2">conf</span><span class="s4">.</span><span class="s2">setLinkValue </span><span class="s4">&amp;&amp; </span><span class="s2">conf</span><span class="s4">.</span><span class="s2">setLinkValue</span><span class="s4">(</span><span class="s2">$container</span><span class="s4">, </span><span class="s5">'text'</span><span class="s4">)</span>
+        <span class="s2">conf</span><span class="s4">.</span><span class="s2">setLinkValue </span><span class="s4">&amp;&amp; </span><span class="s2">conf</span><span class="s4">.</span><span class="s2">setLinkValue</span><span class="s4">(</span><span class="s2">$container</span><span class="s4">, </span><span class="s5">'link'</span><span class="s4">)</span>
+
+        <span class="s6">// 绑定 conf events 的事件，只有添加到 DOM 之后才能绑定成功</span>
+        <span class="s2">tabs</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">((</span><span class="s2">tab</span><span class="s4">: </span><span class="s2">PanelTabConf</span><span class="s4">, </span><span class="s2">index</span><span class="s4">: </span><span class="s2">number</span><span class="s4">) =&gt; {</span>
+            <span class="s3">if </span><span class="s4">(!</span><span class="s2">tab</span><span class="s4">) {</span>
+                <span class="s3">return</span>
+            <span class="s4">}</span>
+            <span class="s3">const </span><span class="s2">events </span><span class="s4">= </span><span class="s2">tab</span><span class="s4">.</span><span class="s2">events </span><span class="s4">|| []</span>
+            <span class="s2">events</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">((</span><span class="s2">event</span><span class="s4">: </span><span class="s2">TabEventConf</span><span class="s4">) =&gt; {</span>
+                <span class="s3">const </span><span class="s2">selector </span><span class="s4">= </span><span class="s2">event</span><span class="s4">.</span><span class="s2">selector</span>
+                <span class="s3">const </span><span class="s2">type </span><span class="s4">= </span><span class="s2">event</span><span class="s4">.</span><span class="s2">type</span>
+                <span class="s3">const </span><span class="s2">fn </span><span class="s4">= </span><span class="s2">event</span><span class="s4">.</span><span class="s2">fn </span><span class="s4">|| </span><span class="s2">EMPTY_FN</span>
+                <span class="s3">const </span><span class="s2">$content </span><span class="s4">= </span><span class="s2">tabContentArr</span><span class="s4">[</span><span class="s2">index</span><span class="s4">]</span>
+                <span class="s3">const </span><span class="s2">bindEnter </span><span class="s4">= </span><span class="s2">event</span><span class="s4">.</span><span class="s2">bindEnter </span><span class="s4">?? </span><span class="s3">false</span>
+
+                <span class="s3">const </span><span class="s2">doneFn </span><span class="s4">= </span><span class="s2">async </span><span class="s4">(</span><span class="s2">e</span><span class="s4">: </span><span class="s2">Event</span><span class="s4">) =&gt; {</span>
+                    <span class="s2">e</span><span class="s4">.</span><span class="s2">stopPropagation</span><span class="s4">()</span>
+                    <span class="s3">const </span><span class="s2">needToHide </span><span class="s4">= </span><span class="s3">await </span><span class="s2">fn</span><span class="s4">(</span><span class="s2">e</span><span class="s4">)</span>
+                    <span class="s6">// 执行完事件之后，是否要关闭 panel</span>
+                    <span class="s3">if </span><span class="s4">(</span><span class="s2">needToHide</span><span class="s4">) {</span>
+                        <span class="s3">this</span><span class="s4">.</span><span class="s2">remove</span><span class="s4">()</span>
+                    <span class="s4">}</span>
+                <span class="s4">}</span>
+                <span class="s6">// 给按钮绑定相应的事件</span>
+                <span class="s2">$content</span><span class="s4">.</span><span class="s2">find</span><span class="s4">(</span><span class="s2">selector</span><span class="s4">).</span><span class="s2">on</span><span class="s4">(</span><span class="s2">type</span><span class="s4">, </span><span class="s2">doneFn</span><span class="s4">)</span>
+                <span class="s6">// 绑定enter键入事件</span>
+                <span class="s3">if </span><span class="s4">(</span><span class="s2">bindEnter </span><span class="s4">&amp;&amp; </span><span class="s2">type </span><span class="s4">=== </span><span class="s5">'click'</span><span class="s4">) {</span>
+                    <span class="s2">$content</span><span class="s4">.</span><span class="s2">on</span><span class="s4">(</span><span class="s5">'keyup'</span><span class="s4">, (</span><span class="s2">e</span><span class="s4">: </span><span class="s2">KeyboardEvent</span><span class="s4">) =&gt; {</span>
+                        <span class="s3">if </span><span class="s4">(</span><span class="s2">e</span><span class="s4">.</span><span class="s2">keyCode </span><span class="s4">== </span><span class="s7">13</span><span class="s4">) {</span>
+                            <span class="s2">doneFn</span><span class="s4">(</span><span class="s2">e</span><span class="s4">)</span>
+                        <span class="s4">}</span>
+                    <span class="s4">})</span>
+                <span class="s4">}</span>
+            <span class="s4">})</span>
+        <span class="s4">})</span>
+
+        <span class="s6">// focus 第一个 elem</span>
+        <span class="s3">let </span><span class="s2">$inputs </span><span class="s4">= </span><span class="s2">$container</span><span class="s4">.</span><span class="s2">find</span><span class="s4">(</span><span class="s5">'input[type=text],textarea'</span><span class="s4">)</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">$inputs</span><span class="s4">.</span><span class="s2">length</span><span class="s4">) {</span>
+            <span class="s2">$inputs</span><span class="s4">.</span><span class="s2">get</span><span class="s4">(</span><span class="s7">0</span><span class="s4">).</span><span class="s2">focus</span><span class="s4">()</span>
+        <span class="s4">}</span>
+
+        <span class="s6">// 隐藏其他 panel</span>
+        <span class="s2">Panel</span><span class="s4">.</span><span class="s2">hideCurAllPanels</span><span class="s4">()</span>
+
+        <span class="s6">// 记录该 menu 已经创建了 panel</span>
+        <span class="s2">menu</span><span class="s4">.</span><span class="s2">setPanel</span><span class="s4">(</span><span class="s3">this</span><span class="s4">)</span>
+        <span class="s2">Panel</span><span class="s4">.</span><span class="s2">createdMenus</span><span class="s4">.</span><span class="s2">add</span><span class="s4">(</span><span class="s2">menu</span><span class="s4">)</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 移除 penal</span>
+     <span class="s0">*/</span>
+    <span class="s3">public </span><span class="s2">remove</span><span class="s4">(): </span><span class="s3">void </span><span class="s4">{</span>
+        <span class="s3">const </span><span class="s2">menu </span><span class="s4">= </span><span class="s3">this</span><span class="s4">.</span><span class="s2">menu</span>
+        <span class="s3">const </span><span class="s2">$container </span><span class="s4">= </span><span class="s3">this</span><span class="s4">.</span><span class="s2">$container</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">$container</span><span class="s4">) {</span>
+            <span class="s2">$container</span><span class="s4">.</span><span class="s2">remove</span><span class="s4">()</span>
+        <span class="s4">}</span>
+
+        <span class="s6">// 将该 menu 记录中移除</span>
+        <span class="s2">Panel</span><span class="s4">.</span><span class="s2">createdMenus</span><span class="s4">.</span><span class="s2">delete</span><span class="s4">(</span><span class="s2">menu</span><span class="s4">)</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* 隐藏当前所有的 panel</span>
+     <span class="s0">*/</span>
+    <span class="s3">static </span><span class="s2">hideCurAllPanels</span><span class="s4">(): </span><span class="s3">void </span><span class="s4">{</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">Panel</span><span class="s4">.</span><span class="s2">createdMenus</span><span class="s4">.</span><span class="s2">size </span><span class="s4">=== </span><span class="s7">0</span><span class="s4">) {</span>
+            <span class="s3">return</span>
+        <span class="s4">}</span>
+        <span class="s2">Panel</span><span class="s4">.</span><span class="s2">createdMenus</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">(</span><span class="s2">menu </span><span class="s4">=&gt; {</span>
+            <span class="s3">const </span><span class="s2">panel </span><span class="s4">= (</span><span class="s2">menu </span><span class="s4">as </span><span class="s2">PanelMenu</span><span class="s4">).</span><span class="s2">panel</span>
+            <span class="s2">panel </span><span class="s4">&amp;&amp; </span><span class="s2">panel</span><span class="s4">.</span><span class="s2">remove</span><span class="s4">()</span>
+        <span class="s4">})</span>
+    <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s3">export default </span><span class="s2">Panel</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,486 @@
+<html>
+<head>
+<title>http-parser.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #2aacb8;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+http-parser.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/*jshint node:true */</span>
+
+<span class="s2">var </span><span class="s1">assert </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s4">'assert'</span><span class="s3">);</span>
+
+<span class="s1">exports</span><span class="s3">.</span><span class="s1">HTTPParser </span><span class="s3">= </span><span class="s1">HTTPParser</span><span class="s3">;</span>
+<span class="s2">function </span><span class="s1">HTTPParser</span><span class="s3">(</span><span class="s1">type</span><span class="s3">) {</span>
+  <span class="s1">assert</span><span class="s3">.</span><span class="s1">ok</span><span class="s3">(</span><span class="s1">type </span><span class="s3">=== </span><span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">REQUEST </span><span class="s3">|| </span><span class="s1">type </span><span class="s3">=== </span><span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">RESPONSE </span><span class="s3">|| </span><span class="s1">type </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">);</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">type </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+    <span class="s0">// Node v12+</span>
+  <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">initialize</span><span class="s3">(</span><span class="s1">type</span><span class="s3">);</span>
+  <span class="s3">}</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">maxHeaderSize</span><span class="s3">=</span><span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">maxHeaderSize</span>
+<span class="s3">}</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">initialize </span><span class="s3">= </span><span class="s2">function </span><span class="s3">(</span><span class="s1">type</span><span class="s3">, </span><span class="s1">async_resource</span><span class="s3">) {</span>
+  <span class="s1">assert</span><span class="s3">.</span><span class="s1">ok</span><span class="s3">(</span><span class="s1">type </span><span class="s3">=== </span><span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">REQUEST </span><span class="s3">|| </span><span class="s1">type </span><span class="s3">=== </span><span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">RESPONSE</span><span class="s3">);</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">type </span><span class="s3">= </span><span class="s1">type</span><span class="s3">;</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">state </span><span class="s3">= </span><span class="s1">type </span><span class="s3">+ </span><span class="s4">'_LINE'</span><span class="s3">;</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">info </span><span class="s3">= {</span>
+    <span class="s1">headers</span><span class="s3">: [],</span>
+    <span class="s1">upgrade</span><span class="s3">: </span><span class="s2">false</span>
+  <span class="s3">};</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">trailers </span><span class="s3">= [];</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">line </span><span class="s3">= </span><span class="s4">''</span><span class="s3">;</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">isChunked </span><span class="s3">= </span><span class="s2">false</span><span class="s3">;</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">connection </span><span class="s3">= </span><span class="s4">''</span><span class="s3">;</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">headerSize </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s0">// for preventing too big headers</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes </span><span class="s3">= </span><span class="s2">null</span><span class="s3">;</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">isUserCall </span><span class="s3">= </span><span class="s2">false</span><span class="s3">;</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">hadError </span><span class="s3">= </span><span class="s2">false</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">encoding </span><span class="s3">= </span><span class="s4">'ascii'</span><span class="s3">;</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">maxHeaderSize </span><span class="s3">= </span><span class="s5">80 </span><span class="s3">* </span><span class="s5">1024</span><span class="s3">; </span><span class="s0">// maxHeaderSize (in bytes) is configurable, but 80kb by default;</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">REQUEST </span><span class="s3">= </span><span class="s4">'REQUEST'</span><span class="s3">;</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">RESPONSE </span><span class="s3">= </span><span class="s4">'RESPONSE'</span><span class="s3">;</span>
+
+<span class="s0">// Note: *not* starting with kOnHeaders=0 line the Node parser, because any</span>
+<span class="s0">//   newly added constants (kOnTimeout in Node v12.19.0) will overwrite 0!</span>
+<span class="s2">var </span><span class="s1">kOnHeaders </span><span class="s3">= </span><span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">kOnHeaders </span><span class="s3">= </span><span class="s5">1</span><span class="s3">;</span>
+<span class="s2">var </span><span class="s1">kOnHeadersComplete </span><span class="s3">= </span><span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">kOnHeadersComplete </span><span class="s3">= </span><span class="s5">2</span><span class="s3">;</span>
+<span class="s2">var </span><span class="s1">kOnBody </span><span class="s3">= </span><span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">kOnBody </span><span class="s3">= </span><span class="s5">3</span><span class="s3">;</span>
+<span class="s2">var </span><span class="s1">kOnMessageComplete </span><span class="s3">= </span><span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">kOnMessageComplete </span><span class="s3">= </span><span class="s5">4</span><span class="s3">;</span>
+
+<span class="s0">// Some handler stubs, needed for compatibility</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">[</span><span class="s1">kOnHeaders</span><span class="s3">] =</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">[</span><span class="s1">kOnHeadersComplete</span><span class="s3">] =</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">[</span><span class="s1">kOnBody</span><span class="s3">] =</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">[</span><span class="s1">kOnMessageComplete</span><span class="s3">] = </span><span class="s2">function </span><span class="s3">() {};</span>
+
+<span class="s2">var </span><span class="s1">compatMode0_12 </span><span class="s3">= </span><span class="s2">true</span><span class="s3">;</span>
+<span class="s1">Object</span><span class="s3">.</span><span class="s1">defineProperty</span><span class="s3">(</span><span class="s1">HTTPParser</span><span class="s3">, </span><span class="s4">'kOnExecute'</span><span class="s3">, {</span>
+    <span class="s1">get</span><span class="s3">: </span><span class="s2">function </span><span class="s3">() {</span>
+      <span class="s0">// hack for backward compatibility</span>
+      <span class="s1">compatMode0_12 </span><span class="s3">= </span><span class="s2">false</span><span class="s3">;</span>
+      <span class="s2">return </span><span class="s5">99</span><span class="s3">;</span>
+    <span class="s3">}</span>
+  <span class="s3">});</span>
+
+<span class="s2">var </span><span class="s1">methods </span><span class="s3">= </span><span class="s1">exports</span><span class="s3">.</span><span class="s1">methods </span><span class="s3">= </span><span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">methods </span><span class="s3">= [</span>
+  <span class="s4">'DELETE'</span><span class="s3">,</span>
+  <span class="s4">'GET'</span><span class="s3">,</span>
+  <span class="s4">'HEAD'</span><span class="s3">,</span>
+  <span class="s4">'POST'</span><span class="s3">,</span>
+  <span class="s4">'PUT'</span><span class="s3">,</span>
+  <span class="s4">'CONNECT'</span><span class="s3">,</span>
+  <span class="s4">'OPTIONS'</span><span class="s3">,</span>
+  <span class="s4">'TRACE'</span><span class="s3">,</span>
+  <span class="s4">'COPY'</span><span class="s3">,</span>
+  <span class="s4">'LOCK'</span><span class="s3">,</span>
+  <span class="s4">'MKCOL'</span><span class="s3">,</span>
+  <span class="s4">'MOVE'</span><span class="s3">,</span>
+  <span class="s4">'PROPFIND'</span><span class="s3">,</span>
+  <span class="s4">'PROPPATCH'</span><span class="s3">,</span>
+  <span class="s4">'SEARCH'</span><span class="s3">,</span>
+  <span class="s4">'UNLOCK'</span><span class="s3">,</span>
+  <span class="s4">'BIND'</span><span class="s3">,</span>
+  <span class="s4">'REBIND'</span><span class="s3">,</span>
+  <span class="s4">'UNBIND'</span><span class="s3">,</span>
+  <span class="s4">'ACL'</span><span class="s3">,</span>
+  <span class="s4">'REPORT'</span><span class="s3">,</span>
+  <span class="s4">'MKACTIVITY'</span><span class="s3">,</span>
+  <span class="s4">'CHECKOUT'</span><span class="s3">,</span>
+  <span class="s4">'MERGE'</span><span class="s3">,</span>
+  <span class="s4">'M-SEARCH'</span><span class="s3">,</span>
+  <span class="s4">'NOTIFY'</span><span class="s3">,</span>
+  <span class="s4">'SUBSCRIBE'</span><span class="s3">,</span>
+  <span class="s4">'UNSUBSCRIBE'</span><span class="s3">,</span>
+  <span class="s4">'PATCH'</span><span class="s3">,</span>
+  <span class="s4">'PURGE'</span><span class="s3">,</span>
+  <span class="s4">'MKCALENDAR'</span><span class="s3">,</span>
+  <span class="s4">'LINK'</span><span class="s3">,</span>
+  <span class="s4">'UNLINK'</span><span class="s3">,</span>
+  <span class="s4">'SOURCE'</span><span class="s3">,</span>
+<span class="s3">];</span>
+<span class="s2">var </span><span class="s1">method_connect </span><span class="s3">= </span><span class="s1">methods</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s4">'CONNECT'</span><span class="s3">);</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">reinitialize </span><span class="s3">= </span><span class="s1">HTTPParser</span><span class="s3">;</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">close </span><span class="s3">=</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">pause </span><span class="s3">=</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">resume </span><span class="s3">=</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">free </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {};</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_compatMode0_11 </span><span class="s3">= </span><span class="s2">false</span><span class="s3">;</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">getAsyncId </span><span class="s3">= </span><span class="s2">function</span><span class="s3">() { </span><span class="s2">return </span><span class="s5">0</span><span class="s3">; };</span>
+
+<span class="s2">var </span><span class="s1">headerState </span><span class="s3">= {</span>
+  <span class="s1">REQUEST_LINE</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+  <span class="s1">RESPONSE_LINE</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+  <span class="s1">HEADER</span><span class="s3">: </span><span class="s2">true</span>
+<span class="s3">};</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">execute </span><span class="s3">= </span><span class="s2">function </span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">length</span><span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(!(</span><span class="s2">this instanceof </span><span class="s1">HTTPParser</span><span class="s3">)) {</span>
+    <span class="s2">throw new </span><span class="s1">TypeError</span><span class="s3">(</span><span class="s4">'not a HTTPParser'</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s0">// backward compat to node &lt; 0.11.4</span>
+  <span class="s0">// Note: the start and length params were removed in newer version</span>
+  <span class="s1">start </span><span class="s3">= </span><span class="s1">start </span><span class="s3">|| </span><span class="s5">0</span><span class="s3">;</span>
+  <span class="s1">length </span><span class="s3">= </span><span class="s2">typeof </span><span class="s1">length </span><span class="s3">=== </span><span class="s4">'number' </span><span class="s3">? </span><span class="s1">length </span><span class="s3">: </span><span class="s1">chunk</span><span class="s3">.</span><span class="s1">length</span><span class="s3">;</span>
+
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">chunk </span><span class="s3">= </span><span class="s1">chunk</span><span class="s3">;</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">offset </span><span class="s3">= </span><span class="s1">start</span><span class="s3">;</span>
+  <span class="s2">var </span><span class="s1">end </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">end </span><span class="s3">= </span><span class="s1">start </span><span class="s3">+ </span><span class="s1">length</span><span class="s3">;</span>
+  <span class="s2">try </span><span class="s3">{</span>
+    <span class="s2">while </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">offset </span><span class="s3">&lt; </span><span class="s1">end</span><span class="s3">) {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">[</span><span class="s2">this</span><span class="s3">.</span><span class="s1">state</span><span class="s3">]()) {</span>
+        <span class="s2">break</span><span class="s3">;</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">} </span><span class="s2">catch </span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">isUserCall</span><span class="s3">) {</span>
+      <span class="s2">throw </span><span class="s1">err</span><span class="s3">;</span>
+    <span class="s3">}</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">hadError </span><span class="s3">= </span><span class="s2">true</span><span class="s3">;</span>
+    <span class="s2">return </span><span class="s1">err</span><span class="s3">;</span>
+  <span class="s3">}</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">chunk </span><span class="s3">= </span><span class="s2">null</span><span class="s3">;</span>
+  <span class="s1">length </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">offset </span><span class="s3">- </span><span class="s1">start</span><span class="s3">;</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">headerState</span><span class="s3">[</span><span class="s2">this</span><span class="s3">.</span><span class="s1">state</span><span class="s3">]) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">headerSize </span><span class="s3">+= </span><span class="s1">length</span><span class="s3">;</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">headerSize </span><span class="s3">&gt; (</span><span class="s2">this</span><span class="s3">.</span><span class="s1">maxHeaderSize</span><span class="s3">||</span><span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">maxHeaderSize</span><span class="s3">)) {</span>
+      <span class="s2">return new </span><span class="s1">Error</span><span class="s3">(</span><span class="s4">'max header size exceeded'</span><span class="s3">);</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+  <span class="s2">return </span><span class="s1">length</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s2">var </span><span class="s1">stateFinishAllowed </span><span class="s3">= {</span>
+  <span class="s1">REQUEST_LINE</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+  <span class="s1">RESPONSE_LINE</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+  <span class="s1">BODY_RAW</span><span class="s3">: </span><span class="s2">true</span>
+<span class="s3">};</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">finish </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">hadError</span><span class="s3">) {</span>
+    <span class="s2">return</span><span class="s3">;</span>
+  <span class="s3">}</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">stateFinishAllowed</span><span class="s3">[</span><span class="s2">this</span><span class="s3">.</span><span class="s1">state</span><span class="s3">]) {</span>
+    <span class="s2">return new </span><span class="s1">Error</span><span class="s3">(</span><span class="s4">'invalid state for EOF'</span><span class="s3">);</span>
+  <span class="s3">}</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">state </span><span class="s3">=== </span><span class="s4">'BODY_RAW'</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">userCall</span><span class="s3">()(</span><span class="s2">this</span><span class="s3">[</span><span class="s1">kOnMessageComplete</span><span class="s3">]());</span>
+  <span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s0">// These three methods are used for an internal speed optimization, and it also</span>
+<span class="s0">// works if theses are noops. Basically consume() asks us to read the bytes</span>
+<span class="s0">// ourselves, but if we don't do it we get them through execute().</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">consume </span><span class="s3">=</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">unconsume </span><span class="s3">=</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">getCurrentBuffer </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {};</span>
+
+<span class="s0">//For correct error handling - see HTTPParser#execute</span>
+<span class="s0">//Usage: this.userCall()(userFunction('arg'));</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">userCall </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">isUserCall </span><span class="s3">= </span><span class="s2">true</span><span class="s3">;</span>
+  <span class="s2">var </span><span class="s1">self </span><span class="s3">= </span><span class="s2">this</span><span class="s3">;</span>
+  <span class="s2">return function </span><span class="s3">(</span><span class="s1">ret</span><span class="s3">) {</span>
+    <span class="s1">self</span><span class="s3">.</span><span class="s1">isUserCall </span><span class="s3">= </span><span class="s2">false</span><span class="s3">;</span>
+    <span class="s2">return </span><span class="s1">ret</span><span class="s3">;</span>
+  <span class="s3">};</span>
+<span class="s3">};</span>
+
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">nextRequest </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">userCall</span><span class="s3">()(</span><span class="s2">this</span><span class="s3">[</span><span class="s1">kOnMessageComplete</span><span class="s3">]());</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">reinitialize</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">type</span><span class="s3">);</span>
+<span class="s3">};</span>
+
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">consumeLine </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">end </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">end</span><span class="s3">,</span>
+      <span class="s1">chunk </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">chunk</span><span class="s3">;</span>
+  <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">i </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">offset</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">end</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] === </span><span class="s5">0x0a</span><span class="s3">) { </span><span class="s0">// \n</span>
+      <span class="s2">var </span><span class="s1">line </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">line </span><span class="s3">+ </span><span class="s1">chunk</span><span class="s3">.</span><span class="s1">toString</span><span class="s3">(</span><span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">encoding</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">offset</span><span class="s3">, </span><span class="s1">i</span><span class="s3">);</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">line</span><span class="s3">.</span><span class="s1">charAt</span><span class="s3">(</span><span class="s1">line</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s5">1</span><span class="s3">) === </span><span class="s4">'</span><span class="s2">\r</span><span class="s4">'</span><span class="s3">) {</span>
+        <span class="s1">line </span><span class="s3">= </span><span class="s1">line</span><span class="s3">.</span><span class="s1">substr</span><span class="s3">(</span><span class="s5">0</span><span class="s3">, </span><span class="s1">line</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s5">1</span><span class="s3">);</span>
+      <span class="s3">}</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">line </span><span class="s3">= </span><span class="s4">''</span><span class="s3">;</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">offset </span><span class="s3">= </span><span class="s1">i </span><span class="s3">+ </span><span class="s5">1</span><span class="s3">;</span>
+      <span class="s2">return </span><span class="s1">line</span><span class="s3">;</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+  <span class="s0">//line split over multiple chunks</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">line </span><span class="s3">+= </span><span class="s1">chunk</span><span class="s3">.</span><span class="s1">toString</span><span class="s3">(</span><span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">encoding</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">offset</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">end</span><span class="s3">);</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">offset </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">end</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s2">var </span><span class="s1">headerExp </span><span class="s3">= </span><span class="s6">/^([^: \t]+):[ \t]*((?:.*[^ \t])|)/</span><span class="s3">;</span>
+<span class="s2">var </span><span class="s1">headerContinueExp </span><span class="s3">= </span><span class="s6">/^[ \t]+(.*[^ \t])/</span><span class="s3">;</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">parseHeader </span><span class="s3">= </span><span class="s2">function </span><span class="s3">(</span><span class="s1">line</span><span class="s3">, </span><span class="s1">headers</span><span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">line</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s4">'</span><span class="s2">\r</span><span class="s4">'</span><span class="s3">) !== -</span><span class="s5">1</span><span class="s3">) {</span>
+    <span class="s2">throw </span><span class="s1">parseErrorCode</span><span class="s3">(</span><span class="s4">'HPE_LF_EXPECTED'</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s2">var </span><span class="s1">match </span><span class="s3">= </span><span class="s1">headerExp</span><span class="s3">.</span><span class="s1">exec</span><span class="s3">(</span><span class="s1">line</span><span class="s3">);</span>
+  <span class="s2">var </span><span class="s1">k </span><span class="s3">= </span><span class="s1">match </span><span class="s3">&amp;&amp; </span><span class="s1">match</span><span class="s3">[</span><span class="s5">1</span><span class="s3">];</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">k</span><span class="s3">) { </span><span class="s0">// skip empty string (malformed header)</span>
+    <span class="s1">headers</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">k</span><span class="s3">);</span>
+    <span class="s1">headers</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">match</span><span class="s3">[</span><span class="s5">2</span><span class="s3">]);</span>
+  <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+    <span class="s2">var </span><span class="s1">matchContinue </span><span class="s3">= </span><span class="s1">headerContinueExp</span><span class="s3">.</span><span class="s1">exec</span><span class="s3">(</span><span class="s1">line</span><span class="s3">);</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">matchContinue </span><span class="s3">&amp;&amp; </span><span class="s1">headers</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) {</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s1">headers</span><span class="s3">[</span><span class="s1">headers</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s5">1</span><span class="s3">]) {</span>
+        <span class="s1">headers</span><span class="s3">[</span><span class="s1">headers</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s5">1</span><span class="s3">] += </span><span class="s4">' '</span><span class="s3">;</span>
+      <span class="s3">}</span>
+      <span class="s1">headers</span><span class="s3">[</span><span class="s1">headers</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s5">1</span><span class="s3">] += </span><span class="s1">matchContinue</span><span class="s3">[</span><span class="s5">1</span><span class="s3">];</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s2">var </span><span class="s1">requestExp </span><span class="s3">= </span><span class="s6">/^([A-Z-]+) ([^ ]+) HTTP\/(\d)\.(\d)$/</span><span class="s3">;</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">REQUEST_LINE </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">line </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">consumeLine</span><span class="s3">();</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">line</span><span class="s3">) {</span>
+    <span class="s2">return</span><span class="s3">;</span>
+  <span class="s3">}</span>
+  <span class="s2">var </span><span class="s1">match </span><span class="s3">= </span><span class="s1">requestExp</span><span class="s3">.</span><span class="s1">exec</span><span class="s3">(</span><span class="s1">line</span><span class="s3">);</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">match </span><span class="s3">=== </span><span class="s2">null</span><span class="s3">) {</span>
+    <span class="s2">throw </span><span class="s1">parseErrorCode</span><span class="s3">(</span><span class="s4">'HPE_INVALID_CONSTANT'</span><span class="s3">);</span>
+  <span class="s3">}</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">info</span><span class="s3">.</span><span class="s1">method </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">_compatMode0_11 </span><span class="s3">? </span><span class="s1">match</span><span class="s3">[</span><span class="s5">1</span><span class="s3">] : </span><span class="s1">methods</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s1">match</span><span class="s3">[</span><span class="s5">1</span><span class="s3">]);</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">info</span><span class="s3">.</span><span class="s1">method </span><span class="s3">=== -</span><span class="s5">1</span><span class="s3">) {</span>
+    <span class="s2">throw new </span><span class="s1">Error</span><span class="s3">(</span><span class="s4">'invalid request method'</span><span class="s3">);</span>
+  <span class="s3">}</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">info</span><span class="s3">.</span><span class="s1">url </span><span class="s3">= </span><span class="s1">match</span><span class="s3">[</span><span class="s5">2</span><span class="s3">];</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">info</span><span class="s3">.</span><span class="s1">versionMajor </span><span class="s3">= +</span><span class="s1">match</span><span class="s3">[</span><span class="s5">3</span><span class="s3">];</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">info</span><span class="s3">.</span><span class="s1">versionMinor </span><span class="s3">= +</span><span class="s1">match</span><span class="s3">[</span><span class="s5">4</span><span class="s3">];</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes </span><span class="s3">= </span><span class="s5">0</span><span class="s3">;</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">state </span><span class="s3">= </span><span class="s4">'HEADER'</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s2">var </span><span class="s1">responseExp </span><span class="s3">= </span><span class="s6">/^HTTP\/(\d)\.(\d) (\d{3}) ?(.*)$/</span><span class="s3">;</span>
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">RESPONSE_LINE </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">line </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">consumeLine</span><span class="s3">();</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">line</span><span class="s3">) {</span>
+    <span class="s2">return</span><span class="s3">;</span>
+  <span class="s3">}</span>
+  <span class="s2">var </span><span class="s1">match </span><span class="s3">= </span><span class="s1">responseExp</span><span class="s3">.</span><span class="s1">exec</span><span class="s3">(</span><span class="s1">line</span><span class="s3">);</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">match </span><span class="s3">=== </span><span class="s2">null</span><span class="s3">) {</span>
+    <span class="s2">throw </span><span class="s1">parseErrorCode</span><span class="s3">(</span><span class="s4">'HPE_INVALID_CONSTANT'</span><span class="s3">);</span>
+  <span class="s3">}</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">info</span><span class="s3">.</span><span class="s1">versionMajor </span><span class="s3">= +</span><span class="s1">match</span><span class="s3">[</span><span class="s5">1</span><span class="s3">];</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">info</span><span class="s3">.</span><span class="s1">versionMinor </span><span class="s3">= +</span><span class="s1">match</span><span class="s3">[</span><span class="s5">2</span><span class="s3">];</span>
+  <span class="s2">var </span><span class="s1">statusCode </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">info</span><span class="s3">.</span><span class="s1">statusCode </span><span class="s3">= +</span><span class="s1">match</span><span class="s3">[</span><span class="s5">3</span><span class="s3">];</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">info</span><span class="s3">.</span><span class="s1">statusMessage </span><span class="s3">= </span><span class="s1">match</span><span class="s3">[</span><span class="s5">4</span><span class="s3">];</span>
+  <span class="s0">// Implied zero length.</span>
+  <span class="s2">if </span><span class="s3">((</span><span class="s1">statusCode </span><span class="s3">/ </span><span class="s5">100 </span><span class="s3">| </span><span class="s5">0</span><span class="s3">) === </span><span class="s5">1 </span><span class="s3">|| </span><span class="s1">statusCode </span><span class="s3">=== </span><span class="s5">204 </span><span class="s3">|| </span><span class="s1">statusCode </span><span class="s3">=== </span><span class="s5">304</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes </span><span class="s3">= </span><span class="s5">0</span><span class="s3">;</span>
+  <span class="s3">}</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">state </span><span class="s3">= </span><span class="s4">'HEADER'</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">shouldKeepAlive </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">info</span><span class="s3">.</span><span class="s1">versionMajor </span><span class="s3">&gt; </span><span class="s5">0 </span><span class="s3">&amp;&amp; </span><span class="s2">this</span><span class="s3">.</span><span class="s1">info</span><span class="s3">.</span><span class="s1">versionMinor </span><span class="s3">&gt; </span><span class="s5">0</span><span class="s3">) {</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">connection</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s4">'close'</span><span class="s3">) !== -</span><span class="s5">1</span><span class="s3">) {</span>
+      <span class="s2">return false</span><span class="s3">;</span>
+    <span class="s3">}</span>
+  <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">connection</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s4">'keep-alive'</span><span class="s3">) === -</span><span class="s5">1</span><span class="s3">) {</span>
+    <span class="s2">return false</span><span class="s3">;</span>
+  <span class="s3">}</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes </span><span class="s3">!== </span><span class="s2">null </span><span class="s3">|| </span><span class="s2">this</span><span class="s3">.</span><span class="s1">isChunked</span><span class="s3">) { </span><span class="s0">// || skipBody</span>
+    <span class="s2">return true</span><span class="s3">;</span>
+  <span class="s3">}</span>
+  <span class="s2">return false</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">HEADER </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">line </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">consumeLine</span><span class="s3">();</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">line </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+    <span class="s2">return</span><span class="s3">;</span>
+  <span class="s3">}</span>
+  <span class="s2">var </span><span class="s1">info </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">info</span><span class="s3">;</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">line</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">parseHeader</span><span class="s3">(</span><span class="s1">line</span><span class="s3">, </span><span class="s1">info</span><span class="s3">.</span><span class="s1">headers</span><span class="s3">);</span>
+  <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+    <span class="s2">var </span><span class="s1">headers </span><span class="s3">= </span><span class="s1">info</span><span class="s3">.</span><span class="s1">headers</span><span class="s3">;</span>
+    <span class="s2">var </span><span class="s1">hasContentLength </span><span class="s3">= </span><span class="s2">false</span><span class="s3">;</span>
+    <span class="s2">var </span><span class="s1">currentContentLengthValue</span><span class="s3">;</span>
+    <span class="s2">var </span><span class="s1">hasUpgradeHeader </span><span class="s3">= </span><span class="s2">false</span><span class="s3">;</span>
+    <span class="s2">for </span><span class="s3">(</span><span class="s2">var </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">headers</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i </span><span class="s3">+= </span><span class="s5">2</span><span class="s3">) {</span>
+      <span class="s2">switch </span><span class="s3">(</span><span class="s1">headers</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">toLowerCase</span><span class="s3">()) {</span>
+        <span class="s2">case </span><span class="s4">'transfer-encoding'</span><span class="s3">:</span>
+          <span class="s2">this</span><span class="s3">.</span><span class="s1">isChunked </span><span class="s3">= </span><span class="s1">headers</span><span class="s3">[</span><span class="s1">i </span><span class="s3">+ </span><span class="s5">1</span><span class="s3">].</span><span class="s1">toLowerCase</span><span class="s3">() === </span><span class="s4">'chunked'</span><span class="s3">;</span>
+          <span class="s2">break</span><span class="s3">;</span>
+        <span class="s2">case </span><span class="s4">'content-length'</span><span class="s3">:</span>
+          <span class="s1">currentContentLengthValue </span><span class="s3">= +</span><span class="s1">headers</span><span class="s3">[</span><span class="s1">i </span><span class="s3">+ </span><span class="s5">1</span><span class="s3">];</span>
+          <span class="s2">if </span><span class="s3">(</span><span class="s1">hasContentLength</span><span class="s3">) {</span>
+            <span class="s0">// Fix duplicate Content-Length header with same values.</span>
+            <span class="s0">// Throw error only if values are different.</span>
+            <span class="s0">// Known issues:</span>
+            <span class="s0">// https://github.com/request/request/issues/2091#issuecomment-328715113</span>
+            <span class="s0">// https://github.com/nodejs/node/issues/6517#issuecomment-216263771</span>
+            <span class="s2">if </span><span class="s3">(</span><span class="s1">currentContentLengthValue </span><span class="s3">!== </span><span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes</span><span class="s3">) {</span>
+              <span class="s2">throw </span><span class="s1">parseErrorCode</span><span class="s3">(</span><span class="s4">'HPE_UNEXPECTED_CONTENT_LENGTH'</span><span class="s3">);</span>
+            <span class="s3">}</span>
+          <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+            <span class="s1">hasContentLength </span><span class="s3">= </span><span class="s2">true</span><span class="s3">;</span>
+            <span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes </span><span class="s3">= </span><span class="s1">currentContentLengthValue</span><span class="s3">;</span>
+          <span class="s3">}</span>
+          <span class="s2">break</span><span class="s3">;</span>
+        <span class="s2">case </span><span class="s4">'connection'</span><span class="s3">:</span>
+          <span class="s2">this</span><span class="s3">.</span><span class="s1">connection </span><span class="s3">+= </span><span class="s1">headers</span><span class="s3">[</span><span class="s1">i </span><span class="s3">+ </span><span class="s5">1</span><span class="s3">].</span><span class="s1">toLowerCase</span><span class="s3">();</span>
+          <span class="s2">break</span><span class="s3">;</span>
+        <span class="s2">case </span><span class="s4">'upgrade'</span><span class="s3">:</span>
+          <span class="s1">hasUpgradeHeader </span><span class="s3">= </span><span class="s2">true</span><span class="s3">;</span>
+          <span class="s2">break</span><span class="s3">;</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s0">// if both isChunked and hasContentLength, isChunked wins</span>
+    <span class="s0">// This is required so the body is parsed using the chunked method, and matches</span>
+    <span class="s0">// Chrome's behavior.  We could, maybe, ignore them both (would get chunked</span>
+    <span class="s0">// encoding into the body), and/or disable shouldKeepAlive to be more</span>
+    <span class="s0">// resilient.</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">isChunked </span><span class="s3">&amp;&amp; </span><span class="s1">hasContentLength</span><span class="s3">) {</span>
+      <span class="s1">hasContentLength </span><span class="s3">= </span><span class="s2">false</span><span class="s3">;</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes </span><span class="s3">= </span><span class="s2">null</span><span class="s3">;</span>
+    <span class="s3">}</span>
+
+    <span class="s0">// Logic from https://github.com/nodejs/http-parser/blob/921d5585515a153fa00e411cf144280c59b41f90/http_parser.c#L1727-L1737</span>
+    <span class="s0">// &quot;For responses, &quot;Upgrade: foo&quot; and &quot;Connection: upgrade&quot; are</span>
+    <span class="s0">//   mandatory only when it is a 101 Switching Protocols response,</span>
+    <span class="s0">//   otherwise it is purely informational, to announce support.</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">hasUpgradeHeader </span><span class="s3">&amp;&amp; </span><span class="s2">this</span><span class="s3">.</span><span class="s1">connection</span><span class="s3">.</span><span class="s1">indexOf</span><span class="s3">(</span><span class="s4">'upgrade'</span><span class="s3">) != -</span><span class="s5">1</span><span class="s3">) {</span>
+      <span class="s1">info</span><span class="s3">.</span><span class="s1">upgrade </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">type </span><span class="s3">=== </span><span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">REQUEST </span><span class="s3">|| </span><span class="s1">info</span><span class="s3">.</span><span class="s1">statusCode </span><span class="s3">=== </span><span class="s5">101</span><span class="s3">;</span>
+    <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+      <span class="s1">info</span><span class="s3">.</span><span class="s1">upgrade </span><span class="s3">= </span><span class="s1">info</span><span class="s3">.</span><span class="s1">method </span><span class="s3">=== </span><span class="s1">method_connect</span><span class="s3">;</span>
+    <span class="s3">}</span>
+
+    <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">isChunked </span><span class="s3">&amp;&amp; </span><span class="s1">info</span><span class="s3">.</span><span class="s1">upgrade</span><span class="s3">) {</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">isChunked </span><span class="s3">= </span><span class="s2">false</span><span class="s3">;</span>
+    <span class="s3">}</span>
+
+    <span class="s1">info</span><span class="s3">.</span><span class="s1">shouldKeepAlive </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">shouldKeepAlive</span><span class="s3">();</span>
+    <span class="s0">//problem which also exists in original node: we should know skipBody before calling onHeadersComplete</span>
+    <span class="s2">var </span><span class="s1">skipBody</span><span class="s3">;</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">compatMode0_12</span><span class="s3">) {</span>
+      <span class="s1">skipBody </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">userCall</span><span class="s3">()(</span><span class="s2">this</span><span class="s3">[</span><span class="s1">kOnHeadersComplete</span><span class="s3">](</span><span class="s1">info</span><span class="s3">));</span>
+    <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+      <span class="s1">skipBody </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">userCall</span><span class="s3">()(</span><span class="s2">this</span><span class="s3">[</span><span class="s1">kOnHeadersComplete</span><span class="s3">](</span><span class="s1">info</span><span class="s3">.</span><span class="s1">versionMajor</span><span class="s3">,</span>
+          <span class="s1">info</span><span class="s3">.</span><span class="s1">versionMinor</span><span class="s3">, </span><span class="s1">info</span><span class="s3">.</span><span class="s1">headers</span><span class="s3">, </span><span class="s1">info</span><span class="s3">.</span><span class="s1">method</span><span class="s3">, </span><span class="s1">info</span><span class="s3">.</span><span class="s1">url</span><span class="s3">, </span><span class="s1">info</span><span class="s3">.</span><span class="s1">statusCode</span><span class="s3">,</span>
+          <span class="s1">info</span><span class="s3">.</span><span class="s1">statusMessage</span><span class="s3">, </span><span class="s1">info</span><span class="s3">.</span><span class="s1">upgrade</span><span class="s3">, </span><span class="s1">info</span><span class="s3">.</span><span class="s1">shouldKeepAlive</span><span class="s3">));</span>
+    <span class="s3">}</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">skipBody </span><span class="s3">=== </span><span class="s5">2</span><span class="s3">) {</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">nextRequest</span><span class="s3">();</span>
+      <span class="s2">return true</span><span class="s3">;</span>
+    <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">isChunked </span><span class="s3">&amp;&amp; !</span><span class="s1">skipBody</span><span class="s3">) {</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">state </span><span class="s3">= </span><span class="s4">'BODY_CHUNKHEAD'</span><span class="s3">;</span>
+    <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s1">skipBody </span><span class="s3">|| </span><span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes </span><span class="s3">=== </span><span class="s5">0</span><span class="s3">) {</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">nextRequest</span><span class="s3">();</span>
+      <span class="s0">// For older versions of node (v6.x and older?), that return skipBody=1 or skipBody=true,</span>
+      <span class="s0">//   need this &quot;return true;&quot; if it's an upgrade request.</span>
+      <span class="s2">return </span><span class="s1">info</span><span class="s3">.</span><span class="s1">upgrade</span><span class="s3">;</span>
+    <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes </span><span class="s3">=== </span><span class="s2">null</span><span class="s3">) {</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">state </span><span class="s3">= </span><span class="s4">'BODY_RAW'</span><span class="s3">;</span>
+    <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">state </span><span class="s3">= </span><span class="s4">'BODY_SIZED'</span><span class="s3">;</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">BODY_CHUNKHEAD </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">line </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">consumeLine</span><span class="s3">();</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">line </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+    <span class="s2">return</span><span class="s3">;</span>
+  <span class="s3">}</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes </span><span class="s3">= </span><span class="s1">parseInt</span><span class="s3">(</span><span class="s1">line</span><span class="s3">, </span><span class="s5">16</span><span class="s3">);</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">state </span><span class="s3">= </span><span class="s4">'BODY_CHUNKTRAILERS'</span><span class="s3">;</span>
+  <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">state </span><span class="s3">= </span><span class="s4">'BODY_CHUNK'</span><span class="s3">;</span>
+  <span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">BODY_CHUNK </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">length </span><span class="s3">= </span><span class="s1">Math</span><span class="s3">.</span><span class="s1">min</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">end </span><span class="s3">- </span><span class="s2">this</span><span class="s3">.</span><span class="s1">offset</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes</span><span class="s3">);</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">userCall</span><span class="s3">()(</span><span class="s2">this</span><span class="s3">[</span><span class="s1">kOnBody</span><span class="s3">](</span><span class="s2">this</span><span class="s3">.</span><span class="s1">chunk</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">offset</span><span class="s3">, </span><span class="s1">length</span><span class="s3">));</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">offset </span><span class="s3">+= </span><span class="s1">length</span><span class="s3">;</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes </span><span class="s3">-= </span><span class="s1">length</span><span class="s3">;</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">state </span><span class="s3">= </span><span class="s4">'BODY_CHUNKEMPTYLINE'</span><span class="s3">;</span>
+  <span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">BODY_CHUNKEMPTYLINE </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">line </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">consumeLine</span><span class="s3">();</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">line </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+    <span class="s2">return</span><span class="s3">;</span>
+  <span class="s3">}</span>
+  <span class="s1">assert</span><span class="s3">.</span><span class="s1">equal</span><span class="s3">(</span><span class="s1">line</span><span class="s3">, </span><span class="s4">''</span><span class="s3">);</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">state </span><span class="s3">= </span><span class="s4">'BODY_CHUNKHEAD'</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">BODY_CHUNKTRAILERS </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">line </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">consumeLine</span><span class="s3">();</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">line </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+    <span class="s2">return</span><span class="s3">;</span>
+  <span class="s3">}</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">line</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">parseHeader</span><span class="s3">(</span><span class="s1">line</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">trailers</span><span class="s3">);</span>
+  <span class="s3">} </span><span class="s2">else </span><span class="s3">{</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">trailers</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) {</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">userCall</span><span class="s3">()(</span><span class="s2">this</span><span class="s3">[</span><span class="s1">kOnHeaders</span><span class="s3">](</span><span class="s2">this</span><span class="s3">.</span><span class="s1">trailers</span><span class="s3">, </span><span class="s4">''</span><span class="s3">));</span>
+    <span class="s3">}</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">nextRequest</span><span class="s3">();</span>
+  <span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">BODY_RAW </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">length </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">end </span><span class="s3">- </span><span class="s2">this</span><span class="s3">.</span><span class="s1">offset</span><span class="s3">;</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">userCall</span><span class="s3">()(</span><span class="s2">this</span><span class="s3">[</span><span class="s1">kOnBody</span><span class="s3">](</span><span class="s2">this</span><span class="s3">.</span><span class="s1">chunk</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">offset</span><span class="s3">, </span><span class="s1">length</span><span class="s3">));</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">offset </span><span class="s3">= </span><span class="s2">this</span><span class="s3">.</span><span class="s1">end</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">BODY_SIZED </span><span class="s3">= </span><span class="s2">function </span><span class="s3">() {</span>
+  <span class="s2">var </span><span class="s1">length </span><span class="s3">= </span><span class="s1">Math</span><span class="s3">.</span><span class="s1">min</span><span class="s3">(</span><span class="s2">this</span><span class="s3">.</span><span class="s1">end </span><span class="s3">- </span><span class="s2">this</span><span class="s3">.</span><span class="s1">offset</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes</span><span class="s3">);</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">userCall</span><span class="s3">()(</span><span class="s2">this</span><span class="s3">[</span><span class="s1">kOnBody</span><span class="s3">](</span><span class="s2">this</span><span class="s3">.</span><span class="s1">chunk</span><span class="s3">, </span><span class="s2">this</span><span class="s3">.</span><span class="s1">offset</span><span class="s3">, </span><span class="s1">length</span><span class="s3">));</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">offset </span><span class="s3">+= </span><span class="s1">length</span><span class="s3">;</span>
+  <span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes </span><span class="s3">-= </span><span class="s1">length</span><span class="s3">;</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s2">this</span><span class="s3">.</span><span class="s1">body_bytes</span><span class="s3">) {</span>
+    <span class="s2">this</span><span class="s3">.</span><span class="s1">nextRequest</span><span class="s3">();</span>
+  <span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s0">// backward compat to node &lt; 0.11.6</span>
+<span class="s3">[</span><span class="s4">'Headers'</span><span class="s3">, </span><span class="s4">'HeadersComplete'</span><span class="s3">, </span><span class="s4">'Body'</span><span class="s3">, </span><span class="s4">'MessageComplete'</span><span class="s3">].</span><span class="s1">forEach</span><span class="s3">(</span><span class="s2">function </span><span class="s3">(</span><span class="s1">name</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">k </span><span class="s3">= </span><span class="s1">HTTPParser</span><span class="s3">[</span><span class="s4">'kOn' </span><span class="s3">+ </span><span class="s1">name</span><span class="s3">];</span>
+  <span class="s1">Object</span><span class="s3">.</span><span class="s1">defineProperty</span><span class="s3">(</span><span class="s1">HTTPParser</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">, </span><span class="s4">'on' </span><span class="s3">+ </span><span class="s1">name</span><span class="s3">, {</span>
+    <span class="s1">get</span><span class="s3">: </span><span class="s2">function </span><span class="s3">() {</span>
+      <span class="s2">return this</span><span class="s3">[</span><span class="s1">k</span><span class="s3">];</span>
+    <span class="s3">},</span>
+    <span class="s1">set</span><span class="s3">: </span><span class="s2">function </span><span class="s3">(</span><span class="s1">to</span><span class="s3">) {</span>
+      <span class="s0">// hack for backward compatibility</span>
+      <span class="s2">this</span><span class="s3">.</span><span class="s1">_compatMode0_11 </span><span class="s3">= </span><span class="s2">true</span><span class="s3">;</span>
+      <span class="s1">method_connect </span><span class="s3">= </span><span class="s4">'CONNECT'</span><span class="s3">;</span>
+      <span class="s2">return </span><span class="s3">(</span><span class="s2">this</span><span class="s3">[</span><span class="s1">k</span><span class="s3">] = </span><span class="s1">to</span><span class="s3">);</span>
+    <span class="s3">}</span>
+  <span class="s3">});</span>
+<span class="s3">});</span>
+
+<span class="s2">function </span><span class="s1">parseErrorCode</span><span class="s3">(</span><span class="s1">code</span><span class="s3">) {</span>
+  <span class="s2">var </span><span class="s1">err </span><span class="s3">= </span><span class="s2">new </span><span class="s1">Error</span><span class="s3">(</span><span class="s4">'Parse Error'</span><span class="s3">);</span>
+  <span class="s1">err</span><span class="s3">.</span><span class="s1">code </span><span class="s3">= </span><span class="s1">code</span><span class="s3">;</span>
+  <span class="s2">return </span><span class="s1">err</span><span class="s3">;</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

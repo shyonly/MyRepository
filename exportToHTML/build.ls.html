@@ -1,0 +1,78 @@
+<html>
+<head>
+<title>build.ls</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #bcbec4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+build.ls</font>
+</center></td></tr></table>
+<pre><span class="s0">require! {</span>
+  <span class="s0">'../library/fn/promise': Promise</span>
+  <span class="s0">'./config': {list, experimental, libraryBlacklist, es5SpecialCase, banner}</span>
+  <span class="s0">fs: {readFile, writeFile, unlink}</span>
+  <span class="s0">path: {basename, dirname, join}</span>
+  <span class="s0">webpack, temp</span>
+<span class="s0">}</span>
+
+<span class="s0">module.exports = ({modules = [], blacklist = [], library = no, umd = on})-&gt;</span>
+  <span class="s0">resolve, reject &lt;~! new Promise _</span>
+  <span class="s0">let @ = modules.reduce ((memo, it)-&gt; memo[it] = on; memo), {}</span>
+    <span class="s0">if @exp =&gt; for experimental =&gt; @[..] = on</span>
+    <span class="s0">if @es5 =&gt; for es5SpecialCase =&gt; @[..] = on</span>
+    <span class="s0">for ns of @</span>
+      <span class="s0">if @[ns]</span>
+        <span class="s0">for name in list</span>
+          <span class="s0">if name.indexOf(&quot;#ns.&quot;) is 0 and name not in experimental</span>
+            <span class="s0">@[name] = on</span>
+
+    <span class="s0">if library =&gt; blacklist ++= libraryBlacklist</span>
+    <span class="s0">for ns in blacklist</span>
+      <span class="s0">for name in list</span>
+        <span class="s0">if name is ns or name.indexOf(&quot;#ns.&quot;) is 0</span>
+          <span class="s0">@[name] = no</span>
+
+    <span class="s0">TARGET = temp.path {suffix: '.js'}</span>
+
+    <span class="s0">err, info &lt;~! webpack do</span>
+      <span class="s0">entry: list.filter(~&gt; @[it]).map ~&gt;</span>
+        <span class="s0">if library =&gt; join __dirname, '..', 'library', 'modules', it</span>
+        <span class="s0">else join __dirname, '..', 'modules', it</span>
+      <span class="s0">output:</span>
+        <span class="s0">path: dirname TARGET</span>
+        <span class="s0">filename: basename &quot;./#TARGET&quot;</span>
+    <span class="s0">if err =&gt; return reject err</span>
+
+    <span class="s0">err, script &lt;~! readFile TARGET</span>
+    <span class="s0">if err =&gt; return reject err</span>
+
+    <span class="s0">err &lt;~! unlink TARGET</span>
+    <span class="s0">if err =&gt; return reject err</span>
+
+    <span class="s0">if umd</span>
+      <span class="s0">exportScript = &quot;&quot;&quot;</span>
+        <span class="s0">// CommonJS export</span>
+        <span class="s0">if (typeof module != 'undefined' &amp;&amp; module.exports) module.exports = __e;</span>
+        <span class="s0">// RequireJS export</span>
+        <span class="s0">else if (typeof define == 'function' &amp;&amp; define.amd) define(function () { return __e; });</span>
+        <span class="s0">// Export to global object</span>
+        <span class="s0">else __g.core = __e;</span>
+        <span class="s0">&quot;&quot;&quot;</span>
+    <span class="s0">else</span>
+      <span class="s0">exportScript = &quot;&quot;</span>
+
+    <span class="s0">resolve &quot;&quot;&quot;</span>
+      <span class="s0">#banner</span>
+      <span class="s0">!function(__e, __g, undefined){</span>
+      <span class="s0">'use strict';</span>
+      <span class="s0">#script</span>
+      <span class="s0">#exportScript</span>
+      <span class="s0">}(1, 1);</span>
+      <span class="s0">&quot;&quot;&quot;</span></pre>
+</body>
+</html>

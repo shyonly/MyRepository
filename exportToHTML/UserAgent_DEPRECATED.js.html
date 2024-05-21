@@ -1,0 +1,307 @@
+<html>
+<head>
+<title>UserAgent_DEPRECATED.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #67a37c; font-style: italic;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #bcbec4;}
+.s5 { color: #7a7e85;}
+.s6 { color: #42c3d4;}
+.s7 { color: #2aacb8;}
+.s8 { color: #6aab73;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+UserAgent_DEPRECATED.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* Copyright 2004-present Facebook. All Rights Reserved.</span>
+ <span class="s0">*</span>
+ <span class="s0">* </span><span class="s1">@providesModule </span><span class="s0">UserAgent_DEPRECATED</span>
+ <span class="s0">*/</span>
+
+<span class="s0">/**</span>
+ <span class="s0">*  Provides entirely client-side User Agent and OS detection. You should prefer</span>
+ <span class="s0">*  the non-deprecated UserAgent module when possible, which exposes our</span>
+ <span class="s0">*  authoritative server-side PHP-based detection to the client.</span>
+ <span class="s0">*</span>
+ <span class="s0">*  Usage is straightforward:</span>
+ <span class="s0">*</span>
+ <span class="s0">*    if (UserAgent_DEPRECATED.ie()) {</span>
+ <span class="s0">*      //  IE</span>
+ <span class="s0">*    }</span>
+ <span class="s0">*</span>
+ <span class="s0">*  You can also do version checks:</span>
+ <span class="s0">*</span>
+ <span class="s0">*    if (UserAgent_DEPRECATED.ie() &gt;= 7) {</span>
+ <span class="s0">*      //  IE7 or better</span>
+ <span class="s0">*    }</span>
+ <span class="s0">*</span>
+ <span class="s0">*  The browser functions will return NaN if the browser does not match, so</span>
+ <span class="s0">*  you can also do version compares the other way:</span>
+ <span class="s0">*</span>
+ <span class="s0">*    if (UserAgent_DEPRECATED.ie() &lt; 7) {</span>
+ <span class="s0">*      //  IE6 or worse</span>
+ <span class="s0">*    }</span>
+ <span class="s0">*</span>
+ <span class="s0">*  Note that the version is a float and may include a minor version number,</span>
+ <span class="s0">*  so you should always use range operators to perform comparisons, not</span>
+ <span class="s0">*  strict equality.</span>
+ <span class="s0">*</span>
+ <span class="s0">*  **Note:** You should **strongly** prefer capability detection to browser</span>
+ <span class="s0">*  version detection where it's reasonable:</span>
+ <span class="s0">*</span>
+ <span class="s0">*    http://www.quirksmode.org/js/support.html</span>
+ <span class="s0">*</span>
+ <span class="s0">*  Further, we have a large number of mature wrapper functions and classes</span>
+ <span class="s0">*  which abstract away many browser irregularities. Check the documentation,</span>
+ <span class="s0">*  grep for things, or ask on javascript@lists.facebook.com before writing yet</span>
+ <span class="s0">*  another copy of &quot;event || window.event&quot;.</span>
+ <span class="s0">*</span>
+ <span class="s0">*/</span>
+
+<span class="s3">var </span><span class="s2">_populated </span><span class="s4">= </span><span class="s3">false</span><span class="s4">;</span>
+
+<span class="s5">// Browsers</span>
+<span class="s3">var </span><span class="s2">_ie</span><span class="s4">, </span><span class="s2">_firefox</span><span class="s4">, </span><span class="s2">_opera</span><span class="s4">, </span><span class="s2">_webkit</span><span class="s4">, </span><span class="s2">_chrome</span><span class="s4">;</span>
+
+<span class="s5">// Actual IE browser for compatibility mode</span>
+<span class="s3">var </span><span class="s2">_ie_real_version</span><span class="s4">;</span>
+
+<span class="s5">// Platforms</span>
+<span class="s3">var </span><span class="s2">_osx</span><span class="s4">, </span><span class="s2">_windows</span><span class="s4">, </span><span class="s2">_linux</span><span class="s4">, </span><span class="s2">_android</span><span class="s4">;</span>
+
+<span class="s5">// Architectures</span>
+<span class="s3">var </span><span class="s2">_win64</span><span class="s4">;</span>
+
+<span class="s5">// Devices</span>
+<span class="s3">var </span><span class="s2">_iphone</span><span class="s4">, </span><span class="s2">_ipad</span><span class="s4">, </span><span class="s2">_native</span><span class="s4">;</span>
+
+<span class="s3">var </span><span class="s2">_mobile</span><span class="s4">;</span>
+
+<span class="s3">function </span><span class="s2">_populate</span><span class="s4">() {</span>
+  <span class="s3">if </span><span class="s4">(</span><span class="s2">_populated</span><span class="s4">) {</span>
+    <span class="s3">return</span><span class="s4">;</span>
+  <span class="s4">}</span>
+
+  <span class="s2">_populated </span><span class="s4">= </span><span class="s3">true</span><span class="s4">;</span>
+
+  <span class="s5">// To work around buggy JS libraries that can't handle multi-digit</span>
+  <span class="s5">// version numbers, Opera 10's user agent string claims it's Opera</span>
+  <span class="s5">// 9, then later includes a Version/X.Y field:</span>
+  <span class="s5">//</span>
+  <span class="s5">// Opera/9.80 (foo) Presto/2.2.15 Version/10.10</span>
+  <span class="s3">var </span><span class="s2">uas </span><span class="s4">= </span><span class="s2">navigator</span><span class="s4">.</span><span class="s2">userAgent</span><span class="s4">;</span>
+  <span class="s3">var </span><span class="s2">agent </span><span class="s4">= </span><span class="s6">/(?:MSIE.(\d+\.\d+))|(?:(?:Firefox|GranParadiso|Iceweasel).(\d+\.\d+))|(?:Opera(?:.+Version.|.)(\d+\.\d+))|(?:AppleWebKit.(\d+(?:\.\d+)?))|(?:Trident\/\d+\.\d+.*rv:(\d+\.\d+))/</span><span class="s4">.</span><span class="s2">exec</span><span class="s4">(</span><span class="s2">uas</span><span class="s4">);</span>
+  <span class="s3">var </span><span class="s2">os    </span><span class="s4">= </span><span class="s6">/(Mac OS X)|(Windows)|(Linux)/</span><span class="s4">.</span><span class="s2">exec</span><span class="s4">(</span><span class="s2">uas</span><span class="s4">);</span>
+
+  <span class="s2">_iphone </span><span class="s4">= </span><span class="s6">/\b(iPhone|iP[ao]d)/</span><span class="s4">.</span><span class="s2">exec</span><span class="s4">(</span><span class="s2">uas</span><span class="s4">);</span>
+  <span class="s2">_ipad </span><span class="s4">= </span><span class="s6">/\b(iP[ao]d)/</span><span class="s4">.</span><span class="s2">exec</span><span class="s4">(</span><span class="s2">uas</span><span class="s4">);</span>
+  <span class="s2">_android </span><span class="s4">= </span><span class="s6">/Android/i</span><span class="s4">.</span><span class="s2">exec</span><span class="s4">(</span><span class="s2">uas</span><span class="s4">);</span>
+  <span class="s2">_native </span><span class="s4">= </span><span class="s6">/FBAN\/\w+;/i</span><span class="s4">.</span><span class="s2">exec</span><span class="s4">(</span><span class="s2">uas</span><span class="s4">);</span>
+  <span class="s2">_mobile </span><span class="s4">= </span><span class="s6">/Mobile/i</span><span class="s4">.</span><span class="s2">exec</span><span class="s4">(</span><span class="s2">uas</span><span class="s4">);</span>
+
+  <span class="s5">// Note that the IE team blog would have you believe you should be checking</span>
+  <span class="s5">// for 'Win64; x64'.  But MSDN then reveals that you can actually be coming</span>
+  <span class="s5">// from either x64 or ia64;  so ultimately, you should just check for Win64</span>
+  <span class="s5">// as in indicator of whether you're in 64-bit IE.  32-bit IE on 64-bit</span>
+  <span class="s5">// Windows will send 'WOW64' instead.</span>
+  <span class="s2">_win64 </span><span class="s4">= !!(</span><span class="s6">/Win64/</span><span class="s4">.</span><span class="s2">exec</span><span class="s4">(</span><span class="s2">uas</span><span class="s4">));</span>
+
+  <span class="s3">if </span><span class="s4">(</span><span class="s2">agent</span><span class="s4">) {</span>
+    <span class="s2">_ie </span><span class="s4">= </span><span class="s2">agent</span><span class="s4">[</span><span class="s7">1</span><span class="s4">] ? </span><span class="s2">parseFloat</span><span class="s4">(</span><span class="s2">agent</span><span class="s4">[</span><span class="s7">1</span><span class="s4">]) : (</span>
+          <span class="s2">agent</span><span class="s4">[</span><span class="s7">5</span><span class="s4">] ? </span><span class="s2">parseFloat</span><span class="s4">(</span><span class="s2">agent</span><span class="s4">[</span><span class="s7">5</span><span class="s4">]) : </span><span class="s2">NaN</span><span class="s4">);</span>
+    <span class="s5">// IE compatibility mode</span>
+    <span class="s3">if </span><span class="s4">(</span><span class="s2">_ie </span><span class="s4">&amp;&amp; </span><span class="s2">document </span><span class="s4">&amp;&amp; </span><span class="s2">document</span><span class="s4">.</span><span class="s2">documentMode</span><span class="s4">) {</span>
+      <span class="s2">_ie </span><span class="s4">= </span><span class="s2">document</span><span class="s4">.</span><span class="s2">documentMode</span><span class="s4">;</span>
+    <span class="s4">}</span>
+    <span class="s5">// grab the &quot;true&quot; ie version from the trident token if available</span>
+    <span class="s3">var </span><span class="s2">trident </span><span class="s4">= </span><span class="s6">/(?:Trident\/(\d+.\d+))/</span><span class="s4">.</span><span class="s2">exec</span><span class="s4">(</span><span class="s2">uas</span><span class="s4">);</span>
+    <span class="s2">_ie_real_version </span><span class="s4">= </span><span class="s2">trident </span><span class="s4">? </span><span class="s2">parseFloat</span><span class="s4">(</span><span class="s2">trident</span><span class="s4">[</span><span class="s7">1</span><span class="s4">]) + </span><span class="s7">4 </span><span class="s4">: </span><span class="s2">_ie</span><span class="s4">;</span>
+
+    <span class="s2">_firefox </span><span class="s4">= </span><span class="s2">agent</span><span class="s4">[</span><span class="s7">2</span><span class="s4">] ? </span><span class="s2">parseFloat</span><span class="s4">(</span><span class="s2">agent</span><span class="s4">[</span><span class="s7">2</span><span class="s4">]) : </span><span class="s2">NaN</span><span class="s4">;</span>
+    <span class="s2">_opera   </span><span class="s4">= </span><span class="s2">agent</span><span class="s4">[</span><span class="s7">3</span><span class="s4">] ? </span><span class="s2">parseFloat</span><span class="s4">(</span><span class="s2">agent</span><span class="s4">[</span><span class="s7">3</span><span class="s4">]) : </span><span class="s2">NaN</span><span class="s4">;</span>
+    <span class="s2">_webkit  </span><span class="s4">= </span><span class="s2">agent</span><span class="s4">[</span><span class="s7">4</span><span class="s4">] ? </span><span class="s2">parseFloat</span><span class="s4">(</span><span class="s2">agent</span><span class="s4">[</span><span class="s7">4</span><span class="s4">]) : </span><span class="s2">NaN</span><span class="s4">;</span>
+    <span class="s3">if </span><span class="s4">(</span><span class="s2">_webkit</span><span class="s4">) {</span>
+      <span class="s5">// We do not add the regexp to the above test, because it will always</span>
+      <span class="s5">// match 'safari' only since 'AppleWebKit' appears before 'Chrome' in</span>
+      <span class="s5">// the userAgent string.</span>
+      <span class="s2">agent </span><span class="s4">= </span><span class="s6">/(?:Chrome\/(\d+\.\d+))/</span><span class="s4">.</span><span class="s2">exec</span><span class="s4">(</span><span class="s2">uas</span><span class="s4">);</span>
+      <span class="s2">_chrome </span><span class="s4">= </span><span class="s2">agent </span><span class="s4">&amp;&amp; </span><span class="s2">agent</span><span class="s4">[</span><span class="s7">1</span><span class="s4">] ? </span><span class="s2">parseFloat</span><span class="s4">(</span><span class="s2">agent</span><span class="s4">[</span><span class="s7">1</span><span class="s4">]) : </span><span class="s2">NaN</span><span class="s4">;</span>
+    <span class="s4">} </span><span class="s3">else </span><span class="s4">{</span>
+      <span class="s2">_chrome </span><span class="s4">= </span><span class="s2">NaN</span><span class="s4">;</span>
+    <span class="s4">}</span>
+  <span class="s4">} </span><span class="s3">else </span><span class="s4">{</span>
+    <span class="s2">_ie </span><span class="s4">= </span><span class="s2">_firefox </span><span class="s4">= </span><span class="s2">_opera </span><span class="s4">= </span><span class="s2">_chrome </span><span class="s4">= </span><span class="s2">_webkit </span><span class="s4">= </span><span class="s2">NaN</span><span class="s4">;</span>
+  <span class="s4">}</span>
+
+  <span class="s3">if </span><span class="s4">(</span><span class="s2">os</span><span class="s4">) {</span>
+    <span class="s3">if </span><span class="s4">(</span><span class="s2">os</span><span class="s4">[</span><span class="s7">1</span><span class="s4">]) {</span>
+      <span class="s5">// Detect OS X version.  If no version number matches, set _osx to true.</span>
+      <span class="s5">// Version examples:  10, 10_6_1, 10.7</span>
+      <span class="s5">// Parses version number as a float, taking only first two sets of</span>
+      <span class="s5">// digits.  If only one set of digits is found, returns just the major</span>
+      <span class="s5">// version number.</span>
+      <span class="s3">var </span><span class="s2">ver </span><span class="s4">= </span><span class="s6">/(?:Mac OS X (\d+(?:[._]\d+)?))/</span><span class="s4">.</span><span class="s2">exec</span><span class="s4">(</span><span class="s2">uas</span><span class="s4">);</span>
+
+      <span class="s2">_osx </span><span class="s4">= </span><span class="s2">ver </span><span class="s4">? </span><span class="s2">parseFloat</span><span class="s4">(</span><span class="s2">ver</span><span class="s4">[</span><span class="s7">1</span><span class="s4">].</span><span class="s2">replace</span><span class="s4">(</span><span class="s8">'_'</span><span class="s4">, </span><span class="s8">'.'</span><span class="s4">)) : </span><span class="s3">true</span><span class="s4">;</span>
+    <span class="s4">} </span><span class="s3">else </span><span class="s4">{</span>
+      <span class="s2">_osx </span><span class="s4">= </span><span class="s3">false</span><span class="s4">;</span>
+    <span class="s4">}</span>
+    <span class="s2">_windows </span><span class="s4">= !!</span><span class="s2">os</span><span class="s4">[</span><span class="s7">2</span><span class="s4">];</span>
+    <span class="s2">_linux   </span><span class="s4">= !!</span><span class="s2">os</span><span class="s4">[</span><span class="s7">3</span><span class="s4">];</span>
+  <span class="s4">} </span><span class="s3">else </span><span class="s4">{</span>
+    <span class="s2">_osx </span><span class="s4">= </span><span class="s2">_windows </span><span class="s4">= </span><span class="s2">_linux </span><span class="s4">= </span><span class="s3">false</span><span class="s4">;</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s3">var </span><span class="s2">UserAgent_DEPRECATED </span><span class="s4">= {</span>
+
+  <span class="s0">/**</span>
+   <span class="s0">*  Check if the UA is Internet Explorer.</span>
+   <span class="s0">*</span>
+   <span class="s0">*</span>
+   <span class="s0">*  </span><span class="s1">@return </span><span class="s0">float|NaN Version number (if match) or NaN.</span>
+   <span class="s0">*/</span>
+  <span class="s2">ie</span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s3">return </span><span class="s2">_populate</span><span class="s4">() || </span><span class="s2">_ie</span><span class="s4">;</span>
+  <span class="s4">},</span>
+
+  <span class="s0">/**</span>
+   <span class="s0">* Check if we're in Internet Explorer compatibility mode.</span>
+   <span class="s0">*</span>
+   <span class="s0">* </span><span class="s1">@return </span><span class="s0">bool true if in compatibility mode, false if</span>
+   <span class="s0">* not compatibility mode or not ie</span>
+   <span class="s0">*/</span>
+  <span class="s2">ieCompatibilityMode</span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s3">return </span><span class="s2">_populate</span><span class="s4">() || (</span><span class="s2">_ie_real_version </span><span class="s4">&gt; </span><span class="s2">_ie</span><span class="s4">);</span>
+  <span class="s4">},</span>
+
+
+  <span class="s0">/**</span>
+   <span class="s0">* Whether the browser is 64-bit IE.  Really, this is kind of weak sauce;  we</span>
+   <span class="s0">* only need this because Skype can't handle 64-bit IE yet.  We need to remove</span>
+   <span class="s0">* this when we don't need it -- tracked by #601957.</span>
+   <span class="s0">*/</span>
+  <span class="s2">ie64</span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s3">return </span><span class="s2">UserAgent_DEPRECATED</span><span class="s4">.</span><span class="s2">ie</span><span class="s4">() &amp;&amp; </span><span class="s2">_win64</span><span class="s4">;</span>
+  <span class="s4">},</span>
+
+  <span class="s0">/**</span>
+   <span class="s0">*  Check if the UA is Firefox.</span>
+   <span class="s0">*</span>
+   <span class="s0">*</span>
+   <span class="s0">*  </span><span class="s1">@return </span><span class="s0">float|NaN Version number (if match) or NaN.</span>
+   <span class="s0">*/</span>
+  <span class="s2">firefox</span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s3">return </span><span class="s2">_populate</span><span class="s4">() || </span><span class="s2">_firefox</span><span class="s4">;</span>
+  <span class="s4">},</span>
+
+
+  <span class="s0">/**</span>
+   <span class="s0">*  Check if the UA is Opera.</span>
+   <span class="s0">*</span>
+   <span class="s0">*</span>
+   <span class="s0">*  </span><span class="s1">@return </span><span class="s0">float|NaN Version number (if match) or NaN.</span>
+   <span class="s0">*/</span>
+  <span class="s2">opera</span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s3">return </span><span class="s2">_populate</span><span class="s4">() || </span><span class="s2">_opera</span><span class="s4">;</span>
+  <span class="s4">},</span>
+
+
+  <span class="s0">/**</span>
+   <span class="s0">*  Check if the UA is WebKit.</span>
+   <span class="s0">*</span>
+   <span class="s0">*</span>
+   <span class="s0">*  </span><span class="s1">@return </span><span class="s0">float|NaN Version number (if match) or NaN.</span>
+   <span class="s0">*/</span>
+  <span class="s2">webkit</span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s3">return </span><span class="s2">_populate</span><span class="s4">() || </span><span class="s2">_webkit</span><span class="s4">;</span>
+  <span class="s4">},</span>
+
+  <span class="s0">/**</span>
+   <span class="s0">*  For Push</span>
+   <span class="s0">*  WILL BE REMOVED VERY SOON. Use UserAgent_DEPRECATED.webkit</span>
+   <span class="s0">*/</span>
+  <span class="s2">safari</span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s3">return </span><span class="s2">UserAgent_DEPRECATED</span><span class="s4">.</span><span class="s2">webkit</span><span class="s4">();</span>
+  <span class="s4">},</span>
+
+  <span class="s0">/**</span>
+   <span class="s0">*  Check if the UA is a Chrome browser.</span>
+   <span class="s0">*</span>
+   <span class="s0">*</span>
+   <span class="s0">*  </span><span class="s1">@return </span><span class="s0">float|NaN Version number (if match) or NaN.</span>
+   <span class="s0">*/</span>
+  <span class="s2">chrome </span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s3">return </span><span class="s2">_populate</span><span class="s4">() || </span><span class="s2">_chrome</span><span class="s4">;</span>
+  <span class="s4">},</span>
+
+
+  <span class="s0">/**</span>
+   <span class="s0">*  Check if the user is running Windows.</span>
+   <span class="s0">*</span>
+   <span class="s0">*  </span><span class="s1">@return </span><span class="s0">bool `true' if the user's OS is Windows.</span>
+   <span class="s0">*/</span>
+  <span class="s2">windows</span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s3">return </span><span class="s2">_populate</span><span class="s4">() || </span><span class="s2">_windows</span><span class="s4">;</span>
+  <span class="s4">},</span>
+
+
+  <span class="s0">/**</span>
+   <span class="s0">*  Check if the user is running Mac OS X.</span>
+   <span class="s0">*</span>
+   <span class="s0">*  </span><span class="s1">@return </span><span class="s0">float|bool   Returns a float if a version number is detected,</span>
+   <span class="s0">*                       otherwise true/false.</span>
+   <span class="s0">*/</span>
+  <span class="s2">osx</span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s3">return </span><span class="s2">_populate</span><span class="s4">() || </span><span class="s2">_osx</span><span class="s4">;</span>
+  <span class="s4">},</span>
+
+  <span class="s0">/**</span>
+   <span class="s0">* Check if the user is running Linux.</span>
+   <span class="s0">*</span>
+   <span class="s0">* </span><span class="s1">@return </span><span class="s0">bool `true' if the user's OS is some flavor of Linux.</span>
+   <span class="s0">*/</span>
+  <span class="s2">linux</span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s3">return </span><span class="s2">_populate</span><span class="s4">() || </span><span class="s2">_linux</span><span class="s4">;</span>
+  <span class="s4">},</span>
+
+  <span class="s0">/**</span>
+   <span class="s0">* Check if the user is running on an iPhone or iPod platform.</span>
+   <span class="s0">*</span>
+   <span class="s0">* </span><span class="s1">@return </span><span class="s0">bool `true' if the user is running some flavor of the</span>
+   <span class="s0">*    iPhone OS.</span>
+   <span class="s0">*/</span>
+  <span class="s2">iphone</span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s3">return </span><span class="s2">_populate</span><span class="s4">() || </span><span class="s2">_iphone</span><span class="s4">;</span>
+  <span class="s4">},</span>
+
+  <span class="s2">mobile</span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s3">return </span><span class="s2">_populate</span><span class="s4">() || (</span><span class="s2">_iphone </span><span class="s4">|| </span><span class="s2">_ipad </span><span class="s4">|| </span><span class="s2">_android </span><span class="s4">|| </span><span class="s2">_mobile</span><span class="s4">);</span>
+  <span class="s4">},</span>
+
+  <span class="s2">nativeApp</span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s5">// webviews inside of the native apps</span>
+    <span class="s3">return </span><span class="s2">_populate</span><span class="s4">() || </span><span class="s2">_native</span><span class="s4">;</span>
+  <span class="s4">},</span>
+
+  <span class="s2">android</span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s3">return </span><span class="s2">_populate</span><span class="s4">() || </span><span class="s2">_android</span><span class="s4">;</span>
+  <span class="s4">},</span>
+
+  <span class="s2">ipad</span><span class="s4">: </span><span class="s3">function</span><span class="s4">() {</span>
+    <span class="s3">return </span><span class="s2">_populate</span><span class="s4">() || </span><span class="s2">_ipad</span><span class="s4">;</span>
+  <span class="s4">}</span>
+<span class="s4">};</span>
+
+<span class="s2">module</span><span class="s4">.</span><span class="s2">exports </span><span class="s4">= </span><span class="s2">UserAgent_DEPRECATED</span><span class="s4">;</span>
+</pre>
+</body>
+</html>

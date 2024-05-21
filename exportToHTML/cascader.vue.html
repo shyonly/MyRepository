@@ -1,0 +1,687 @@
+<html>
+<head>
+<title>cascader.vue</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #d5b778;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bababa;}
+.s3 { color: #6aab73;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #2aacb8;}
+.s6 { color: #7a7e85;}
+.s7 { color: #5f826b; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+cascader.vue</font>
+</center></td></tr></table>
+<pre><span class="s0">&lt;template&gt;</span>
+  <span class="s0">&lt;div</span>
+    <span class="s2">ref</span><span class="s3">=&quot;reference&quot;</span>
+    <span class="s2">:class</span><span class="s3">=&quot;</span><span class="s1">[</span>
+      <span class="s3">'el-cascader'</span><span class="s1">,</span>
+      <span class="s1">realSize &amp;&amp; </span><span class="s3">`el-cascader--</span><span class="s1">${realSize}</span><span class="s3">`</span><span class="s1">,</span>
+      <span class="s1">{ </span><span class="s3">'is-disabled'</span><span class="s1">: isDisabled }</span>
+    <span class="s1">]</span><span class="s3">&quot;</span>
+    <span class="s2">v-clickoutside</span><span class="s3">=&quot;</span><span class="s1">() =&gt; toggleDropDownVisible(</span><span class="s4">false</span><span class="s1">)</span><span class="s3">&quot;</span>
+    <span class="s2">@mouseenter</span><span class="s3">=&quot;</span><span class="s1">inputHover = </span><span class="s4">true</span><span class="s3">&quot;</span>
+    <span class="s2">@mouseleave</span><span class="s3">=&quot;</span><span class="s1">inputHover = </span><span class="s4">false</span><span class="s3">&quot;</span>
+    <span class="s2">@click</span><span class="s3">=&quot;</span><span class="s1">() =&gt; toggleDropDownVisible(readonly ? undefined : </span><span class="s4">true</span><span class="s1">)</span><span class="s3">&quot;</span>
+    <span class="s2">@keydown</span><span class="s3">=&quot;</span><span class="s1">handleKeyDown</span><span class="s3">&quot;</span><span class="s0">&gt;</span>
+
+    <span class="s0">&lt;el-input</span>
+      <span class="s2">ref</span><span class="s3">=&quot;input&quot;</span>
+      <span class="s2">v-model</span><span class="s3">=&quot;</span><span class="s1">multiple ? presentText : inputValue</span><span class="s3">&quot;</span>
+      <span class="s2">:size</span><span class="s3">=&quot;</span><span class="s1">realSize</span><span class="s3">&quot;</span>
+      <span class="s2">:placeholder</span><span class="s3">=&quot;</span><span class="s1">placeholder</span><span class="s3">&quot;</span>
+      <span class="s2">:readonly</span><span class="s3">=&quot;</span><span class="s1">readonly</span><span class="s3">&quot;</span>
+      <span class="s2">:disabled</span><span class="s3">=&quot;</span><span class="s1">isDisabled</span><span class="s3">&quot;</span>
+      <span class="s2">:validate-event</span><span class="s3">=&quot;</span><span class="s4">false</span><span class="s3">&quot;</span>
+      <span class="s2">:class</span><span class="s3">=&quot;</span><span class="s1">{ </span><span class="s3">'is-focus'</span><span class="s1">: dropDownVisible }</span><span class="s3">&quot;</span>
+      <span class="s2">@focus</span><span class="s3">=&quot;</span><span class="s1">handleFocus</span><span class="s3">&quot;</span>
+      <span class="s2">@blur</span><span class="s3">=&quot;</span><span class="s1">handleBlur</span><span class="s3">&quot;</span>
+      <span class="s2">@input</span><span class="s3">=&quot;</span><span class="s1">handleInput</span><span class="s3">&quot;</span><span class="s0">&gt;</span>
+      <span class="s0">&lt;template </span><span class="s2">slot</span><span class="s3">=&quot;suffix&quot;</span><span class="s0">&gt;</span>
+        <span class="s0">&lt;i</span>
+          <span class="s2">v-if</span><span class="s3">=&quot;</span><span class="s1">clearBtnVisible</span><span class="s3">&quot;</span>
+          <span class="s2">key</span><span class="s3">=&quot;clear&quot;</span>
+          <span class="s2">class</span><span class="s3">=&quot;el-input__icon el-icon-circle-close&quot;</span>
+          <span class="s2">@click.stop</span><span class="s3">=&quot;</span><span class="s1">handleClear</span><span class="s3">&quot;</span><span class="s0">&gt;&lt;/i&gt;</span>
+        <span class="s0">&lt;i</span>
+          <span class="s2">v-else</span>
+          <span class="s2">key</span><span class="s3">=&quot;arrow-down&quot;</span>
+          <span class="s2">:class</span><span class="s3">=&quot;</span><span class="s1">[</span>
+            <span class="s3">'el-input__icon'</span><span class="s1">,</span>
+            <span class="s3">'el-icon-arrow-down'</span><span class="s1">,</span>
+            <span class="s1">dropDownVisible &amp;&amp; </span><span class="s3">'is-reverse'</span>
+          <span class="s1">]</span><span class="s3">&quot;</span>
+          <span class="s2">@click.stop</span><span class="s3">=&quot;</span><span class="s1">toggleDropDownVisible()</span><span class="s3">&quot;</span><span class="s0">&gt;&lt;/i&gt;</span>
+      <span class="s0">&lt;/template&gt;</span>
+    <span class="s0">&lt;/el-input&gt;</span>
+
+    <span class="s0">&lt;div </span><span class="s2">v-if</span><span class="s3">=&quot;</span><span class="s1">multiple</span><span class="s3">&quot; </span><span class="s2">class</span><span class="s3">=&quot;el-cascader__tags&quot;</span><span class="s0">&gt;</span>
+      <span class="s0">&lt;el-tag</span>
+        <span class="s2">v-for</span><span class="s3">=&quot;</span><span class="s1">tag </span><span class="s4">in </span><span class="s1">presentTags</span><span class="s3">&quot;</span>
+        <span class="s2">:key</span><span class="s3">=&quot;</span><span class="s1">tag.key</span><span class="s3">&quot;</span>
+        <span class="s2">type</span><span class="s3">=&quot;info&quot;</span>
+        <span class="s2">:size</span><span class="s3">=&quot;</span><span class="s1">tagSize</span><span class="s3">&quot;</span>
+        <span class="s2">:hit</span><span class="s3">=&quot;</span><span class="s1">tag.hitState</span><span class="s3">&quot;</span>
+        <span class="s2">:closable</span><span class="s3">=&quot;</span><span class="s1">tag.closable</span><span class="s3">&quot;</span>
+        <span class="s2">disable-transitions</span>
+        <span class="s2">@close</span><span class="s3">=&quot;</span><span class="s1">deleteTag(tag)</span><span class="s3">&quot;</span><span class="s0">&gt;</span>
+        <span class="s0">&lt;span&gt;</span><span class="s1">{{ tag.text }}</span><span class="s0">&lt;/span&gt;</span>
+      <span class="s0">&lt;/el-tag&gt;</span>
+      <span class="s0">&lt;input</span>
+        <span class="s2">v-if</span><span class="s3">=&quot;</span><span class="s1">filterable &amp;&amp; !isDisabled</span><span class="s3">&quot;</span>
+        <span class="s2">v-model.trim</span><span class="s3">=&quot;</span><span class="s1">inputValue</span><span class="s3">&quot;</span>
+        <span class="s2">type</span><span class="s3">=&quot;text&quot;</span>
+        <span class="s2">class</span><span class="s3">=&quot;el-cascader__search-input&quot;</span>
+        <span class="s2">:placeholder</span><span class="s3">=&quot;</span><span class="s1">presentTags.length ? </span><span class="s3">'' </span><span class="s1">: placeholder</span><span class="s3">&quot;</span>
+        <span class="s2">@input</span><span class="s3">=&quot;</span><span class="s1">e =&gt; handleInput(inputValue, e)</span><span class="s3">&quot;</span>
+        <span class="s2">@click.stop</span><span class="s3">=&quot;</span><span class="s1">toggleDropDownVisible(</span><span class="s4">true</span><span class="s1">)</span><span class="s3">&quot;</span>
+        <span class="s2">@keydown.delete</span><span class="s3">=&quot;</span><span class="s1">handleDelete</span><span class="s3">&quot;</span><span class="s0">&gt;</span>
+    <span class="s0">&lt;/div&gt;</span>
+
+    <span class="s0">&lt;transition </span><span class="s2">name</span><span class="s3">=&quot;el-zoom-in-top&quot; </span><span class="s2">@after-leave</span><span class="s3">=&quot;</span><span class="s1">handleDropdownLeave</span><span class="s3">&quot;</span><span class="s0">&gt;</span>
+      <span class="s0">&lt;div</span>
+        <span class="s2">v-show</span><span class="s3">=&quot;</span><span class="s1">dropDownVisible</span><span class="s3">&quot;</span>
+        <span class="s2">ref</span><span class="s3">=&quot;popper&quot;</span>
+        <span class="s2">:class</span><span class="s3">=&quot;</span><span class="s1">[</span><span class="s3">'el-popper'</span><span class="s1">, </span><span class="s3">'el-cascader__dropdown'</span><span class="s1">, popperClass]</span><span class="s3">&quot;</span><span class="s0">&gt;</span>
+        <span class="s0">&lt;el-cascader-panel</span>
+          <span class="s2">ref</span><span class="s3">=&quot;panel&quot;</span>
+          <span class="s2">v-show</span><span class="s3">=&quot;</span><span class="s1">!filtering</span><span class="s3">&quot;</span>
+          <span class="s2">v-model</span><span class="s3">=&quot;</span><span class="s1">checkedValue</span><span class="s3">&quot;</span>
+          <span class="s2">:options</span><span class="s3">=&quot;</span><span class="s1">options</span><span class="s3">&quot;</span>
+          <span class="s2">:props</span><span class="s3">=&quot;</span><span class="s1">config</span><span class="s3">&quot;</span>
+          <span class="s2">:border</span><span class="s3">=&quot;</span><span class="s4">false</span><span class="s3">&quot;</span>
+          <span class="s2">:render-label</span><span class="s3">=&quot;</span><span class="s1">$scopedSlots.default</span><span class="s3">&quot;</span>
+          <span class="s2">@expand-change</span><span class="s3">=&quot;</span><span class="s1">handleExpandChange</span><span class="s3">&quot;</span>
+          <span class="s2">@close</span><span class="s3">=&quot;</span><span class="s1">toggleDropDownVisible(</span><span class="s4">false</span><span class="s1">)</span><span class="s3">&quot;</span><span class="s0">&gt;&lt;/el-cascader-panel&gt;</span>
+        <span class="s0">&lt;el-scrollbar</span>
+          <span class="s2">ref</span><span class="s3">=&quot;suggestionPanel&quot;</span>
+          <span class="s2">v-if</span><span class="s3">=&quot;</span><span class="s1">filterable</span><span class="s3">&quot;</span>
+          <span class="s2">v-show</span><span class="s3">=&quot;</span><span class="s1">filtering</span><span class="s3">&quot;</span>
+          <span class="s2">tag</span><span class="s3">=&quot;ul&quot;</span>
+          <span class="s2">class</span><span class="s3">=&quot;el-cascader__suggestion-panel&quot;</span>
+          <span class="s2">view-class</span><span class="s3">=&quot;el-cascader__suggestion-list&quot;</span>
+          <span class="s2">@keydown.native</span><span class="s3">=&quot;</span><span class="s1">handleSuggestionKeyDown</span><span class="s3">&quot;</span><span class="s0">&gt;</span>
+          <span class="s0">&lt;template </span><span class="s2">v-if</span><span class="s3">=&quot;</span><span class="s1">suggestions.length</span><span class="s3">&quot;</span><span class="s0">&gt;</span>
+            <span class="s0">&lt;li</span>
+              <span class="s2">v-for</span><span class="s3">=&quot;</span><span class="s1">(item, index) </span><span class="s4">in </span><span class="s1">suggestions</span><span class="s3">&quot;</span>
+              <span class="s2">:key</span><span class="s3">=&quot;</span><span class="s1">item.uid</span><span class="s3">&quot;</span>
+              <span class="s2">:class</span><span class="s3">=&quot;</span><span class="s1">[</span>
+                <span class="s3">'el-cascader__suggestion-item'</span><span class="s1">,</span>
+                <span class="s1">item.checked &amp;&amp; </span><span class="s3">'is-checked'</span>
+              <span class="s1">]</span><span class="s3">&quot;</span>
+              <span class="s2">:tabindex</span><span class="s3">=&quot;</span><span class="s1">-</span><span class="s5">1</span><span class="s3">&quot;</span>
+              <span class="s2">@click</span><span class="s3">=&quot;</span><span class="s1">handleSuggestionClick(index)</span><span class="s3">&quot;</span><span class="s0">&gt;</span>
+              <span class="s0">&lt;span&gt;</span><span class="s1">{{ item.text }}</span><span class="s0">&lt;/span&gt;</span>
+              <span class="s0">&lt;i </span><span class="s2">v-if</span><span class="s3">=&quot;</span><span class="s1">item.checked</span><span class="s3">&quot; </span><span class="s2">class</span><span class="s3">=&quot;el-icon-check&quot;</span><span class="s0">&gt;&lt;/i&gt;</span>
+            <span class="s0">&lt;/li&gt;</span>
+          <span class="s0">&lt;/template&gt;</span>
+          <span class="s0">&lt;slot </span><span class="s2">v-else name</span><span class="s3">=&quot;empty&quot;</span><span class="s0">&gt;</span>
+            <span class="s0">&lt;li </span><span class="s2">class</span><span class="s3">=&quot;el-cascader__empty-text&quot;</span><span class="s0">&gt;</span><span class="s1">{{ t('el.cascader.noMatch') }}</span><span class="s0">&lt;/li&gt;</span>
+          <span class="s0">&lt;/slot&gt;</span>
+        <span class="s0">&lt;/el-scrollbar&gt;</span>
+      <span class="s0">&lt;/div&gt;</span>
+    <span class="s0">&lt;/transition&gt;</span>
+  <span class="s0">&lt;/div&gt;</span>
+<span class="s0">&lt;/template&gt;</span>
+
+<span class="s0">&lt;script&gt;</span>
+<span class="s4">import </span><span class="s1">Popper from </span><span class="s3">'element-ui/src/utils/vue-popper'</span><span class="s1">;</span>
+<span class="s4">import </span><span class="s1">Clickoutside from </span><span class="s3">'element-ui/src/utils/clickoutside'</span><span class="s1">;</span>
+<span class="s4">import </span><span class="s1">Emitter from </span><span class="s3">'element-ui/src/mixins/emitter'</span><span class="s1">;</span>
+<span class="s4">import </span><span class="s1">Locale from </span><span class="s3">'element-ui/src/mixins/locale'</span><span class="s1">;</span>
+<span class="s4">import </span><span class="s1">Migrating from </span><span class="s3">'element-ui/src/mixins/migrating'</span><span class="s1">;</span>
+<span class="s4">import </span><span class="s1">ElInput from </span><span class="s3">'element-ui/packages/input'</span><span class="s1">;</span>
+<span class="s4">import </span><span class="s1">ElTag from </span><span class="s3">'element-ui/packages/tag'</span><span class="s1">;</span>
+<span class="s4">import </span><span class="s1">ElScrollbar from </span><span class="s3">'element-ui/packages/scrollbar'</span><span class="s1">;</span>
+<span class="s4">import </span><span class="s1">ElCascaderPanel from </span><span class="s3">'element-ui/packages/cascader-panel'</span><span class="s1">;</span>
+<span class="s4">import </span><span class="s1">AriaUtils from </span><span class="s3">'element-ui/src/utils/aria-utils'</span><span class="s1">;</span>
+<span class="s4">import </span><span class="s1">{ t } from </span><span class="s3">'element-ui/src/locale'</span><span class="s1">;</span>
+<span class="s4">import </span><span class="s1">{ isEqual, isEmpty, kebabCase } from </span><span class="s3">'element-ui/src/utils/util'</span><span class="s1">;</span>
+<span class="s4">import </span><span class="s1">{ isUndefined, isFunction } from </span><span class="s3">'element-ui/src/utils/types'</span><span class="s1">;</span>
+<span class="s4">import </span><span class="s1">{ isDef } from </span><span class="s3">'element-ui/src/utils/shared'</span><span class="s1">;</span>
+<span class="s4">import </span><span class="s1">{ addResizeListener, removeResizeListener } from </span><span class="s3">'element-ui/src/utils/resize-event'</span><span class="s1">;</span>
+<span class="s4">import </span><span class="s1">debounce from </span><span class="s3">'throttle-debounce/debounce'</span><span class="s1">;</span>
+
+<span class="s4">const </span><span class="s1">{ keys: KeyCode } = AriaUtils;</span>
+<span class="s4">const </span><span class="s1">MigratingProps = {</span>
+  <span class="s1">expandTrigger: {</span>
+    <span class="s1">newProp: </span><span class="s3">'expandTrigger'</span><span class="s1">,</span>
+    <span class="s1">type: String</span>
+  <span class="s1">},</span>
+  <span class="s1">changeOnSelect: {</span>
+    <span class="s1">newProp: </span><span class="s3">'checkStrictly'</span><span class="s1">,</span>
+    <span class="s1">type: Boolean</span>
+  <span class="s1">},</span>
+  <span class="s1">hoverThreshold: {</span>
+    <span class="s1">newProp: </span><span class="s3">'hoverThreshold'</span><span class="s1">,</span>
+    <span class="s1">type: Number</span>
+  <span class="s1">}</span>
+<span class="s1">};</span>
+
+<span class="s4">const </span><span class="s1">PopperMixin = {</span>
+  <span class="s1">props: {</span>
+    <span class="s1">placement: {</span>
+      <span class="s1">type: String,</span>
+      <span class="s4">default</span><span class="s1">: </span><span class="s3">'bottom-start'</span>
+    <span class="s1">},</span>
+    <span class="s1">appendToBody: Popper.props.appendToBody,</span>
+    <span class="s1">visibleArrow: {</span>
+      <span class="s1">type: Boolean,</span>
+      <span class="s4">default</span><span class="s1">: </span><span class="s4">true</span>
+    <span class="s1">},</span>
+    <span class="s1">arrowOffset: Popper.props.arrowOffset,</span>
+    <span class="s1">offset: Popper.props.offset,</span>
+    <span class="s1">boundariesPadding: Popper.props.boundariesPadding,</span>
+    <span class="s1">popperOptions: Popper.props.popperOptions,</span>
+    <span class="s1">transformOrigin: Popper.props.transformOrigin</span>
+  <span class="s1">},</span>
+  <span class="s1">methods: Popper.methods,</span>
+  <span class="s1">data: Popper.data,</span>
+  <span class="s1">beforeDestroy: Popper.beforeDestroy</span>
+<span class="s1">};</span>
+
+<span class="s4">const </span><span class="s1">InputSizeMap = {</span>
+  <span class="s1">medium: </span><span class="s5">36</span><span class="s1">,</span>
+  <span class="s1">small: </span><span class="s5">32</span><span class="s1">,</span>
+  <span class="s1">mini: </span><span class="s5">28</span>
+<span class="s1">};</span>
+
+<span class="s4">export default </span><span class="s1">{</span>
+  <span class="s1">name: </span><span class="s3">'ElCascader'</span><span class="s1">,</span>
+
+  <span class="s1">directives: { Clickoutside },</span>
+
+  <span class="s1">mixins: [PopperMixin, Emitter, Locale, Migrating],</span>
+
+  <span class="s1">inject: {</span>
+    <span class="s1">elForm: {</span>
+      <span class="s4">default</span><span class="s1">: </span><span class="s3">''</span>
+    <span class="s1">},</span>
+    <span class="s1">elFormItem: {</span>
+      <span class="s4">default</span><span class="s1">: </span><span class="s3">''</span>
+    <span class="s1">}</span>
+  <span class="s1">},</span>
+
+  <span class="s1">components: {</span>
+    <span class="s1">ElInput,</span>
+    <span class="s1">ElTag,</span>
+    <span class="s1">ElScrollbar,</span>
+    <span class="s1">ElCascaderPanel</span>
+  <span class="s1">},</span>
+
+  <span class="s1">props: {</span>
+    <span class="s1">value: {},</span>
+    <span class="s1">options: Array,</span>
+    <span class="s1">props: Object,</span>
+    <span class="s1">size: String,</span>
+    <span class="s1">placeholder: {</span>
+      <span class="s1">type: String,</span>
+      <span class="s4">default</span><span class="s1">: () =&gt; t(</span><span class="s3">'el.cascader.placeholder'</span><span class="s1">)</span>
+    <span class="s1">},</span>
+    <span class="s1">disabled: Boolean,</span>
+    <span class="s1">clearable: Boolean,</span>
+    <span class="s1">filterable: Boolean,</span>
+    <span class="s1">filterMethod: Function,</span>
+    <span class="s1">separator: {</span>
+      <span class="s1">type: String,</span>
+      <span class="s4">default</span><span class="s1">: </span><span class="s3">' / '</span>
+    <span class="s1">},</span>
+    <span class="s1">showAllLevels: {</span>
+      <span class="s1">type: Boolean,</span>
+      <span class="s4">default</span><span class="s1">: </span><span class="s4">true</span>
+    <span class="s1">},</span>
+    <span class="s1">collapseTags: Boolean,</span>
+    <span class="s1">debounce: {</span>
+      <span class="s1">type: Number,</span>
+      <span class="s4">default</span><span class="s1">: </span><span class="s5">300</span>
+    <span class="s1">},</span>
+    <span class="s1">beforeFilter: {</span>
+      <span class="s1">type: Function,</span>
+      <span class="s4">default</span><span class="s1">: () =&gt; (() =&gt; {})</span>
+    <span class="s1">},</span>
+    <span class="s1">popperClass: String</span>
+  <span class="s1">},</span>
+
+  <span class="s1">data() {</span>
+    <span class="s4">return </span><span class="s1">{</span>
+      <span class="s1">dropDownVisible: </span><span class="s4">false</span><span class="s1">,</span>
+      <span class="s1">checkedValue: </span><span class="s4">this</span><span class="s1">.value,</span>
+      <span class="s1">inputHover: </span><span class="s4">false</span><span class="s1">,</span>
+      <span class="s1">inputValue: </span><span class="s4">null</span><span class="s1">,</span>
+      <span class="s1">presentText: </span><span class="s4">null</span><span class="s1">,</span>
+      <span class="s1">presentTags: [],</span>
+      <span class="s1">checkedNodes: [],</span>
+      <span class="s1">filtering: </span><span class="s4">false</span><span class="s1">,</span>
+      <span class="s1">suggestions: [],</span>
+      <span class="s1">inputInitialHeight: </span><span class="s5">0</span><span class="s1">,</span>
+      <span class="s1">pressDeleteCount: </span><span class="s5">0</span>
+    <span class="s1">};</span>
+  <span class="s1">},</span>
+
+  <span class="s1">computed: {</span>
+    <span class="s1">realSize() {</span>
+      <span class="s4">const </span><span class="s1">_elFormItemSize = (</span><span class="s4">this</span><span class="s1">.elFormItem || {}).elFormItemSize;</span>
+      <span class="s4">return this</span><span class="s1">.size || _elFormItemSize || (</span><span class="s4">this</span><span class="s1">.$ELEMENT || {}).size;</span>
+    <span class="s1">},</span>
+    <span class="s1">tagSize() {</span>
+      <span class="s4">return </span><span class="s1">[</span><span class="s3">'small'</span><span class="s1">, </span><span class="s3">'mini'</span><span class="s1">].indexOf(</span><span class="s4">this</span><span class="s1">.realSize) &gt; -</span><span class="s5">1</span>
+        <span class="s1">? </span><span class="s3">'mini'</span>
+        <span class="s1">: </span><span class="s3">'small'</span><span class="s1">;</span>
+    <span class="s1">},</span>
+    <span class="s1">isDisabled() {</span>
+      <span class="s4">return this</span><span class="s1">.disabled || (</span><span class="s4">this</span><span class="s1">.elForm || {}).disabled;</span>
+    <span class="s1">},</span>
+    <span class="s1">config() {</span>
+      <span class="s4">const </span><span class="s1">config = </span><span class="s4">this</span><span class="s1">.props || {};</span>
+      <span class="s4">const </span><span class="s1">{ $attrs } = </span><span class="s4">this</span><span class="s1">;</span>
+
+      <span class="s1">Object</span>
+        <span class="s1">.keys(MigratingProps)</span>
+        <span class="s1">.forEach(oldProp =&gt; {</span>
+          <span class="s4">const </span><span class="s1">{ newProp, type } = MigratingProps[oldProp];</span>
+          <span class="s4">let </span><span class="s1">oldValue = $attrs[oldProp] || $attrs[kebabCase(oldProp)];</span>
+          <span class="s4">if </span><span class="s1">(isDef(oldProp) &amp;&amp; !isDef(config[newProp])) {</span>
+            <span class="s4">if </span><span class="s1">(type === Boolean &amp;&amp; oldValue === </span><span class="s3">''</span><span class="s1">) {</span>
+              <span class="s1">oldValue = </span><span class="s4">true</span><span class="s1">;</span>
+            <span class="s1">}</span>
+            <span class="s1">config[newProp] = oldValue;</span>
+          <span class="s1">}</span>
+        <span class="s1">});</span>
+
+      <span class="s4">return </span><span class="s1">config;</span>
+    <span class="s1">},</span>
+    <span class="s1">multiple() {</span>
+      <span class="s4">return this</span><span class="s1">.config.multiple;</span>
+    <span class="s1">},</span>
+    <span class="s1">leafOnly() {</span>
+      <span class="s4">return </span><span class="s1">!</span><span class="s4">this</span><span class="s1">.config.checkStrictly;</span>
+    <span class="s1">},</span>
+    <span class="s1">readonly() {</span>
+      <span class="s4">return </span><span class="s1">!</span><span class="s4">this</span><span class="s1">.filterable || </span><span class="s4">this</span><span class="s1">.multiple;</span>
+    <span class="s1">},</span>
+    <span class="s1">clearBtnVisible() {</span>
+      <span class="s4">if </span><span class="s1">(!</span><span class="s4">this</span><span class="s1">.clearable || </span><span class="s4">this</span><span class="s1">.isDisabled || </span><span class="s4">this</span><span class="s1">.filtering || !</span><span class="s4">this</span><span class="s1">.inputHover) {</span>
+        <span class="s4">return false</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s4">return this</span><span class="s1">.multiple</span>
+        <span class="s1">? !!</span><span class="s4">this</span><span class="s1">.checkedNodes.filter(node =&gt; !node.isDisabled).length</span>
+        <span class="s1">: !!</span><span class="s4">this</span><span class="s1">.presentText;</span>
+    <span class="s1">},</span>
+    <span class="s1">panel() {</span>
+      <span class="s4">return this</span><span class="s1">.$refs.panel;</span>
+    <span class="s1">}</span>
+  <span class="s1">},</span>
+
+  <span class="s1">watch: {</span>
+    <span class="s1">disabled() {</span>
+      <span class="s4">this</span><span class="s1">.computePresentContent();</span>
+    <span class="s1">},</span>
+    <span class="s1">value(val) {</span>
+      <span class="s4">if </span><span class="s1">(!isEqual(val, </span><span class="s4">this</span><span class="s1">.checkedValue)) {</span>
+        <span class="s4">this</span><span class="s1">.checkedValue = val;</span>
+        <span class="s4">this</span><span class="s1">.computePresentContent();</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">checkedValue(val) {</span>
+      <span class="s4">const </span><span class="s1">{ value, dropDownVisible } = </span><span class="s4">this</span><span class="s1">;</span>
+      <span class="s4">const </span><span class="s1">{ checkStrictly, multiple } = </span><span class="s4">this</span><span class="s1">.config;</span>
+
+      <span class="s4">if </span><span class="s1">(!isEqual(val, value) || isUndefined(value)) {</span>
+        <span class="s4">this</span><span class="s1">.computePresentContent();</span>
+        <span class="s6">// hide dropdown when single mode</span>
+        <span class="s4">if </span><span class="s1">(!multiple &amp;&amp; !checkStrictly &amp;&amp; dropDownVisible) {</span>
+          <span class="s4">this</span><span class="s1">.toggleDropDownVisible(</span><span class="s4">false</span><span class="s1">);</span>
+        <span class="s1">}</span>
+
+        <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'input'</span><span class="s1">, val);</span>
+        <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'change'</span><span class="s1">, val);</span>
+        <span class="s4">this</span><span class="s1">.dispatch(</span><span class="s3">'ElFormItem'</span><span class="s1">, </span><span class="s3">'el.form.change'</span><span class="s1">, [val]);</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">options: {</span>
+      <span class="s1">handler: </span><span class="s4">function</span><span class="s1">() {</span>
+        <span class="s4">this</span><span class="s1">.$nextTick(</span><span class="s4">this</span><span class="s1">.computePresentContent);</span>
+      <span class="s1">},</span>
+      <span class="s1">deep: </span><span class="s4">true</span>
+    <span class="s1">},</span>
+    <span class="s1">presentText(val) {</span>
+      <span class="s4">this</span><span class="s1">.inputValue = val;</span>
+    <span class="s1">},</span>
+    <span class="s1">presentTags(val, oldVal) {</span>
+      <span class="s4">if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.multiple &amp;&amp; (val.length || oldVal.length)) {</span>
+        <span class="s4">this</span><span class="s1">.$nextTick(</span><span class="s4">this</span><span class="s1">.updateStyle);</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">filtering(val) {</span>
+      <span class="s4">this</span><span class="s1">.$nextTick(</span><span class="s4">this</span><span class="s1">.updatePopper);</span>
+    <span class="s1">}</span>
+  <span class="s1">},</span>
+
+  <span class="s1">mounted() {</span>
+    <span class="s4">const </span><span class="s1">{ input } = </span><span class="s4">this</span><span class="s1">.$refs;</span>
+    <span class="s4">if </span><span class="s1">(input &amp;&amp; input.$el) {</span>
+      <span class="s4">this</span><span class="s1">.inputInitialHeight = input.$el.offsetHeight || InputSizeMap[</span><span class="s4">this</span><span class="s1">.realSize] || </span><span class="s5">40</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s4">if </span><span class="s1">(!</span><span class="s4">this</span><span class="s1">.isEmptyValue(</span><span class="s4">this</span><span class="s1">.value)) {</span>
+      <span class="s4">this</span><span class="s1">.computePresentContent();</span>
+    <span class="s1">}</span>
+
+    <span class="s4">this</span><span class="s1">.filterHandler = debounce(</span><span class="s4">this</span><span class="s1">.debounce, () =&gt; {</span>
+      <span class="s4">const </span><span class="s1">{ inputValue } = </span><span class="s4">this</span><span class="s1">;</span>
+
+      <span class="s4">if </span><span class="s1">(!inputValue) {</span>
+        <span class="s4">this</span><span class="s1">.filtering = </span><span class="s4">false</span><span class="s1">;</span>
+        <span class="s4">return</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s4">const </span><span class="s1">before = </span><span class="s4">this</span><span class="s1">.beforeFilter(inputValue);</span>
+      <span class="s4">if </span><span class="s1">(before &amp;&amp; before.then) {</span>
+        <span class="s1">before.then(</span><span class="s4">this</span><span class="s1">.getSuggestions);</span>
+      <span class="s1">} </span><span class="s4">else if </span><span class="s1">(before !== </span><span class="s4">false</span><span class="s1">) {</span>
+        <span class="s4">this</span><span class="s1">.getSuggestions();</span>
+      <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+        <span class="s4">this</span><span class="s1">.filtering = </span><span class="s4">false</span><span class="s1">;</span>
+      <span class="s1">}</span>
+    <span class="s1">});</span>
+
+    <span class="s1">addResizeListener(</span><span class="s4">this</span><span class="s1">.$el, </span><span class="s4">this</span><span class="s1">.updateStyle);</span>
+  <span class="s1">},</span>
+
+  <span class="s1">beforeDestroy() {</span>
+    <span class="s1">removeResizeListener(</span><span class="s4">this</span><span class="s1">.$el, </span><span class="s4">this</span><span class="s1">.updateStyle);</span>
+  <span class="s1">},</span>
+
+  <span class="s1">methods: {</span>
+    <span class="s1">getMigratingConfig() {</span>
+      <span class="s4">return </span><span class="s1">{</span>
+        <span class="s1">props: {</span>
+          <span class="s3">'expand-trigger'</span><span class="s1">: </span><span class="s3">'expand-trigger is removed, use `props.expandTrigger` instead.'</span><span class="s1">,</span>
+          <span class="s3">'change-on-select'</span><span class="s1">: </span><span class="s3">'change-on-select is removed, use `props.checkStrictly` instead.'</span><span class="s1">,</span>
+          <span class="s3">'hover-threshold'</span><span class="s1">: </span><span class="s3">'hover-threshold is removed, use `props.hoverThreshold` instead'</span>
+        <span class="s1">},</span>
+        <span class="s1">events: {</span>
+          <span class="s3">'active-item-change'</span><span class="s1">: </span><span class="s3">'active-item-change is renamed to expand-change'</span>
+        <span class="s1">}</span>
+      <span class="s1">};</span>
+    <span class="s1">},</span>
+    <span class="s1">toggleDropDownVisible(visible) {</span>
+      <span class="s4">if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.isDisabled) </span><span class="s4">return</span><span class="s1">;</span>
+
+      <span class="s4">const </span><span class="s1">{ dropDownVisible } = </span><span class="s4">this</span><span class="s1">;</span>
+      <span class="s4">const </span><span class="s1">{ input } = </span><span class="s4">this</span><span class="s1">.$refs;</span>
+      <span class="s1">visible = isDef(visible) ? visible : !dropDownVisible;</span>
+      <span class="s4">if </span><span class="s1">(visible !== dropDownVisible) {</span>
+        <span class="s4">this</span><span class="s1">.dropDownVisible = visible;</span>
+        <span class="s4">if </span><span class="s1">(visible) {</span>
+          <span class="s4">this</span><span class="s1">.$nextTick(() =&gt; {</span>
+            <span class="s4">this</span><span class="s1">.updatePopper();</span>
+            <span class="s4">this</span><span class="s1">.panel.scrollIntoView();</span>
+          <span class="s1">});</span>
+        <span class="s1">}</span>
+        <span class="s1">input.$refs.input.setAttribute(</span><span class="s3">'aria-expanded'</span><span class="s1">, visible);</span>
+        <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'visible-change'</span><span class="s1">, visible);</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">handleDropdownLeave() {</span>
+      <span class="s4">this</span><span class="s1">.filtering = </span><span class="s4">false</span><span class="s1">;</span>
+      <span class="s4">this</span><span class="s1">.inputValue = </span><span class="s4">this</span><span class="s1">.presentText;</span>
+      <span class="s4">this</span><span class="s1">.doDestroy();</span>
+    <span class="s1">},</span>
+    <span class="s1">handleKeyDown(event) {</span>
+      <span class="s4">switch </span><span class="s1">(event.keyCode) {</span>
+        <span class="s4">case </span><span class="s1">KeyCode.enter:</span>
+          <span class="s4">this</span><span class="s1">.toggleDropDownVisible();</span>
+          <span class="s4">break</span><span class="s1">;</span>
+        <span class="s4">case </span><span class="s1">KeyCode.down:</span>
+          <span class="s4">this</span><span class="s1">.toggleDropDownVisible(</span><span class="s4">true</span><span class="s1">);</span>
+          <span class="s4">this</span><span class="s1">.focusFirstNode();</span>
+          <span class="s1">event.preventDefault();</span>
+          <span class="s4">break</span><span class="s1">;</span>
+        <span class="s4">case </span><span class="s1">KeyCode.esc:</span>
+        <span class="s4">case </span><span class="s1">KeyCode.tab:</span>
+          <span class="s4">this</span><span class="s1">.toggleDropDownVisible(</span><span class="s4">false</span><span class="s1">);</span>
+          <span class="s4">break</span><span class="s1">;</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">handleFocus(e) {</span>
+      <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'focus'</span><span class="s1">, e);</span>
+    <span class="s1">},</span>
+    <span class="s1">handleBlur(e) {</span>
+      <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'blur'</span><span class="s1">, e);</span>
+    <span class="s1">},</span>
+    <span class="s1">handleInput(val, event) {</span>
+      <span class="s1">!</span><span class="s4">this</span><span class="s1">.dropDownVisible &amp;&amp; </span><span class="s4">this</span><span class="s1">.toggleDropDownVisible(</span><span class="s4">true</span><span class="s1">);</span>
+
+      <span class="s4">if </span><span class="s1">(event &amp;&amp; event.isComposing) </span><span class="s4">return</span><span class="s1">;</span>
+      <span class="s4">if </span><span class="s1">(val) {</span>
+        <span class="s4">this</span><span class="s1">.filterHandler();</span>
+      <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+        <span class="s4">this</span><span class="s1">.filtering = </span><span class="s4">false</span><span class="s1">;</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">handleClear() {</span>
+      <span class="s4">this</span><span class="s1">.presentText = </span><span class="s3">''</span><span class="s1">;</span>
+      <span class="s4">this</span><span class="s1">.panel.clearCheckedNodes();</span>
+    <span class="s1">},</span>
+    <span class="s1">handleExpandChange(value) {</span>
+      <span class="s4">this</span><span class="s1">.$nextTick(</span><span class="s4">this</span><span class="s1">.updatePopper.bind(</span><span class="s4">this</span><span class="s1">));</span>
+      <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'expand-change'</span><span class="s1">, value);</span>
+      <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'active-item-change'</span><span class="s1">, value); </span><span class="s6">// Deprecated</span>
+    <span class="s1">},</span>
+    <span class="s1">focusFirstNode() {</span>
+      <span class="s4">this</span><span class="s1">.$nextTick(() =&gt; {</span>
+        <span class="s4">const </span><span class="s1">{ filtering } = </span><span class="s4">this</span><span class="s1">;</span>
+        <span class="s4">const </span><span class="s1">{ popper, suggestionPanel } = </span><span class="s4">this</span><span class="s1">.$refs;</span>
+        <span class="s4">let </span><span class="s1">firstNode = </span><span class="s4">null</span><span class="s1">;</span>
+
+        <span class="s4">if </span><span class="s1">(filtering &amp;&amp; suggestionPanel) {</span>
+          <span class="s1">firstNode = suggestionPanel.$el.querySelector(</span><span class="s3">'.el-cascader__suggestion-item'</span><span class="s1">);</span>
+        <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+          <span class="s4">const </span><span class="s1">firstMenu = popper.querySelector(</span><span class="s3">'.el-cascader-menu'</span><span class="s1">);</span>
+          <span class="s1">firstNode = firstMenu.querySelector(</span><span class="s3">'.el-cascader-node[tabindex=&quot;-1&quot;]'</span><span class="s1">);</span>
+        <span class="s1">}</span>
+
+        <span class="s4">if </span><span class="s1">(firstNode) {</span>
+          <span class="s1">firstNode.focus();</span>
+          <span class="s1">!filtering &amp;&amp; firstNode.click();</span>
+        <span class="s1">}</span>
+      <span class="s1">});</span>
+    <span class="s1">},</span>
+    <span class="s1">computePresentContent() {</span>
+      <span class="s6">// nextTick is required, because checked nodes may not change right now</span>
+      <span class="s4">this</span><span class="s1">.$nextTick(() =&gt; {</span>
+        <span class="s4">if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.config.multiple) {</span>
+          <span class="s4">this</span><span class="s1">.computePresentTags();</span>
+          <span class="s4">this</span><span class="s1">.presentText = </span><span class="s4">this</span><span class="s1">.presentTags.length ? </span><span class="s3">' ' </span><span class="s1">: </span><span class="s4">null</span><span class="s1">;</span>
+        <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+          <span class="s4">this</span><span class="s1">.computePresentText();</span>
+        <span class="s1">}</span>
+      <span class="s1">});</span>
+    <span class="s1">},</span>
+    <span class="s1">isEmptyValue(val) {</span>
+      <span class="s4">const </span><span class="s1">{ multiple } = </span><span class="s4">this</span><span class="s1">;</span>
+      <span class="s4">const </span><span class="s1">{ emitPath } = </span><span class="s4">this</span><span class="s1">.panel.config;</span>
+      <span class="s4">if </span><span class="s1">(multiple || emitPath) {</span>
+        <span class="s4">return </span><span class="s1">isEmpty(val);</span>
+      <span class="s1">}</span>
+      <span class="s4">return false</span><span class="s1">;</span>
+    <span class="s1">},</span>
+    <span class="s1">computePresentText() {</span>
+      <span class="s4">const </span><span class="s1">{ checkedValue, config } = </span><span class="s4">this</span><span class="s1">;</span>
+      <span class="s4">if </span><span class="s1">(!</span><span class="s4">this</span><span class="s1">.isEmptyValue(checkedValue)) {</span>
+        <span class="s4">const </span><span class="s1">node = </span><span class="s4">this</span><span class="s1">.panel.getNodeByValue(checkedValue);</span>
+        <span class="s4">if </span><span class="s1">(node &amp;&amp; (config.checkStrictly || node.isLeaf)) {</span>
+          <span class="s4">this</span><span class="s1">.presentText = node.getText(</span><span class="s4">this</span><span class="s1">.showAllLevels, </span><span class="s4">this</span><span class="s1">.separator);</span>
+          <span class="s4">return</span><span class="s1">;</span>
+        <span class="s1">}</span>
+      <span class="s1">}</span>
+      <span class="s4">this</span><span class="s1">.presentText = </span><span class="s4">null</span><span class="s1">;</span>
+    <span class="s1">},</span>
+    <span class="s1">computePresentTags() {</span>
+      <span class="s4">const </span><span class="s1">{ isDisabled, leafOnly, showAllLevels, separator, collapseTags } = </span><span class="s4">this</span><span class="s1">;</span>
+      <span class="s4">const </span><span class="s1">checkedNodes = </span><span class="s4">this</span><span class="s1">.getCheckedNodes(leafOnly);</span>
+      <span class="s4">const </span><span class="s1">tags = [];</span>
+
+      <span class="s4">const </span><span class="s1">genTag = node =&gt; ({</span>
+        <span class="s1">node,</span>
+        <span class="s1">key: node.uid,</span>
+        <span class="s1">text: node.getText(showAllLevels, separator),</span>
+        <span class="s1">hitState: </span><span class="s4">false</span><span class="s1">,</span>
+        <span class="s1">closable: !isDisabled &amp;&amp; !node.isDisabled</span>
+      <span class="s1">});</span>
+
+      <span class="s4">if </span><span class="s1">(checkedNodes.length) {</span>
+        <span class="s4">const </span><span class="s1">[first, ...rest] = checkedNodes;</span>
+        <span class="s4">const </span><span class="s1">restCount = rest.length;</span>
+        <span class="s1">tags.push(genTag(first));</span>
+
+        <span class="s4">if </span><span class="s1">(restCount) {</span>
+          <span class="s4">if </span><span class="s1">(collapseTags) {</span>
+            <span class="s1">tags.push({</span>
+              <span class="s1">key: -</span><span class="s5">1</span><span class="s1">,</span>
+              <span class="s1">text: </span><span class="s3">`+ </span><span class="s1">${restCount}</span><span class="s3">`</span><span class="s1">,</span>
+              <span class="s1">closable: </span><span class="s4">false</span>
+            <span class="s1">});</span>
+          <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+            <span class="s1">rest.forEach(node =&gt; tags.push(genTag(node)));</span>
+          <span class="s1">}</span>
+        <span class="s1">}</span>
+      <span class="s1">}</span>
+
+      <span class="s4">this</span><span class="s1">.checkedNodes = checkedNodes;</span>
+      <span class="s4">this</span><span class="s1">.presentTags = tags;</span>
+    <span class="s1">},</span>
+    <span class="s1">getSuggestions() {</span>
+      <span class="s4">let </span><span class="s1">{ filterMethod } = </span><span class="s4">this</span><span class="s1">;</span>
+
+      <span class="s4">if </span><span class="s1">(!isFunction(filterMethod)) {</span>
+        <span class="s1">filterMethod = (node, keyword) =&gt; node.text.includes(keyword);</span>
+      <span class="s1">}</span>
+
+      <span class="s4">const </span><span class="s1">suggestions = </span><span class="s4">this</span><span class="s1">.panel.getFlattedNodes(</span><span class="s4">this</span><span class="s1">.leafOnly)</span>
+        <span class="s1">.filter(node =&gt; {</span>
+          <span class="s4">if </span><span class="s1">(node.isDisabled) </span><span class="s4">return false</span><span class="s1">;</span>
+          <span class="s1">node.text = node.getText(</span><span class="s4">this</span><span class="s1">.showAllLevels, </span><span class="s4">this</span><span class="s1">.separator) || </span><span class="s3">''</span><span class="s1">;</span>
+          <span class="s4">return </span><span class="s1">filterMethod(node, </span><span class="s4">this</span><span class="s1">.inputValue);</span>
+        <span class="s1">});</span>
+
+      <span class="s4">if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.multiple) {</span>
+        <span class="s4">this</span><span class="s1">.presentTags.forEach(tag =&gt; {</span>
+          <span class="s1">tag.hitState = </span><span class="s4">false</span><span class="s1">;</span>
+        <span class="s1">});</span>
+      <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+        <span class="s1">suggestions.forEach(node =&gt; {</span>
+          <span class="s1">node.checked = isEqual(</span><span class="s4">this</span><span class="s1">.checkedValue, node.getValueByOption());</span>
+        <span class="s1">});</span>
+      <span class="s1">}</span>
+
+      <span class="s4">this</span><span class="s1">.filtering = </span><span class="s4">true</span><span class="s1">;</span>
+      <span class="s4">this</span><span class="s1">.suggestions = suggestions;</span>
+      <span class="s4">this</span><span class="s1">.$nextTick(</span><span class="s4">this</span><span class="s1">.updatePopper);</span>
+    <span class="s1">},</span>
+    <span class="s1">handleSuggestionKeyDown(event) {</span>
+      <span class="s4">const </span><span class="s1">{ keyCode, target } = event;</span>
+      <span class="s4">switch </span><span class="s1">(keyCode) {</span>
+        <span class="s4">case </span><span class="s1">KeyCode.enter:</span>
+          <span class="s1">target.click();</span>
+          <span class="s4">break</span><span class="s1">;</span>
+        <span class="s4">case </span><span class="s1">KeyCode.up:</span>
+          <span class="s4">const </span><span class="s1">prev = target.previousElementSibling;</span>
+          <span class="s1">prev &amp;&amp; prev.focus();</span>
+          <span class="s4">break</span><span class="s1">;</span>
+        <span class="s4">case </span><span class="s1">KeyCode.down:</span>
+          <span class="s4">const </span><span class="s1">next = target.nextElementSibling;</span>
+          <span class="s1">next &amp;&amp; next.focus();</span>
+          <span class="s4">break</span><span class="s1">;</span>
+        <span class="s4">case </span><span class="s1">KeyCode.esc:</span>
+        <span class="s4">case </span><span class="s1">KeyCode.tab:</span>
+          <span class="s4">this</span><span class="s1">.toggleDropDownVisible(</span><span class="s4">false</span><span class="s1">);</span>
+          <span class="s4">break</span><span class="s1">;</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">handleDelete() {</span>
+      <span class="s4">const </span><span class="s1">{ inputValue, pressDeleteCount, presentTags } = </span><span class="s4">this</span><span class="s1">;</span>
+      <span class="s4">const </span><span class="s1">lastIndex = presentTags.length - </span><span class="s5">1</span><span class="s1">;</span>
+      <span class="s4">const </span><span class="s1">lastTag = presentTags[lastIndex];</span>
+      <span class="s4">this</span><span class="s1">.pressDeleteCount = inputValue ? </span><span class="s5">0 </span><span class="s1">: pressDeleteCount + </span><span class="s5">1</span><span class="s1">;</span>
+
+      <span class="s4">if </span><span class="s1">(!lastTag) </span><span class="s4">return</span><span class="s1">;</span>
+
+      <span class="s4">if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.pressDeleteCount) {</span>
+        <span class="s4">if </span><span class="s1">(lastTag.hitState) {</span>
+          <span class="s4">this</span><span class="s1">.deleteTag(lastTag);</span>
+        <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+          <span class="s1">lastTag.hitState = </span><span class="s4">true</span><span class="s1">;</span>
+        <span class="s1">}</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">handleSuggestionClick(index) {</span>
+      <span class="s4">const </span><span class="s1">{ multiple } = </span><span class="s4">this</span><span class="s1">;</span>
+      <span class="s4">const </span><span class="s1">targetNode = </span><span class="s4">this</span><span class="s1">.suggestions[index];</span>
+
+      <span class="s4">if </span><span class="s1">(multiple) {</span>
+        <span class="s4">const </span><span class="s1">{ checked } = targetNode;</span>
+        <span class="s1">targetNode.doCheck(!checked);</span>
+        <span class="s4">this</span><span class="s1">.panel.calculateMultiCheckedValue();</span>
+      <span class="s1">} </span><span class="s4">else </span><span class="s1">{</span>
+        <span class="s4">this</span><span class="s1">.checkedValue = targetNode.getValueByOption();</span>
+        <span class="s4">this</span><span class="s1">.toggleDropDownVisible(</span><span class="s4">false</span><span class="s1">);</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+    <span class="s1">deleteTag(tag) {</span>
+      <span class="s4">const </span><span class="s1">{ checkedValue } = </span><span class="s4">this</span><span class="s1">;</span>
+      <span class="s4">const </span><span class="s1">current = tag.node.getValueByOption();</span>
+      <span class="s4">const </span><span class="s1">val = checkedValue.find(n =&gt; isEqual(n, current));</span>
+      <span class="s4">this</span><span class="s1">.checkedValue = checkedValue.filter(n =&gt; !isEqual(n, current));</span>
+      <span class="s4">this</span><span class="s1">.$emit(</span><span class="s3">'remove-tag'</span><span class="s1">, val);</span>
+    <span class="s1">},</span>
+    <span class="s1">updateStyle() {</span>
+      <span class="s4">const </span><span class="s1">{ $el, inputInitialHeight } = </span><span class="s4">this</span><span class="s1">;</span>
+      <span class="s4">if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.$isServer || !$el) </span><span class="s4">return</span><span class="s1">;</span>
+
+      <span class="s4">const </span><span class="s1">{ suggestionPanel } = </span><span class="s4">this</span><span class="s1">.$refs;</span>
+      <span class="s4">const </span><span class="s1">inputInner = $el.querySelector(</span><span class="s3">'.el-input__inner'</span><span class="s1">);</span>
+
+      <span class="s4">if </span><span class="s1">(!inputInner) </span><span class="s4">return</span><span class="s1">;</span>
+
+      <span class="s4">const </span><span class="s1">tags = $el.querySelector(</span><span class="s3">'.el-cascader__tags'</span><span class="s1">);</span>
+      <span class="s4">let </span><span class="s1">suggestionPanelEl = </span><span class="s4">null</span><span class="s1">;</span>
+
+      <span class="s4">if </span><span class="s1">(suggestionPanel &amp;&amp; (suggestionPanelEl = suggestionPanel.$el)) {</span>
+        <span class="s4">const </span><span class="s1">suggestionList = suggestionPanelEl.querySelector(</span><span class="s3">'.el-cascader__suggestion-list'</span><span class="s1">);</span>
+        <span class="s1">suggestionList.style.minWidth = inputInner.offsetWidth + </span><span class="s3">'px'</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s4">if </span><span class="s1">(tags) {</span>
+        <span class="s4">const </span><span class="s1">offsetHeight = Math.round(tags.getBoundingClientRect().height);</span>
+        <span class="s4">const </span><span class="s1">height = Math.max(offsetHeight + </span><span class="s5">6</span><span class="s1">, inputInitialHeight) + </span><span class="s3">'px'</span><span class="s1">;</span>
+        <span class="s1">inputInner.style.height = height;</span>
+        <span class="s4">if </span><span class="s1">(</span><span class="s4">this</span><span class="s1">.dropDownVisible) {</span>
+          <span class="s4">this</span><span class="s1">.updatePopper();</span>
+        <span class="s1">}</span>
+      <span class="s1">}</span>
+    <span class="s1">},</span>
+
+    <span class="s7">/**</span>
+     <span class="s7">* public methods</span>
+    <span class="s7">*/</span>
+    <span class="s1">getCheckedNodes(leafOnly) {</span>
+      <span class="s4">return this</span><span class="s1">.panel.getCheckedNodes(leafOnly);</span>
+    <span class="s1">}</span>
+  <span class="s1">}</span>
+<span class="s1">};</span>
+<span class="s0">&lt;/script&gt;</span>
+
+</pre>
+</body>
+</html>

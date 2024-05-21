@@ -1,0 +1,392 @@
+<html>
+<head>
+<title>visit.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #7a7e85;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+visit.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* Copyright (c) 2014-present, Facebook, Inc.</span>
+ <span class="s0">*</span>
+ <span class="s0">* This source code is licensed under the MIT license found in the</span>
+ <span class="s0">* LICENSE file in the root directory of this source tree.</span>
+ <span class="s0">*/</span>
+
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">import </span><span class="s1">assert from </span><span class="s2">&quot;assert&quot;</span><span class="s3">;</span>
+<span class="s4">import </span><span class="s3">{ </span><span class="s1">hoist </span><span class="s3">} </span><span class="s1">from </span><span class="s2">&quot;./hoist&quot;</span><span class="s3">;</span>
+<span class="s4">import </span><span class="s3">{ </span><span class="s1">Emitter </span><span class="s3">} </span><span class="s1">from </span><span class="s2">&quot;./emit&quot;</span><span class="s3">;</span>
+<span class="s4">import </span><span class="s1">replaceShorthandObjectMethod from </span><span class="s2">&quot;./replaceShorthandObjectMethod&quot;</span><span class="s3">;</span>
+<span class="s4">import </span><span class="s3">* as </span><span class="s1">util from </span><span class="s2">&quot;./util&quot;</span><span class="s3">;</span>
+
+<span class="s1">exports</span><span class="s3">.</span><span class="s1">getVisitor </span><span class="s3">= ({ </span><span class="s1">types</span><span class="s3">: </span><span class="s1">t </span><span class="s3">}) =&gt; ({</span>
+  <span class="s1">Method</span><span class="s3">(</span><span class="s1">path</span><span class="s3">, </span><span class="s1">state</span><span class="s3">) {</span>
+    <span class="s4">let </span><span class="s1">node </span><span class="s3">= </span><span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">;</span>
+
+    <span class="s4">if </span><span class="s3">(!</span><span class="s1">shouldRegenerate</span><span class="s3">(</span><span class="s1">node</span><span class="s3">, </span><span class="s1">state</span><span class="s3">)) </span><span class="s4">return</span><span class="s3">;</span>
+
+    <span class="s4">const </span><span class="s1">container </span><span class="s3">= </span><span class="s1">t</span><span class="s3">.</span><span class="s1">functionExpression</span><span class="s3">(</span>
+      <span class="s4">null</span><span class="s3">,</span>
+      <span class="s3">[],</span>
+      <span class="s1">t</span><span class="s3">.</span><span class="s1">cloneNode</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">body</span><span class="s3">, </span><span class="s4">false</span><span class="s3">),</span>
+      <span class="s1">node</span><span class="s3">.</span><span class="s1">generator</span><span class="s3">,</span>
+      <span class="s1">node</span><span class="s3">.</span><span class="s1">async</span><span class="s3">,</span>
+    <span class="s3">);</span>
+
+    <span class="s1">path</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s2">&quot;body&quot;</span><span class="s3">).</span><span class="s1">set</span><span class="s3">(</span><span class="s2">&quot;body&quot;</span><span class="s3">, [</span>
+      <span class="s1">t</span><span class="s3">.</span><span class="s1">returnStatement</span><span class="s3">(</span>
+        <span class="s1">t</span><span class="s3">.</span><span class="s1">callExpression</span><span class="s3">(</span><span class="s1">container</span><span class="s3">, []),</span>
+      <span class="s3">),</span>
+    <span class="s3">]);</span>
+
+    <span class="s5">// Regardless of whether or not the wrapped function is a an async method</span>
+    <span class="s5">// or generator the outer function should not be</span>
+    <span class="s1">node</span><span class="s3">.</span><span class="s1">async </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+    <span class="s1">node</span><span class="s3">.</span><span class="s1">generator </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+
+    <span class="s5">// Unwrap the wrapper IIFE's environment so super and this and such still work.</span>
+    <span class="s1">path</span>
+      <span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s2">&quot;body.body.0.argument.callee&quot;</span><span class="s3">)</span>
+      <span class="s3">.</span><span class="s1">unwrapFunctionEnvironment</span><span class="s3">();</span>
+  <span class="s3">},</span>
+  <span class="s1">Function</span><span class="s3">: {</span>
+    <span class="s1">exit</span><span class="s3">: </span><span class="s1">util</span><span class="s3">.</span><span class="s1">wrapWithTypes</span><span class="s3">(</span><span class="s1">t</span><span class="s3">, </span><span class="s4">function</span><span class="s3">(</span><span class="s1">path</span><span class="s3">, </span><span class="s1">state</span><span class="s3">) {</span>
+      <span class="s4">let </span><span class="s1">node </span><span class="s3">= </span><span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">;</span>
+
+      <span class="s4">if </span><span class="s3">(!</span><span class="s1">shouldRegenerate</span><span class="s3">(</span><span class="s1">node</span><span class="s3">, </span><span class="s1">state</span><span class="s3">)) </span><span class="s4">return</span><span class="s3">;</span>
+
+      <span class="s5">// if this is an ObjectMethod, we need to convert it to an ObjectProperty</span>
+      <span class="s1">path </span><span class="s3">= </span><span class="s1">replaceShorthandObjectMethod</span><span class="s3">(</span><span class="s1">path</span><span class="s3">);</span>
+      <span class="s1">node </span><span class="s3">= </span><span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">;</span>
+
+      <span class="s4">let </span><span class="s1">contextId </span><span class="s3">= </span><span class="s1">path</span><span class="s3">.</span><span class="s1">scope</span><span class="s3">.</span><span class="s1">generateUidIdentifier</span><span class="s3">(</span><span class="s2">&quot;context&quot;</span><span class="s3">);</span>
+      <span class="s4">let </span><span class="s1">argsId </span><span class="s3">= </span><span class="s1">path</span><span class="s3">.</span><span class="s1">scope</span><span class="s3">.</span><span class="s1">generateUidIdentifier</span><span class="s3">(</span><span class="s2">&quot;args&quot;</span><span class="s3">);</span>
+
+      <span class="s1">path</span><span class="s3">.</span><span class="s1">ensureBlock</span><span class="s3">();</span>
+      <span class="s4">let </span><span class="s1">bodyBlockPath </span><span class="s3">= </span><span class="s1">path</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s2">&quot;body&quot;</span><span class="s3">);</span>
+
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">async</span><span class="s3">) {</span>
+        <span class="s1">bodyBlockPath</span><span class="s3">.</span><span class="s1">traverse</span><span class="s3">(</span><span class="s1">awaitVisitor</span><span class="s3">);</span>
+      <span class="s3">}</span>
+
+      <span class="s1">bodyBlockPath</span><span class="s3">.</span><span class="s1">traverse</span><span class="s3">(</span><span class="s1">functionSentVisitor</span><span class="s3">, {</span>
+        <span class="s1">context</span><span class="s3">: </span><span class="s1">contextId</span>
+      <span class="s3">});</span>
+
+      <span class="s4">let </span><span class="s1">outerBody </span><span class="s3">= [];</span>
+      <span class="s4">let </span><span class="s1">innerBody </span><span class="s3">= [];</span>
+
+      <span class="s1">bodyBlockPath</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s2">&quot;body&quot;</span><span class="s3">).</span><span class="s1">forEach</span><span class="s3">(</span><span class="s4">function</span><span class="s3">(</span><span class="s1">childPath</span><span class="s3">) {</span>
+        <span class="s4">let </span><span class="s1">node </span><span class="s3">= </span><span class="s1">childPath</span><span class="s3">.</span><span class="s1">node</span><span class="s3">;</span>
+        <span class="s4">if </span><span class="s3">(</span><span class="s1">t</span><span class="s3">.</span><span class="s1">isExpressionStatement</span><span class="s3">(</span><span class="s1">node</span><span class="s3">) &amp;&amp;</span>
+            <span class="s1">t</span><span class="s3">.</span><span class="s1">isStringLiteral</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">expression</span><span class="s3">)) {</span>
+          <span class="s5">// Babylon represents directives like &quot;use strict&quot; as elements</span>
+          <span class="s5">// of a bodyBlockPath.node.directives array, but they could just</span>
+          <span class="s5">// as easily be represented (by other parsers) as traditional</span>
+          <span class="s5">// string-literal-valued expression statements, so we need to</span>
+          <span class="s5">// handle that here. (#248)</span>
+          <span class="s1">outerBody</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">node</span><span class="s3">);</span>
+        <span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">node </span><span class="s3">&amp;&amp; </span><span class="s1">node</span><span class="s3">.</span><span class="s1">_blockHoist </span><span class="s3">!= </span><span class="s4">null</span><span class="s3">) {</span>
+          <span class="s1">outerBody</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">node</span><span class="s3">);</span>
+        <span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+          <span class="s1">innerBody</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">node</span><span class="s3">);</span>
+        <span class="s3">}</span>
+      <span class="s3">});</span>
+
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">outerBody</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s6">0</span><span class="s3">) {</span>
+        <span class="s5">// Only replace the inner body if we actually hoisted any statements</span>
+        <span class="s5">// to the outer body.</span>
+        <span class="s1">bodyBlockPath</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">body </span><span class="s3">= </span><span class="s1">innerBody</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s4">let </span><span class="s1">outerFnExpr </span><span class="s3">= </span><span class="s1">getOuterFnExpr</span><span class="s3">(</span><span class="s1">path</span><span class="s3">);</span>
+      <span class="s5">// Note that getOuterFnExpr has the side-effect of ensuring that the</span>
+      <span class="s5">// function has a name (so node.id will always be an Identifier), even</span>
+      <span class="s5">// if a temporary name has to be synthesized.</span>
+      <span class="s1">t</span><span class="s3">.</span><span class="s1">assertIdentifier</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">id</span><span class="s3">);</span>
+      <span class="s4">let </span><span class="s1">innerFnId </span><span class="s3">= </span><span class="s1">t</span><span class="s3">.</span><span class="s1">identifier</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">id</span><span class="s3">.</span><span class="s1">name </span><span class="s3">+ </span><span class="s2">&quot;$&quot;</span><span class="s3">);</span>
+
+      <span class="s5">// Turn all declarations into vars, and replace the original</span>
+      <span class="s5">// declarations with equivalent assignment expressions.</span>
+      <span class="s4">let </span><span class="s1">vars </span><span class="s3">= </span><span class="s1">hoist</span><span class="s3">(</span><span class="s1">path</span><span class="s3">);</span>
+
+      <span class="s4">let </span><span class="s1">context </span><span class="s3">= {</span>
+        <span class="s1">usesThis</span><span class="s3">: </span><span class="s4">false</span><span class="s3">,</span>
+        <span class="s1">usesArguments</span><span class="s3">: </span><span class="s4">false</span><span class="s3">,</span>
+        <span class="s1">getArgsId</span><span class="s3">: () =&gt; </span><span class="s1">t</span><span class="s3">.</span><span class="s1">clone</span><span class="s3">(</span><span class="s1">argsId</span><span class="s3">),</span>
+      <span class="s3">};</span>
+      <span class="s1">path</span><span class="s3">.</span><span class="s1">traverse</span><span class="s3">(</span><span class="s1">argumentsThisVisitor</span><span class="s3">, </span><span class="s1">context</span><span class="s3">);</span>
+
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">context</span><span class="s3">.</span><span class="s1">usesArguments</span><span class="s3">) {</span>
+        <span class="s1">vars </span><span class="s3">= </span><span class="s1">vars </span><span class="s3">|| </span><span class="s1">t</span><span class="s3">.</span><span class="s1">variableDeclaration</span><span class="s3">(</span><span class="s2">&quot;var&quot;</span><span class="s3">, []);</span>
+        <span class="s1">vars</span><span class="s3">.</span><span class="s1">declarations</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">t</span><span class="s3">.</span><span class="s1">variableDeclarator</span><span class="s3">(</span>
+          <span class="s1">t</span><span class="s3">.</span><span class="s1">clone</span><span class="s3">(</span><span class="s1">argsId</span><span class="s3">),</span>
+          <span class="s1">t</span><span class="s3">.</span><span class="s1">identifier</span><span class="s3">(</span><span class="s2">&quot;arguments&quot;</span><span class="s3">),</span>
+        <span class="s3">));</span>
+      <span class="s3">}</span>
+
+      <span class="s4">let </span><span class="s1">emitter </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Emitter</span><span class="s3">(</span><span class="s1">contextId</span><span class="s3">);</span>
+      <span class="s1">emitter</span><span class="s3">.</span><span class="s1">explode</span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s2">&quot;body&quot;</span><span class="s3">));</span>
+
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">vars </span><span class="s3">&amp;&amp; </span><span class="s1">vars</span><span class="s3">.</span><span class="s1">declarations</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s6">0</span><span class="s3">) {</span>
+        <span class="s1">outerBody</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">vars</span><span class="s3">);</span>
+      <span class="s3">}</span>
+
+      <span class="s4">let </span><span class="s1">wrapArgs </span><span class="s3">= [</span><span class="s1">emitter</span><span class="s3">.</span><span class="s1">getContextFunction</span><span class="s3">(</span><span class="s1">innerFnId</span><span class="s3">)];</span>
+      <span class="s4">let </span><span class="s1">tryLocsList </span><span class="s3">= </span><span class="s1">emitter</span><span class="s3">.</span><span class="s1">getTryLocsList</span><span class="s3">();</span>
+
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">generator</span><span class="s3">) {</span>
+        <span class="s1">wrapArgs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">outerFnExpr</span><span class="s3">);</span>
+      <span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">context</span><span class="s3">.</span><span class="s1">usesThis </span><span class="s3">|| </span><span class="s1">tryLocsList </span><span class="s3">|| </span><span class="s1">node</span><span class="s3">.</span><span class="s1">async</span><span class="s3">) {</span>
+        <span class="s5">// Async functions that are not generators don't care about the</span>
+        <span class="s5">// outer function because they don't need it to be marked and don't</span>
+        <span class="s5">// inherit from its .prototype.</span>
+        <span class="s1">wrapArgs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">t</span><span class="s3">.</span><span class="s1">nullLiteral</span><span class="s3">());</span>
+      <span class="s3">}</span>
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">context</span><span class="s3">.</span><span class="s1">usesThis</span><span class="s3">) {</span>
+        <span class="s1">wrapArgs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">t</span><span class="s3">.</span><span class="s1">thisExpression</span><span class="s3">());</span>
+      <span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">tryLocsList </span><span class="s3">|| </span><span class="s1">node</span><span class="s3">.</span><span class="s1">async</span><span class="s3">) {</span>
+        <span class="s1">wrapArgs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">t</span><span class="s3">.</span><span class="s1">nullLiteral</span><span class="s3">());</span>
+      <span class="s3">}</span>
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">tryLocsList</span><span class="s3">) {</span>
+        <span class="s1">wrapArgs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">tryLocsList</span><span class="s3">);</span>
+      <span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">async</span><span class="s3">) {</span>
+        <span class="s1">wrapArgs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">t</span><span class="s3">.</span><span class="s1">nullLiteral</span><span class="s3">());</span>
+      <span class="s3">}</span>
+
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">async</span><span class="s3">) {</span>
+        <span class="s5">// Rename any locally declared &quot;Promise&quot; variable,</span>
+        <span class="s5">// to use the global one.</span>
+        <span class="s4">let </span><span class="s1">currentScope </span><span class="s3">= </span><span class="s1">path</span><span class="s3">.</span><span class="s1">scope</span><span class="s3">;</span>
+        <span class="s4">do </span><span class="s3">{</span>
+          <span class="s4">if </span><span class="s3">(</span><span class="s1">currentScope</span><span class="s3">.</span><span class="s1">hasOwnBinding</span><span class="s3">(</span><span class="s2">&quot;Promise&quot;</span><span class="s3">)) </span><span class="s1">currentScope</span><span class="s3">.</span><span class="s1">rename</span><span class="s3">(</span><span class="s2">&quot;Promise&quot;</span><span class="s3">);</span>
+        <span class="s3">} </span><span class="s4">while </span><span class="s3">(</span><span class="s1">currentScope </span><span class="s3">= </span><span class="s1">currentScope</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">);</span>
+
+        <span class="s1">wrapArgs</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">t</span><span class="s3">.</span><span class="s1">identifier</span><span class="s3">(</span><span class="s2">&quot;Promise&quot;</span><span class="s3">));</span>
+      <span class="s3">}</span>
+
+      <span class="s4">let </span><span class="s1">wrapCall </span><span class="s3">= </span><span class="s1">t</span><span class="s3">.</span><span class="s1">callExpression</span><span class="s3">(</span>
+        <span class="s1">util</span><span class="s3">.</span><span class="s1">runtimeProperty</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">async </span><span class="s3">? </span><span class="s2">&quot;async&quot; </span><span class="s3">: </span><span class="s2">&quot;wrap&quot;</span><span class="s3">),</span>
+        <span class="s1">wrapArgs</span>
+      <span class="s3">);</span>
+
+      <span class="s1">outerBody</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">t</span><span class="s3">.</span><span class="s1">returnStatement</span><span class="s3">(</span><span class="s1">wrapCall</span><span class="s3">));</span>
+      <span class="s1">node</span><span class="s3">.</span><span class="s1">body </span><span class="s3">= </span><span class="s1">t</span><span class="s3">.</span><span class="s1">blockStatement</span><span class="s3">(</span><span class="s1">outerBody</span><span class="s3">);</span>
+      <span class="s5">// We injected a few new variable declarations (for every hoisted var),</span>
+      <span class="s5">// so we need to add them to the scope.</span>
+      <span class="s1">path</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s2">&quot;body.body&quot;</span><span class="s3">).</span><span class="s1">forEach</span><span class="s3">(</span><span class="s1">p </span><span class="s3">=&gt; </span><span class="s1">p</span><span class="s3">.</span><span class="s1">scope</span><span class="s3">.</span><span class="s1">registerDeclaration</span><span class="s3">(</span><span class="s1">p</span><span class="s3">));</span>
+
+      <span class="s4">const </span><span class="s1">oldDirectives </span><span class="s3">= </span><span class="s1">bodyBlockPath</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">directives</span><span class="s3">;</span>
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">oldDirectives</span><span class="s3">) {</span>
+        <span class="s5">// Babylon represents directives like &quot;use strict&quot; as elements of</span>
+        <span class="s5">// a bodyBlockPath.node.directives array. (#248)</span>
+        <span class="s1">node</span><span class="s3">.</span><span class="s1">body</span><span class="s3">.</span><span class="s1">directives </span><span class="s3">= </span><span class="s1">oldDirectives</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s4">let </span><span class="s1">wasGeneratorFunction </span><span class="s3">= </span><span class="s1">node</span><span class="s3">.</span><span class="s1">generator</span><span class="s3">;</span>
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">wasGeneratorFunction</span><span class="s3">) {</span>
+        <span class="s1">node</span><span class="s3">.</span><span class="s1">generator </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">async</span><span class="s3">) {</span>
+        <span class="s1">node</span><span class="s3">.</span><span class="s1">async </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+      <span class="s3">}</span>
+
+      <span class="s4">if </span><span class="s3">(</span><span class="s1">wasGeneratorFunction </span><span class="s3">&amp;&amp; </span><span class="s1">t</span><span class="s3">.</span><span class="s1">isExpression</span><span class="s3">(</span><span class="s1">node</span><span class="s3">)) {</span>
+        <span class="s1">util</span><span class="s3">.</span><span class="s1">replaceWithOrRemove</span><span class="s3">(</span><span class="s1">path</span><span class="s3">, </span><span class="s1">t</span><span class="s3">.</span><span class="s1">callExpression</span><span class="s3">(</span><span class="s1">util</span><span class="s3">.</span><span class="s1">runtimeProperty</span><span class="s3">(</span><span class="s2">&quot;mark&quot;</span><span class="s3">), [</span><span class="s1">node</span><span class="s3">]))</span>
+        <span class="s1">path</span><span class="s3">.</span><span class="s1">addComment</span><span class="s3">(</span><span class="s2">&quot;leading&quot;</span><span class="s3">, </span><span class="s2">&quot;#__PURE__&quot;</span><span class="s3">);</span>
+      <span class="s3">}</span>
+
+      <span class="s4">const </span><span class="s1">insertedLocs </span><span class="s3">= </span><span class="s1">emitter</span><span class="s3">.</span><span class="s1">getInsertedLocs</span><span class="s3">();</span>
+
+      <span class="s1">path</span><span class="s3">.</span><span class="s1">traverse</span><span class="s3">({</span>
+        <span class="s1">NumericLiteral</span><span class="s3">(</span><span class="s1">path</span><span class="s3">) {</span>
+          <span class="s4">if </span><span class="s3">(!</span><span class="s1">insertedLocs</span><span class="s3">.</span><span class="s1">has</span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">)) {</span>
+            <span class="s4">return</span><span class="s3">;</span>
+          <span class="s3">}</span>
+
+          <span class="s1">path</span><span class="s3">.</span><span class="s1">replaceWith</span><span class="s3">(</span><span class="s1">t</span><span class="s3">.</span><span class="s1">numericLiteral</span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">value</span><span class="s3">));</span>
+        <span class="s3">},</span>
+      <span class="s3">})</span>
+
+      <span class="s5">// Generators are processed in 'exit' handlers so that regenerator only has to run on</span>
+      <span class="s5">// an ES5 AST, but that means traversal will not pick up newly inserted references</span>
+      <span class="s5">// to things like 'regeneratorRuntime'. To avoid this, we explicitly requeue.</span>
+      <span class="s1">path</span><span class="s3">.</span><span class="s1">requeue</span><span class="s3">();</span>
+    <span class="s3">})</span>
+  <span class="s3">}</span>
+<span class="s3">});</span>
+
+<span class="s5">// Check if a node should be transformed by regenerator</span>
+<span class="s4">function </span><span class="s1">shouldRegenerate</span><span class="s3">(</span><span class="s1">node</span><span class="s3">, </span><span class="s1">state</span><span class="s3">) {</span>
+  <span class="s4">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">generator</span><span class="s3">) {</span>
+    <span class="s4">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">async</span><span class="s3">) {</span>
+      <span class="s5">// Async generator</span>
+      <span class="s4">return </span><span class="s1">state</span><span class="s3">.</span><span class="s1">opts</span><span class="s3">.</span><span class="s1">asyncGenerators </span><span class="s3">!== </span><span class="s4">false</span><span class="s3">;</span>
+    <span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+      <span class="s5">// Plain generator</span>
+      <span class="s4">return </span><span class="s1">state</span><span class="s3">.</span><span class="s1">opts</span><span class="s3">.</span><span class="s1">generators </span><span class="s3">!== </span><span class="s4">false</span><span class="s3">;</span>
+    <span class="s3">}</span>
+  <span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">async</span><span class="s3">) {</span>
+    <span class="s5">// Async function</span>
+    <span class="s4">return </span><span class="s1">state</span><span class="s3">.</span><span class="s1">opts</span><span class="s3">.</span><span class="s1">async </span><span class="s3">!== </span><span class="s4">false</span><span class="s3">;</span>
+  <span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+    <span class="s5">// Not a generator or async function.</span>
+    <span class="s4">return false</span><span class="s3">;</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s5">// Given a NodePath for a Function, return an Expression node that can be</span>
+<span class="s5">// used to refer reliably to the function object from inside the function.</span>
+<span class="s5">// This expression is essentially a replacement for arguments.callee, with</span>
+<span class="s5">// the key advantage that it works in strict mode.</span>
+<span class="s4">function </span><span class="s1">getOuterFnExpr</span><span class="s3">(</span><span class="s1">funPath</span><span class="s3">) {</span>
+  <span class="s4">const </span><span class="s1">t </span><span class="s3">= </span><span class="s1">util</span><span class="s3">.</span><span class="s1">getTypes</span><span class="s3">();</span>
+  <span class="s4">let </span><span class="s1">node </span><span class="s3">= </span><span class="s1">funPath</span><span class="s3">.</span><span class="s1">node</span><span class="s3">;</span>
+  <span class="s1">t</span><span class="s3">.</span><span class="s1">assertFunction</span><span class="s3">(</span><span class="s1">node</span><span class="s3">);</span>
+
+  <span class="s4">if </span><span class="s3">(!</span><span class="s1">node</span><span class="s3">.</span><span class="s1">id</span><span class="s3">) {</span>
+    <span class="s5">// Default-exported function declarations, and function expressions may not</span>
+    <span class="s5">// have a name to reference, so we explicitly add one.</span>
+    <span class="s1">node</span><span class="s3">.</span><span class="s1">id </span><span class="s3">= </span><span class="s1">funPath</span><span class="s3">.</span><span class="s1">scope</span><span class="s3">.</span><span class="s1">parent</span><span class="s3">.</span><span class="s1">generateUidIdentifier</span><span class="s3">(</span><span class="s2">&quot;callee&quot;</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s4">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">generator </span><span class="s3">&amp;&amp; </span><span class="s5">// Non-generator functions don't need to be marked.</span>
+      <span class="s1">t</span><span class="s3">.</span><span class="s1">isFunctionDeclaration</span><span class="s3">(</span><span class="s1">node</span><span class="s3">)) {</span>
+    <span class="s5">// Return the identifier returned by runtime.mark(&lt;node.id&gt;).</span>
+    <span class="s4">return </span><span class="s1">getMarkedFunctionId</span><span class="s3">(</span><span class="s1">funPath</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s4">return </span><span class="s1">t</span><span class="s3">.</span><span class="s1">clone</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">id</span><span class="s3">);</span>
+<span class="s3">}</span>
+
+<span class="s4">const </span><span class="s1">markInfo </span><span class="s3">= </span><span class="s4">new </span><span class="s1">WeakMap</span><span class="s3">();</span>
+
+<span class="s4">function </span><span class="s1">getMarkInfo</span><span class="s3">(</span><span class="s1">node</span><span class="s3">) {</span>
+  <span class="s4">if </span><span class="s3">(!</span><span class="s1">markInfo</span><span class="s3">.</span><span class="s1">has</span><span class="s3">(</span><span class="s1">node</span><span class="s3">)) {</span>
+    <span class="s1">markInfo</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">node</span><span class="s3">, {});</span>
+  <span class="s3">}</span>
+  <span class="s4">return </span><span class="s1">markInfo</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">node</span><span class="s3">);</span>
+<span class="s3">}</span>
+
+<span class="s4">function </span><span class="s1">getMarkedFunctionId</span><span class="s3">(</span><span class="s1">funPath</span><span class="s3">) {</span>
+  <span class="s4">const </span><span class="s1">t </span><span class="s3">= </span><span class="s1">util</span><span class="s3">.</span><span class="s1">getTypes</span><span class="s3">();</span>
+  <span class="s4">const </span><span class="s1">node </span><span class="s3">= </span><span class="s1">funPath</span><span class="s3">.</span><span class="s1">node</span><span class="s3">;</span>
+  <span class="s1">t</span><span class="s3">.</span><span class="s1">assertIdentifier</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">id</span><span class="s3">);</span>
+
+  <span class="s4">const </span><span class="s1">blockPath </span><span class="s3">= </span><span class="s1">funPath</span><span class="s3">.</span><span class="s1">findParent</span><span class="s3">(</span><span class="s4">function </span><span class="s3">(</span><span class="s1">path</span><span class="s3">) {</span>
+    <span class="s4">return </span><span class="s1">path</span><span class="s3">.</span><span class="s1">isProgram</span><span class="s3">() || </span><span class="s1">path</span><span class="s3">.</span><span class="s1">isBlockStatement</span><span class="s3">();</span>
+  <span class="s3">});</span>
+
+  <span class="s4">if </span><span class="s3">(!</span><span class="s1">blockPath</span><span class="s3">) {</span>
+    <span class="s4">return </span><span class="s1">node</span><span class="s3">.</span><span class="s1">id</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s4">const </span><span class="s1">block </span><span class="s3">= </span><span class="s1">blockPath</span><span class="s3">.</span><span class="s1">node</span><span class="s3">;</span>
+  <span class="s1">assert</span><span class="s3">.</span><span class="s1">ok</span><span class="s3">(</span><span class="s1">Array</span><span class="s3">.</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">block</span><span class="s3">.</span><span class="s1">body</span><span class="s3">));</span>
+
+  <span class="s4">const </span><span class="s1">info </span><span class="s3">= </span><span class="s1">getMarkInfo</span><span class="s3">(</span><span class="s1">block</span><span class="s3">);</span>
+  <span class="s4">if </span><span class="s3">(!</span><span class="s1">info</span><span class="s3">.</span><span class="s1">decl</span><span class="s3">) {</span>
+    <span class="s1">info</span><span class="s3">.</span><span class="s1">decl </span><span class="s3">= </span><span class="s1">t</span><span class="s3">.</span><span class="s1">variableDeclaration</span><span class="s3">(</span><span class="s2">&quot;var&quot;</span><span class="s3">, []);</span>
+    <span class="s1">blockPath</span><span class="s3">.</span><span class="s1">unshiftContainer</span><span class="s3">(</span><span class="s2">&quot;body&quot;</span><span class="s3">, </span><span class="s1">info</span><span class="s3">.</span><span class="s1">decl</span><span class="s3">);</span>
+    <span class="s1">info</span><span class="s3">.</span><span class="s1">declPath </span><span class="s3">= </span><span class="s1">blockPath</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s2">&quot;body.0&quot;</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s1">assert</span><span class="s3">.</span><span class="s1">strictEqual</span><span class="s3">(</span><span class="s1">info</span><span class="s3">.</span><span class="s1">declPath</span><span class="s3">.</span><span class="s1">node</span><span class="s3">, </span><span class="s1">info</span><span class="s3">.</span><span class="s1">decl</span><span class="s3">);</span>
+
+  <span class="s5">// Get a new unique identifier for our marked variable.</span>
+  <span class="s4">const </span><span class="s1">markedId </span><span class="s3">= </span><span class="s1">blockPath</span><span class="s3">.</span><span class="s1">scope</span><span class="s3">.</span><span class="s1">generateUidIdentifier</span><span class="s3">(</span><span class="s2">&quot;marked&quot;</span><span class="s3">);</span>
+  <span class="s4">const </span><span class="s1">markCallExp </span><span class="s3">= </span><span class="s1">t</span><span class="s3">.</span><span class="s1">callExpression</span><span class="s3">(</span>
+    <span class="s1">util</span><span class="s3">.</span><span class="s1">runtimeProperty</span><span class="s3">(</span><span class="s2">&quot;mark&quot;</span><span class="s3">),</span>
+    <span class="s3">[</span><span class="s1">t</span><span class="s3">.</span><span class="s1">clone</span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">id</span><span class="s3">)]</span>
+  <span class="s3">);</span>
+
+  <span class="s4">const </span><span class="s1">index </span><span class="s3">= </span><span class="s1">info</span><span class="s3">.</span><span class="s1">decl</span><span class="s3">.</span><span class="s1">declarations</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span>
+    <span class="s1">t</span><span class="s3">.</span><span class="s1">variableDeclarator</span><span class="s3">(</span><span class="s1">markedId</span><span class="s3">, </span><span class="s1">markCallExp</span><span class="s3">)</span>
+  <span class="s3">) - </span><span class="s6">1</span><span class="s3">;</span>
+
+  <span class="s4">const </span><span class="s1">markCallExpPath </span><span class="s3">=</span>
+    <span class="s1">info</span><span class="s3">.</span><span class="s1">declPath</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s2">&quot;declarations.&quot; </span><span class="s3">+ </span><span class="s1">index </span><span class="s3">+ </span><span class="s2">&quot;.init&quot;</span><span class="s3">);</span>
+
+  <span class="s1">assert</span><span class="s3">.</span><span class="s1">strictEqual</span><span class="s3">(</span><span class="s1">markCallExpPath</span><span class="s3">.</span><span class="s1">node</span><span class="s3">, </span><span class="s1">markCallExp</span><span class="s3">);</span>
+
+  <span class="s1">markCallExpPath</span><span class="s3">.</span><span class="s1">addComment</span><span class="s3">(</span><span class="s2">&quot;leading&quot;</span><span class="s3">, </span><span class="s2">&quot;#__PURE__&quot;</span><span class="s3">);</span>
+
+  <span class="s4">return </span><span class="s1">t</span><span class="s3">.</span><span class="s1">clone</span><span class="s3">(</span><span class="s1">markedId</span><span class="s3">);</span>
+<span class="s3">}</span>
+
+<span class="s4">let </span><span class="s1">argumentsThisVisitor </span><span class="s3">= {</span>
+  <span class="s2">&quot;FunctionExpression|FunctionDeclaration|Method&quot;</span><span class="s3">: </span><span class="s4">function</span><span class="s3">(</span><span class="s1">path</span><span class="s3">) {</span>
+    <span class="s1">path</span><span class="s3">.</span><span class="s1">skip</span><span class="s3">();</span>
+  <span class="s3">},</span>
+
+  <span class="s1">Identifier</span><span class="s3">: </span><span class="s4">function</span><span class="s3">(</span><span class="s1">path</span><span class="s3">, </span><span class="s1">state</span><span class="s3">) {</span>
+    <span class="s4">if </span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;arguments&quot; </span><span class="s3">&amp;&amp; </span><span class="s1">util</span><span class="s3">.</span><span class="s1">isReference</span><span class="s3">(</span><span class="s1">path</span><span class="s3">)) {</span>
+      <span class="s1">util</span><span class="s3">.</span><span class="s1">replaceWithOrRemove</span><span class="s3">(</span><span class="s1">path</span><span class="s3">, </span><span class="s1">state</span><span class="s3">.</span><span class="s1">getArgsId</span><span class="s3">());</span>
+      <span class="s1">state</span><span class="s3">.</span><span class="s1">usesArguments </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+    <span class="s3">}</span>
+  <span class="s3">},</span>
+
+  <span class="s1">ThisExpression</span><span class="s3">: </span><span class="s4">function</span><span class="s3">(</span><span class="s1">path</span><span class="s3">, </span><span class="s1">state</span><span class="s3">) {</span>
+    <span class="s1">state</span><span class="s3">.</span><span class="s1">usesThis </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+  <span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s4">let </span><span class="s1">functionSentVisitor </span><span class="s3">= {</span>
+  <span class="s1">MetaProperty</span><span class="s3">(</span><span class="s1">path</span><span class="s3">) {</span>
+    <span class="s4">let </span><span class="s3">{ </span><span class="s1">node </span><span class="s3">} = </span><span class="s1">path</span><span class="s3">;</span>
+
+    <span class="s4">if </span><span class="s3">(</span><span class="s1">node</span><span class="s3">.</span><span class="s1">meta</span><span class="s3">.</span><span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;function&quot; </span><span class="s3">&amp;&amp;</span>
+        <span class="s1">node</span><span class="s3">.</span><span class="s1">property</span><span class="s3">.</span><span class="s1">name </span><span class="s3">=== </span><span class="s2">&quot;sent&quot;</span><span class="s3">) {</span>
+      <span class="s4">const </span><span class="s1">t </span><span class="s3">= </span><span class="s1">util</span><span class="s3">.</span><span class="s1">getTypes</span><span class="s3">();</span>
+      <span class="s1">util</span><span class="s3">.</span><span class="s1">replaceWithOrRemove</span><span class="s3">(</span>
+        <span class="s1">path</span><span class="s3">,</span>
+        <span class="s1">t</span><span class="s3">.</span><span class="s1">memberExpression</span><span class="s3">(</span>
+          <span class="s1">t</span><span class="s3">.</span><span class="s1">clone</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">context</span><span class="s3">),</span>
+          <span class="s1">t</span><span class="s3">.</span><span class="s1">identifier</span><span class="s3">(</span><span class="s2">&quot;_sent&quot;</span><span class="s3">)</span>
+        <span class="s3">)</span>
+      <span class="s3">);</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s4">let </span><span class="s1">awaitVisitor </span><span class="s3">= {</span>
+  <span class="s1">Function</span><span class="s3">: </span><span class="s4">function</span><span class="s3">(</span><span class="s1">path</span><span class="s3">) {</span>
+    <span class="s1">path</span><span class="s3">.</span><span class="s1">skip</span><span class="s3">(); </span><span class="s5">// Don't descend into nested function scopes.</span>
+  <span class="s3">},</span>
+
+  <span class="s1">AwaitExpression</span><span class="s3">: </span><span class="s4">function</span><span class="s3">(</span><span class="s1">path</span><span class="s3">) {</span>
+    <span class="s4">const </span><span class="s1">t </span><span class="s3">= </span><span class="s1">util</span><span class="s3">.</span><span class="s1">getTypes</span><span class="s3">();</span>
+
+    <span class="s5">// Convert await expressions to yield expressions.</span>
+    <span class="s4">let </span><span class="s1">argument </span><span class="s3">= </span><span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">argument</span><span class="s3">;</span>
+
+    <span class="s5">// Transforming `await x` to `yield regeneratorRuntime.awrap(x)`</span>
+    <span class="s5">// causes the argument to be wrapped in such a way that the runtime</span>
+    <span class="s5">// can distinguish between awaited and merely yielded values.</span>
+    <span class="s1">util</span><span class="s3">.</span><span class="s1">replaceWithOrRemove</span><span class="s3">(</span><span class="s1">path</span><span class="s3">, </span><span class="s1">t</span><span class="s3">.</span><span class="s1">yieldExpression</span><span class="s3">(</span>
+      <span class="s1">t</span><span class="s3">.</span><span class="s1">callExpression</span><span class="s3">(</span>
+        <span class="s1">util</span><span class="s3">.</span><span class="s1">runtimeProperty</span><span class="s3">(</span><span class="s2">&quot;awrap&quot;</span><span class="s3">),</span>
+        <span class="s3">[</span><span class="s1">argument</span><span class="s3">]</span>
+      <span class="s3">),</span>
+      <span class="s4">false</span>
+    <span class="s3">));</span>
+  <span class="s3">}</span>
+<span class="s3">};</span>
+</pre>
+</body>
+</html>

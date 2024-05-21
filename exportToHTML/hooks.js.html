@@ -1,0 +1,131 @@
+<html>
+<head>
+<title>hooks.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #5f826b; font-style: italic;}
+.s3 { color: #67a37c; font-style: italic;}
+.s4 { color: #6aab73;}
+.s5 { color: #bcbec4;}
+.s6 { color: #cf8e6d;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+hooks.js</font>
+</center></td></tr></table>
+<pre><span class="s0">// @ts-check</span>
+<span class="s2">/** </span><span class="s3">@typedef </span><span class="s2">{import(&quot;../typings&quot;).Hooks} HtmlWebpackPluginHooks */</span>
+<span class="s4">'use strict'</span><span class="s5">;</span>
+<span class="s2">/**</span>
+ <span class="s2">* This file provides access to all public htmlWebpackPlugin hooks</span>
+ <span class="s2">*/</span>
+
+<span class="s2">/** </span><span class="s3">@typedef </span><span class="s2">{import(&quot;webpack/lib/Compilation.js&quot;)} WebpackCompilation */</span>
+<span class="s2">/** </span><span class="s3">@typedef </span><span class="s2">{import(&quot;../index.js&quot;)} HtmlWebpackPlugin */</span>
+
+<span class="s6">const </span><span class="s1">AsyncSeriesWaterfallHook </span><span class="s5">= </span><span class="s1">require</span><span class="s5">(</span><span class="s4">'tapable'</span><span class="s5">).</span><span class="s1">AsyncSeriesWaterfallHook</span><span class="s5">;</span>
+
+<span class="s0">// The following is the API definition for all available hooks</span>
+<span class="s0">// For the TypeScript definition, see the Hooks type in typings.d.ts</span>
+<span class="s2">/**</span>
+  <span class="s2">beforeAssetTagGeneration:</span>
+    <span class="s2">AsyncSeriesWaterfallHook&lt;{</span>
+      <span class="s2">assets: {</span>
+        <span class="s2">publicPath: string,</span>
+        <span class="s2">js: Array&lt;string&gt;,</span>
+        <span class="s2">css: Array&lt;string&gt;,</span>
+        <span class="s2">favicon?: string | undefined,</span>
+        <span class="s2">manifest?: string | undefined</span>
+      <span class="s2">},</span>
+      <span class="s2">outputName: string,</span>
+      <span class="s2">plugin: HtmlWebpackPlugin</span>
+    <span class="s2">}&gt;,</span>
+  <span class="s2">alterAssetTags:</span>
+    <span class="s2">AsyncSeriesWaterfallHook&lt;{</span>
+      <span class="s2">assetTags: {</span>
+        <span class="s2">scripts: Array&lt;HtmlTagObject&gt;,</span>
+        <span class="s2">styles: Array&lt;HtmlTagObject&gt;,</span>
+        <span class="s2">meta: Array&lt;HtmlTagObject&gt;,</span>
+      <span class="s2">},</span>
+      <span class="s2">publicPath: string,</span>
+      <span class="s2">outputName: string,</span>
+      <span class="s2">plugin: HtmlWebpackPlugin</span>
+    <span class="s2">}&gt;,</span>
+  <span class="s2">alterAssetTagGroups:</span>
+    <span class="s2">AsyncSeriesWaterfallHook&lt;{</span>
+      <span class="s2">headTags: Array&lt;HtmlTagObject | HtmlTagObject&gt;,</span>
+      <span class="s2">bodyTags: Array&lt;HtmlTagObject | HtmlTagObject&gt;,</span>
+      <span class="s2">publicPath: string,</span>
+      <span class="s2">outputName: string,</span>
+      <span class="s2">plugin: HtmlWebpackPlugin</span>
+    <span class="s2">}&gt;,</span>
+  <span class="s2">afterTemplateExecution:</span>
+    <span class="s2">AsyncSeriesWaterfallHook&lt;{</span>
+      <span class="s2">html: string,</span>
+      <span class="s2">headTags: Array&lt;HtmlTagObject | HtmlTagObject&gt;,</span>
+      <span class="s2">bodyTags: Array&lt;HtmlTagObject | HtmlTagObject&gt;,</span>
+      <span class="s2">outputName: string,</span>
+      <span class="s2">plugin: HtmlWebpackPlugin,</span>
+    <span class="s2">}&gt;,</span>
+  <span class="s2">beforeEmit:</span>
+    <span class="s2">AsyncSeriesWaterfallHook&lt;{</span>
+      <span class="s2">html: string,</span>
+      <span class="s2">outputName: string,</span>
+      <span class="s2">plugin: HtmlWebpackPlugin,</span>
+    <span class="s2">}&gt;,</span>
+  <span class="s2">afterEmit:</span>
+    <span class="s2">AsyncSeriesWaterfallHook&lt;{</span>
+      <span class="s2">outputName: string,</span>
+      <span class="s2">plugin: HtmlWebpackPlugin</span>
+    <span class="s2">}&gt;</span>
+<span class="s2">*/</span>
+
+<span class="s2">/**</span>
+ <span class="s2">* </span><span class="s3">@type </span><span class="s2">{WeakMap&lt;WebpackCompilation, HtmlWebpackPluginHooks&gt;}}</span>
+ <span class="s2">*/</span>
+<span class="s6">const </span><span class="s1">htmlWebpackPluginHooksMap </span><span class="s5">= </span><span class="s6">new </span><span class="s1">WeakMap</span><span class="s5">();</span>
+
+<span class="s2">/**</span>
+ <span class="s2">* Returns all public hooks of the html webpack plugin for the given compilation</span>
+ <span class="s2">*</span>
+ <span class="s2">* </span><span class="s3">@param </span><span class="s2">{WebpackCompilation} compilation</span>
+ <span class="s2">* </span><span class="s3">@returns </span><span class="s2">{HtmlWebpackPluginHooks}</span>
+ <span class="s2">*/</span>
+<span class="s6">function </span><span class="s1">getHtmlWebpackPluginHooks </span><span class="s5">(</span><span class="s1">compilation</span><span class="s5">) {</span>
+  <span class="s6">let </span><span class="s1">hooks </span><span class="s5">= </span><span class="s1">htmlWebpackPluginHooksMap</span><span class="s5">.</span><span class="s1">get</span><span class="s5">(</span><span class="s1">compilation</span><span class="s5">);</span>
+  <span class="s0">// Setup the hooks only once</span>
+  <span class="s6">if </span><span class="s5">(</span><span class="s1">hooks </span><span class="s5">=== </span><span class="s1">undefined</span><span class="s5">) {</span>
+    <span class="s1">hooks </span><span class="s5">= </span><span class="s1">createHtmlWebpackPluginHooks</span><span class="s5">();</span>
+    <span class="s1">htmlWebpackPluginHooksMap</span><span class="s5">.</span><span class="s1">set</span><span class="s5">(</span><span class="s1">compilation</span><span class="s5">, </span><span class="s1">hooks</span><span class="s5">);</span>
+  <span class="s5">}</span>
+  <span class="s6">return </span><span class="s1">hooks</span><span class="s5">;</span>
+<span class="s5">}</span>
+
+<span class="s2">/**</span>
+ <span class="s2">* Add hooks to the webpack compilation object to allow foreign plugins to</span>
+ <span class="s2">* extend the HtmlWebpackPlugin</span>
+ <span class="s2">*</span>
+ <span class="s2">* </span><span class="s3">@returns </span><span class="s2">{HtmlWebpackPluginHooks}</span>
+ <span class="s2">*/</span>
+<span class="s6">function </span><span class="s1">createHtmlWebpackPluginHooks </span><span class="s5">() {</span>
+  <span class="s6">return </span><span class="s5">{</span>
+    <span class="s1">beforeAssetTagGeneration</span><span class="s5">: </span><span class="s6">new </span><span class="s1">AsyncSeriesWaterfallHook</span><span class="s5">([</span><span class="s4">'pluginArgs'</span><span class="s5">]),</span>
+    <span class="s1">alterAssetTags</span><span class="s5">: </span><span class="s6">new </span><span class="s1">AsyncSeriesWaterfallHook</span><span class="s5">([</span><span class="s4">'pluginArgs'</span><span class="s5">]),</span>
+    <span class="s1">alterAssetTagGroups</span><span class="s5">: </span><span class="s6">new </span><span class="s1">AsyncSeriesWaterfallHook</span><span class="s5">([</span><span class="s4">'pluginArgs'</span><span class="s5">]),</span>
+    <span class="s1">afterTemplateExecution</span><span class="s5">: </span><span class="s6">new </span><span class="s1">AsyncSeriesWaterfallHook</span><span class="s5">([</span><span class="s4">'pluginArgs'</span><span class="s5">]),</span>
+    <span class="s1">beforeEmit</span><span class="s5">: </span><span class="s6">new </span><span class="s1">AsyncSeriesWaterfallHook</span><span class="s5">([</span><span class="s4">'pluginArgs'</span><span class="s5">]),</span>
+    <span class="s1">afterEmit</span><span class="s5">: </span><span class="s6">new </span><span class="s1">AsyncSeriesWaterfallHook</span><span class="s5">([</span><span class="s4">'pluginArgs'</span><span class="s5">])</span>
+  <span class="s5">};</span>
+<span class="s5">}</span>
+
+<span class="s1">module</span><span class="s5">.</span><span class="s1">exports </span><span class="s5">= {</span>
+  <span class="s1">getHtmlWebpackPluginHooks</span>
+<span class="s5">};</span>
+</pre>
+</body>
+</html>

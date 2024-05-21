@@ -1,0 +1,814 @@
+<html>
+<head>
+<title>json-ext.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #bcbec4;}
+.s1 { color: #cf8e6d;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+.s6 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+json-ext.js</font>
+</center></td></tr></table>
+<pre><span class="s0">(</span><span class="s1">function </span><span class="s0">(</span><span class="s2">global</span><span class="s0">, </span><span class="s2">factory</span><span class="s0">) {</span>
+    <span class="s1">typeof </span><span class="s2">exports </span><span class="s0">=== </span><span class="s3">'object' </span><span class="s0">&amp;&amp; </span><span class="s1">typeof </span><span class="s2">module </span><span class="s0">!== </span><span class="s3">'undefined' </span><span class="s0">? </span><span class="s2">module</span><span class="s0">.</span><span class="s2">exports </span><span class="s0">= </span><span class="s2">factory</span><span class="s0">() :</span>
+    <span class="s1">typeof </span><span class="s2">define </span><span class="s0">=== </span><span class="s3">'function' </span><span class="s0">&amp;&amp; </span><span class="s2">define</span><span class="s0">.</span><span class="s2">amd </span><span class="s0">? </span><span class="s2">define</span><span class="s0">(</span><span class="s2">factory</span><span class="s0">) :</span>
+    <span class="s0">(</span><span class="s2">global </span><span class="s0">= </span><span class="s1">typeof </span><span class="s2">globalThis </span><span class="s0">!== </span><span class="s3">'undefined' </span><span class="s0">? </span><span class="s2">globalThis </span><span class="s0">: </span><span class="s2">global </span><span class="s0">|| </span><span class="s2">self</span><span class="s0">, </span><span class="s2">global</span><span class="s0">.</span><span class="s2">jsonExt </span><span class="s0">= </span><span class="s2">factory</span><span class="s0">());</span>
+<span class="s0">})(</span><span class="s1">this</span><span class="s0">, (</span><span class="s1">function </span><span class="s0">() { </span><span class="s3">'use strict'</span><span class="s0">;</span>
+
+    <span class="s1">var </span><span class="s2">version </span><span class="s0">= </span><span class="s3">&quot;0.5.7&quot;</span><span class="s0">;</span>
+
+    <span class="s1">const </span><span class="s2">PrimitiveType </span><span class="s0">= </span><span class="s4">1</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">ObjectType </span><span class="s0">= </span><span class="s4">2</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">ArrayType </span><span class="s0">= </span><span class="s4">3</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">PromiseType </span><span class="s0">= </span><span class="s4">4</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">ReadableStringType </span><span class="s0">= </span><span class="s4">5</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">ReadableObjectType </span><span class="s0">= </span><span class="s4">6</span><span class="s0">;</span>
+    <span class="s5">// https://tc39.es/ecma262/#table-json-single-character-escapes</span>
+    <span class="s1">const </span><span class="s2">escapableCharCodeSubstitution$1 </span><span class="s0">= { </span><span class="s5">// JSON Single Character Escape Sequences</span>
+        <span class="s4">0x08</span><span class="s0">: </span><span class="s3">'</span><span class="s1">\\</span><span class="s3">b'</span><span class="s0">,</span>
+        <span class="s4">0x09</span><span class="s0">: </span><span class="s3">'</span><span class="s1">\\</span><span class="s3">t'</span><span class="s0">,</span>
+        <span class="s4">0x0a</span><span class="s0">: </span><span class="s3">'</span><span class="s1">\\</span><span class="s3">n'</span><span class="s0">,</span>
+        <span class="s4">0x0c</span><span class="s0">: </span><span class="s3">'</span><span class="s1">\\</span><span class="s3">f'</span><span class="s0">,</span>
+        <span class="s4">0x0d</span><span class="s0">: </span><span class="s3">'</span><span class="s1">\\</span><span class="s3">r'</span><span class="s0">,</span>
+        <span class="s4">0x22</span><span class="s0">: </span><span class="s3">'</span><span class="s1">\\\&quot;</span><span class="s3">'</span><span class="s0">,</span>
+        <span class="s4">0x5c</span><span class="s0">: </span><span class="s3">'</span><span class="s1">\\\\</span><span class="s3">'</span>
+    <span class="s0">};</span>
+
+    <span class="s1">function </span><span class="s2">isLeadingSurrogate$1</span><span class="s0">(</span><span class="s2">code</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s2">code </span><span class="s0">&gt;= </span><span class="s4">0xD800 </span><span class="s0">&amp;&amp; </span><span class="s2">code </span><span class="s0">&lt;= </span><span class="s4">0xDBFF</span><span class="s0">;</span>
+    <span class="s0">}</span>
+
+    <span class="s1">function </span><span class="s2">isTrailingSurrogate$1</span><span class="s0">(</span><span class="s2">code</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s2">code </span><span class="s0">&gt;= </span><span class="s4">0xDC00 </span><span class="s0">&amp;&amp; </span><span class="s2">code </span><span class="s0">&lt;= </span><span class="s4">0xDFFF</span><span class="s0">;</span>
+    <span class="s0">}</span>
+
+    <span class="s1">function </span><span class="s2">isReadableStream$1</span><span class="s0">(</span><span class="s2">value</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s0">(</span>
+            <span class="s1">typeof </span><span class="s2">value</span><span class="s0">.</span><span class="s2">pipe </span><span class="s0">=== </span><span class="s3">'function' </span><span class="s0">&amp;&amp;</span>
+            <span class="s1">typeof </span><span class="s2">value</span><span class="s0">.</span><span class="s2">_read </span><span class="s0">=== </span><span class="s3">'function' </span><span class="s0">&amp;&amp;</span>
+            <span class="s1">typeof </span><span class="s2">value</span><span class="s0">.</span><span class="s2">_readableState </span><span class="s0">=== </span><span class="s3">'object' </span><span class="s0">&amp;&amp; </span><span class="s2">value</span><span class="s0">.</span><span class="s2">_readableState </span><span class="s0">!== </span><span class="s1">null</span>
+        <span class="s0">);</span>
+    <span class="s0">}</span>
+
+    <span class="s1">function </span><span class="s2">replaceValue$1</span><span class="s0">(</span><span class="s2">holder</span><span class="s0">, </span><span class="s2">key</span><span class="s0">, </span><span class="s2">value</span><span class="s0">, </span><span class="s2">replacer</span><span class="s0">) {</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">value </span><span class="s0">&amp;&amp; </span><span class="s1">typeof </span><span class="s2">value</span><span class="s0">.</span><span class="s2">toJSON </span><span class="s0">=== </span><span class="s3">'function'</span><span class="s0">) {</span>
+            <span class="s2">value </span><span class="s0">= </span><span class="s2">value</span><span class="s0">.</span><span class="s2">toJSON</span><span class="s0">();</span>
+        <span class="s0">}</span>
+
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">replacer </span><span class="s0">!== </span><span class="s1">null</span><span class="s0">) {</span>
+            <span class="s2">value </span><span class="s0">= </span><span class="s2">replacer</span><span class="s0">.</span><span class="s2">call</span><span class="s0">(</span><span class="s2">holder</span><span class="s0">, </span><span class="s2">String</span><span class="s0">(</span><span class="s2">key</span><span class="s0">), </span><span class="s2">value</span><span class="s0">);</span>
+        <span class="s0">}</span>
+
+        <span class="s1">switch </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">value</span><span class="s0">) {</span>
+            <span class="s1">case </span><span class="s3">'function'</span><span class="s0">:</span>
+            <span class="s1">case </span><span class="s3">'symbol'</span><span class="s0">:</span>
+                <span class="s2">value </span><span class="s0">= </span><span class="s2">undefined</span><span class="s0">;</span>
+                <span class="s1">break</span><span class="s0">;</span>
+
+            <span class="s1">case </span><span class="s3">'object'</span><span class="s0">:</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">value </span><span class="s0">!== </span><span class="s1">null</span><span class="s0">) {</span>
+                    <span class="s1">const </span><span class="s2">cls </span><span class="s0">= </span><span class="s2">value</span><span class="s0">.</span><span class="s2">constructor</span><span class="s0">;</span>
+                    <span class="s1">if </span><span class="s0">(</span><span class="s2">cls </span><span class="s0">=== </span><span class="s2">String </span><span class="s0">|| </span><span class="s2">cls </span><span class="s0">=== </span><span class="s2">Number </span><span class="s0">|| </span><span class="s2">cls </span><span class="s0">=== </span><span class="s2">Boolean</span><span class="s0">) {</span>
+                        <span class="s2">value </span><span class="s0">= </span><span class="s2">value</span><span class="s0">.</span><span class="s2">valueOf</span><span class="s0">();</span>
+                    <span class="s0">}</span>
+                <span class="s0">}</span>
+                <span class="s1">break</span><span class="s0">;</span>
+        <span class="s0">}</span>
+
+        <span class="s1">return </span><span class="s2">value</span><span class="s0">;</span>
+    <span class="s0">}</span>
+
+    <span class="s1">function </span><span class="s2">getTypeNative$1</span><span class="s0">(</span><span class="s2">value</span><span class="s0">) {</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">value </span><span class="s0">=== </span><span class="s1">null </span><span class="s0">|| </span><span class="s1">typeof </span><span class="s2">value </span><span class="s0">!== </span><span class="s3">'object'</span><span class="s0">) {</span>
+            <span class="s1">return </span><span class="s2">PrimitiveType</span><span class="s0">;</span>
+        <span class="s0">}</span>
+
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">Array</span><span class="s0">.</span><span class="s2">isArray</span><span class="s0">(</span><span class="s2">value</span><span class="s0">)) {</span>
+            <span class="s1">return </span><span class="s2">ArrayType</span><span class="s0">;</span>
+        <span class="s0">}</span>
+
+        <span class="s1">return </span><span class="s2">ObjectType</span><span class="s0">;</span>
+    <span class="s0">}</span>
+
+    <span class="s1">function </span><span class="s2">getTypeAsync$1</span><span class="s0">(</span><span class="s2">value</span><span class="s0">) {</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">value </span><span class="s0">=== </span><span class="s1">null </span><span class="s0">|| </span><span class="s1">typeof </span><span class="s2">value </span><span class="s0">!== </span><span class="s3">'object'</span><span class="s0">) {</span>
+            <span class="s1">return </span><span class="s2">PrimitiveType</span><span class="s0">;</span>
+        <span class="s0">}</span>
+
+        <span class="s1">if </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">value</span><span class="s0">.</span><span class="s2">then </span><span class="s0">=== </span><span class="s3">'function'</span><span class="s0">) {</span>
+            <span class="s1">return </span><span class="s2">PromiseType</span><span class="s0">;</span>
+        <span class="s0">}</span>
+
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">isReadableStream$1</span><span class="s0">(</span><span class="s2">value</span><span class="s0">)) {</span>
+            <span class="s1">return </span><span class="s2">value</span><span class="s0">.</span><span class="s2">_readableState</span><span class="s0">.</span><span class="s2">objectMode </span><span class="s0">? </span><span class="s2">ReadableObjectType </span><span class="s0">: </span><span class="s2">ReadableStringType</span><span class="s0">;</span>
+        <span class="s0">}</span>
+
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">Array</span><span class="s0">.</span><span class="s2">isArray</span><span class="s0">(</span><span class="s2">value</span><span class="s0">)) {</span>
+            <span class="s1">return </span><span class="s2">ArrayType</span><span class="s0">;</span>
+        <span class="s0">}</span>
+
+        <span class="s1">return </span><span class="s2">ObjectType</span><span class="s0">;</span>
+    <span class="s0">}</span>
+
+    <span class="s1">function </span><span class="s2">normalizeReplacer$1</span><span class="s0">(</span><span class="s2">replacer</span><span class="s0">) {</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">replacer </span><span class="s0">=== </span><span class="s3">'function'</span><span class="s0">) {</span>
+            <span class="s1">return </span><span class="s2">replacer</span><span class="s0">;</span>
+        <span class="s0">}</span>
+
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">Array</span><span class="s0">.</span><span class="s2">isArray</span><span class="s0">(</span><span class="s2">replacer</span><span class="s0">)) {</span>
+            <span class="s1">const </span><span class="s2">allowlist </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Set</span><span class="s0">(</span><span class="s2">replacer</span>
+                <span class="s0">.</span><span class="s2">map</span><span class="s0">(</span><span class="s2">item </span><span class="s0">=&gt; {</span>
+                    <span class="s1">const </span><span class="s2">cls </span><span class="s0">= </span><span class="s2">item </span><span class="s0">&amp;&amp; </span><span class="s2">item</span><span class="s0">.</span><span class="s2">constructor</span><span class="s0">;</span>
+                    <span class="s1">return </span><span class="s2">cls </span><span class="s0">=== </span><span class="s2">String </span><span class="s0">|| </span><span class="s2">cls </span><span class="s0">=== </span><span class="s2">Number </span><span class="s0">? </span><span class="s2">String</span><span class="s0">(</span><span class="s2">item</span><span class="s0">) : </span><span class="s1">null</span><span class="s0">;</span>
+                <span class="s0">})</span>
+                <span class="s0">.</span><span class="s2">filter</span><span class="s0">(</span><span class="s2">item </span><span class="s0">=&gt; </span><span class="s1">typeof </span><span class="s2">item </span><span class="s0">=== </span><span class="s3">'string'</span><span class="s0">)</span>
+            <span class="s0">);</span>
+
+            <span class="s1">return </span><span class="s0">[</span><span class="s2">...allowlist</span><span class="s0">];</span>
+        <span class="s0">}</span>
+
+        <span class="s1">return null</span><span class="s0">;</span>
+    <span class="s0">}</span>
+
+    <span class="s1">function </span><span class="s2">normalizeSpace$1</span><span class="s0">(</span><span class="s2">space</span><span class="s0">) {</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">space </span><span class="s0">=== </span><span class="s3">'number'</span><span class="s0">) {</span>
+            <span class="s1">if </span><span class="s0">(!</span><span class="s2">Number</span><span class="s0">.</span><span class="s2">isFinite</span><span class="s0">(</span><span class="s2">space</span><span class="s0">) || </span><span class="s2">space </span><span class="s0">&lt; </span><span class="s4">1</span><span class="s0">) {</span>
+                <span class="s1">return false</span><span class="s0">;</span>
+            <span class="s0">}</span>
+
+            <span class="s1">return </span><span class="s3">' '</span><span class="s0">.</span><span class="s2">repeat</span><span class="s0">(</span><span class="s2">Math</span><span class="s0">.</span><span class="s2">min</span><span class="s0">(</span><span class="s2">space</span><span class="s0">, </span><span class="s4">10</span><span class="s0">));</span>
+        <span class="s0">}</span>
+
+        <span class="s1">if </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">space </span><span class="s0">=== </span><span class="s3">'string'</span><span class="s0">) {</span>
+            <span class="s1">return </span><span class="s2">space</span><span class="s0">.</span><span class="s2">slice</span><span class="s0">(</span><span class="s4">0</span><span class="s0">, </span><span class="s4">10</span><span class="s0">) || </span><span class="s1">false</span><span class="s0">;</span>
+        <span class="s0">}</span>
+
+        <span class="s1">return false</span><span class="s0">;</span>
+    <span class="s0">}</span>
+
+    <span class="s1">var </span><span class="s2">utils </span><span class="s0">= {</span>
+        <span class="s2">escapableCharCodeSubstitution</span><span class="s0">: </span><span class="s2">escapableCharCodeSubstitution$1</span><span class="s0">,</span>
+        <span class="s2">isLeadingSurrogate</span><span class="s0">: </span><span class="s2">isLeadingSurrogate$1</span><span class="s0">,</span>
+        <span class="s2">isTrailingSurrogate</span><span class="s0">: </span><span class="s2">isTrailingSurrogate$1</span><span class="s0">,</span>
+        <span class="s2">type</span><span class="s0">: {</span>
+            <span class="s2">PRIMITIVE</span><span class="s0">: </span><span class="s2">PrimitiveType</span><span class="s0">,</span>
+            <span class="s2">PROMISE</span><span class="s0">: </span><span class="s2">PromiseType</span><span class="s0">,</span>
+            <span class="s2">ARRAY</span><span class="s0">: </span><span class="s2">ArrayType</span><span class="s0">,</span>
+            <span class="s2">OBJECT</span><span class="s0">: </span><span class="s2">ObjectType</span><span class="s0">,</span>
+            <span class="s2">STRING_STREAM</span><span class="s0">: </span><span class="s2">ReadableStringType</span><span class="s0">,</span>
+            <span class="s2">OBJECT_STREAM</span><span class="s0">: </span><span class="s2">ReadableObjectType</span>
+        <span class="s0">},</span>
+
+        <span class="s2">isReadableStream</span><span class="s0">: </span><span class="s2">isReadableStream$1</span><span class="s0">,</span>
+        <span class="s2">replaceValue</span><span class="s0">: </span><span class="s2">replaceValue$1</span><span class="s0">,</span>
+        <span class="s2">getTypeNative</span><span class="s0">: </span><span class="s2">getTypeNative$1</span><span class="s0">,</span>
+        <span class="s2">getTypeAsync</span><span class="s0">: </span><span class="s2">getTypeAsync$1</span><span class="s0">,</span>
+        <span class="s2">normalizeReplacer</span><span class="s0">: </span><span class="s2">normalizeReplacer$1</span><span class="s0">,</span>
+        <span class="s2">normalizeSpace</span><span class="s0">: </span><span class="s2">normalizeSpace$1</span>
+    <span class="s0">};</span>
+
+    <span class="s1">const </span><span class="s0">{</span>
+        <span class="s2">normalizeReplacer</span><span class="s0">,</span>
+        <span class="s2">normalizeSpace</span><span class="s0">,</span>
+        <span class="s2">replaceValue</span><span class="s0">,</span>
+        <span class="s2">getTypeNative</span><span class="s0">,</span>
+        <span class="s2">getTypeAsync</span><span class="s0">,</span>
+        <span class="s2">isLeadingSurrogate</span><span class="s0">,</span>
+        <span class="s2">isTrailingSurrogate</span><span class="s0">,</span>
+        <span class="s2">escapableCharCodeSubstitution</span><span class="s0">,</span>
+        <span class="s2">type</span><span class="s0">: {</span>
+            <span class="s2">PRIMITIVE</span><span class="s0">,</span>
+            <span class="s2">OBJECT</span><span class="s0">,</span>
+            <span class="s2">ARRAY</span><span class="s0">,</span>
+            <span class="s2">PROMISE</span><span class="s0">,</span>
+            <span class="s2">STRING_STREAM</span><span class="s0">,</span>
+            <span class="s2">OBJECT_STREAM</span>
+        <span class="s0">}</span>
+    <span class="s0">} = </span><span class="s2">utils</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">charLength2048 </span><span class="s0">= </span><span class="s2">Array</span><span class="s0">.</span><span class="s2">from</span><span class="s0">({ </span><span class="s2">length</span><span class="s0">: </span><span class="s4">2048 </span><span class="s0">}).</span><span class="s2">map</span><span class="s0">((</span><span class="s2">_</span><span class="s0">, </span><span class="s2">code</span><span class="s0">) =&gt; {</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">escapableCharCodeSubstitution</span><span class="s0">.</span><span class="s2">hasOwnProperty</span><span class="s0">(</span><span class="s2">code</span><span class="s0">)) {</span>
+            <span class="s1">return </span><span class="s4">2</span><span class="s0">; </span><span class="s5">// \X</span>
+        <span class="s0">}</span>
+
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">code </span><span class="s0">&lt; </span><span class="s4">0x20</span><span class="s0">) {</span>
+            <span class="s1">return </span><span class="s4">6</span><span class="s0">; </span><span class="s5">// \uXXXX</span>
+        <span class="s0">}</span>
+
+        <span class="s1">return </span><span class="s2">code </span><span class="s0">&lt; </span><span class="s4">128 </span><span class="s0">? </span><span class="s4">1 </span><span class="s0">: </span><span class="s4">2</span><span class="s0">; </span><span class="s5">// UTF8 bytes</span>
+    <span class="s0">});</span>
+
+    <span class="s1">function </span><span class="s2">stringLength</span><span class="s0">(</span><span class="s2">str</span><span class="s0">) {</span>
+        <span class="s1">let </span><span class="s2">len </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+        <span class="s1">let </span><span class="s2">prevLeadingSurrogate </span><span class="s0">= </span><span class="s1">false</span><span class="s0">;</span>
+
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">str</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+            <span class="s1">const </span><span class="s2">code </span><span class="s0">= </span><span class="s2">str</span><span class="s0">.</span><span class="s2">charCodeAt</span><span class="s0">(</span><span class="s2">i</span><span class="s0">);</span>
+
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">code </span><span class="s0">&lt; </span><span class="s4">2048</span><span class="s0">) {</span>
+                <span class="s2">len </span><span class="s0">+= </span><span class="s2">charLength2048</span><span class="s0">[</span><span class="s2">code</span><span class="s0">];</span>
+            <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">isLeadingSurrogate</span><span class="s0">(</span><span class="s2">code</span><span class="s0">)) {</span>
+                <span class="s2">len </span><span class="s0">+= </span><span class="s4">6</span><span class="s0">; </span><span class="s5">// \uXXXX since no pair with trailing surrogate yet</span>
+                <span class="s2">prevLeadingSurrogate </span><span class="s0">= </span><span class="s1">true</span><span class="s0">;</span>
+                <span class="s1">continue</span><span class="s0">;</span>
+            <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">isTrailingSurrogate</span><span class="s0">(</span><span class="s2">code</span><span class="s0">)) {</span>
+                <span class="s2">len </span><span class="s0">= </span><span class="s2">prevLeadingSurrogate</span>
+                    <span class="s0">? </span><span class="s2">len </span><span class="s0">- </span><span class="s4">2  </span><span class="s5">// surrogate pair (4 bytes), since we calculate prev leading surrogate as 6 bytes, substruct 2 bytes</span>
+                    <span class="s0">: </span><span class="s2">len </span><span class="s0">+ </span><span class="s4">6</span><span class="s0">; </span><span class="s5">// \uXXXX</span>
+            <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+                <span class="s2">len </span><span class="s0">+= </span><span class="s4">3</span><span class="s0">; </span><span class="s5">// code &gt;= 2048 is 3 bytes length for UTF8</span>
+            <span class="s0">}</span>
+
+            <span class="s2">prevLeadingSurrogate </span><span class="s0">= </span><span class="s1">false</span><span class="s0">;</span>
+        <span class="s0">}</span>
+
+        <span class="s1">return </span><span class="s2">len </span><span class="s0">+ </span><span class="s4">2</span><span class="s0">; </span><span class="s5">// +2 for quotes</span>
+    <span class="s0">}</span>
+
+    <span class="s1">function </span><span class="s2">primitiveLength</span><span class="s0">(</span><span class="s2">value</span><span class="s0">) {</span>
+        <span class="s1">switch </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">value</span><span class="s0">) {</span>
+            <span class="s1">case </span><span class="s3">'string'</span><span class="s0">:</span>
+                <span class="s1">return </span><span class="s2">stringLength</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+
+            <span class="s1">case </span><span class="s3">'number'</span><span class="s0">:</span>
+                <span class="s1">return </span><span class="s2">Number</span><span class="s0">.</span><span class="s2">isFinite</span><span class="s0">(</span><span class="s2">value</span><span class="s0">) ? </span><span class="s2">String</span><span class="s0">(</span><span class="s2">value</span><span class="s0">).</span><span class="s2">length </span><span class="s0">: </span><span class="s4">4 </span><span class="s5">/* null */</span><span class="s0">;</span>
+
+            <span class="s1">case </span><span class="s3">'boolean'</span><span class="s0">:</span>
+                <span class="s1">return </span><span class="s2">value </span><span class="s0">? </span><span class="s4">4 </span><span class="s5">/* true */ </span><span class="s0">: </span><span class="s4">5 </span><span class="s5">/* false */</span><span class="s0">;</span>
+
+            <span class="s1">case </span><span class="s3">'undefined'</span><span class="s0">:</span>
+            <span class="s1">case </span><span class="s3">'object'</span><span class="s0">:</span>
+                <span class="s1">return </span><span class="s4">4</span><span class="s0">; </span><span class="s5">/* null */</span>
+
+            <span class="s1">default</span><span class="s0">:</span>
+                <span class="s1">return </span><span class="s4">0</span><span class="s0">;</span>
+        <span class="s0">}</span>
+    <span class="s0">}</span>
+
+    <span class="s1">function </span><span class="s2">spaceLength</span><span class="s0">(</span><span class="s2">space</span><span class="s0">) {</span>
+        <span class="s2">space </span><span class="s0">= </span><span class="s2">normalizeSpace</span><span class="s0">(</span><span class="s2">space</span><span class="s0">);</span>
+        <span class="s1">return typeof </span><span class="s2">space </span><span class="s0">=== </span><span class="s3">'string' </span><span class="s0">? </span><span class="s2">space</span><span class="s0">.</span><span class="s2">length </span><span class="s0">: </span><span class="s4">0</span><span class="s0">;</span>
+    <span class="s0">}</span>
+
+    <span class="s1">var </span><span class="s2">stringifyInfo </span><span class="s0">= </span><span class="s1">function </span><span class="s2">jsonStringifyInfo</span><span class="s0">(</span><span class="s2">value</span><span class="s0">, </span><span class="s2">replacer</span><span class="s0">, </span><span class="s2">space</span><span class="s0">, </span><span class="s2">options</span><span class="s0">) {</span>
+        <span class="s1">function </span><span class="s2">walk</span><span class="s0">(</span><span class="s2">holder</span><span class="s0">, </span><span class="s2">key</span><span class="s0">, </span><span class="s2">value</span><span class="s0">) {</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">stop</span><span class="s0">) {</span>
+                <span class="s1">return</span><span class="s0">;</span>
+            <span class="s0">}</span>
+
+            <span class="s2">value </span><span class="s0">= </span><span class="s2">replaceValue</span><span class="s0">(</span><span class="s2">holder</span><span class="s0">, </span><span class="s2">key</span><span class="s0">, </span><span class="s2">value</span><span class="s0">, </span><span class="s2">replacer</span><span class="s0">);</span>
+
+            <span class="s1">let </span><span class="s2">type </span><span class="s0">= </span><span class="s2">getType</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+
+            <span class="s5">// check for circular structure</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">type </span><span class="s0">!== </span><span class="s2">PRIMITIVE </span><span class="s0">&amp;&amp; </span><span class="s2">stack</span><span class="s0">.</span><span class="s2">has</span><span class="s0">(</span><span class="s2">value</span><span class="s0">)) {</span>
+                <span class="s2">circular</span><span class="s0">.</span><span class="s2">add</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+                <span class="s2">length </span><span class="s0">+= </span><span class="s4">4</span><span class="s0">; </span><span class="s5">// treat as null</span>
+
+                <span class="s1">if </span><span class="s0">(!</span><span class="s2">options</span><span class="s0">.</span><span class="s2">continueOnCircular</span><span class="s0">) {</span>
+                    <span class="s2">stop </span><span class="s0">= </span><span class="s1">true</span><span class="s0">;</span>
+                <span class="s0">}</span>
+
+                <span class="s1">return</span><span class="s0">;</span>
+            <span class="s0">}</span>
+
+            <span class="s1">switch </span><span class="s0">(</span><span class="s2">type</span><span class="s0">) {</span>
+                <span class="s1">case </span><span class="s2">PRIMITIVE</span><span class="s0">:</span>
+                    <span class="s1">if </span><span class="s0">(</span><span class="s2">value </span><span class="s0">!== </span><span class="s2">undefined </span><span class="s0">|| </span><span class="s2">Array</span><span class="s0">.</span><span class="s2">isArray</span><span class="s0">(</span><span class="s2">holder</span><span class="s0">)) {</span>
+                        <span class="s2">length </span><span class="s0">+= </span><span class="s2">primitiveLength</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+                    <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s2">holder </span><span class="s0">=== </span><span class="s2">root</span><span class="s0">) {</span>
+                        <span class="s2">length </span><span class="s0">+= </span><span class="s4">9</span><span class="s0">; </span><span class="s5">// FIXME: that's the length of undefined, should we normalize behaviour to convert it to null?</span>
+                    <span class="s0">}</span>
+                    <span class="s1">break</span><span class="s0">;</span>
+
+                <span class="s1">case </span><span class="s2">OBJECT</span><span class="s0">: {</span>
+                    <span class="s1">if </span><span class="s0">(</span><span class="s2">visited</span><span class="s0">.</span><span class="s2">has</span><span class="s0">(</span><span class="s2">value</span><span class="s0">)) {</span>
+                        <span class="s2">duplicate</span><span class="s0">.</span><span class="s2">add</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+                        <span class="s2">length </span><span class="s0">+= </span><span class="s2">visited</span><span class="s0">.</span><span class="s2">get</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+                        <span class="s1">break</span><span class="s0">;</span>
+                    <span class="s0">}</span>
+
+                    <span class="s1">const </span><span class="s2">valueLength </span><span class="s0">= </span><span class="s2">length</span><span class="s0">;</span>
+                    <span class="s1">let </span><span class="s2">entries </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+
+                    <span class="s2">length </span><span class="s0">+= </span><span class="s4">2</span><span class="s0">; </span><span class="s5">// {}</span>
+
+                    <span class="s2">stack</span><span class="s0">.</span><span class="s2">add</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+
+                    <span class="s1">for </span><span class="s0">(</span><span class="s1">const </span><span class="s2">key </span><span class="s1">in </span><span class="s2">value</span><span class="s0">) {</span>
+                        <span class="s1">if </span><span class="s0">(</span><span class="s2">hasOwnProperty</span><span class="s0">.</span><span class="s2">call</span><span class="s0">(</span><span class="s2">value</span><span class="s0">, </span><span class="s2">key</span><span class="s0">) &amp;&amp; (</span><span class="s2">allowlist </span><span class="s0">=== </span><span class="s1">null </span><span class="s0">|| </span><span class="s2">allowlist</span><span class="s0">.</span><span class="s2">has</span><span class="s0">(</span><span class="s2">key</span><span class="s0">))) {</span>
+                            <span class="s1">const </span><span class="s2">prevLength </span><span class="s0">= </span><span class="s2">length</span><span class="s0">;</span>
+                            <span class="s2">walk</span><span class="s0">(</span><span class="s2">value</span><span class="s0">, </span><span class="s2">key</span><span class="s0">, </span><span class="s2">value</span><span class="s0">[</span><span class="s2">key</span><span class="s0">]);</span>
+
+                            <span class="s1">if </span><span class="s0">(</span><span class="s2">prevLength </span><span class="s0">!== </span><span class="s2">length</span><span class="s0">) {</span>
+                                <span class="s5">// value is printed</span>
+                                <span class="s2">length </span><span class="s0">+= </span><span class="s2">stringLength</span><span class="s0">(</span><span class="s2">key</span><span class="s0">) + </span><span class="s4">1</span><span class="s0">; </span><span class="s5">// &quot;key&quot;:</span>
+                                <span class="s2">entries</span><span class="s0">++;</span>
+                            <span class="s0">}</span>
+                        <span class="s0">}</span>
+                    <span class="s0">}</span>
+
+                    <span class="s1">if </span><span class="s0">(</span><span class="s2">entries </span><span class="s0">&gt; </span><span class="s4">1</span><span class="s0">) {</span>
+                        <span class="s2">length </span><span class="s0">+= </span><span class="s2">entries </span><span class="s0">- </span><span class="s4">1</span><span class="s0">; </span><span class="s5">// commas</span>
+                    <span class="s0">}</span>
+
+                    <span class="s2">stack</span><span class="s0">.</span><span class="s2">delete</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+
+                    <span class="s1">if </span><span class="s0">(</span><span class="s2">space </span><span class="s0">&gt; </span><span class="s4">0 </span><span class="s0">&amp;&amp; </span><span class="s2">entries </span><span class="s0">&gt; </span><span class="s4">0</span><span class="s0">) {</span>
+                        <span class="s2">length </span><span class="s0">+= (</span><span class="s4">1 </span><span class="s0">+ (</span><span class="s2">stack</span><span class="s0">.</span><span class="s2">size </span><span class="s0">+ </span><span class="s4">1</span><span class="s0">) * </span><span class="s2">space </span><span class="s0">+ </span><span class="s4">1</span><span class="s0">) * </span><span class="s2">entries</span><span class="s0">; </span><span class="s5">// for each key-value: \n{space}</span>
+                        <span class="s2">length </span><span class="s0">+= </span><span class="s4">1 </span><span class="s0">+ </span><span class="s2">stack</span><span class="s0">.</span><span class="s2">size </span><span class="s0">* </span><span class="s2">space</span><span class="s0">; </span><span class="s5">// for }</span>
+                    <span class="s0">}</span>
+
+                    <span class="s2">visited</span><span class="s0">.</span><span class="s2">set</span><span class="s0">(</span><span class="s2">value</span><span class="s0">, </span><span class="s2">length </span><span class="s0">- </span><span class="s2">valueLength</span><span class="s0">);</span>
+
+                    <span class="s1">break</span><span class="s0">;</span>
+                <span class="s0">}</span>
+
+                <span class="s1">case </span><span class="s2">ARRAY</span><span class="s0">: {</span>
+                    <span class="s1">if </span><span class="s0">(</span><span class="s2">visited</span><span class="s0">.</span><span class="s2">has</span><span class="s0">(</span><span class="s2">value</span><span class="s0">)) {</span>
+                        <span class="s2">duplicate</span><span class="s0">.</span><span class="s2">add</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+                        <span class="s2">length </span><span class="s0">+= </span><span class="s2">visited</span><span class="s0">.</span><span class="s2">get</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+                        <span class="s1">break</span><span class="s0">;</span>
+                    <span class="s0">}</span>
+
+                    <span class="s1">const </span><span class="s2">valueLength </span><span class="s0">= </span><span class="s2">length</span><span class="s0">;</span>
+
+                    <span class="s2">length </span><span class="s0">+= </span><span class="s4">2</span><span class="s0">; </span><span class="s5">// []</span>
+
+                    <span class="s2">stack</span><span class="s0">.</span><span class="s2">add</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+
+                    <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">value</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+                        <span class="s2">walk</span><span class="s0">(</span><span class="s2">value</span><span class="s0">, </span><span class="s2">i</span><span class="s0">, </span><span class="s2">value</span><span class="s0">[</span><span class="s2">i</span><span class="s0">]);</span>
+                    <span class="s0">}</span>
+
+                    <span class="s1">if </span><span class="s0">(</span><span class="s2">value</span><span class="s0">.</span><span class="s2">length </span><span class="s0">&gt; </span><span class="s4">1</span><span class="s0">) {</span>
+                        <span class="s2">length </span><span class="s0">+= </span><span class="s2">value</span><span class="s0">.</span><span class="s2">length </span><span class="s0">- </span><span class="s4">1</span><span class="s0">; </span><span class="s5">// commas</span>
+                    <span class="s0">}</span>
+
+                    <span class="s2">stack</span><span class="s0">.</span><span class="s2">delete</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+
+                    <span class="s1">if </span><span class="s0">(</span><span class="s2">space </span><span class="s0">&gt; </span><span class="s4">0 </span><span class="s0">&amp;&amp; </span><span class="s2">value</span><span class="s0">.</span><span class="s2">length </span><span class="s0">&gt; </span><span class="s4">0</span><span class="s0">) {</span>
+                        <span class="s2">length </span><span class="s0">+= (</span><span class="s4">1 </span><span class="s0">+ (</span><span class="s2">stack</span><span class="s0">.</span><span class="s2">size </span><span class="s0">+ </span><span class="s4">1</span><span class="s0">) * </span><span class="s2">space</span><span class="s0">) * </span><span class="s2">value</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s5">// for each element: \n{space}</span>
+                        <span class="s2">length </span><span class="s0">+= </span><span class="s4">1 </span><span class="s0">+ </span><span class="s2">stack</span><span class="s0">.</span><span class="s2">size </span><span class="s0">* </span><span class="s2">space</span><span class="s0">; </span><span class="s5">// for ]</span>
+                    <span class="s0">}</span>
+
+                    <span class="s2">visited</span><span class="s0">.</span><span class="s2">set</span><span class="s0">(</span><span class="s2">value</span><span class="s0">, </span><span class="s2">length </span><span class="s0">- </span><span class="s2">valueLength</span><span class="s0">);</span>
+
+                    <span class="s1">break</span><span class="s0">;</span>
+                <span class="s0">}</span>
+
+                <span class="s1">case </span><span class="s2">PROMISE</span><span class="s0">:</span>
+                <span class="s1">case </span><span class="s2">STRING_STREAM</span><span class="s0">:</span>
+                    <span class="s2">async</span><span class="s0">.</span><span class="s2">add</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+                    <span class="s1">break</span><span class="s0">;</span>
+
+                <span class="s1">case </span><span class="s2">OBJECT_STREAM</span><span class="s0">:</span>
+                    <span class="s2">length </span><span class="s0">+= </span><span class="s4">2</span><span class="s0">; </span><span class="s5">// []</span>
+                    <span class="s2">async</span><span class="s0">.</span><span class="s2">add</span><span class="s0">(</span><span class="s2">value</span><span class="s0">);</span>
+                    <span class="s1">break</span><span class="s0">;</span>
+            <span class="s0">}</span>
+        <span class="s0">}</span>
+
+        <span class="s1">let </span><span class="s2">allowlist </span><span class="s0">= </span><span class="s1">null</span><span class="s0">;</span>
+        <span class="s2">replacer </span><span class="s0">= </span><span class="s2">normalizeReplacer</span><span class="s0">(</span><span class="s2">replacer</span><span class="s0">);</span>
+
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">Array</span><span class="s0">.</span><span class="s2">isArray</span><span class="s0">(</span><span class="s2">replacer</span><span class="s0">)) {</span>
+            <span class="s2">allowlist </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Set</span><span class="s0">(</span><span class="s2">replacer</span><span class="s0">);</span>
+            <span class="s2">replacer </span><span class="s0">= </span><span class="s1">null</span><span class="s0">;</span>
+        <span class="s0">}</span>
+
+        <span class="s2">space </span><span class="s0">= </span><span class="s2">spaceLength</span><span class="s0">(</span><span class="s2">space</span><span class="s0">);</span>
+        <span class="s2">options </span><span class="s0">= </span><span class="s2">options </span><span class="s0">|| {};</span>
+
+        <span class="s1">const </span><span class="s2">visited </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Map</span><span class="s0">();</span>
+        <span class="s1">const </span><span class="s2">stack </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Set</span><span class="s0">();</span>
+        <span class="s1">const </span><span class="s2">duplicate </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Set</span><span class="s0">();</span>
+        <span class="s1">const </span><span class="s2">circular </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Set</span><span class="s0">();</span>
+        <span class="s1">const </span><span class="s2">async </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Set</span><span class="s0">();</span>
+        <span class="s1">const </span><span class="s2">getType </span><span class="s0">= </span><span class="s2">options</span><span class="s0">.</span><span class="s2">async </span><span class="s0">? </span><span class="s2">getTypeAsync </span><span class="s0">: </span><span class="s2">getTypeNative</span><span class="s0">;</span>
+        <span class="s1">const </span><span class="s2">root </span><span class="s0">= { </span><span class="s3">''</span><span class="s0">: </span><span class="s2">value </span><span class="s0">};</span>
+        <span class="s1">let </span><span class="s2">stop </span><span class="s0">= </span><span class="s1">false</span><span class="s0">;</span>
+        <span class="s1">let </span><span class="s2">length </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+
+        <span class="s2">walk</span><span class="s0">(</span><span class="s2">root</span><span class="s0">, </span><span class="s3">''</span><span class="s0">, </span><span class="s2">value</span><span class="s0">);</span>
+
+        <span class="s1">return </span><span class="s0">{</span>
+            <span class="s2">minLength</span><span class="s0">: </span><span class="s2">isNaN</span><span class="s0">(</span><span class="s2">length</span><span class="s0">) ? </span><span class="s2">Infinity </span><span class="s0">: </span><span class="s2">length</span><span class="s0">,</span>
+            <span class="s2">circular</span><span class="s0">: [</span><span class="s2">...circular</span><span class="s0">],</span>
+            <span class="s2">duplicate</span><span class="s0">: [</span><span class="s2">...duplicate</span><span class="s0">],</span>
+            <span class="s2">async</span><span class="s0">: [</span><span class="s2">...async</span><span class="s0">]</span>
+        <span class="s0">};</span>
+    <span class="s0">};</span>
+
+    <span class="s1">var </span><span class="s2">stringifyStreamBrowser </span><span class="s0">= () =&gt; {</span>
+        <span class="s1">throw new </span><span class="s2">Error</span><span class="s0">(</span><span class="s3">'Method is not supported'</span><span class="s0">);</span>
+    <span class="s0">};</span>
+
+    <span class="s1">var </span><span class="s2">textDecoderBrowser </span><span class="s0">= </span><span class="s2">TextDecoder</span><span class="s0">;</span>
+
+    <span class="s1">const </span><span class="s0">{ </span><span class="s2">isReadableStream </span><span class="s0">} = </span><span class="s2">utils</span><span class="s0">;</span>
+
+
+    <span class="s1">const </span><span class="s2">STACK_OBJECT </span><span class="s0">= </span><span class="s4">1</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">STACK_ARRAY </span><span class="s0">= </span><span class="s4">2</span><span class="s0">;</span>
+    <span class="s1">const </span><span class="s2">decoder </span><span class="s0">= </span><span class="s1">new </span><span class="s2">textDecoderBrowser</span><span class="s0">();</span>
+
+    <span class="s1">function </span><span class="s2">isObject</span><span class="s0">(</span><span class="s2">value</span><span class="s0">) {</span>
+        <span class="s1">return </span><span class="s2">value </span><span class="s0">!== </span><span class="s1">null </span><span class="s0">&amp;&amp; </span><span class="s1">typeof </span><span class="s2">value </span><span class="s0">=== </span><span class="s3">'object'</span><span class="s0">;</span>
+    <span class="s0">}</span>
+
+    <span class="s1">function </span><span class="s2">adjustPosition</span><span class="s0">(</span><span class="s2">error</span><span class="s0">, </span><span class="s2">parser</span><span class="s0">) {</span>
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">error</span><span class="s0">.</span><span class="s2">name </span><span class="s0">=== </span><span class="s3">'SyntaxError' </span><span class="s0">&amp;&amp; </span><span class="s2">parser</span><span class="s0">.</span><span class="s2">jsonParseOffset</span><span class="s0">) {</span>
+            <span class="s2">error</span><span class="s0">.</span><span class="s2">message </span><span class="s0">= </span><span class="s2">error</span><span class="s0">.</span><span class="s2">message</span><span class="s0">.</span><span class="s2">replace</span><span class="s0">(</span><span class="s6">/at position (\d+)/</span><span class="s0">, (</span><span class="s2">_</span><span class="s0">, </span><span class="s2">pos</span><span class="s0">) =&gt;</span>
+                <span class="s3">'at position ' </span><span class="s0">+ (</span><span class="s2">Number</span><span class="s0">(</span><span class="s2">pos</span><span class="s0">) + </span><span class="s2">parser</span><span class="s0">.</span><span class="s2">jsonParseOffset</span><span class="s0">)</span>
+            <span class="s0">);</span>
+        <span class="s0">}</span>
+
+        <span class="s1">return </span><span class="s2">error</span><span class="s0">;</span>
+    <span class="s0">}</span>
+
+    <span class="s1">function </span><span class="s2">append</span><span class="s0">(</span><span class="s2">array</span><span class="s0">, </span><span class="s2">elements</span><span class="s0">) {</span>
+        <span class="s5">// Note: Avoid to use array.push(...elements) since it may lead to</span>
+        <span class="s5">// &quot;RangeError: Maximum call stack size exceeded&quot; for a long arrays</span>
+        <span class="s1">const </span><span class="s2">initialLength </span><span class="s0">= </span><span class="s2">array</span><span class="s0">.</span><span class="s2">length</span><span class="s0">;</span>
+        <span class="s2">array</span><span class="s0">.</span><span class="s2">length </span><span class="s0">+= </span><span class="s2">elements</span><span class="s0">.</span><span class="s2">length</span><span class="s0">;</span>
+
+        <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">elements</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+            <span class="s2">array</span><span class="s0">[</span><span class="s2">initialLength </span><span class="s0">+ </span><span class="s2">i</span><span class="s0">] = </span><span class="s2">elements</span><span class="s0">[</span><span class="s2">i</span><span class="s0">];</span>
+        <span class="s0">}</span>
+    <span class="s0">}</span>
+
+    <span class="s1">var </span><span class="s2">parseChunked </span><span class="s0">= </span><span class="s1">function</span><span class="s0">(</span><span class="s2">chunkEmitter</span><span class="s0">) {</span>
+        <span class="s1">let </span><span class="s2">parser </span><span class="s0">= </span><span class="s1">new </span><span class="s2">ChunkParser</span><span class="s0">();</span>
+
+        <span class="s1">if </span><span class="s0">(</span><span class="s2">isObject</span><span class="s0">(</span><span class="s2">chunkEmitter</span><span class="s0">) &amp;&amp; </span><span class="s2">isReadableStream</span><span class="s0">(</span><span class="s2">chunkEmitter</span><span class="s0">)) {</span>
+            <span class="s1">return new </span><span class="s2">Promise</span><span class="s0">((</span><span class="s2">resolve</span><span class="s0">, </span><span class="s2">reject</span><span class="s0">) =&gt; {</span>
+                <span class="s2">chunkEmitter</span>
+                    <span class="s0">.</span><span class="s2">on</span><span class="s0">(</span><span class="s3">'data'</span><span class="s0">, </span><span class="s2">chunk </span><span class="s0">=&gt; {</span>
+                        <span class="s1">try </span><span class="s0">{</span>
+                            <span class="s2">parser</span><span class="s0">.</span><span class="s2">push</span><span class="s0">(</span><span class="s2">chunk</span><span class="s0">);</span>
+                        <span class="s0">} </span><span class="s1">catch </span><span class="s0">(</span><span class="s2">e</span><span class="s0">) {</span>
+                            <span class="s2">reject</span><span class="s0">(</span><span class="s2">adjustPosition</span><span class="s0">(</span><span class="s2">e</span><span class="s0">, </span><span class="s2">parser</span><span class="s0">));</span>
+                            <span class="s2">parser </span><span class="s0">= </span><span class="s1">null</span><span class="s0">;</span>
+                        <span class="s0">}</span>
+                    <span class="s0">})</span>
+                    <span class="s0">.</span><span class="s2">on</span><span class="s0">(</span><span class="s3">'error'</span><span class="s0">, (</span><span class="s2">e</span><span class="s0">) =&gt; {</span>
+                        <span class="s2">parser </span><span class="s0">= </span><span class="s1">null</span><span class="s0">;</span>
+                        <span class="s2">reject</span><span class="s0">(</span><span class="s2">e</span><span class="s0">);</span>
+                    <span class="s0">})</span>
+                    <span class="s0">.</span><span class="s2">on</span><span class="s0">(</span><span class="s3">'end'</span><span class="s0">, () =&gt; {</span>
+                        <span class="s1">try </span><span class="s0">{</span>
+                            <span class="s2">resolve</span><span class="s0">(</span><span class="s2">parser</span><span class="s0">.</span><span class="s2">finish</span><span class="s0">());</span>
+                        <span class="s0">} </span><span class="s1">catch </span><span class="s0">(</span><span class="s2">e</span><span class="s0">) {</span>
+                            <span class="s2">reject</span><span class="s0">(</span><span class="s2">adjustPosition</span><span class="s0">(</span><span class="s2">e</span><span class="s0">, </span><span class="s2">parser</span><span class="s0">));</span>
+                        <span class="s0">} </span><span class="s1">finally </span><span class="s0">{</span>
+                            <span class="s2">parser </span><span class="s0">= </span><span class="s1">null</span><span class="s0">;</span>
+                        <span class="s0">}</span>
+                    <span class="s0">});</span>
+            <span class="s0">});</span>
+        <span class="s0">}</span>
+
+        <span class="s1">if </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">chunkEmitter </span><span class="s0">=== </span><span class="s3">'function'</span><span class="s0">) {</span>
+            <span class="s1">const </span><span class="s2">iterator </span><span class="s0">= </span><span class="s2">chunkEmitter</span><span class="s0">();</span>
+
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">isObject</span><span class="s0">(</span><span class="s2">iterator</span><span class="s0">) &amp;&amp; (</span><span class="s2">Symbol</span><span class="s0">.</span><span class="s2">iterator </span><span class="s1">in </span><span class="s2">iterator </span><span class="s0">|| </span><span class="s2">Symbol</span><span class="s0">.</span><span class="s2">asyncIterator </span><span class="s1">in </span><span class="s2">iterator</span><span class="s0">)) {</span>
+                <span class="s1">return new </span><span class="s2">Promise</span><span class="s0">(</span><span class="s2">async </span><span class="s0">(</span><span class="s2">resolve</span><span class="s0">, </span><span class="s2">reject</span><span class="s0">) =&gt; {</span>
+                    <span class="s1">try </span><span class="s0">{</span>
+                        <span class="s1">for await </span><span class="s0">(</span><span class="s1">const </span><span class="s2">chunk of iterator</span><span class="s0">) {</span>
+                            <span class="s2">parser</span><span class="s0">.</span><span class="s2">push</span><span class="s0">(</span><span class="s2">chunk</span><span class="s0">);</span>
+                        <span class="s0">}</span>
+
+                        <span class="s2">resolve</span><span class="s0">(</span><span class="s2">parser</span><span class="s0">.</span><span class="s2">finish</span><span class="s0">());</span>
+                    <span class="s0">} </span><span class="s1">catch </span><span class="s0">(</span><span class="s2">e</span><span class="s0">) {</span>
+                        <span class="s2">reject</span><span class="s0">(</span><span class="s2">adjustPosition</span><span class="s0">(</span><span class="s2">e</span><span class="s0">, </span><span class="s2">parser</span><span class="s0">));</span>
+                    <span class="s0">} </span><span class="s1">finally </span><span class="s0">{</span>
+                        <span class="s2">parser </span><span class="s0">= </span><span class="s1">null</span><span class="s0">;</span>
+                    <span class="s0">}</span>
+                <span class="s0">});</span>
+            <span class="s0">}</span>
+        <span class="s0">}</span>
+
+        <span class="s1">throw new </span><span class="s2">Error</span><span class="s0">(</span>
+            <span class="s3">'Chunk emitter should be readable stream, generator, ' </span><span class="s0">+</span>
+            <span class="s3">'async generator or function returning an iterable object'</span>
+        <span class="s0">);</span>
+    <span class="s0">};</span>
+
+    <span class="s1">class </span><span class="s2">ChunkParser </span><span class="s0">{</span>
+        <span class="s2">constructor</span><span class="s0">() {</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">value </span><span class="s0">= </span><span class="s2">undefined</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">valueStack </span><span class="s0">= </span><span class="s1">null</span><span class="s0">;</span>
+
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">stack </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Array</span><span class="s0">(</span><span class="s4">100</span><span class="s0">);</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">lastFlushDepth </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">flushDepth </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">stateString </span><span class="s0">= </span><span class="s1">false</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">stateStringEscape </span><span class="s0">= </span><span class="s1">false</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">pendingByteSeq </span><span class="s0">= </span><span class="s1">null</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">pendingChunk </span><span class="s0">= </span><span class="s1">null</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">chunkOffset </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">jsonParseOffset </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+        <span class="s0">}</span>
+
+        <span class="s2">parseAndAppend</span><span class="s0">(</span><span class="s2">fragment</span><span class="s0">, </span><span class="s2">wrap</span><span class="s0">) {</span>
+            <span class="s5">// Append new entries or elements</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">stack</span><span class="s0">[</span><span class="s1">this</span><span class="s0">.</span><span class="s2">lastFlushDepth </span><span class="s0">- </span><span class="s4">1</span><span class="s0">] === </span><span class="s2">STACK_OBJECT</span><span class="s0">) {</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">wrap</span><span class="s0">) {</span>
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">jsonParseOffset</span><span class="s0">--;</span>
+                    <span class="s2">fragment </span><span class="s0">= </span><span class="s3">'{' </span><span class="s0">+ </span><span class="s2">fragment </span><span class="s0">+ </span><span class="s3">'}'</span><span class="s0">;</span>
+                <span class="s0">}</span>
+
+                <span class="s2">Object</span><span class="s0">.</span><span class="s2">assign</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">valueStack</span><span class="s0">.</span><span class="s2">value</span><span class="s0">, </span><span class="s2">JSON</span><span class="s0">.</span><span class="s2">parse</span><span class="s0">(</span><span class="s2">fragment</span><span class="s0">));</span>
+            <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">wrap</span><span class="s0">) {</span>
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">jsonParseOffset</span><span class="s0">--;</span>
+                    <span class="s2">fragment </span><span class="s0">= </span><span class="s3">'[' </span><span class="s0">+ </span><span class="s2">fragment </span><span class="s0">+ </span><span class="s3">']'</span><span class="s0">;</span>
+                <span class="s0">}</span>
+
+                <span class="s2">append</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">valueStack</span><span class="s0">.</span><span class="s2">value</span><span class="s0">, </span><span class="s2">JSON</span><span class="s0">.</span><span class="s2">parse</span><span class="s0">(</span><span class="s2">fragment</span><span class="s0">));</span>
+            <span class="s0">}</span>
+        <span class="s0">}</span>
+
+        <span class="s2">prepareAddition</span><span class="s0">(</span><span class="s2">fragment</span><span class="s0">) {</span>
+            <span class="s1">const </span><span class="s0">{ </span><span class="s2">value </span><span class="s0">} = </span><span class="s1">this</span><span class="s0">.</span><span class="s2">valueStack</span><span class="s0">;</span>
+            <span class="s1">const </span><span class="s2">expectComma </span><span class="s0">= </span><span class="s2">Array</span><span class="s0">.</span><span class="s2">isArray</span><span class="s0">(</span><span class="s2">value</span><span class="s0">)</span>
+                <span class="s0">? </span><span class="s2">value</span><span class="s0">.</span><span class="s2">length </span><span class="s0">!== </span><span class="s4">0</span>
+                <span class="s0">: </span><span class="s2">Object</span><span class="s0">.</span><span class="s2">keys</span><span class="s0">(</span><span class="s2">value</span><span class="s0">).</span><span class="s2">length </span><span class="s0">!== </span><span class="s4">0</span><span class="s0">;</span>
+
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">expectComma</span><span class="s0">) {</span>
+                <span class="s5">// Skip a comma at the beginning of fragment, otherwise it would</span>
+                <span class="s5">// fail to parse</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">fragment</span><span class="s0">[</span><span class="s4">0</span><span class="s0">] === </span><span class="s3">','</span><span class="s0">) {</span>
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">jsonParseOffset</span><span class="s0">++;</span>
+                    <span class="s1">return </span><span class="s2">fragment</span><span class="s0">.</span><span class="s2">slice</span><span class="s0">(</span><span class="s4">1</span><span class="s0">);</span>
+                <span class="s0">}</span>
+
+                <span class="s5">// When value (an object or array) is not empty and a fragment</span>
+                <span class="s5">// doesn't start with a comma, a single valid fragment starting</span>
+                <span class="s5">// is a closing bracket. If it's not, a prefix is adding to fail</span>
+                <span class="s5">// parsing. Otherwise, the sequence of chunks can be successfully</span>
+                <span class="s5">// parsed, although it should not, e.g. [&quot;[{}&quot;, &quot;{}]&quot;]</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">fragment</span><span class="s0">[</span><span class="s4">0</span><span class="s0">] !== </span><span class="s3">'}' </span><span class="s0">&amp;&amp; </span><span class="s2">fragment</span><span class="s0">[</span><span class="s4">0</span><span class="s0">] !== </span><span class="s3">']'</span><span class="s0">) {</span>
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">jsonParseOffset </span><span class="s0">-= </span><span class="s4">3</span><span class="s0">;</span>
+                    <span class="s1">return </span><span class="s3">'[[]' </span><span class="s0">+ </span><span class="s2">fragment</span><span class="s0">;</span>
+                <span class="s0">}</span>
+            <span class="s0">}</span>
+
+            <span class="s1">return </span><span class="s2">fragment</span><span class="s0">;</span>
+        <span class="s0">}</span>
+
+        <span class="s2">flush</span><span class="s0">(</span><span class="s2">chunk</span><span class="s0">, </span><span class="s2">start</span><span class="s0">, </span><span class="s2">end</span><span class="s0">) {</span>
+            <span class="s1">let </span><span class="s2">fragment </span><span class="s0">= </span><span class="s2">chunk</span><span class="s0">.</span><span class="s2">slice</span><span class="s0">(</span><span class="s2">start</span><span class="s0">, </span><span class="s2">end</span><span class="s0">);</span>
+
+            <span class="s5">// Save position correction an error in JSON.parse() if any</span>
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">jsonParseOffset </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">chunkOffset </span><span class="s0">+ </span><span class="s2">start</span><span class="s0">;</span>
+
+            <span class="s5">// Prepend pending chunk if any</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">pendingChunk </span><span class="s0">!== </span><span class="s1">null</span><span class="s0">) {</span>
+                <span class="s2">fragment </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">pendingChunk </span><span class="s0">+ </span><span class="s2">fragment</span><span class="s0">;</span>
+                <span class="s1">this</span><span class="s0">.</span><span class="s2">jsonParseOffset </span><span class="s0">-= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">pendingChunk</span><span class="s0">.</span><span class="s2">length</span><span class="s0">;</span>
+                <span class="s1">this</span><span class="s0">.</span><span class="s2">pendingChunk </span><span class="s0">= </span><span class="s1">null</span><span class="s0">;</span>
+            <span class="s0">}</span>
+
+            <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">flushDepth </span><span class="s0">=== </span><span class="s1">this</span><span class="s0">.</span><span class="s2">lastFlushDepth</span><span class="s0">) {</span>
+                <span class="s5">// Depth didn't changed, so it's a root value or entry/element set</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">flushDepth </span><span class="s0">&gt; </span><span class="s4">0</span><span class="s0">) {</span>
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">parseAndAppend</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">prepareAddition</span><span class="s0">(</span><span class="s2">fragment</span><span class="s0">), </span><span class="s1">true</span><span class="s0">);</span>
+                <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+                    <span class="s5">// That's an entire value on a top level</span>
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">value </span><span class="s0">= </span><span class="s2">JSON</span><span class="s0">.</span><span class="s2">parse</span><span class="s0">(</span><span class="s2">fragment</span><span class="s0">);</span>
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">valueStack </span><span class="s0">= {</span>
+                        <span class="s2">value</span><span class="s0">: </span><span class="s1">this</span><span class="s0">.</span><span class="s2">value</span><span class="s0">,</span>
+                        <span class="s2">prev</span><span class="s0">: </span><span class="s1">null</span>
+                    <span class="s0">};</span>
+                <span class="s0">}</span>
+            <span class="s0">} </span><span class="s1">else if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">flushDepth </span><span class="s0">&gt; </span><span class="s1">this</span><span class="s0">.</span><span class="s2">lastFlushDepth</span><span class="s0">) {</span>
+                <span class="s5">// Add missed closing brackets/parentheses</span>
+                <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">flushDepth </span><span class="s0">- </span><span class="s4">1</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&gt;= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">lastFlushDepth</span><span class="s0">; </span><span class="s2">i</span><span class="s0">--) {</span>
+                    <span class="s2">fragment </span><span class="s0">+= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">stack</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] === </span><span class="s2">STACK_OBJECT </span><span class="s0">? </span><span class="s3">'}' </span><span class="s0">: </span><span class="s3">']'</span><span class="s0">;</span>
+                <span class="s0">}</span>
+
+                <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">lastFlushDepth </span><span class="s0">=== </span><span class="s4">0</span><span class="s0">) {</span>
+                    <span class="s5">// That's a root value</span>
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">value </span><span class="s0">= </span><span class="s2">JSON</span><span class="s0">.</span><span class="s2">parse</span><span class="s0">(</span><span class="s2">fragment</span><span class="s0">);</span>
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">valueStack </span><span class="s0">= {</span>
+                        <span class="s2">value</span><span class="s0">: </span><span class="s1">this</span><span class="s0">.</span><span class="s2">value</span><span class="s0">,</span>
+                        <span class="s2">prev</span><span class="s0">: </span><span class="s1">null</span>
+                    <span class="s0">};</span>
+                <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">parseAndAppend</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">prepareAddition</span><span class="s0">(</span><span class="s2">fragment</span><span class="s0">), </span><span class="s1">true</span><span class="s0">);</span>
+                <span class="s0">}</span>
+
+                <span class="s5">// Move down to the depths to the last object/array, which is current now</span>
+                <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">lastFlushDepth </span><span class="s0">|| </span><span class="s4">1</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s1">this</span><span class="s0">.</span><span class="s2">flushDepth</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+                    <span class="s1">let </span><span class="s2">value </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">valueStack</span><span class="s0">.</span><span class="s2">value</span><span class="s0">;</span>
+
+                    <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">stack</span><span class="s0">[</span><span class="s2">i </span><span class="s0">- </span><span class="s4">1</span><span class="s0">] === </span><span class="s2">STACK_OBJECT</span><span class="s0">) {</span>
+                        <span class="s5">// find last entry</span>
+                        <span class="s1">let </span><span class="s2">key</span><span class="s0">;</span>
+                        <span class="s5">// eslint-disable-next-line curly</span>
+                        <span class="s1">for </span><span class="s0">(</span><span class="s2">key </span><span class="s1">in </span><span class="s2">value</span><span class="s0">);</span>
+                        <span class="s2">value </span><span class="s0">= </span><span class="s2">value</span><span class="s0">[</span><span class="s2">key</span><span class="s0">];</span>
+                    <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+                        <span class="s5">// last element</span>
+                        <span class="s2">value </span><span class="s0">= </span><span class="s2">value</span><span class="s0">[</span><span class="s2">value</span><span class="s0">.</span><span class="s2">length </span><span class="s0">- </span><span class="s4">1</span><span class="s0">];</span>
+                    <span class="s0">}</span>
+
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">valueStack </span><span class="s0">= {</span>
+                        <span class="s2">value</span><span class="s0">,</span>
+                        <span class="s2">prev</span><span class="s0">: </span><span class="s1">this</span><span class="s0">.</span><span class="s2">valueStack</span>
+                    <span class="s0">};</span>
+                <span class="s0">}</span>
+            <span class="s0">} </span><span class="s1">else </span><span class="s5">/* this.flushDepth &lt; this.lastFlushDepth */ </span><span class="s0">{</span>
+                <span class="s2">fragment </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">prepareAddition</span><span class="s0">(</span><span class="s2">fragment</span><span class="s0">);</span>
+
+                <span class="s5">// Add missed opening brackets/parentheses</span>
+                <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">lastFlushDepth </span><span class="s0">- </span><span class="s4">1</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&gt;= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">flushDepth</span><span class="s0">; </span><span class="s2">i</span><span class="s0">--) {</span>
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">jsonParseOffset</span><span class="s0">--;</span>
+                    <span class="s2">fragment </span><span class="s0">= (</span><span class="s1">this</span><span class="s0">.</span><span class="s2">stack</span><span class="s0">[</span><span class="s2">i</span><span class="s0">] === </span><span class="s2">STACK_OBJECT </span><span class="s0">? </span><span class="s3">'{' </span><span class="s0">: </span><span class="s3">'['</span><span class="s0">) + </span><span class="s2">fragment</span><span class="s0">;</span>
+                <span class="s0">}</span>
+
+                <span class="s1">this</span><span class="s0">.</span><span class="s2">parseAndAppend</span><span class="s0">(</span><span class="s2">fragment</span><span class="s0">, </span><span class="s1">false</span><span class="s0">);</span>
+
+                <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">lastFlushDepth </span><span class="s0">- </span><span class="s4">1</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&gt;= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">flushDepth</span><span class="s0">; </span><span class="s2">i</span><span class="s0">--) {</span>
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">valueStack </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">valueStack</span><span class="s0">.</span><span class="s2">prev</span><span class="s0">;</span>
+                <span class="s0">}</span>
+            <span class="s0">}</span>
+
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">lastFlushDepth </span><span class="s0">= </span><span class="s1">this</span><span class="s0">.</span><span class="s2">flushDepth</span><span class="s0">;</span>
+        <span class="s0">}</span>
+
+        <span class="s2">push</span><span class="s0">(</span><span class="s2">chunk</span><span class="s0">) {</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s1">typeof </span><span class="s2">chunk </span><span class="s0">!== </span><span class="s3">'string'</span><span class="s0">) {</span>
+                <span class="s5">// Suppose chunk is Buffer or Uint8Array</span>
+
+                <span class="s5">// Prepend uncompleted byte sequence if any</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">pendingByteSeq </span><span class="s0">!== </span><span class="s1">null</span><span class="s0">) {</span>
+                    <span class="s1">const </span><span class="s2">origRawChunk </span><span class="s0">= </span><span class="s2">chunk</span><span class="s0">;</span>
+                    <span class="s2">chunk </span><span class="s0">= </span><span class="s1">new </span><span class="s2">Uint8Array</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">pendingByteSeq</span><span class="s0">.</span><span class="s2">length </span><span class="s0">+ </span><span class="s2">origRawChunk</span><span class="s0">.</span><span class="s2">length</span><span class="s0">);</span>
+                    <span class="s2">chunk</span><span class="s0">.</span><span class="s2">set</span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">pendingByteSeq</span><span class="s0">);</span>
+                    <span class="s2">chunk</span><span class="s0">.</span><span class="s2">set</span><span class="s0">(</span><span class="s2">origRawChunk</span><span class="s0">, </span><span class="s1">this</span><span class="s0">.</span><span class="s2">pendingByteSeq</span><span class="s0">.</span><span class="s2">length</span><span class="s0">);</span>
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">pendingByteSeq </span><span class="s0">= </span><span class="s1">null</span><span class="s0">;</span>
+                <span class="s0">}</span>
+
+                <span class="s5">// In case Buffer/Uint8Array, an input is encoded in UTF8</span>
+                <span class="s5">// Seek for parts of uncompleted UTF8 symbol on the ending</span>
+                <span class="s5">// This makes sense only if we expect more chunks and last char is not multi-bytes</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s2">chunk</span><span class="s0">[</span><span class="s2">chunk</span><span class="s0">.</span><span class="s2">length </span><span class="s0">- </span><span class="s4">1</span><span class="s0">] &gt; </span><span class="s4">127</span><span class="s0">) {</span>
+                    <span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">seqLength </span><span class="s0">= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">seqLength </span><span class="s0">&lt; </span><span class="s2">chunk</span><span class="s0">.</span><span class="s2">length</span><span class="s0">; </span><span class="s2">seqLength</span><span class="s0">++) {</span>
+                        <span class="s1">const </span><span class="s2">byte </span><span class="s0">= </span><span class="s2">chunk</span><span class="s0">[</span><span class="s2">chunk</span><span class="s0">.</span><span class="s2">length </span><span class="s0">- </span><span class="s4">1 </span><span class="s0">- </span><span class="s2">seqLength</span><span class="s0">];</span>
+
+                        <span class="s5">// 10xxxxxx - 2nd, 3rd or 4th byte</span>
+                        <span class="s5">// 110xxxxx – first byte of 2-byte sequence</span>
+                        <span class="s5">// 1110xxxx - first byte of 3-byte sequence</span>
+                        <span class="s5">// 11110xxx - first byte of 4-byte sequence</span>
+                        <span class="s1">if </span><span class="s0">(</span><span class="s2">byte </span><span class="s0">&gt;&gt; </span><span class="s4">6 </span><span class="s0">=== </span><span class="s4">3</span><span class="s0">) {</span>
+                            <span class="s2">seqLength</span><span class="s0">++;</span>
+
+                            <span class="s5">// If the sequence is really incomplete, then preserve it</span>
+                            <span class="s5">// for the future chunk and cut off it from the current chunk</span>
+                            <span class="s1">if </span><span class="s0">((</span><span class="s2">seqLength </span><span class="s0">!== </span><span class="s4">4 </span><span class="s0">&amp;&amp; </span><span class="s2">byte </span><span class="s0">&gt;&gt; </span><span class="s4">3 </span><span class="s0">=== </span><span class="s4">0b11110</span><span class="s0">) ||</span>
+                                <span class="s0">(</span><span class="s2">seqLength </span><span class="s0">!== </span><span class="s4">3 </span><span class="s0">&amp;&amp; </span><span class="s2">byte </span><span class="s0">&gt;&gt; </span><span class="s4">4 </span><span class="s0">=== </span><span class="s4">0b1110</span><span class="s0">) ||</span>
+                                <span class="s0">(</span><span class="s2">seqLength </span><span class="s0">!== </span><span class="s4">2 </span><span class="s0">&amp;&amp; </span><span class="s2">byte </span><span class="s0">&gt;&gt; </span><span class="s4">5 </span><span class="s0">=== </span><span class="s4">0b110</span><span class="s0">)) {</span>
+                                <span class="s1">this</span><span class="s0">.</span><span class="s2">pendingByteSeq </span><span class="s0">= </span><span class="s2">chunk</span><span class="s0">.</span><span class="s2">slice</span><span class="s0">(</span><span class="s2">chunk</span><span class="s0">.</span><span class="s2">length </span><span class="s0">- </span><span class="s2">seqLength</span><span class="s0">);</span>
+                                <span class="s2">chunk </span><span class="s0">= </span><span class="s2">chunk</span><span class="s0">.</span><span class="s2">slice</span><span class="s0">(</span><span class="s4">0</span><span class="s0">, -</span><span class="s2">seqLength</span><span class="s0">);</span>
+                            <span class="s0">}</span>
+
+                            <span class="s1">break</span><span class="s0">;</span>
+                        <span class="s0">}</span>
+                    <span class="s0">}</span>
+                <span class="s0">}</span>
+
+                <span class="s5">// Convert chunk to a string, since single decode per chunk</span>
+                <span class="s5">// is much effective than decode multiple small substrings</span>
+                <span class="s2">chunk </span><span class="s0">= </span><span class="s2">decoder</span><span class="s0">.</span><span class="s2">decode</span><span class="s0">(</span><span class="s2">chunk</span><span class="s0">);</span>
+            <span class="s0">}</span>
+
+            <span class="s1">const </span><span class="s2">chunkLength </span><span class="s0">= </span><span class="s2">chunk</span><span class="s0">.</span><span class="s2">length</span><span class="s0">;</span>
+            <span class="s1">let </span><span class="s2">lastFlushPoint </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+            <span class="s1">let </span><span class="s2">flushPoint </span><span class="s0">= </span><span class="s4">0</span><span class="s0">;</span>
+
+            <span class="s5">// Main scan loop</span>
+            <span class="s2">scan</span><span class="s0">: </span><span class="s1">for </span><span class="s0">(</span><span class="s1">let </span><span class="s2">i </span><span class="s0">= </span><span class="s4">0</span><span class="s0">; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">chunkLength</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">stateString</span><span class="s0">) {</span>
+                    <span class="s1">for </span><span class="s0">(; </span><span class="s2">i </span><span class="s0">&lt; </span><span class="s2">chunkLength</span><span class="s0">; </span><span class="s2">i</span><span class="s0">++) {</span>
+                        <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">stateStringEscape</span><span class="s0">) {</span>
+                            <span class="s1">this</span><span class="s0">.</span><span class="s2">stateStringEscape </span><span class="s0">= </span><span class="s1">false</span><span class="s0">;</span>
+                        <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+                            <span class="s1">switch </span><span class="s0">(</span><span class="s2">chunk</span><span class="s0">.</span><span class="s2">charCodeAt</span><span class="s0">(</span><span class="s2">i</span><span class="s0">)) {</span>
+                                <span class="s1">case </span><span class="s4">0x22</span><span class="s0">: </span><span class="s5">/* &quot; */</span>
+                                    <span class="s1">this</span><span class="s0">.</span><span class="s2">stateString </span><span class="s0">= </span><span class="s1">false</span><span class="s0">;</span>
+                                    <span class="s1">continue </span><span class="s2">scan</span><span class="s0">;</span>
+
+                                <span class="s1">case </span><span class="s4">0x5C</span><span class="s0">: </span><span class="s5">/* \ */</span>
+                                    <span class="s1">this</span><span class="s0">.</span><span class="s2">stateStringEscape </span><span class="s0">= </span><span class="s1">true</span><span class="s0">;</span>
+                            <span class="s0">}</span>
+                        <span class="s0">}</span>
+                    <span class="s0">}</span>
+
+                    <span class="s1">break</span><span class="s0">;</span>
+                <span class="s0">}</span>
+
+                <span class="s1">switch </span><span class="s0">(</span><span class="s2">chunk</span><span class="s0">.</span><span class="s2">charCodeAt</span><span class="s0">(</span><span class="s2">i</span><span class="s0">)) {</span>
+                    <span class="s1">case </span><span class="s4">0x22</span><span class="s0">: </span><span class="s5">/* &quot; */</span>
+                        <span class="s1">this</span><span class="s0">.</span><span class="s2">stateString </span><span class="s0">= </span><span class="s1">true</span><span class="s0">;</span>
+                        <span class="s1">this</span><span class="s0">.</span><span class="s2">stateStringEscape </span><span class="s0">= </span><span class="s1">false</span><span class="s0">;</span>
+                        <span class="s1">break</span><span class="s0">;</span>
+
+                    <span class="s1">case </span><span class="s4">0x2C</span><span class="s0">: </span><span class="s5">/* , */</span>
+                        <span class="s2">flushPoint </span><span class="s0">= </span><span class="s2">i</span><span class="s0">;</span>
+                        <span class="s1">break</span><span class="s0">;</span>
+
+                    <span class="s1">case </span><span class="s4">0x7B</span><span class="s0">: </span><span class="s5">/* { */</span>
+                        <span class="s5">// Open an object</span>
+                        <span class="s2">flushPoint </span><span class="s0">= </span><span class="s2">i </span><span class="s0">+ </span><span class="s4">1</span><span class="s0">;</span>
+                        <span class="s1">this</span><span class="s0">.</span><span class="s2">stack</span><span class="s0">[</span><span class="s1">this</span><span class="s0">.</span><span class="s2">flushDepth</span><span class="s0">++] = </span><span class="s2">STACK_OBJECT</span><span class="s0">;</span>
+                        <span class="s1">break</span><span class="s0">;</span>
+
+                    <span class="s1">case </span><span class="s4">0x5B</span><span class="s0">: </span><span class="s5">/* [ */</span>
+                        <span class="s5">// Open an array</span>
+                        <span class="s2">flushPoint </span><span class="s0">= </span><span class="s2">i </span><span class="s0">+ </span><span class="s4">1</span><span class="s0">;</span>
+                        <span class="s1">this</span><span class="s0">.</span><span class="s2">stack</span><span class="s0">[</span><span class="s1">this</span><span class="s0">.</span><span class="s2">flushDepth</span><span class="s0">++] = </span><span class="s2">STACK_ARRAY</span><span class="s0">;</span>
+                        <span class="s1">break</span><span class="s0">;</span>
+
+                    <span class="s1">case </span><span class="s4">0x5D</span><span class="s0">: </span><span class="s5">/* ] */</span>
+                    <span class="s1">case </span><span class="s4">0x7D</span><span class="s0">: </span><span class="s5">/* } */</span>
+                        <span class="s5">// Close an object or array</span>
+                        <span class="s2">flushPoint </span><span class="s0">= </span><span class="s2">i </span><span class="s0">+ </span><span class="s4">1</span><span class="s0">;</span>
+                        <span class="s1">this</span><span class="s0">.</span><span class="s2">flushDepth</span><span class="s0">--;</span>
+
+                        <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">flushDepth </span><span class="s0">&lt; </span><span class="s1">this</span><span class="s0">.</span><span class="s2">lastFlushDepth</span><span class="s0">) {</span>
+                            <span class="s1">this</span><span class="s0">.</span><span class="s2">flush</span><span class="s0">(</span><span class="s2">chunk</span><span class="s0">, </span><span class="s2">lastFlushPoint</span><span class="s0">, </span><span class="s2">flushPoint</span><span class="s0">);</span>
+                            <span class="s2">lastFlushPoint </span><span class="s0">= </span><span class="s2">flushPoint</span><span class="s0">;</span>
+                        <span class="s0">}</span>
+
+                        <span class="s1">break</span><span class="s0">;</span>
+
+                    <span class="s1">case </span><span class="s4">0x09</span><span class="s0">: </span><span class="s5">/* \t */</span>
+                    <span class="s1">case </span><span class="s4">0x0A</span><span class="s0">: </span><span class="s5">/* \n */</span>
+                    <span class="s1">case </span><span class="s4">0x0D</span><span class="s0">: </span><span class="s5">/* \r */</span>
+                    <span class="s1">case </span><span class="s4">0x20</span><span class="s0">: </span><span class="s5">/* space */</span>
+                        <span class="s5">// Move points forward when they points on current position and it's a whitespace</span>
+                        <span class="s1">if </span><span class="s0">(</span><span class="s2">lastFlushPoint </span><span class="s0">=== </span><span class="s2">i</span><span class="s0">) {</span>
+                            <span class="s2">lastFlushPoint</span><span class="s0">++;</span>
+                        <span class="s0">}</span>
+
+                        <span class="s1">if </span><span class="s0">(</span><span class="s2">flushPoint </span><span class="s0">=== </span><span class="s2">i</span><span class="s0">) {</span>
+                            <span class="s2">flushPoint</span><span class="s0">++;</span>
+                        <span class="s0">}</span>
+
+                        <span class="s1">break</span><span class="s0">;</span>
+                <span class="s0">}</span>
+            <span class="s0">}</span>
+
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">flushPoint </span><span class="s0">&gt; </span><span class="s2">lastFlushPoint</span><span class="s0">) {</span>
+                <span class="s1">this</span><span class="s0">.</span><span class="s2">flush</span><span class="s0">(</span><span class="s2">chunk</span><span class="s0">, </span><span class="s2">lastFlushPoint</span><span class="s0">, </span><span class="s2">flushPoint</span><span class="s0">);</span>
+            <span class="s0">}</span>
+
+            <span class="s5">// Produce pendingChunk if something left</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s2">flushPoint </span><span class="s0">&lt; </span><span class="s2">chunkLength</span><span class="s0">) {</span>
+                <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">pendingChunk </span><span class="s0">!== </span><span class="s1">null</span><span class="s0">) {</span>
+                    <span class="s5">// When there is already a pending chunk then no flush happened,</span>
+                    <span class="s5">// appending entire chunk to pending one</span>
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">pendingChunk </span><span class="s0">+= </span><span class="s2">chunk</span><span class="s0">;</span>
+                <span class="s0">} </span><span class="s1">else </span><span class="s0">{</span>
+                    <span class="s5">// Create a pending chunk, it will start with non-whitespace since</span>
+                    <span class="s5">// flushPoint was moved forward away from whitespaces on scan</span>
+                    <span class="s1">this</span><span class="s0">.</span><span class="s2">pendingChunk </span><span class="s0">= </span><span class="s2">chunk</span><span class="s0">.</span><span class="s2">slice</span><span class="s0">(</span><span class="s2">flushPoint</span><span class="s0">, </span><span class="s2">chunkLength</span><span class="s0">);</span>
+                <span class="s0">}</span>
+            <span class="s0">}</span>
+
+            <span class="s1">this</span><span class="s0">.</span><span class="s2">chunkOffset </span><span class="s0">+= </span><span class="s2">chunkLength</span><span class="s0">;</span>
+        <span class="s0">}</span>
+
+        <span class="s2">finish</span><span class="s0">() {</span>
+            <span class="s1">if </span><span class="s0">(</span><span class="s1">this</span><span class="s0">.</span><span class="s2">pendingChunk </span><span class="s0">!== </span><span class="s1">null</span><span class="s0">) {</span>
+                <span class="s1">this</span><span class="s0">.</span><span class="s2">flush</span><span class="s0">(</span><span class="s3">''</span><span class="s0">, </span><span class="s4">0</span><span class="s0">, </span><span class="s4">0</span><span class="s0">);</span>
+                <span class="s1">this</span><span class="s0">.</span><span class="s2">pendingChunk </span><span class="s0">= </span><span class="s1">null</span><span class="s0">;</span>
+            <span class="s0">}</span>
+
+            <span class="s1">return this</span><span class="s0">.</span><span class="s2">value</span><span class="s0">;</span>
+        <span class="s0">}</span>
+    <span class="s0">}</span>
+
+    <span class="s1">var </span><span class="s2">src </span><span class="s0">= {</span>
+        <span class="s2">version</span><span class="s0">: </span><span class="s2">version</span><span class="s0">,</span>
+        <span class="s2">stringifyInfo</span><span class="s0">: </span><span class="s2">stringifyInfo</span><span class="s0">,</span>
+        <span class="s2">stringifyStream</span><span class="s0">: </span><span class="s2">stringifyStreamBrowser</span><span class="s0">,</span>
+        <span class="s2">parseChunked</span><span class="s0">: </span><span class="s2">parseChunked</span>
+    <span class="s0">};</span>
+
+    <span class="s1">return </span><span class="s2">src</span><span class="s0">;</span>
+
+<span class="s0">}));</span>
+</pre>
+</body>
+</html>

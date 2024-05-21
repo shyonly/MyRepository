@@ -1,0 +1,241 @@
+<html>
+<head>
+<title>generateNodeUtils.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+generateNodeUtils.js</font>
+</center></td></tr></table>
+<pre><span class="s0">const </span><span class="s1">definitions </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">&quot;../src/definitions&quot;</span><span class="s2">);</span>
+<span class="s0">const </span><span class="s1">flatMap </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">&quot;array.prototype.flatmap&quot;</span><span class="s2">);</span>
+<span class="s0">const </span><span class="s2">{</span>
+  <span class="s1">typeSignature</span><span class="s2">,</span>
+  <span class="s1">iterateProps</span><span class="s2">,</span>
+  <span class="s1">mapProps</span><span class="s2">,</span>
+  <span class="s1">filterProps</span><span class="s2">,</span>
+  <span class="s1">unique</span><span class="s2">,</span>
+<span class="s2">} = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">&quot;./util&quot;</span><span class="s2">);</span>
+
+<span class="s0">const </span><span class="s1">stdout </span><span class="s2">= </span><span class="s1">process</span><span class="s2">.</span><span class="s1">stdout</span><span class="s2">;</span>
+
+<span class="s0">const </span><span class="s1">jsTypes </span><span class="s2">= [</span><span class="s3">&quot;string&quot;</span><span class="s2">, </span><span class="s3">&quot;number&quot;</span><span class="s2">, </span><span class="s3">&quot;boolean&quot;</span><span class="s2">];</span>
+
+<span class="s0">const </span><span class="s1">quote </span><span class="s2">= (</span><span class="s1">value</span><span class="s2">) =&gt; </span><span class="s3">`&quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">value</span><span class="s2">}</span><span class="s3">&quot;`</span><span class="s2">;</span>
+
+<span class="s0">function </span><span class="s1">params</span><span class="s2">(</span><span class="s1">fields</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">optionalDefault </span><span class="s2">= (</span><span class="s1">field</span><span class="s2">) =&gt;</span>
+    <span class="s1">field</span><span class="s2">.</span><span class="s1">default </span><span class="s2">? </span><span class="s3">` = </span><span class="s1">$</span><span class="s2">{</span><span class="s1">field</span><span class="s2">.</span><span class="s1">default</span><span class="s2">}</span><span class="s3">` </span><span class="s2">: </span><span class="s3">&quot;&quot;</span><span class="s2">;</span>
+  <span class="s0">return </span><span class="s1">mapProps</span><span class="s2">(</span><span class="s1">fields</span><span class="s2">)</span>
+    <span class="s2">.</span><span class="s1">map</span><span class="s2">((</span><span class="s1">field</span><span class="s2">) =&gt; </span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">typeSignature</span><span class="s2">(</span><span class="s1">field</span><span class="s2">)}</span><span class="s1">$</span><span class="s2">{</span><span class="s1">optionalDefault</span><span class="s2">(</span><span class="s1">field</span><span class="s2">)}</span><span class="s3">`</span><span class="s2">)</span>
+    <span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s3">&quot;,&quot;</span><span class="s2">);</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">assertParamType</span><span class="s2">({ </span><span class="s1">assertNodeType</span><span class="s2">, </span><span class="s1">array</span><span class="s2">, </span><span class="s1">name</span><span class="s2">, </span><span class="s1">type </span><span class="s2">}) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">array</span><span class="s2">) {</span>
+    <span class="s4">// TODO - assert contents of array?</span>
+    <span class="s0">return </span><span class="s3">`assert(typeof </span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">} </span><span class="s3">=== &quot;object&quot; &amp;&amp; typeof </span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span><span class="s3">.length !== &quot;undefined&quot;)</span><span class="s0">\n</span><span class="s3">`</span><span class="s2">;</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">jsTypes</span><span class="s2">.</span><span class="s1">includes</span><span class="s2">(</span><span class="s1">type</span><span class="s2">)) {</span>
+      <span class="s0">return </span><span class="s3">`assert( 
+          typeof </span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">} </span><span class="s3">=== &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">type</span><span class="s2">}</span><span class="s3">&quot;, 
+          &quot;Argument </span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">} </span><span class="s3">must be of type </span><span class="s1">$</span><span class="s2">{</span><span class="s1">type</span><span class="s2">}</span><span class="s3">, given: &quot; + typeof </span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span>
+      <span class="s3">)`</span><span class="s2">;</span>
+    <span class="s2">}</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">assertNodeType </span><span class="s2">=== </span><span class="s0">true</span><span class="s2">) {</span>
+      <span class="s0">return </span><span class="s3">`assert( 
+        </span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span><span class="s3">.type === &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">type</span><span class="s2">}</span><span class="s3">&quot;, 
+        &quot;Argument </span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">} </span><span class="s3">must be of type </span><span class="s1">$</span><span class="s2">{</span><span class="s1">type</span><span class="s2">}</span><span class="s3">, given: &quot; + </span><span class="s1">$</span><span class="s2">{</span><span class="s1">name</span><span class="s2">}</span><span class="s3">.type 
+      )`</span><span class="s2">;</span>
+    <span class="s2">}</span>
+
+    <span class="s0">return </span><span class="s3">&quot;&quot;</span><span class="s2">;</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">assertParam</span><span class="s2">(</span><span class="s1">meta</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">paramAssertion </span><span class="s2">= </span><span class="s1">assertParamType</span><span class="s2">(</span><span class="s1">meta</span><span class="s2">);</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">paramAssertion </span><span class="s2">=== </span><span class="s3">&quot;&quot;</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s3">&quot;&quot;</span><span class="s2">;</span>
+  <span class="s2">}</span>
+
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">maybe </span><span class="s2">|| </span><span class="s1">meta</span><span class="s2">.</span><span class="s1">optional</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s3">`</span>
+      <span class="s3">if (</span><span class="s1">$</span><span class="s2">{</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">name</span><span class="s2">} </span><span class="s3">!== null &amp;&amp; </span><span class="s1">$</span><span class="s2">{</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">name</span><span class="s2">} </span><span class="s3">!== undefined) { 
+        </span><span class="s1">$</span><span class="s2">{</span><span class="s1">paramAssertion</span><span class="s2">}</span><span class="s3">; 
+      } 
+    `</span><span class="s2">;</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s0">return </span><span class="s1">paramAssertion</span><span class="s2">;</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">assertParams</span><span class="s2">(</span><span class="s1">fields</span><span class="s2">) {</span>
+  <span class="s0">return </span><span class="s1">mapProps</span><span class="s2">(</span><span class="s1">fields</span><span class="s2">).</span><span class="s1">map</span><span class="s2">(</span><span class="s1">assertParam</span><span class="s2">).</span><span class="s1">join</span><span class="s2">(</span><span class="s3">&quot;</span><span class="s0">\n</span><span class="s3">&quot;</span><span class="s2">);</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">buildObject</span><span class="s2">(</span><span class="s1">typeDef</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">optionalField </span><span class="s2">= (</span><span class="s1">meta</span><span class="s2">) =&gt; {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">array</span><span class="s2">) {</span>
+      <span class="s4">// omit optional array properties if the constructor function was supplied</span>
+      <span class="s4">// with an empty array</span>
+      <span class="s0">return </span><span class="s3">`</span>
+        <span class="s3">if (typeof </span><span class="s1">$</span><span class="s2">{</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">name</span><span class="s2">} </span><span class="s3">!== &quot;undefined&quot; &amp;&amp; </span><span class="s1">$</span><span class="s2">{</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">name</span><span class="s2">}</span><span class="s3">.length &gt; 0) { 
+          node.</span><span class="s1">$</span><span class="s2">{</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">name</span><span class="s2">} </span><span class="s3">= </span><span class="s1">$</span><span class="s2">{</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">name</span><span class="s2">}</span><span class="s3">; 
+        } 
+      `</span><span class="s2">;</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s3">&quot;Object&quot;</span><span class="s2">) {</span>
+      <span class="s4">// omit optional object properties if they have no keys</span>
+      <span class="s0">return </span><span class="s3">`</span>
+        <span class="s3">if (typeof </span><span class="s1">$</span><span class="s2">{</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">name</span><span class="s2">} </span><span class="s3">!== &quot;undefined&quot; &amp;&amp; Object.keys(</span><span class="s1">$</span><span class="s2">{</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">name</span><span class="s2">}</span><span class="s3">).length !== 0) { 
+          node.</span><span class="s1">$</span><span class="s2">{</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">name</span><span class="s2">} </span><span class="s3">= </span><span class="s1">$</span><span class="s2">{</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">name</span><span class="s2">}</span><span class="s3">; 
+        } 
+      `</span><span class="s2">;</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s3">&quot;boolean&quot;</span><span class="s2">) {</span>
+      <span class="s4">// omit optional boolean properties if they are not true</span>
+      <span class="s0">return </span><span class="s3">`</span>
+        <span class="s3">if (</span><span class="s1">$</span><span class="s2">{</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">name</span><span class="s2">} </span><span class="s3">=== true) { 
+          node.</span><span class="s1">$</span><span class="s2">{</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">name</span><span class="s2">} </span><span class="s3">= true; 
+        } 
+      `</span><span class="s2">;</span>
+    <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+      <span class="s0">return </span><span class="s3">`</span>
+        <span class="s3">if (typeof </span><span class="s1">$</span><span class="s2">{</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">name</span><span class="s2">} </span><span class="s3">!== &quot;undefined&quot;) { 
+          node.</span><span class="s1">$</span><span class="s2">{</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">name</span><span class="s2">} </span><span class="s3">= </span><span class="s1">$</span><span class="s2">{</span><span class="s1">meta</span><span class="s2">.</span><span class="s1">name</span><span class="s2">}</span><span class="s3">; 
+        } 
+      `</span><span class="s2">;</span>
+    <span class="s2">}</span>
+  <span class="s2">};</span>
+
+  <span class="s0">const </span><span class="s1">fields </span><span class="s2">= </span><span class="s1">mapProps</span><span class="s2">(</span><span class="s1">typeDef</span><span class="s2">.</span><span class="s1">fields</span><span class="s2">)</span>
+    <span class="s2">.</span><span class="s1">filter</span><span class="s2">((</span><span class="s1">f</span><span class="s2">) =&gt; !</span><span class="s1">f</span><span class="s2">.</span><span class="s1">optional </span><span class="s2">&amp;&amp; !</span><span class="s1">f</span><span class="s2">.</span><span class="s1">constant</span><span class="s2">)</span>
+    <span class="s2">.</span><span class="s1">map</span><span class="s2">((</span><span class="s1">f</span><span class="s2">) =&gt; </span><span class="s1">f</span><span class="s2">.</span><span class="s1">name</span><span class="s2">);</span>
+
+  <span class="s0">const </span><span class="s1">constants </span><span class="s2">= </span><span class="s1">mapProps</span><span class="s2">(</span><span class="s1">typeDef</span><span class="s2">.</span><span class="s1">fields</span><span class="s2">)</span>
+    <span class="s2">.</span><span class="s1">filter</span><span class="s2">((</span><span class="s1">f</span><span class="s2">) =&gt; </span><span class="s1">f</span><span class="s2">.</span><span class="s1">constant</span><span class="s2">)</span>
+    <span class="s2">.</span><span class="s1">map</span><span class="s2">((</span><span class="s1">f</span><span class="s2">) =&gt; </span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">f</span><span class="s2">.</span><span class="s1">name</span><span class="s2">}</span><span class="s3">: &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">f</span><span class="s2">.</span><span class="s1">value</span><span class="s2">}</span><span class="s3">&quot;`</span><span class="s2">);</span>
+
+  <span class="s0">return </span><span class="s3">`</span>
+    <span class="s3">const node: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">typeDef</span><span class="s2">.</span><span class="s1">flowTypeName </span><span class="s2">|| </span><span class="s1">typeDef</span><span class="s2">.</span><span class="s1">name</span><span class="s2">} </span><span class="s3">= { 
+      type: &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">typeDef</span><span class="s2">.</span><span class="s1">name</span><span class="s2">}</span><span class="s3">&quot;, 
+      </span><span class="s1">$</span><span class="s2">{</span><span class="s1">constants</span><span class="s2">.</span><span class="s1">concat</span><span class="s2">(</span><span class="s1">fields</span><span class="s2">).</span><span class="s1">join</span><span class="s2">(</span><span class="s3">&quot;,&quot;</span><span class="s2">)}</span>
+    <span class="s3">} 
+ 
+    </span><span class="s1">$</span><span class="s2">{</span><span class="s1">mapProps</span><span class="s2">(</span><span class="s1">typeDef</span><span class="s2">.</span><span class="s1">fields</span><span class="s2">)</span>
+      <span class="s2">.</span><span class="s1">filter</span><span class="s2">((</span><span class="s1">f</span><span class="s2">) =&gt; </span><span class="s1">f</span><span class="s2">.</span><span class="s1">optional</span><span class="s2">)</span>
+      <span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">optionalField</span><span class="s2">)</span>
+      <span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s3">&quot;&quot;</span><span class="s2">)}</span>
+  <span class="s3">`</span><span class="s2">;</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">lowerCamelCase</span><span class="s2">(</span><span class="s1">name</span><span class="s2">) {</span>
+  <span class="s0">return </span><span class="s1">name</span><span class="s2">.</span><span class="s1">substring</span><span class="s2">(</span><span class="s5">0</span><span class="s2">, </span><span class="s5">1</span><span class="s2">).</span><span class="s1">toLowerCase</span><span class="s2">() + </span><span class="s1">name</span><span class="s2">.</span><span class="s1">substring</span><span class="s2">(</span><span class="s5">1</span><span class="s2">);</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">generate</span><span class="s2">() {</span>
+  <span class="s1">stdout</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s3">`</span>
+    <span class="s3">// @flow 
+ 
+    // THIS FILE IS AUTOGENERATED 
+    // see scripts/generateNodeUtils.js 
+ 
+    import { assert } from &quot;mamacro&quot;; 
+ 
+    function isTypeOf(t: string) { 
+      return (n: Node) =&gt; n.type === t; 
+    } 
+ 
+    function assertTypeOf(t: string) { 
+      return (n: Node) =&gt; assert(n.type === t); 
+    } 
+  `</span><span class="s2">);</span>
+
+  <span class="s4">// Node builders</span>
+  <span class="s1">iterateProps</span><span class="s2">(</span><span class="s1">definitions</span><span class="s2">, (</span><span class="s1">typeDefinition</span><span class="s2">) =&gt; {</span>
+    <span class="s1">stdout</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">export function </span><span class="s1">$</span><span class="s2">{</span><span class="s1">lowerCamelCase</span><span class="s2">(</span><span class="s1">typeDefinition</span><span class="s2">.</span><span class="s1">name</span><span class="s2">)} </span><span class="s3">( 
+        </span><span class="s1">$</span><span class="s2">{</span><span class="s1">params</span><span class="s2">(</span><span class="s1">filterProps</span><span class="s2">(</span><span class="s1">typeDefinition</span><span class="s2">.</span><span class="s1">fields</span><span class="s2">, (</span><span class="s1">f</span><span class="s2">) =&gt; !</span><span class="s1">f</span><span class="s2">.</span><span class="s1">constant</span><span class="s2">))}</span>
+      <span class="s3">): </span><span class="s1">$</span><span class="s2">{</span><span class="s1">typeDefinition</span><span class="s2">.</span><span class="s1">name</span><span class="s2">} </span><span class="s3">{ 
+ 
+        </span><span class="s1">$</span><span class="s2">{</span><span class="s1">assertParams</span><span class="s2">(</span><span class="s1">filterProps</span><span class="s2">(</span><span class="s1">typeDefinition</span><span class="s2">.</span><span class="s1">fields</span><span class="s2">, (</span><span class="s1">f</span><span class="s2">) =&gt; !</span><span class="s1">f</span><span class="s2">.</span><span class="s1">constant</span><span class="s2">))}</span>
+        <span class="s1">$</span><span class="s2">{</span><span class="s1">buildObject</span><span class="s2">(</span><span class="s1">typeDefinition</span><span class="s2">)} </span>
+
+        <span class="s3">return node; 
+      } 
+    `</span><span class="s2">);</span>
+  <span class="s2">});</span>
+
+  <span class="s4">// Node testers</span>
+  <span class="s1">iterateProps</span><span class="s2">(</span><span class="s1">definitions</span><span class="s2">, (</span><span class="s1">typeDefinition</span><span class="s2">) =&gt; {</span>
+    <span class="s1">stdout</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">export const is</span><span class="s1">$</span><span class="s2">{</span><span class="s1">typeDefinition</span><span class="s2">.</span><span class="s1">name</span><span class="s2">}</span><span class="s3">: ((n: Node) =&gt; boolean) = 
+        isTypeOf(&quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">typeDefinition</span><span class="s2">.</span><span class="s1">name</span><span class="s2">}</span><span class="s3">&quot;); 
+    `</span><span class="s2">);</span>
+  <span class="s2">});</span>
+
+  <span class="s4">// Node union type testers</span>
+  <span class="s0">const </span><span class="s1">unionTypes </span><span class="s2">= </span><span class="s1">unique</span><span class="s2">(</span>
+    <span class="s1">flatMap</span><span class="s2">(</span>
+      <span class="s1">mapProps</span><span class="s2">(</span><span class="s1">definitions</span><span class="s2">).</span><span class="s1">filter</span><span class="s2">((</span><span class="s1">d</span><span class="s2">) =&gt; </span><span class="s1">d</span><span class="s2">.</span><span class="s1">unionType</span><span class="s2">),</span>
+      <span class="s2">(</span><span class="s1">d</span><span class="s2">) =&gt; </span><span class="s1">d</span><span class="s2">.</span><span class="s1">unionType</span>
+    <span class="s2">)</span>
+  <span class="s2">);</span>
+  <span class="s1">unionTypes</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">((</span><span class="s1">unionType</span><span class="s2">) =&gt; {</span>
+    <span class="s1">stdout</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span>
+      <span class="s3">`</span>
+      <span class="s3">export const is</span><span class="s1">$</span><span class="s2">{</span><span class="s1">unionType</span><span class="s2">} </span><span class="s3">= (node: Node): boolean =&gt; ` </span><span class="s2">+</span>
+        <span class="s1">mapProps</span><span class="s2">(</span><span class="s1">definitions</span><span class="s2">)</span>
+          <span class="s2">.</span><span class="s1">filter</span><span class="s2">((</span><span class="s1">d</span><span class="s2">) =&gt; </span><span class="s1">d</span><span class="s2">.</span><span class="s1">unionType </span><span class="s2">&amp;&amp; </span><span class="s1">d</span><span class="s2">.</span><span class="s1">unionType</span><span class="s2">.</span><span class="s1">includes</span><span class="s2">(</span><span class="s1">unionType</span><span class="s2">))</span>
+          <span class="s2">.</span><span class="s1">map</span><span class="s2">((</span><span class="s1">d</span><span class="s2">) =&gt; </span><span class="s3">`is</span><span class="s1">$</span><span class="s2">{</span><span class="s1">d</span><span class="s2">.</span><span class="s1">name</span><span class="s2">}</span><span class="s3">(node) `</span><span class="s2">)</span>
+          <span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s3">&quot;||&quot;</span><span class="s2">) +</span>
+        <span class="s3">&quot;;</span><span class="s0">\n\n</span><span class="s3">&quot;</span>
+    <span class="s2">);</span>
+  <span class="s2">});</span>
+
+  <span class="s4">// Node assertion</span>
+  <span class="s1">iterateProps</span><span class="s2">(</span><span class="s1">definitions</span><span class="s2">, (</span><span class="s1">typeDefinition</span><span class="s2">) =&gt; {</span>
+    <span class="s1">stdout</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">export const assert</span><span class="s1">$</span><span class="s2">{</span><span class="s1">typeDefinition</span><span class="s2">.</span><span class="s1">name</span><span class="s2">}</span><span class="s3">: ((n: Node) =&gt; void) = 
+        assertTypeOf(&quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">typeDefinition</span><span class="s2">.</span><span class="s1">name</span><span class="s2">}</span><span class="s3">&quot;); 
+    `</span><span class="s2">);</span>
+  <span class="s2">});</span>
+
+  <span class="s4">// a map from node type to its set of union types</span>
+  <span class="s1">stdout</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span>
+    <span class="s3">`</span>
+    <span class="s3">export const unionTypesMap = {` </span><span class="s2">+</span>
+      <span class="s1">mapProps</span><span class="s2">(</span><span class="s1">definitions</span><span class="s2">)</span>
+        <span class="s2">.</span><span class="s1">filter</span><span class="s2">((</span><span class="s1">d</span><span class="s2">) =&gt; </span><span class="s1">d</span><span class="s2">.</span><span class="s1">unionType</span><span class="s2">)</span>
+        <span class="s2">.</span><span class="s1">map</span><span class="s2">((</span><span class="s1">t</span><span class="s2">) =&gt; </span><span class="s3">`&quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">t</span><span class="s2">.</span><span class="s1">name</span><span class="s2">}</span><span class="s3">&quot;: [</span><span class="s1">$</span><span class="s2">{</span><span class="s1">t</span><span class="s2">.</span><span class="s1">unionType</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">quote</span><span class="s2">).</span><span class="s1">join</span><span class="s2">(</span><span class="s3">&quot;,&quot;</span><span class="s2">)}</span><span class="s3">]</span><span class="s0">\n</span><span class="s3">`</span><span class="s2">) +</span>
+      <span class="s3">`}; 
+      `</span>
+  <span class="s2">);</span>
+
+  <span class="s4">// an array of all node and union types</span>
+  <span class="s1">stdout</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span>
+    <span class="s3">`</span>
+    <span class="s3">export const nodeAndUnionTypes = [` </span><span class="s2">+</span>
+      <span class="s1">mapProps</span><span class="s2">(</span><span class="s1">definitions</span><span class="s2">)</span>
+        <span class="s2">.</span><span class="s1">map</span><span class="s2">((</span><span class="s1">t</span><span class="s2">) =&gt; </span><span class="s3">`&quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">t</span><span class="s2">.</span><span class="s1">name</span><span class="s2">}</span><span class="s3">&quot;`</span><span class="s2">)</span>
+        <span class="s2">.</span><span class="s1">concat</span><span class="s2">(</span><span class="s1">unionTypes</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">quote</span><span class="s2">))</span>
+        <span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s3">&quot;,&quot;</span><span class="s2">) +</span>
+      <span class="s3">`];`</span>
+  <span class="s2">);</span>
+<span class="s2">}</span>
+
+<span class="s1">generate</span><span class="s2">();</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,227 @@
+<html>
+<head>
+<title>ResizeObserverSPI.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #7a7e85;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+ResizeObserverSPI.js</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{</span><span class="s1">Map</span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./shims/es6-collections.js'</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">ResizeObservation from </span><span class="s3">'./ResizeObservation.js'</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">ResizeObserverEntry from </span><span class="s3">'./ResizeObserverEntry.js'</span><span class="s2">;</span>
+<span class="s0">import </span><span class="s1">getWindowOf from </span><span class="s3">'./utils/getWindowOf.js'</span><span class="s2">;</span>
+
+<span class="s0">export default class </span><span class="s1">ResizeObserverSPI </span><span class="s2">{</span>
+    <span class="s4">/**</span>
+     <span class="s4">* Collection of resize observations that have detected changes in dimensions</span>
+     <span class="s4">* of elements.</span>
+     <span class="s4">*</span>
+     <span class="s4">* </span><span class="s5">@private </span><span class="s4">{Array&lt;ResizeObservation&gt;}</span>
+     <span class="s4">*/</span>
+    <span class="s1">activeObservations_ </span><span class="s2">= [];</span>
+
+    <span class="s4">/**</span>
+     <span class="s4">* Reference to the callback function.</span>
+     <span class="s4">*</span>
+     <span class="s4">* </span><span class="s5">@private </span><span class="s4">{ResizeObserverCallback}</span>
+     <span class="s4">*/</span>
+    <span class="s1">callback_</span><span class="s2">;</span>
+
+    <span class="s4">/**</span>
+     <span class="s4">* Public ResizeObserver instance which will be passed to the callback</span>
+     <span class="s4">* function and used as a value of it's &quot;this&quot; binding.</span>
+     <span class="s4">*</span>
+     <span class="s4">* </span><span class="s5">@private </span><span class="s4">{ResizeObserver}</span>
+     <span class="s4">*/</span>
+    <span class="s1">callbackCtx_</span><span class="s2">;</span>
+
+    <span class="s4">/**</span>
+     <span class="s4">* Reference to the associated ResizeObserverController.</span>
+     <span class="s4">*</span>
+     <span class="s4">* </span><span class="s5">@private </span><span class="s4">{ResizeObserverController}</span>
+     <span class="s4">*/</span>
+    <span class="s1">controller_</span><span class="s2">;</span>
+
+    <span class="s4">/**</span>
+     <span class="s4">* Registry of the ResizeObservation instances.</span>
+     <span class="s4">*</span>
+     <span class="s4">* </span><span class="s5">@private </span><span class="s4">{Map&lt;Element, ResizeObservation&gt;}</span>
+     <span class="s4">*/</span>
+    <span class="s1">observations_ </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Map</span><span class="s2">();</span>
+
+    <span class="s4">/**</span>
+     <span class="s4">* Creates a new instance of ResizeObserver.</span>
+     <span class="s4">*</span>
+     <span class="s4">* </span><span class="s5">@param </span><span class="s4">{ResizeObserverCallback} callback - Callback function that is invoked</span>
+     <span class="s4">*      when one of the observed elements changes it's content dimensions.</span>
+     <span class="s4">* </span><span class="s5">@param </span><span class="s4">{ResizeObserverController} controller - Controller instance which</span>
+     <span class="s4">*      is responsible for the updates of observer.</span>
+     <span class="s4">* </span><span class="s5">@param </span><span class="s4">{ResizeObserver} callbackCtx - Reference to the public</span>
+     <span class="s4">*      ResizeObserver instance which will be passed to callback function.</span>
+     <span class="s4">*/</span>
+    <span class="s1">constructor</span><span class="s2">(</span><span class="s1">callback</span><span class="s2">, </span><span class="s1">controller</span><span class="s2">, </span><span class="s1">callbackCtx</span><span class="s2">) {</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">callback </span><span class="s2">!== </span><span class="s3">'function'</span><span class="s2">) {</span>
+            <span class="s0">throw new </span><span class="s1">TypeError</span><span class="s2">(</span><span class="s3">'The callback provided as parameter 1 is not a function.'</span><span class="s2">);</span>
+        <span class="s2">}</span>
+
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">callback_ </span><span class="s2">= </span><span class="s1">callback</span><span class="s2">;</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">controller_ </span><span class="s2">= </span><span class="s1">controller</span><span class="s2">;</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">callbackCtx_ </span><span class="s2">= </span><span class="s1">callbackCtx</span><span class="s2">;</span>
+    <span class="s2">}</span>
+
+    <span class="s4">/**</span>
+     <span class="s4">* Starts observing provided element.</span>
+     <span class="s4">*</span>
+     <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Element} target - Element to be observed.</span>
+     <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{void}</span>
+     <span class="s4">*/</span>
+    <span class="s1">observe</span><span class="s2">(</span><span class="s1">target</span><span class="s2">) {</span>
+        <span class="s0">if </span><span class="s2">(!</span><span class="s1">arguments</span><span class="s2">.</span><span class="s1">length</span><span class="s2">) {</span>
+            <span class="s0">throw new </span><span class="s1">TypeError</span><span class="s2">(</span><span class="s3">'1 argument required, but only 0 present.'</span><span class="s2">);</span>
+        <span class="s2">}</span>
+
+        <span class="s6">// Do nothing if current environment doesn't have the Element interface.</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">Element </span><span class="s2">=== </span><span class="s3">'undefined' </span><span class="s2">|| !(</span><span class="s1">Element </span><span class="s0">instanceof </span><span class="s1">Object</span><span class="s2">)) {</span>
+            <span class="s0">return</span><span class="s2">;</span>
+        <span class="s2">}</span>
+
+        <span class="s0">if </span><span class="s2">(!(</span><span class="s1">target </span><span class="s0">instanceof </span><span class="s1">getWindowOf</span><span class="s2">(</span><span class="s1">target</span><span class="s2">).</span><span class="s1">Element</span><span class="s2">)) {</span>
+            <span class="s0">throw new </span><span class="s1">TypeError</span><span class="s2">(</span><span class="s3">'parameter 1 is not of type &quot;Element&quot;.'</span><span class="s2">);</span>
+        <span class="s2">}</span>
+
+        <span class="s0">const </span><span class="s1">observations </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">observations_</span><span class="s2">;</span>
+
+        <span class="s6">// Do nothing if element is already being observed.</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">observations</span><span class="s2">.</span><span class="s1">has</span><span class="s2">(</span><span class="s1">target</span><span class="s2">)) {</span>
+            <span class="s0">return</span><span class="s2">;</span>
+        <span class="s2">}</span>
+
+        <span class="s1">observations</span><span class="s2">.</span><span class="s1">set</span><span class="s2">(</span><span class="s1">target</span><span class="s2">, </span><span class="s0">new </span><span class="s1">ResizeObservation</span><span class="s2">(</span><span class="s1">target</span><span class="s2">));</span>
+
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">controller_</span><span class="s2">.</span><span class="s1">addObserver</span><span class="s2">(</span><span class="s0">this</span><span class="s2">);</span>
+
+        <span class="s6">// Force the update of observations.</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">controller_</span><span class="s2">.</span><span class="s1">refresh</span><span class="s2">();</span>
+    <span class="s2">}</span>
+
+    <span class="s4">/**</span>
+     <span class="s4">* Stops observing provided element.</span>
+     <span class="s4">*</span>
+     <span class="s4">* </span><span class="s5">@param </span><span class="s4">{Element} target - Element to stop observing.</span>
+     <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{void}</span>
+     <span class="s4">*/</span>
+    <span class="s1">unobserve</span><span class="s2">(</span><span class="s1">target</span><span class="s2">) {</span>
+        <span class="s0">if </span><span class="s2">(!</span><span class="s1">arguments</span><span class="s2">.</span><span class="s1">length</span><span class="s2">) {</span>
+            <span class="s0">throw new </span><span class="s1">TypeError</span><span class="s2">(</span><span class="s3">'1 argument required, but only 0 present.'</span><span class="s2">);</span>
+        <span class="s2">}</span>
+
+        <span class="s6">// Do nothing if current environment doesn't have the Element interface.</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">Element </span><span class="s2">=== </span><span class="s3">'undefined' </span><span class="s2">|| !(</span><span class="s1">Element </span><span class="s0">instanceof </span><span class="s1">Object</span><span class="s2">)) {</span>
+            <span class="s0">return</span><span class="s2">;</span>
+        <span class="s2">}</span>
+
+        <span class="s0">if </span><span class="s2">(!(</span><span class="s1">target </span><span class="s0">instanceof </span><span class="s1">getWindowOf</span><span class="s2">(</span><span class="s1">target</span><span class="s2">).</span><span class="s1">Element</span><span class="s2">)) {</span>
+            <span class="s0">throw new </span><span class="s1">TypeError</span><span class="s2">(</span><span class="s3">'parameter 1 is not of type &quot;Element&quot;.'</span><span class="s2">);</span>
+        <span class="s2">}</span>
+
+        <span class="s0">const </span><span class="s1">observations </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">observations_</span><span class="s2">;</span>
+
+        <span class="s6">// Do nothing if element is not being observed.</span>
+        <span class="s0">if </span><span class="s2">(!</span><span class="s1">observations</span><span class="s2">.</span><span class="s1">has</span><span class="s2">(</span><span class="s1">target</span><span class="s2">)) {</span>
+            <span class="s0">return</span><span class="s2">;</span>
+        <span class="s2">}</span>
+
+        <span class="s1">observations</span><span class="s2">.</span><span class="s1">delete</span><span class="s2">(</span><span class="s1">target</span><span class="s2">);</span>
+
+        <span class="s0">if </span><span class="s2">(!</span><span class="s1">observations</span><span class="s2">.</span><span class="s1">size</span><span class="s2">) {</span>
+            <span class="s0">this</span><span class="s2">.</span><span class="s1">controller_</span><span class="s2">.</span><span class="s1">removeObserver</span><span class="s2">(</span><span class="s0">this</span><span class="s2">);</span>
+        <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s4">/**</span>
+     <span class="s4">* Stops observing all elements.</span>
+     <span class="s4">*</span>
+     <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{void}</span>
+     <span class="s4">*/</span>
+    <span class="s1">disconnect</span><span class="s2">() {</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">clearActive</span><span class="s2">();</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">observations_</span><span class="s2">.</span><span class="s1">clear</span><span class="s2">();</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">controller_</span><span class="s2">.</span><span class="s1">removeObserver</span><span class="s2">(</span><span class="s0">this</span><span class="s2">);</span>
+    <span class="s2">}</span>
+
+    <span class="s4">/**</span>
+     <span class="s4">* Collects observation instances the associated element of which has changed</span>
+     <span class="s4">* it's content rectangle.</span>
+     <span class="s4">*</span>
+     <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{void}</span>
+     <span class="s4">*/</span>
+    <span class="s1">gatherActive</span><span class="s2">() {</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">clearActive</span><span class="s2">();</span>
+
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">observations_</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">observation </span><span class="s2">=&gt; {</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s1">observation</span><span class="s2">.</span><span class="s1">isActive</span><span class="s2">()) {</span>
+                <span class="s0">this</span><span class="s2">.</span><span class="s1">activeObservations_</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">observation</span><span class="s2">);</span>
+            <span class="s2">}</span>
+        <span class="s2">});</span>
+    <span class="s2">}</span>
+
+    <span class="s4">/**</span>
+     <span class="s4">* Invokes initial callback function with a list of ResizeObserverEntry</span>
+     <span class="s4">* instances collected from active resize observations.</span>
+     <span class="s4">*</span>
+     <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{void}</span>
+     <span class="s4">*/</span>
+    <span class="s1">broadcastActive</span><span class="s2">() {</span>
+        <span class="s6">// Do nothing if observer doesn't have active observations.</span>
+        <span class="s0">if </span><span class="s2">(!</span><span class="s0">this</span><span class="s2">.</span><span class="s1">hasActive</span><span class="s2">()) {</span>
+            <span class="s0">return</span><span class="s2">;</span>
+        <span class="s2">}</span>
+
+        <span class="s0">const </span><span class="s1">ctx </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">callbackCtx_</span><span class="s2">;</span>
+
+        <span class="s6">// Create ResizeObserverEntry instance for every active observation.</span>
+        <span class="s0">const </span><span class="s1">entries </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">activeObservations_</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">observation </span><span class="s2">=&gt; {</span>
+            <span class="s0">return new </span><span class="s1">ResizeObserverEntry</span><span class="s2">(</span>
+                <span class="s1">observation</span><span class="s2">.</span><span class="s1">target</span><span class="s2">,</span>
+                <span class="s1">observation</span><span class="s2">.</span><span class="s1">broadcastRect</span><span class="s2">()</span>
+            <span class="s2">);</span>
+        <span class="s2">});</span>
+
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">callback_</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s1">ctx</span><span class="s2">, </span><span class="s1">entries</span><span class="s2">, </span><span class="s1">ctx</span><span class="s2">);</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">clearActive</span><span class="s2">();</span>
+    <span class="s2">}</span>
+
+    <span class="s4">/**</span>
+     <span class="s4">* Clears the collection of active observations.</span>
+     <span class="s4">*</span>
+     <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{void}</span>
+     <span class="s4">*/</span>
+    <span class="s1">clearActive</span><span class="s2">() {</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">activeObservations_</span><span class="s2">.</span><span class="s1">splice</span><span class="s2">(</span><span class="s7">0</span><span class="s2">);</span>
+    <span class="s2">}</span>
+
+    <span class="s4">/**</span>
+     <span class="s4">* Tells whether observer has active observations.</span>
+     <span class="s4">*</span>
+     <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{boolean}</span>
+     <span class="s4">*/</span>
+    <span class="s1">hasActive</span><span class="s2">() {</span>
+        <span class="s0">return this</span><span class="s2">.</span><span class="s1">activeObservations_</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s7">0</span><span class="s2">;</span>
+    <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

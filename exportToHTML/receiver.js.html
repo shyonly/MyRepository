@@ -1,0 +1,703 @@
+<html>
+<head>
+<title>receiver.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+.s6 { color: #5f826b; font-style: italic;}
+.s7 { color: #67a37c; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+receiver.js</font>
+</center></td></tr></table>
+<pre><span class="s0">'use strict'</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s1">{ </span><span class="s2">Writable </span><span class="s1">} = </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'stream'</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s2">PerMessageDeflate </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./permessage-deflate'</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s1">{</span>
+  <span class="s2">BINARY_TYPES</span><span class="s1">,</span>
+  <span class="s2">EMPTY_BUFFER</span><span class="s1">,</span>
+  <span class="s2">kStatusCode</span><span class="s1">,</span>
+  <span class="s2">kWebSocket</span>
+<span class="s1">} = </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./constants'</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s1">{ </span><span class="s2">concat</span><span class="s1">, </span><span class="s2">toArrayBuffer</span><span class="s1">, </span><span class="s2">unmask </span><span class="s1">} = </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./buffer-util'</span><span class="s1">);</span>
+<span class="s3">const </span><span class="s1">{ </span><span class="s2">isValidStatusCode</span><span class="s1">, </span><span class="s2">isValidUTF8 </span><span class="s1">} = </span><span class="s2">require</span><span class="s1">(</span><span class="s0">'./validation'</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s2">FastBuffer </span><span class="s1">= </span><span class="s2">Buffer</span><span class="s1">[</span><span class="s2">Symbol</span><span class="s1">.</span><span class="s2">species</span><span class="s1">];</span>
+<span class="s3">const </span><span class="s2">promise </span><span class="s1">= </span><span class="s2">Promise</span><span class="s1">.</span><span class="s2">resolve</span><span class="s1">();</span>
+
+<span class="s4">//</span>
+<span class="s4">// `queueMicrotask()` is not available in Node.js &lt; 11.</span>
+<span class="s4">//</span>
+<span class="s3">const </span><span class="s2">queueTask </span><span class="s1">=</span>
+  <span class="s3">typeof </span><span class="s2">queueMicrotask </span><span class="s1">=== </span><span class="s0">'function' </span><span class="s1">? </span><span class="s2">queueMicrotask </span><span class="s1">: </span><span class="s2">queueMicrotaskShim</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s2">GET_INFO </span><span class="s1">= </span><span class="s5">0</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">GET_PAYLOAD_LENGTH_16 </span><span class="s1">= </span><span class="s5">1</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">GET_PAYLOAD_LENGTH_64 </span><span class="s1">= </span><span class="s5">2</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">GET_MASK </span><span class="s1">= </span><span class="s5">3</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">GET_DATA </span><span class="s1">= </span><span class="s5">4</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">INFLATING </span><span class="s1">= </span><span class="s5">5</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">WAIT_MICROTASK </span><span class="s1">= </span><span class="s5">6</span><span class="s1">;</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* HyBi Receiver implementation.</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@extends </span><span class="s6">Writable</span>
+ <span class="s6">*/</span>
+<span class="s3">class </span><span class="s2">Receiver </span><span class="s3">extends </span><span class="s2">Writable </span><span class="s1">{</span>
+  <span class="s6">/**</span>
+   <span class="s6">* Creates a Receiver instance.</span>
+   <span class="s6">*</span>
+   <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Object} [options] Options object</span>
+   <span class="s6">* </span><span class="s7">@param </span><span class="s6">{String} [options.binaryType=nodebuffer] The type for binary data</span>
+   <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Object} [options.extensions] An object containing the negotiated</span>
+   <span class="s6">*     extensions</span>
+   <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Boolean} [options.isServer=false] Specifies whether to operate in</span>
+   <span class="s6">*     client or server mode</span>
+   <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Number} [options.maxPayload=0] The maximum allowed message length</span>
+   <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Boolean} [options.skipUTF8Validation=false] Specifies whether or</span>
+   <span class="s6">*     not to skip UTF-8 validation for text and close messages</span>
+   <span class="s6">*/</span>
+  <span class="s2">constructor</span><span class="s1">(</span><span class="s2">options </span><span class="s1">= {}) {</span>
+    <span class="s3">super</span><span class="s1">();</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_binaryType </span><span class="s1">= </span><span class="s2">options</span><span class="s1">.</span><span class="s2">binaryType </span><span class="s1">|| </span><span class="s2">BINARY_TYPES</span><span class="s1">[</span><span class="s5">0</span><span class="s1">];</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_extensions </span><span class="s1">= </span><span class="s2">options</span><span class="s1">.</span><span class="s2">extensions </span><span class="s1">|| {};</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_isServer </span><span class="s1">= !!</span><span class="s2">options</span><span class="s1">.</span><span class="s2">isServer</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_maxPayload </span><span class="s1">= </span><span class="s2">options</span><span class="s1">.</span><span class="s2">maxPayload </span><span class="s1">| </span><span class="s5">0</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_skipUTF8Validation </span><span class="s1">= !!</span><span class="s2">options</span><span class="s1">.</span><span class="s2">skipUTF8Validation</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">[</span><span class="s2">kWebSocket</span><span class="s1">] = </span><span class="s2">undefined</span><span class="s1">;</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_bufferedBytes </span><span class="s1">= </span><span class="s5">0</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_buffers </span><span class="s1">= [];</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_compressed </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_payloadLength </span><span class="s1">= </span><span class="s5">0</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_mask </span><span class="s1">= </span><span class="s2">undefined</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_fragmented </span><span class="s1">= </span><span class="s5">0</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_masked </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_fin </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode </span><span class="s1">= </span><span class="s5">0</span><span class="s1">;</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_totalPayloadLength </span><span class="s1">= </span><span class="s5">0</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_messageLength </span><span class="s1">= </span><span class="s5">0</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_fragments </span><span class="s1">= [];</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">GET_INFO</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+  <span class="s1">}</span>
+
+  <span class="s6">/**</span>
+   <span class="s6">* Implements `Writable.prototype._write()`.</span>
+   <span class="s6">*</span>
+   <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Buffer} chunk The chunk of data to write</span>
+   <span class="s6">* </span><span class="s7">@param </span><span class="s6">{String} encoding The character encoding of `chunk`</span>
+   <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Function} cb Callback</span>
+   <span class="s6">* </span><span class="s7">@private</span>
+   <span class="s6">*/</span>
+  <span class="s2">_write</span><span class="s1">(</span><span class="s2">chunk</span><span class="s1">, </span><span class="s2">encoding</span><span class="s1">, </span><span class="s2">cb</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode </span><span class="s1">=== </span><span class="s5">0x08 </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">== </span><span class="s2">GET_INFO</span><span class="s1">) </span><span class="s3">return </span><span class="s2">cb</span><span class="s1">();</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_bufferedBytes </span><span class="s1">+= </span><span class="s2">chunk</span><span class="s1">.</span><span class="s2">length</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_buffers</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(</span><span class="s2">chunk</span><span class="s1">);</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">startLoop</span><span class="s1">(</span><span class="s2">cb</span><span class="s1">);</span>
+  <span class="s1">}</span>
+
+  <span class="s6">/**</span>
+   <span class="s6">* Consumes `n` bytes from the buffered data.</span>
+   <span class="s6">*</span>
+   <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Number} n The number of bytes to consume</span>
+   <span class="s6">* </span><span class="s7">@return </span><span class="s6">{Buffer} The consumed bytes</span>
+   <span class="s6">* </span><span class="s7">@private</span>
+   <span class="s6">*/</span>
+  <span class="s2">consume</span><span class="s1">(</span><span class="s2">n</span><span class="s1">) {</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_bufferedBytes </span><span class="s1">-= </span><span class="s2">n</span><span class="s1">;</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">n </span><span class="s1">=== </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_buffers</span><span class="s1">[</span><span class="s5">0</span><span class="s1">].</span><span class="s2">length</span><span class="s1">) </span><span class="s3">return this</span><span class="s1">.</span><span class="s2">_buffers</span><span class="s1">.</span><span class="s2">shift</span><span class="s1">();</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">n </span><span class="s1">&lt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_buffers</span><span class="s1">[</span><span class="s5">0</span><span class="s1">].</span><span class="s2">length</span><span class="s1">) {</span>
+      <span class="s3">const </span><span class="s2">buf </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_buffers</span><span class="s1">[</span><span class="s5">0</span><span class="s1">];</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_buffers</span><span class="s1">[</span><span class="s5">0</span><span class="s1">] = </span><span class="s3">new </span><span class="s2">FastBuffer</span><span class="s1">(</span>
+        <span class="s2">buf</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">,</span>
+        <span class="s2">buf</span><span class="s1">.</span><span class="s2">byteOffset </span><span class="s1">+ </span><span class="s2">n</span><span class="s1">,</span>
+        <span class="s2">buf</span><span class="s1">.</span><span class="s2">length </span><span class="s1">- </span><span class="s2">n</span>
+      <span class="s1">);</span>
+
+      <span class="s3">return new </span><span class="s2">FastBuffer</span><span class="s1">(</span><span class="s2">buf</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">, </span><span class="s2">buf</span><span class="s1">.</span><span class="s2">byteOffset</span><span class="s1">, </span><span class="s2">n</span><span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s3">const </span><span class="s2">dst </span><span class="s1">= </span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">allocUnsafe</span><span class="s1">(</span><span class="s2">n</span><span class="s1">);</span>
+
+    <span class="s3">do </span><span class="s1">{</span>
+      <span class="s3">const </span><span class="s2">buf </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_buffers</span><span class="s1">[</span><span class="s5">0</span><span class="s1">];</span>
+      <span class="s3">const </span><span class="s2">offset </span><span class="s1">= </span><span class="s2">dst</span><span class="s1">.</span><span class="s2">length </span><span class="s1">- </span><span class="s2">n</span><span class="s1">;</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">n </span><span class="s1">&gt;= </span><span class="s2">buf</span><span class="s1">.</span><span class="s2">length</span><span class="s1">) {</span>
+        <span class="s2">dst</span><span class="s1">.</span><span class="s2">set</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_buffers</span><span class="s1">.</span><span class="s2">shift</span><span class="s1">(), </span><span class="s2">offset</span><span class="s1">);</span>
+      <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+        <span class="s2">dst</span><span class="s1">.</span><span class="s2">set</span><span class="s1">(</span><span class="s3">new </span><span class="s2">Uint8Array</span><span class="s1">(</span><span class="s2">buf</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">, </span><span class="s2">buf</span><span class="s1">.</span><span class="s2">byteOffset</span><span class="s1">, </span><span class="s2">n</span><span class="s1">), </span><span class="s2">offset</span><span class="s1">);</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_buffers</span><span class="s1">[</span><span class="s5">0</span><span class="s1">] = </span><span class="s3">new </span><span class="s2">FastBuffer</span><span class="s1">(</span>
+          <span class="s2">buf</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">,</span>
+          <span class="s2">buf</span><span class="s1">.</span><span class="s2">byteOffset </span><span class="s1">+ </span><span class="s2">n</span><span class="s1">,</span>
+          <span class="s2">buf</span><span class="s1">.</span><span class="s2">length </span><span class="s1">- </span><span class="s2">n</span>
+        <span class="s1">);</span>
+      <span class="s1">}</span>
+
+      <span class="s2">n </span><span class="s1">-= </span><span class="s2">buf</span><span class="s1">.</span><span class="s2">length</span><span class="s1">;</span>
+    <span class="s1">} </span><span class="s3">while </span><span class="s1">(</span><span class="s2">n </span><span class="s1">&gt; </span><span class="s5">0</span><span class="s1">);</span>
+
+    <span class="s3">return </span><span class="s2">dst</span><span class="s1">;</span>
+  <span class="s1">}</span>
+
+  <span class="s6">/**</span>
+   <span class="s6">* Starts the parsing loop.</span>
+   <span class="s6">*</span>
+   <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Function} cb Callback</span>
+   <span class="s6">* </span><span class="s7">@private</span>
+   <span class="s6">*/</span>
+  <span class="s2">startLoop</span><span class="s1">(</span><span class="s2">cb</span><span class="s1">) {</span>
+    <span class="s3">let </span><span class="s2">err</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">true</span><span class="s1">;</span>
+
+    <span class="s3">do </span><span class="s1">{</span>
+      <span class="s3">switch </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state</span><span class="s1">) {</span>
+        <span class="s3">case </span><span class="s2">GET_INFO</span><span class="s1">:</span>
+          <span class="s2">err </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">getInfo</span><span class="s1">();</span>
+          <span class="s3">break</span><span class="s1">;</span>
+        <span class="s3">case </span><span class="s2">GET_PAYLOAD_LENGTH_16</span><span class="s1">:</span>
+          <span class="s2">err </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">getPayloadLength16</span><span class="s1">();</span>
+          <span class="s3">break</span><span class="s1">;</span>
+        <span class="s3">case </span><span class="s2">GET_PAYLOAD_LENGTH_64</span><span class="s1">:</span>
+          <span class="s2">err </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">getPayloadLength64</span><span class="s1">();</span>
+          <span class="s3">break</span><span class="s1">;</span>
+        <span class="s3">case </span><span class="s2">GET_MASK</span><span class="s1">:</span>
+          <span class="s3">this</span><span class="s1">.</span><span class="s2">getMask</span><span class="s1">();</span>
+          <span class="s3">break</span><span class="s1">;</span>
+        <span class="s3">case </span><span class="s2">GET_DATA</span><span class="s1">:</span>
+          <span class="s2">err </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">getData</span><span class="s1">(</span><span class="s2">cb</span><span class="s1">);</span>
+          <span class="s3">break</span><span class="s1">;</span>
+        <span class="s3">case </span><span class="s2">INFLATING</span><span class="s1">:</span>
+          <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+          <span class="s3">return</span><span class="s1">;</span>
+        <span class="s3">default</span><span class="s1">:</span>
+          <span class="s4">//</span>
+          <span class="s4">// `WAIT_MICROTASK`.</span>
+          <span class="s4">//</span>
+          <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+
+          <span class="s2">queueTask</span><span class="s1">(() =&gt; {</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">GET_INFO</span><span class="s1">;</span>
+            <span class="s3">this</span><span class="s1">.</span><span class="s2">startLoop</span><span class="s1">(</span><span class="s2">cb</span><span class="s1">);</span>
+          <span class="s1">});</span>
+          <span class="s3">return</span><span class="s1">;</span>
+      <span class="s1">}</span>
+    <span class="s1">} </span><span class="s3">while </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_loop</span><span class="s1">);</span>
+
+    <span class="s2">cb</span><span class="s1">(</span><span class="s2">err</span><span class="s1">);</span>
+  <span class="s1">}</span>
+
+  <span class="s6">/**</span>
+   <span class="s6">* Reads the first two bytes of a frame.</span>
+   <span class="s6">*</span>
+   <span class="s6">* </span><span class="s7">@return </span><span class="s6">{(RangeError|undefined)} A possible error</span>
+   <span class="s6">* </span><span class="s7">@private</span>
+   <span class="s6">*/</span>
+  <span class="s2">getInfo</span><span class="s1">() {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_bufferedBytes </span><span class="s1">&lt; </span><span class="s5">2</span><span class="s1">) {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s3">const </span><span class="s2">buf </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">consume</span><span class="s1">(</span><span class="s5">2</span><span class="s1">);</span>
+
+    <span class="s3">if </span><span class="s1">((</span><span class="s2">buf</span><span class="s1">[</span><span class="s5">0</span><span class="s1">] &amp; </span><span class="s5">0x30</span><span class="s1">) !== </span><span class="s5">0x00</span><span class="s1">) {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+      <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+        <span class="s2">RangeError</span><span class="s1">,</span>
+        <span class="s0">'RSV2 and RSV3 must be clear'</span><span class="s1">,</span>
+        <span class="s3">true</span><span class="s1">,</span>
+        <span class="s5">1002</span><span class="s1">,</span>
+        <span class="s0">'WS_ERR_UNEXPECTED_RSV_2_3'</span>
+      <span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s3">const </span><span class="s2">compressed </span><span class="s1">= (</span><span class="s2">buf</span><span class="s1">[</span><span class="s5">0</span><span class="s1">] &amp; </span><span class="s5">0x40</span><span class="s1">) === </span><span class="s5">0x40</span><span class="s1">;</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">compressed </span><span class="s1">&amp;&amp; !</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_extensions</span><span class="s1">[</span><span class="s2">PerMessageDeflate</span><span class="s1">.</span><span class="s2">extensionName</span><span class="s1">]) {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+      <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+        <span class="s2">RangeError</span><span class="s1">,</span>
+        <span class="s0">'RSV1 must be clear'</span><span class="s1">,</span>
+        <span class="s3">true</span><span class="s1">,</span>
+        <span class="s5">1002</span><span class="s1">,</span>
+        <span class="s0">'WS_ERR_UNEXPECTED_RSV_1'</span>
+      <span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_fin </span><span class="s1">= (</span><span class="s2">buf</span><span class="s1">[</span><span class="s5">0</span><span class="s1">] &amp; </span><span class="s5">0x80</span><span class="s1">) === </span><span class="s5">0x80</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode </span><span class="s1">= </span><span class="s2">buf</span><span class="s1">[</span><span class="s5">0</span><span class="s1">] &amp; </span><span class="s5">0x0f</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_payloadLength </span><span class="s1">= </span><span class="s2">buf</span><span class="s1">[</span><span class="s5">1</span><span class="s1">] &amp; </span><span class="s5">0x7f</span><span class="s1">;</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode </span><span class="s1">=== </span><span class="s5">0x00</span><span class="s1">) {</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">compressed</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+        <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+          <span class="s2">RangeError</span><span class="s1">,</span>
+          <span class="s0">'RSV1 must be clear'</span><span class="s1">,</span>
+          <span class="s3">true</span><span class="s1">,</span>
+          <span class="s5">1002</span><span class="s1">,</span>
+          <span class="s0">'WS_ERR_UNEXPECTED_RSV_1'</span>
+        <span class="s1">);</span>
+      <span class="s1">}</span>
+
+      <span class="s3">if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_fragmented</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+        <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+          <span class="s2">RangeError</span><span class="s1">,</span>
+          <span class="s0">'invalid opcode 0'</span><span class="s1">,</span>
+          <span class="s3">true</span><span class="s1">,</span>
+          <span class="s5">1002</span><span class="s1">,</span>
+          <span class="s0">'WS_ERR_INVALID_OPCODE'</span>
+        <span class="s1">);</span>
+      <span class="s1">}</span>
+
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_fragmented</span><span class="s1">;</span>
+    <span class="s1">} </span><span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode </span><span class="s1">=== </span><span class="s5">0x01 </span><span class="s1">|| </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode </span><span class="s1">=== </span><span class="s5">0x02</span><span class="s1">) {</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_fragmented</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+        <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+          <span class="s2">RangeError</span><span class="s1">,</span>
+          <span class="s0">`invalid opcode </span><span class="s2">$</span><span class="s1">{</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode</span><span class="s1">}</span><span class="s0">`</span><span class="s1">,</span>
+          <span class="s3">true</span><span class="s1">,</span>
+          <span class="s5">1002</span><span class="s1">,</span>
+          <span class="s0">'WS_ERR_INVALID_OPCODE'</span>
+        <span class="s1">);</span>
+      <span class="s1">}</span>
+
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_compressed </span><span class="s1">= </span><span class="s2">compressed</span><span class="s1">;</span>
+    <span class="s1">} </span><span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode </span><span class="s1">&gt; </span><span class="s5">0x07 </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode </span><span class="s1">&lt; </span><span class="s5">0x0b</span><span class="s1">) {</span>
+      <span class="s3">if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_fin</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+        <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+          <span class="s2">RangeError</span><span class="s1">,</span>
+          <span class="s0">'FIN must be set'</span><span class="s1">,</span>
+          <span class="s3">true</span><span class="s1">,</span>
+          <span class="s5">1002</span><span class="s1">,</span>
+          <span class="s0">'WS_ERR_EXPECTED_FIN'</span>
+        <span class="s1">);</span>
+      <span class="s1">}</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">compressed</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+        <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+          <span class="s2">RangeError</span><span class="s1">,</span>
+          <span class="s0">'RSV1 must be clear'</span><span class="s1">,</span>
+          <span class="s3">true</span><span class="s1">,</span>
+          <span class="s5">1002</span><span class="s1">,</span>
+          <span class="s0">'WS_ERR_UNEXPECTED_RSV_1'</span>
+        <span class="s1">);</span>
+      <span class="s1">}</span>
+
+      <span class="s3">if </span><span class="s1">(</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_payloadLength </span><span class="s1">&gt; </span><span class="s5">0x7d </span><span class="s1">||</span>
+        <span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode </span><span class="s1">=== </span><span class="s5">0x08 </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_payloadLength </span><span class="s1">=== </span><span class="s5">1</span><span class="s1">)</span>
+      <span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+        <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+          <span class="s2">RangeError</span><span class="s1">,</span>
+          <span class="s0">`invalid payload length </span><span class="s2">$</span><span class="s1">{</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_payloadLength</span><span class="s1">}</span><span class="s0">`</span><span class="s1">,</span>
+          <span class="s3">true</span><span class="s1">,</span>
+          <span class="s5">1002</span><span class="s1">,</span>
+          <span class="s0">'WS_ERR_INVALID_CONTROL_PAYLOAD_LENGTH'</span>
+        <span class="s1">);</span>
+      <span class="s1">}</span>
+    <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+      <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+        <span class="s2">RangeError</span><span class="s1">,</span>
+        <span class="s0">`invalid opcode </span><span class="s2">$</span><span class="s1">{</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode</span><span class="s1">}</span><span class="s0">`</span><span class="s1">,</span>
+        <span class="s3">true</span><span class="s1">,</span>
+        <span class="s5">1002</span><span class="s1">,</span>
+        <span class="s0">'WS_ERR_INVALID_OPCODE'</span>
+      <span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s3">if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_fin </span><span class="s1">&amp;&amp; !</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_fragmented</span><span class="s1">) </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_fragmented </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode</span><span class="s1">;</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_masked </span><span class="s1">= (</span><span class="s2">buf</span><span class="s1">[</span><span class="s5">1</span><span class="s1">] &amp; </span><span class="s5">0x80</span><span class="s1">) === </span><span class="s5">0x80</span><span class="s1">;</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_isServer</span><span class="s1">) {</span>
+      <span class="s3">if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_masked</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+        <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+          <span class="s2">RangeError</span><span class="s1">,</span>
+          <span class="s0">'MASK must be set'</span><span class="s1">,</span>
+          <span class="s3">true</span><span class="s1">,</span>
+          <span class="s5">1002</span><span class="s1">,</span>
+          <span class="s0">'WS_ERR_EXPECTED_MASK'</span>
+        <span class="s1">);</span>
+      <span class="s1">}</span>
+    <span class="s1">} </span><span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_masked</span><span class="s1">) {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+      <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+        <span class="s2">RangeError</span><span class="s1">,</span>
+        <span class="s0">'MASK must be clear'</span><span class="s1">,</span>
+        <span class="s3">true</span><span class="s1">,</span>
+        <span class="s5">1002</span><span class="s1">,</span>
+        <span class="s0">'WS_ERR_UNEXPECTED_MASK'</span>
+      <span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_payloadLength </span><span class="s1">=== </span><span class="s5">126</span><span class="s1">) </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">GET_PAYLOAD_LENGTH_16</span><span class="s1">;</span>
+    <span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_payloadLength </span><span class="s1">=== </span><span class="s5">127</span><span class="s1">) </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">GET_PAYLOAD_LENGTH_64</span><span class="s1">;</span>
+    <span class="s3">else return this</span><span class="s1">.</span><span class="s2">haveLength</span><span class="s1">();</span>
+  <span class="s1">}</span>
+
+  <span class="s6">/**</span>
+   <span class="s6">* Gets extended payload length (7+16).</span>
+   <span class="s6">*</span>
+   <span class="s6">* </span><span class="s7">@return </span><span class="s6">{(RangeError|undefined)} A possible error</span>
+   <span class="s6">* </span><span class="s7">@private</span>
+   <span class="s6">*/</span>
+  <span class="s2">getPayloadLength16</span><span class="s1">() {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_bufferedBytes </span><span class="s1">&lt; </span><span class="s5">2</span><span class="s1">) {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_payloadLength </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">consume</span><span class="s1">(</span><span class="s5">2</span><span class="s1">).</span><span class="s2">readUInt16BE</span><span class="s1">(</span><span class="s5">0</span><span class="s1">);</span>
+    <span class="s3">return this</span><span class="s1">.</span><span class="s2">haveLength</span><span class="s1">();</span>
+  <span class="s1">}</span>
+
+  <span class="s6">/**</span>
+   <span class="s6">* Gets extended payload length (7+64).</span>
+   <span class="s6">*</span>
+   <span class="s6">* </span><span class="s7">@return </span><span class="s6">{(RangeError|undefined)} A possible error</span>
+   <span class="s6">* </span><span class="s7">@private</span>
+   <span class="s6">*/</span>
+  <span class="s2">getPayloadLength64</span><span class="s1">() {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_bufferedBytes </span><span class="s1">&lt; </span><span class="s5">8</span><span class="s1">) {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s3">const </span><span class="s2">buf </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">consume</span><span class="s1">(</span><span class="s5">8</span><span class="s1">);</span>
+    <span class="s3">const </span><span class="s2">num </span><span class="s1">= </span><span class="s2">buf</span><span class="s1">.</span><span class="s2">readUInt32BE</span><span class="s1">(</span><span class="s5">0</span><span class="s1">);</span>
+
+    <span class="s4">//</span>
+    <span class="s4">// The maximum safe integer in JavaScript is 2^53 - 1. An error is returned</span>
+    <span class="s4">// if payload length is greater than this number.</span>
+    <span class="s4">//</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">num </span><span class="s1">&gt; </span><span class="s2">Math</span><span class="s1">.</span><span class="s2">pow</span><span class="s1">(</span><span class="s5">2</span><span class="s1">, </span><span class="s5">53 </span><span class="s1">- </span><span class="s5">32</span><span class="s1">) - </span><span class="s5">1</span><span class="s1">) {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+      <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+        <span class="s2">RangeError</span><span class="s1">,</span>
+        <span class="s0">'Unsupported WebSocket frame: payload length &gt; 2^53 - 1'</span><span class="s1">,</span>
+        <span class="s3">false</span><span class="s1">,</span>
+        <span class="s5">1009</span><span class="s1">,</span>
+        <span class="s0">'WS_ERR_UNSUPPORTED_DATA_PAYLOAD_LENGTH'</span>
+      <span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_payloadLength </span><span class="s1">= </span><span class="s2">num </span><span class="s1">* </span><span class="s2">Math</span><span class="s1">.</span><span class="s2">pow</span><span class="s1">(</span><span class="s5">2</span><span class="s1">, </span><span class="s5">32</span><span class="s1">) + </span><span class="s2">buf</span><span class="s1">.</span><span class="s2">readUInt32BE</span><span class="s1">(</span><span class="s5">4</span><span class="s1">);</span>
+    <span class="s3">return this</span><span class="s1">.</span><span class="s2">haveLength</span><span class="s1">();</span>
+  <span class="s1">}</span>
+
+  <span class="s6">/**</span>
+   <span class="s6">* Payload length has been read.</span>
+   <span class="s6">*</span>
+   <span class="s6">* </span><span class="s7">@return </span><span class="s6">{(RangeError|undefined)} A possible error</span>
+   <span class="s6">* </span><span class="s7">@private</span>
+   <span class="s6">*/</span>
+  <span class="s2">haveLength</span><span class="s1">() {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_payloadLength </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode </span><span class="s1">&lt; </span><span class="s5">0x08</span><span class="s1">) {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_totalPayloadLength </span><span class="s1">+= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_payloadLength</span><span class="s1">;</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_totalPayloadLength </span><span class="s1">&gt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_maxPayload </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_maxPayload </span><span class="s1">&gt; </span><span class="s5">0</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+        <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+          <span class="s2">RangeError</span><span class="s1">,</span>
+          <span class="s0">'Max payload size exceeded'</span><span class="s1">,</span>
+          <span class="s3">false</span><span class="s1">,</span>
+          <span class="s5">1009</span><span class="s1">,</span>
+          <span class="s0">'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH'</span>
+        <span class="s1">);</span>
+      <span class="s1">}</span>
+    <span class="s1">}</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_masked</span><span class="s1">) </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">GET_MASK</span><span class="s1">;</span>
+    <span class="s3">else this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">GET_DATA</span><span class="s1">;</span>
+  <span class="s1">}</span>
+
+  <span class="s6">/**</span>
+   <span class="s6">* Reads mask bytes.</span>
+   <span class="s6">*</span>
+   <span class="s6">* </span><span class="s7">@private</span>
+   <span class="s6">*/</span>
+  <span class="s2">getMask</span><span class="s1">() {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_bufferedBytes </span><span class="s1">&lt; </span><span class="s5">4</span><span class="s1">) {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_mask </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">consume</span><span class="s1">(</span><span class="s5">4</span><span class="s1">);</span>
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">GET_DATA</span><span class="s1">;</span>
+  <span class="s1">}</span>
+
+  <span class="s6">/**</span>
+   <span class="s6">* Reads data bytes.</span>
+   <span class="s6">*</span>
+   <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Function} cb Callback</span>
+   <span class="s6">* </span><span class="s7">@return </span><span class="s6">{(Error|RangeError|undefined)} A possible error</span>
+   <span class="s6">* </span><span class="s7">@private</span>
+   <span class="s6">*/</span>
+  <span class="s2">getData</span><span class="s1">(</span><span class="s2">cb</span><span class="s1">) {</span>
+    <span class="s3">let </span><span class="s2">data </span><span class="s1">= </span><span class="s2">EMPTY_BUFFER</span><span class="s1">;</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_payloadLength</span><span class="s1">) {</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_bufferedBytes </span><span class="s1">&lt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_payloadLength</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+        <span class="s3">return</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s2">data </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">consume</span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_payloadLength</span><span class="s1">);</span>
+
+      <span class="s3">if </span><span class="s1">(</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_masked </span><span class="s1">&amp;&amp;</span>
+        <span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_mask</span><span class="s1">[</span><span class="s5">0</span><span class="s1">] | </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_mask</span><span class="s1">[</span><span class="s5">1</span><span class="s1">] | </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_mask</span><span class="s1">[</span><span class="s5">2</span><span class="s1">] | </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_mask</span><span class="s1">[</span><span class="s5">3</span><span class="s1">]) !== </span><span class="s5">0</span>
+      <span class="s1">) {</span>
+        <span class="s2">unmask</span><span class="s1">(</span><span class="s2">data</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_mask</span><span class="s1">);</span>
+      <span class="s1">}</span>
+    <span class="s1">}</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode </span><span class="s1">&gt; </span><span class="s5">0x07</span><span class="s1">) </span><span class="s3">return this</span><span class="s1">.</span><span class="s2">controlMessage</span><span class="s1">(</span><span class="s2">data</span><span class="s1">);</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_compressed</span><span class="s1">) {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">INFLATING</span><span class="s1">;</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">decompress</span><span class="s1">(</span><span class="s2">data</span><span class="s1">, </span><span class="s2">cb</span><span class="s1">);</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">data</span><span class="s1">.</span><span class="s2">length</span><span class="s1">) {</span>
+      <span class="s4">//</span>
+      <span class="s4">// This message is not compressed so its length is the sum of the payload</span>
+      <span class="s4">// length of all fragments.</span>
+      <span class="s4">//</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_messageLength </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_totalPayloadLength</span><span class="s1">;</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_fragments</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(</span><span class="s2">data</span><span class="s1">);</span>
+    <span class="s1">}</span>
+
+    <span class="s3">return this</span><span class="s1">.</span><span class="s2">dataMessage</span><span class="s1">();</span>
+  <span class="s1">}</span>
+
+  <span class="s6">/**</span>
+   <span class="s6">* Decompresses data.</span>
+   <span class="s6">*</span>
+   <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Buffer} data Compressed data</span>
+   <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Function} cb Callback</span>
+   <span class="s6">* </span><span class="s7">@private</span>
+   <span class="s6">*/</span>
+  <span class="s2">decompress</span><span class="s1">(</span><span class="s2">data</span><span class="s1">, </span><span class="s2">cb</span><span class="s1">) {</span>
+    <span class="s3">const </span><span class="s2">perMessageDeflate </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_extensions</span><span class="s1">[</span><span class="s2">PerMessageDeflate</span><span class="s1">.</span><span class="s2">extensionName</span><span class="s1">];</span>
+
+    <span class="s2">perMessageDeflate</span><span class="s1">.</span><span class="s2">decompress</span><span class="s1">(</span><span class="s2">data</span><span class="s1">, </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_fin</span><span class="s1">, (</span><span class="s2">err</span><span class="s1">, </span><span class="s2">buf</span><span class="s1">) =&gt; {</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">err</span><span class="s1">) </span><span class="s3">return </span><span class="s2">cb</span><span class="s1">(</span><span class="s2">err</span><span class="s1">);</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">buf</span><span class="s1">.</span><span class="s2">length</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_messageLength </span><span class="s1">+= </span><span class="s2">buf</span><span class="s1">.</span><span class="s2">length</span><span class="s1">;</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_messageLength </span><span class="s1">&gt; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_maxPayload </span><span class="s1">&amp;&amp; </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_maxPayload </span><span class="s1">&gt; </span><span class="s5">0</span><span class="s1">) {</span>
+          <span class="s3">return </span><span class="s2">cb</span><span class="s1">(</span>
+            <span class="s2">error</span><span class="s1">(</span>
+              <span class="s2">RangeError</span><span class="s1">,</span>
+              <span class="s0">'Max payload size exceeded'</span><span class="s1">,</span>
+              <span class="s3">false</span><span class="s1">,</span>
+              <span class="s5">1009</span><span class="s1">,</span>
+              <span class="s0">'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH'</span>
+            <span class="s1">)</span>
+          <span class="s1">);</span>
+        <span class="s1">}</span>
+
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_fragments</span><span class="s1">.</span><span class="s2">push</span><span class="s1">(</span><span class="s2">buf</span><span class="s1">);</span>
+      <span class="s1">}</span>
+
+      <span class="s3">const </span><span class="s2">er </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">dataMessage</span><span class="s1">();</span>
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">er</span><span class="s1">) </span><span class="s3">return </span><span class="s2">cb</span><span class="s1">(</span><span class="s2">er</span><span class="s1">);</span>
+
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">startLoop</span><span class="s1">(</span><span class="s2">cb</span><span class="s1">);</span>
+    <span class="s1">});</span>
+  <span class="s1">}</span>
+
+  <span class="s6">/**</span>
+   <span class="s6">* Handles a data message.</span>
+   <span class="s6">*</span>
+   <span class="s6">* </span><span class="s7">@return </span><span class="s6">{(Error|undefined)} A possible error</span>
+   <span class="s6">* </span><span class="s7">@private</span>
+   <span class="s6">*/</span>
+  <span class="s2">dataMessage</span><span class="s1">() {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_fin</span><span class="s1">) {</span>
+      <span class="s3">const </span><span class="s2">messageLength </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_messageLength</span><span class="s1">;</span>
+      <span class="s3">const </span><span class="s2">fragments </span><span class="s1">= </span><span class="s3">this</span><span class="s1">.</span><span class="s2">_fragments</span><span class="s1">;</span>
+
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_totalPayloadLength </span><span class="s1">= </span><span class="s5">0</span><span class="s1">;</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_messageLength </span><span class="s1">= </span><span class="s5">0</span><span class="s1">;</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_fragmented </span><span class="s1">= </span><span class="s5">0</span><span class="s1">;</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_fragments </span><span class="s1">= [];</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode </span><span class="s1">=== </span><span class="s5">2</span><span class="s1">) {</span>
+        <span class="s3">let </span><span class="s2">data</span><span class="s1">;</span>
+
+        <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_binaryType </span><span class="s1">=== </span><span class="s0">'nodebuffer'</span><span class="s1">) {</span>
+          <span class="s2">data </span><span class="s1">= </span><span class="s2">concat</span><span class="s1">(</span><span class="s2">fragments</span><span class="s1">, </span><span class="s2">messageLength</span><span class="s1">);</span>
+        <span class="s1">} </span><span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_binaryType </span><span class="s1">=== </span><span class="s0">'arraybuffer'</span><span class="s1">) {</span>
+          <span class="s2">data </span><span class="s1">= </span><span class="s2">toArrayBuffer</span><span class="s1">(</span><span class="s2">concat</span><span class="s1">(</span><span class="s2">fragments</span><span class="s1">, </span><span class="s2">messageLength</span><span class="s1">));</span>
+        <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+          <span class="s2">data </span><span class="s1">= </span><span class="s2">fragments</span><span class="s1">;</span>
+        <span class="s1">}</span>
+
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">emit</span><span class="s1">(</span><span class="s0">'message'</span><span class="s1">, </span><span class="s2">data</span><span class="s1">, </span><span class="s3">true</span><span class="s1">);</span>
+      <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+        <span class="s3">const </span><span class="s2">buf </span><span class="s1">= </span><span class="s2">concat</span><span class="s1">(</span><span class="s2">fragments</span><span class="s1">, </span><span class="s2">messageLength</span><span class="s1">);</span>
+
+        <span class="s3">if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_skipUTF8Validation </span><span class="s1">&amp;&amp; !</span><span class="s2">isValidUTF8</span><span class="s1">(</span><span class="s2">buf</span><span class="s1">)) {</span>
+          <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+          <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+            <span class="s2">Error</span><span class="s1">,</span>
+            <span class="s0">'invalid UTF-8 sequence'</span><span class="s1">,</span>
+            <span class="s3">true</span><span class="s1">,</span>
+            <span class="s5">1007</span><span class="s1">,</span>
+            <span class="s0">'WS_ERR_INVALID_UTF8'</span>
+          <span class="s1">);</span>
+        <span class="s1">}</span>
+
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">emit</span><span class="s1">(</span><span class="s0">'message'</span><span class="s1">, </span><span class="s2">buf</span><span class="s1">, </span><span class="s3">false</span><span class="s1">);</span>
+      <span class="s1">}</span>
+    <span class="s1">}</span>
+
+    <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">WAIT_MICROTASK</span><span class="s1">;</span>
+  <span class="s1">}</span>
+
+  <span class="s6">/**</span>
+   <span class="s6">* Handles a control message.</span>
+   <span class="s6">*</span>
+   <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Buffer} data Data to handle</span>
+   <span class="s6">* </span><span class="s7">@return </span><span class="s6">{(Error|RangeError|undefined)} A possible error</span>
+   <span class="s6">* </span><span class="s7">@private</span>
+   <span class="s6">*/</span>
+  <span class="s2">controlMessage</span><span class="s1">(</span><span class="s2">data</span><span class="s1">) {</span>
+    <span class="s3">if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode </span><span class="s1">=== </span><span class="s5">0x08</span><span class="s1">) {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_loop </span><span class="s1">= </span><span class="s3">false</span><span class="s1">;</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">data</span><span class="s1">.</span><span class="s2">length </span><span class="s1">=== </span><span class="s5">0</span><span class="s1">) {</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">emit</span><span class="s1">(</span><span class="s0">'conclude'</span><span class="s1">, </span><span class="s5">1005</span><span class="s1">, </span><span class="s2">EMPTY_BUFFER</span><span class="s1">);</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">end</span><span class="s1">();</span>
+
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">GET_INFO</span><span class="s1">;</span>
+      <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+        <span class="s3">const </span><span class="s2">code </span><span class="s1">= </span><span class="s2">data</span><span class="s1">.</span><span class="s2">readUInt16BE</span><span class="s1">(</span><span class="s5">0</span><span class="s1">);</span>
+
+        <span class="s3">if </span><span class="s1">(!</span><span class="s2">isValidStatusCode</span><span class="s1">(</span><span class="s2">code</span><span class="s1">)) {</span>
+          <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+            <span class="s2">RangeError</span><span class="s1">,</span>
+            <span class="s0">`invalid status code </span><span class="s2">$</span><span class="s1">{</span><span class="s2">code</span><span class="s1">}</span><span class="s0">`</span><span class="s1">,</span>
+            <span class="s3">true</span><span class="s1">,</span>
+            <span class="s5">1002</span><span class="s1">,</span>
+            <span class="s0">'WS_ERR_INVALID_CLOSE_CODE'</span>
+          <span class="s1">);</span>
+        <span class="s1">}</span>
+
+        <span class="s3">const </span><span class="s2">buf </span><span class="s1">= </span><span class="s3">new </span><span class="s2">FastBuffer</span><span class="s1">(</span>
+          <span class="s2">data</span><span class="s1">.</span><span class="s2">buffer</span><span class="s1">,</span>
+          <span class="s2">data</span><span class="s1">.</span><span class="s2">byteOffset </span><span class="s1">+ </span><span class="s5">2</span><span class="s1">,</span>
+          <span class="s2">data</span><span class="s1">.</span><span class="s2">length </span><span class="s1">- </span><span class="s5">2</span>
+        <span class="s1">);</span>
+
+        <span class="s3">if </span><span class="s1">(!</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_skipUTF8Validation </span><span class="s1">&amp;&amp; !</span><span class="s2">isValidUTF8</span><span class="s1">(</span><span class="s2">buf</span><span class="s1">)) {</span>
+          <span class="s3">return </span><span class="s2">error</span><span class="s1">(</span>
+            <span class="s2">Error</span><span class="s1">,</span>
+            <span class="s0">'invalid UTF-8 sequence'</span><span class="s1">,</span>
+            <span class="s3">true</span><span class="s1">,</span>
+            <span class="s5">1007</span><span class="s1">,</span>
+            <span class="s0">'WS_ERR_INVALID_UTF8'</span>
+          <span class="s1">);</span>
+        <span class="s1">}</span>
+
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">emit</span><span class="s1">(</span><span class="s0">'conclude'</span><span class="s1">, </span><span class="s2">code</span><span class="s1">, </span><span class="s2">buf</span><span class="s1">);</span>
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">end</span><span class="s1">();</span>
+
+        <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">GET_INFO</span><span class="s1">;</span>
+      <span class="s1">}</span>
+    <span class="s1">} </span><span class="s3">else if </span><span class="s1">(</span><span class="s3">this</span><span class="s1">.</span><span class="s2">_opcode </span><span class="s1">=== </span><span class="s5">0x09</span><span class="s1">) {</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">emit</span><span class="s1">(</span><span class="s0">'ping'</span><span class="s1">, </span><span class="s2">data</span><span class="s1">);</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">WAIT_MICROTASK</span><span class="s1">;</span>
+    <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">emit</span><span class="s1">(</span><span class="s0">'pong'</span><span class="s1">, </span><span class="s2">data</span><span class="s1">);</span>
+      <span class="s3">this</span><span class="s1">.</span><span class="s2">_state </span><span class="s1">= </span><span class="s2">WAIT_MICROTASK</span><span class="s1">;</span>
+    <span class="s1">}</span>
+  <span class="s1">}</span>
+<span class="s1">}</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= </span><span class="s2">Receiver</span><span class="s1">;</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Builds an error object.</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{function(new:Error|RangeError)} ErrorCtor The error constructor</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{String} message The error message</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Boolean} prefix Specifies whether or not to add a default prefix to</span>
+ <span class="s6">*     `message`</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Number} statusCode The status code</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{String} errorCode The exposed error code</span>
+ <span class="s6">* </span><span class="s7">@return </span><span class="s6">{(Error|RangeError)} The error</span>
+ <span class="s6">* </span><span class="s7">@private</span>
+ <span class="s6">*/</span>
+<span class="s3">function </span><span class="s2">error</span><span class="s1">(</span><span class="s2">ErrorCtor</span><span class="s1">, </span><span class="s2">message</span><span class="s1">, </span><span class="s2">prefix</span><span class="s1">, </span><span class="s2">statusCode</span><span class="s1">, </span><span class="s2">errorCode</span><span class="s1">) {</span>
+  <span class="s3">const </span><span class="s2">err </span><span class="s1">= </span><span class="s3">new </span><span class="s2">ErrorCtor</span><span class="s1">(</span>
+    <span class="s2">prefix </span><span class="s1">? </span><span class="s0">`Invalid WebSocket frame: </span><span class="s2">$</span><span class="s1">{</span><span class="s2">message</span><span class="s1">}</span><span class="s0">` </span><span class="s1">: </span><span class="s2">message</span>
+  <span class="s1">);</span>
+
+  <span class="s2">Error</span><span class="s1">.</span><span class="s2">captureStackTrace</span><span class="s1">(</span><span class="s2">err</span><span class="s1">, </span><span class="s2">error</span><span class="s1">);</span>
+  <span class="s2">err</span><span class="s1">.</span><span class="s2">code </span><span class="s1">= </span><span class="s2">errorCode</span><span class="s1">;</span>
+  <span class="s2">err</span><span class="s1">[</span><span class="s2">kStatusCode</span><span class="s1">] = </span><span class="s2">statusCode</span><span class="s1">;</span>
+  <span class="s3">return </span><span class="s2">err</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* A shim for `queueMicrotask()`.</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Function} cb Callback</span>
+ <span class="s6">*/</span>
+<span class="s3">function </span><span class="s2">queueMicrotaskShim</span><span class="s1">(</span><span class="s2">cb</span><span class="s1">) {</span>
+  <span class="s2">promise</span><span class="s1">.</span><span class="s2">then</span><span class="s1">(</span><span class="s2">cb</span><span class="s1">).</span><span class="s2">catch</span><span class="s1">(</span><span class="s2">throwErrorNextTick</span><span class="s1">);</span>
+<span class="s1">}</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Throws an error.</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Error} err The error to throw</span>
+ <span class="s6">* </span><span class="s7">@private</span>
+ <span class="s6">*/</span>
+<span class="s3">function </span><span class="s2">throwError</span><span class="s1">(</span><span class="s2">err</span><span class="s1">) {</span>
+  <span class="s3">throw </span><span class="s2">err</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Throws an error in the next tick.</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Error} err The error to throw</span>
+ <span class="s6">* </span><span class="s7">@private</span>
+ <span class="s6">*/</span>
+<span class="s3">function </span><span class="s2">throwErrorNextTick</span><span class="s1">(</span><span class="s2">err</span><span class="s1">) {</span>
+  <span class="s2">process</span><span class="s1">.</span><span class="s2">nextTick</span><span class="s1">(</span><span class="s2">throwError</span><span class="s1">, </span><span class="s2">err</span><span class="s1">);</span>
+<span class="s1">}</span>
+</pre>
+</body>
+</html>

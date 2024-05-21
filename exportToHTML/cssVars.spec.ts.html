@@ -1,0 +1,268 @@
+<html>
+<head>
+<title>cssVars.spec.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+cssVars.spec.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">compileStyle</span><span class="s2">, </span><span class="s1">parse </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../src'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">mockId</span><span class="s2">, </span><span class="s1">compile</span><span class="s2">, </span><span class="s1">assertCode </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./util'</span>
+
+<span class="s1">describe</span><span class="s2">(</span><span class="s3">'CSS vars injection'</span><span class="s2">, () =&gt; {</span>
+  <span class="s1">test</span><span class="s2">(</span><span class="s3">'generating correct code for nested paths'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span>
+      <span class="s3">`&lt;script&gt;const a = 1&lt;/script&gt;</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+        <span class="s3">`&lt;style&gt;div{ 
+          color: v-bind(color); 
+          font-size: v-bind('font.size'); 
+        }&lt;/style&gt;`</span>
+    <span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`_useCssVars((_vm, _setup) =&gt; ({ 
+  &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">mockId</span><span class="s2">}</span><span class="s3">-color&quot;: (_vm.color), 
+  &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">mockId</span><span class="s2">}</span><span class="s3">-font_size&quot;: (_vm.font.size) 
+})`</span><span class="s2">)</span>
+    <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">test</span><span class="s2">(</span><span class="s3">'w/ normal &lt;script&gt; binding analysis'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span>
+      <span class="s3">`&lt;script&gt; 
+      export default { 
+        setup() { 
+          return { 
+            size: ref('100px') 
+          } 
+        } 
+      } 
+      &lt;/script&gt;</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+        <span class="s3">`&lt;style&gt; 
+          div { 
+            font-size: v-bind(size); 
+          } 
+        &lt;/style&gt;`</span>
+    <span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`_useCssVars((_vm, _setup) =&gt; ({ 
+  &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">mockId</span><span class="s2">}</span><span class="s3">-size&quot;: (_vm.size) 
+})`</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`import { useCssVars as _useCssVars } from 'vue'`</span><span class="s2">)</span>
+    <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">test</span><span class="s2">(</span><span class="s3">'w/ &lt;script setup&gt; binding analysis'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span>
+      <span class="s3">`&lt;script setup&gt; 
+        import { defineProps, ref } from 'vue' 
+        const color = 'red' 
+        const size = ref('10px') 
+        defineProps({ 
+          foo: String 
+        }) 
+        &lt;/script&gt;</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+        <span class="s3">`&lt;style&gt; 
+          div { 
+            color: v-bind(color); 
+            font-size: v-bind(size); 
+            border: v-bind(foo); 
+          } 
+        &lt;/style&gt;`</span>
+    <span class="s2">)</span>
+    <span class="s4">// should handle:</span>
+    <span class="s4">// 1. local const bindings</span>
+    <span class="s4">// 2. local potential ref bindings</span>
+    <span class="s4">// 3. props bindings (analyzed)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`_useCssVars((_vm, _setup) =&gt; ({ 
+  &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">mockId</span><span class="s2">}</span><span class="s3">-color&quot;: (_setup.color), 
+  &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">mockId</span><span class="s2">}</span><span class="s3">-size&quot;: (_setup.size), 
+  &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">mockId</span><span class="s2">}</span><span class="s3">-foo&quot;: (_vm.foo) 
+})`</span><span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`import { useCssVars as _useCssVars } from 'vue'`</span><span class="s2">)</span>
+    <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">test</span><span class="s2">(</span><span class="s3">'should rewrite CSS vars in compileStyle'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">code </span><span class="s2">} = </span><span class="s1">compileStyle</span><span class="s2">({</span>
+      <span class="s1">source</span><span class="s2">: </span><span class="s3">`.foo { 
+        color: v-bind(color); 
+        font-size: v-bind('font.size'); 
+      }`</span><span class="s2">,</span>
+      <span class="s1">filename</span><span class="s2">: </span><span class="s3">'test.css'</span><span class="s2">,</span>
+      <span class="s1">id</span><span class="s2">: </span><span class="s3">'data-v-test'</span>
+    <span class="s2">})</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">code</span><span class="s2">).</span><span class="s1">toMatchInlineSnapshot</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&quot;.foo[data-v-test] { 
+              color: var(--test-color); 
+              font-size: var(--test-font_size); 
+      }&quot; 
+    `</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">test</span><span class="s2">(</span><span class="s3">'prod mode'</span><span class="s2">, () =&gt; {</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span>
+      <span class="s3">`&lt;script&gt;const a = 1&lt;/script&gt;</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+        <span class="s3">`&lt;style&gt;div{ 
+          color: v-bind(color); 
+          font-size: v-bind('font.size'); 
+        }&lt;/style&gt;`</span><span class="s2">,</span>
+      <span class="s2">{ </span><span class="s1">isProd</span><span class="s2">: </span><span class="s0">true </span><span class="s2">}</span>
+    <span class="s2">)</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`_useCssVars((_vm, _setup) =&gt; ({ 
+  &quot;4003f1a6&quot;: (_vm.color), 
+  &quot;41b6490a&quot;: (_vm.font.size) 
+}))}`</span><span class="s2">)</span>
+
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">code </span><span class="s2">} = </span><span class="s1">compileStyle</span><span class="s2">({</span>
+      <span class="s1">source</span><span class="s2">: </span><span class="s3">`.foo { 
+        color: v-bind(color); 
+        font-size: v-bind('font.size'); 
+      }`</span><span class="s2">,</span>
+      <span class="s1">filename</span><span class="s2">: </span><span class="s3">'test.css'</span><span class="s2">,</span>
+      <span class="s1">id</span><span class="s2">: </span><span class="s1">mockId</span><span class="s2">,</span>
+      <span class="s1">isProd</span><span class="s2">: </span><span class="s0">true</span>
+    <span class="s2">})</span>
+    <span class="s1">expect</span><span class="s2">(</span><span class="s1">code</span><span class="s2">).</span><span class="s1">toMatchInlineSnapshot</span><span class="s2">(</span><span class="s3">`</span>
+      <span class="s3">&quot;.foo[xxxxxxxx] { 
+              color: var(--4003f1a6); 
+              font-size: var(--41b6490a); 
+      }&quot; 
+    `</span><span class="s2">)</span>
+  <span class="s2">})</span>
+
+  <span class="s1">describe</span><span class="s2">(</span><span class="s3">'codegen'</span><span class="s2">, () =&gt; {</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'&lt;script&gt; w/ no default export'</span><span class="s2">, () =&gt; {</span>
+      <span class="s1">assertCode</span><span class="s2">(</span>
+        <span class="s1">compile</span><span class="s2">(</span>
+          <span class="s3">`&lt;script&gt;const a = 1&lt;/script&gt;</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+            <span class="s3">`&lt;style&gt;div{ color: v-bind(color); }&lt;/style&gt;`</span>
+        <span class="s2">).</span><span class="s1">content</span>
+      <span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'&lt;script&gt; w/ default export'</span><span class="s2">, () =&gt; {</span>
+      <span class="s1">assertCode</span><span class="s2">(</span>
+        <span class="s1">compile</span><span class="s2">(</span>
+          <span class="s3">`&lt;script&gt;export default { setup() {} }&lt;/script&gt;</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+            <span class="s3">`&lt;style&gt;div{ color: v-bind(color); }&lt;/style&gt;`</span>
+        <span class="s2">).</span><span class="s1">content</span>
+      <span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'&lt;script&gt; w/ default export in strings/comments'</span><span class="s2">, () =&gt; {</span>
+      <span class="s1">assertCode</span><span class="s2">(</span>
+        <span class="s1">compile</span><span class="s2">(</span>
+          <span class="s3">`&lt;script&gt; 
+          // export default {} 
+          export default {} 
+        &lt;/script&gt;</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+ </span><span class="s3">`&lt;style&gt;div{ color: v-bind(color); }&lt;/style&gt;`</span>
+        <span class="s2">).</span><span class="s1">content</span>
+      <span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'w/ &lt;script setup&gt;'</span><span class="s2">, () =&gt; {</span>
+      <span class="s1">assertCode</span><span class="s2">(</span>
+        <span class="s1">compile</span><span class="s2">(</span>
+          <span class="s3">`&lt;script setup&gt;const color = 'red'&lt;/script&gt;</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+            <span class="s3">`&lt;style&gt;div{ color: v-bind(color); }&lt;/style&gt;`</span>
+        <span class="s2">).</span><span class="s1">content</span>
+      <span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s4">//#4185</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'should ignore comments'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span>
+        <span class="s3">`&lt;script setup&gt;const color = 'red';const width = 100&lt;/script&gt;</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+          <span class="s3">`&lt;style&gt; 
+            /* comment **/ 
+            div{ /* color: v-bind(color); */ width:20; } 
+            div{ width: v-bind(width); } 
+            /* comment */ 
+          &lt;/style&gt;`</span>
+      <span class="s2">)</span>
+
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">not</span><span class="s2">.</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`&quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">mockId</span><span class="s2">}</span><span class="s3">-color&quot;: (_setup.color)`</span><span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`&quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">mockId</span><span class="s2">}</span><span class="s3">-width&quot;: (_setup.width)`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'w/ &lt;script setup&gt; using the same var multiple times'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span>
+        <span class="s3">`&lt;script setup&gt; 
+        const color = 'red' 
+        &lt;/script&gt;</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+          <span class="s3">`&lt;style&gt; 
+          div { 
+            color: v-bind(color); 
+          } 
+          p { 
+            color: v-bind(color); 
+          } 
+        &lt;/style&gt;`</span>
+      <span class="s2">)</span>
+      <span class="s4">// color should only be injected once, even if it is twice in style</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`_useCssVars((_vm, _setup) =&gt; ({ 
+  &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">mockId</span><span class="s2">}</span><span class="s3">-color&quot;: (_setup.color) 
+})`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'should work with w/ complex expression'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">content </span><span class="s2">} = </span><span class="s1">compile</span><span class="s2">(</span>
+        <span class="s3">`&lt;script setup&gt; 
+        let a = 100 
+        let b = 200 
+        let foo = 300 
+        &lt;/script&gt;</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+          <span class="s3">`&lt;style&gt; 
+          p{ 
+            width: calc(v-bind(foo) - 3px); 
+            height: calc(v-bind('foo') - 3px); 
+            top: calc(v-bind(foo + 'px') - 3px); 
+          } 
+          div { 
+            color: v-bind((a + b) / 2 + 'px' ); 
+          } 
+          div { 
+            color: v-bind    ((a + b) / 2 + 'px' ); 
+          } 
+          p { 
+            color: v-bind(((a + b)) / (2 * a)); 
+          } 
+        &lt;/style&gt;`</span>
+      <span class="s2">)</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">content</span><span class="s2">).</span><span class="s1">toMatch</span><span class="s2">(</span><span class="s3">`_useCssVars((_vm, _setup) =&gt; ({ 
+  &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">mockId</span><span class="s2">}</span><span class="s3">-foo&quot;: (_setup.foo), 
+  &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">mockId</span><span class="s2">}</span><span class="s3">-foo____px_&quot;: (_setup.foo + 'px'), 
+  &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">mockId</span><span class="s2">}</span><span class="s3">-_a___b____2____px_&quot;: ((_setup.a + _setup.b) / 2 + 'px'), 
+  &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">mockId</span><span class="s2">}</span><span class="s3">-__a___b______2___a_&quot;: (((_setup.a + _setup.b)) / (2 * _setup.a)) 
+})`</span><span class="s2">)</span>
+      <span class="s1">assertCode</span><span class="s2">(</span><span class="s1">content</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s4">// #6022</span>
+    <span class="s1">test</span><span class="s2">(</span><span class="s3">'should be able to parse incomplete expressions'</span><span class="s2">, () =&gt; {</span>
+      <span class="s0">const </span><span class="s2">{ </span><span class="s1">cssVars </span><span class="s2">} = </span><span class="s1">parse</span><span class="s2">({</span>
+        <span class="s1">source</span><span class="s2">: </span><span class="s3">`&lt;script setup&gt;let xxx = 1&lt;/script&gt; 
+        &lt;style scoped&gt; 
+        label { 
+          font-weight: v-bind(&quot;count.toString(&quot;); 
+          font-weight: v-bind(xxx); 
+        } 
+        &lt;/style&gt;`</span>
+      <span class="s2">})</span>
+      <span class="s1">expect</span><span class="s2">(</span><span class="s1">cssVars</span><span class="s2">).</span><span class="s1">toMatchObject</span><span class="s2">([</span><span class="s3">`count.toString(`</span><span class="s2">, </span><span class="s3">`xxx`</span><span class="s2">])</span>
+    <span class="s2">})</span>
+  <span class="s2">})</span>
+<span class="s2">})</span>
+</pre>
+</body>
+</html>

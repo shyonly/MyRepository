@@ -1,0 +1,80 @@
+<html>
+<head>
+<title>render-static.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #7a7e85;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+render-static.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">VNode from </span><span class="s2">'core/vdom/vnode'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">isArray </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'core/util'</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* Runtime helper for rendering static trees.</span>
+ <span class="s4">*/</span>
+<span class="s0">export function </span><span class="s1">renderStatic</span><span class="s3">(</span>
+  <span class="s1">index</span><span class="s3">: </span><span class="s1">number</span><span class="s3">,</span>
+  <span class="s1">isInFor</span><span class="s3">: </span><span class="s1">boolean</span>
+<span class="s3">): </span><span class="s1">VNode </span><span class="s3">| </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt; {</span>
+  <span class="s0">const </span><span class="s1">cached </span><span class="s3">= </span><span class="s0">this</span><span class="s3">.</span><span class="s1">_staticTrees </span><span class="s3">|| (</span><span class="s0">this</span><span class="s3">.</span><span class="s1">_staticTrees </span><span class="s3">= [])</span>
+  <span class="s0">let </span><span class="s1">tree </span><span class="s3">= </span><span class="s1">cached</span><span class="s3">[</span><span class="s1">index</span><span class="s3">]</span>
+  <span class="s5">// if has already-rendered static tree and not inside v-for,</span>
+  <span class="s5">// we can reuse the same tree.</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">tree </span><span class="s3">&amp;&amp; !</span><span class="s1">isInFor</span><span class="s3">) {</span>
+    <span class="s0">return </span><span class="s1">tree</span>
+  <span class="s3">}</span>
+  <span class="s5">// otherwise, render a fresh tree.</span>
+  <span class="s1">tree </span><span class="s3">= </span><span class="s1">cached</span><span class="s3">[</span><span class="s1">index</span><span class="s3">] = </span><span class="s0">this</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">staticRenderFns</span><span class="s3">[</span><span class="s1">index</span><span class="s3">].</span><span class="s1">call</span><span class="s3">(</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">_renderProxy</span><span class="s3">,</span>
+    <span class="s0">this</span><span class="s3">.</span><span class="s1">_c</span><span class="s3">,</span>
+    <span class="s0">this </span><span class="s5">// for render fns generated for functional component templates</span>
+  <span class="s3">)</span>
+  <span class="s1">markStatic</span><span class="s3">(</span><span class="s1">tree</span><span class="s3">, </span><span class="s2">`__static__</span><span class="s1">$</span><span class="s3">{</span><span class="s1">index</span><span class="s3">}</span><span class="s2">`</span><span class="s3">, </span><span class="s0">false</span><span class="s3">)</span>
+  <span class="s0">return </span><span class="s1">tree</span>
+<span class="s3">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* Runtime helper for v-once.</span>
+ <span class="s4">* Effectively it means marking the node as static with a unique key.</span>
+ <span class="s4">*/</span>
+<span class="s0">export function </span><span class="s1">markOnce</span><span class="s3">(</span>
+  <span class="s1">tree</span><span class="s3">: </span><span class="s1">VNode </span><span class="s3">| </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt;,</span>
+  <span class="s1">index</span><span class="s3">: </span><span class="s1">number</span><span class="s3">,</span>
+  <span class="s1">key</span><span class="s3">: </span><span class="s1">string</span>
+<span class="s3">) {</span>
+  <span class="s1">markStatic</span><span class="s3">(</span><span class="s1">tree</span><span class="s3">, </span><span class="s2">`__once__</span><span class="s1">$</span><span class="s3">{</span><span class="s1">index</span><span class="s3">}</span><span class="s1">$</span><span class="s3">{</span><span class="s1">key </span><span class="s3">? </span><span class="s2">`_</span><span class="s1">$</span><span class="s3">{</span><span class="s1">key</span><span class="s3">}</span><span class="s2">` </span><span class="s3">: </span><span class="s2">``</span><span class="s3">}</span><span class="s2">`</span><span class="s3">, </span><span class="s0">true</span><span class="s3">)</span>
+  <span class="s0">return </span><span class="s1">tree</span>
+<span class="s3">}</span>
+
+<span class="s0">function </span><span class="s1">markStatic</span><span class="s3">(</span><span class="s1">tree</span><span class="s3">: </span><span class="s1">VNode </span><span class="s3">| </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt;, </span><span class="s1">key</span><span class="s3">: </span><span class="s1">string</span><span class="s3">, </span><span class="s1">isOnce</span><span class="s3">: </span><span class="s1">boolean</span><span class="s3">) {</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">tree</span><span class="s3">)) {</span>
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s6">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">tree</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">tree</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] &amp;&amp; </span><span class="s0">typeof </span><span class="s1">tree</span><span class="s3">[</span><span class="s1">i</span><span class="s3">] !== </span><span class="s2">'string'</span><span class="s3">) {</span>
+        <span class="s1">markStaticNode</span><span class="s3">(</span><span class="s1">tree</span><span class="s3">[</span><span class="s1">i</span><span class="s3">], </span><span class="s2">`</span><span class="s1">$</span><span class="s3">{</span><span class="s1">key</span><span class="s3">}</span><span class="s2">_</span><span class="s1">$</span><span class="s3">{</span><span class="s1">i</span><span class="s3">}</span><span class="s2">`</span><span class="s3">, </span><span class="s1">isOnce</span><span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+    <span class="s1">markStaticNode</span><span class="s3">(</span><span class="s1">tree</span><span class="s3">, </span><span class="s1">key</span><span class="s3">, </span><span class="s1">isOnce</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">function </span><span class="s1">markStaticNode</span><span class="s3">(</span><span class="s1">node</span><span class="s3">, </span><span class="s1">key</span><span class="s3">, </span><span class="s1">isOnce</span><span class="s3">) {</span>
+  <span class="s1">node</span><span class="s3">.</span><span class="s1">isStatic </span><span class="s3">= </span><span class="s0">true</span>
+  <span class="s1">node</span><span class="s3">.</span><span class="s1">key </span><span class="s3">= </span><span class="s1">key</span>
+  <span class="s1">node</span><span class="s3">.</span><span class="s1">isOnce </span><span class="s3">= </span><span class="s1">isOnce</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<html>
+<head>
+<title>ibmi.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+ibmi.js</font>
+</center></td></tr></table>
+<pre><span class="s0">&quot;use strict&quot;</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s2">execa </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;execa&quot;</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s2">db2util </span><span class="s1">= </span><span class="s0">&quot;/QOpenSys/pkgs/bin/db2util&quot;</span><span class="s1">;</span>
+<span class="s3">const </span><span class="s2">sql </span><span class="s1">= </span><span class="s0">&quot;select NEXT_HOP, LOCAL_BINDING_INTERFACE from QSYS2.NETSTAT_ROUTE_INFO where ROUTE_TYPE='DFTROUTE' and NEXT_HOP!='*DIRECT' and CONNECTION_TYPE=?&quot;</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s2">parse </span><span class="s1">= </span><span class="s2">stdout </span><span class="s1">=&gt; {</span>
+  <span class="s3">let </span><span class="s2">result</span><span class="s1">;</span>
+  <span class="s3">try </span><span class="s1">{</span>
+    <span class="s3">const </span><span class="s2">resultObj </span><span class="s1">= </span><span class="s2">JSON</span><span class="s1">.</span><span class="s2">parse</span><span class="s1">(</span><span class="s2">stdout</span><span class="s1">);</span>
+    <span class="s3">const </span><span class="s2">gateway </span><span class="s1">= </span><span class="s2">resultObj</span><span class="s1">.</span><span class="s2">records</span><span class="s1">[</span><span class="s4">0</span><span class="s1">].</span><span class="s2">NEXT_HOP</span><span class="s1">;</span>
+    <span class="s3">const </span><span class="s2">iface </span><span class="s1">= </span><span class="s2">resultObj</span><span class="s1">.</span><span class="s2">records</span><span class="s1">[</span><span class="s4">0</span><span class="s1">].</span><span class="s2">LOCAL_BINDING_INTERFACE</span><span class="s1">;</span>
+    <span class="s2">result </span><span class="s1">= {</span><span class="s2">gateway</span><span class="s1">, </span><span class="s2">iface</span><span class="s1">};</span>
+  <span class="s1">} </span><span class="s3">catch </span><span class="s1">{}</span>
+  <span class="s3">if </span><span class="s1">(!</span><span class="s2">result</span><span class="s1">) {</span>
+    <span class="s3">throw new </span><span class="s2">Error</span><span class="s1">(</span><span class="s0">&quot;Unable to determine default gateway&quot;</span><span class="s1">);</span>
+  <span class="s1">}</span>
+  <span class="s3">return </span><span class="s2">result</span><span class="s1">;</span>
+<span class="s1">};</span>
+
+<span class="s3">const </span><span class="s2">promise </span><span class="s1">= </span><span class="s2">async family </span><span class="s1">=&gt; {</span>
+  <span class="s3">const </span><span class="s1">{</span><span class="s2">stdout</span><span class="s1">} = </span><span class="s3">await </span><span class="s2">execa</span><span class="s1">(</span><span class="s2">db2util</span><span class="s1">, [</span><span class="s2">sql</span><span class="s1">, </span><span class="s0">&quot;-p&quot;</span><span class="s1">, </span><span class="s2">family</span><span class="s1">, </span><span class="s0">&quot;-o&quot;</span><span class="s1">, </span><span class="s0">&quot;json&quot;</span><span class="s1">]);</span>
+  <span class="s3">return </span><span class="s2">parse</span><span class="s1">(</span><span class="s2">stdout</span><span class="s1">);</span>
+<span class="s1">};</span>
+
+<span class="s3">const </span><span class="s2">sync </span><span class="s1">= </span><span class="s2">family </span><span class="s1">=&gt; {</span>
+  <span class="s3">const </span><span class="s1">{</span><span class="s2">stdout</span><span class="s1">} = </span><span class="s2">execa</span><span class="s1">.</span><span class="s2">sync</span><span class="s1">(</span><span class="s2">db2util</span><span class="s1">, [</span><span class="s2">sql</span><span class="s1">, </span><span class="s0">&quot;-p&quot;</span><span class="s1">, </span><span class="s2">family</span><span class="s1">, </span><span class="s0">&quot;-o&quot;</span><span class="s1">, </span><span class="s0">&quot;json&quot;</span><span class="s1">]);</span>
+  <span class="s3">return </span><span class="s2">parse</span><span class="s1">(</span><span class="s2">stdout</span><span class="s1">);</span>
+<span class="s1">};</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports</span><span class="s1">.</span><span class="s2">v4 </span><span class="s1">= () =&gt; </span><span class="s2">promise</span><span class="s1">(</span><span class="s0">&quot;IPV4&quot;</span><span class="s1">);</span>
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports</span><span class="s1">.</span><span class="s2">v6 </span><span class="s1">= () =&gt; </span><span class="s2">promise</span><span class="s1">(</span><span class="s0">&quot;IPV6&quot;</span><span class="s1">);</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports</span><span class="s1">.</span><span class="s2">v4</span><span class="s1">.</span><span class="s2">sync </span><span class="s1">= () =&gt; </span><span class="s2">sync</span><span class="s1">(</span><span class="s0">&quot;IPV4&quot;</span><span class="s1">);</span>
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports</span><span class="s1">.</span><span class="s2">v6</span><span class="s1">.</span><span class="s2">sync </span><span class="s1">= () =&gt; </span><span class="s2">sync</span><span class="s1">(</span><span class="s0">&quot;IPV6&quot;</span><span class="s1">);</span>
+</pre>
+</body>
+</html>

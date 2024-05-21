@@ -1,0 +1,164 @@
+<html>
+<head>
+<title>make-dir.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #bcbec4;}
+.s5 { color: #42c3d4;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+make-dir.js</font>
+</center></td></tr></table>
+<pre><span class="s0">// Adapted from https://github.com/sindresorhus/make-dir</span>
+<span class="s0">// Copyright (c) Sindre Sorhus &lt;sindresorhus@gmail.com&gt; (sindresorhus.com)</span>
+<span class="s0">// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the &quot;Software&quot;), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</span>
+<span class="s0">// The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</span>
+<span class="s0">// THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</span>
+<span class="s2">'use strict'</span>
+<span class="s3">const </span><span class="s1">fs </span><span class="s4">= </span><span class="s1">require</span><span class="s4">(</span><span class="s2">'../fs'</span><span class="s4">)</span>
+<span class="s3">const </span><span class="s1">path </span><span class="s4">= </span><span class="s1">require</span><span class="s4">(</span><span class="s2">'path'</span><span class="s4">)</span>
+<span class="s3">const </span><span class="s1">atLeastNode </span><span class="s4">= </span><span class="s1">require</span><span class="s4">(</span><span class="s2">'at-least-node'</span><span class="s4">)</span>
+
+<span class="s3">const </span><span class="s1">useNativeRecursiveOption </span><span class="s4">= </span><span class="s1">atLeastNode</span><span class="s4">(</span><span class="s2">'10.12.0'</span><span class="s4">)</span>
+
+<span class="s0">// https://github.com/nodejs/node/issues/8987</span>
+<span class="s0">// https://github.com/libuv/libuv/pull/1088</span>
+<span class="s3">const </span><span class="s1">checkPath </span><span class="s4">= </span><span class="s1">pth </span><span class="s4">=&gt; {</span>
+  <span class="s3">if </span><span class="s4">(</span><span class="s1">process</span><span class="s4">.</span><span class="s1">platform </span><span class="s4">=== </span><span class="s2">'win32'</span><span class="s4">) {</span>
+    <span class="s3">const </span><span class="s1">pathHasInvalidWinCharacters </span><span class="s4">= </span><span class="s5">/[&lt;&gt;:&quot;|?*]/</span><span class="s4">.</span><span class="s1">test</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">.</span><span class="s1">replace</span><span class="s4">(</span><span class="s1">path</span><span class="s4">.</span><span class="s1">parse</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">).</span><span class="s1">root</span><span class="s4">, </span><span class="s2">''</span><span class="s4">))</span>
+
+    <span class="s3">if </span><span class="s4">(</span><span class="s1">pathHasInvalidWinCharacters</span><span class="s4">) {</span>
+      <span class="s3">const </span><span class="s1">error </span><span class="s4">= </span><span class="s3">new </span><span class="s1">Error</span><span class="s4">(</span><span class="s2">`Path contains invalid characters: </span><span class="s1">$</span><span class="s4">{</span><span class="s1">pth</span><span class="s4">}</span><span class="s2">`</span><span class="s4">)</span>
+      <span class="s1">error</span><span class="s4">.</span><span class="s1">code </span><span class="s4">= </span><span class="s2">'EINVAL'</span>
+      <span class="s3">throw </span><span class="s1">error</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s3">const </span><span class="s1">processOptions </span><span class="s4">= </span><span class="s1">options </span><span class="s4">=&gt; {</span>
+  <span class="s3">const </span><span class="s1">defaults </span><span class="s4">= { </span><span class="s1">mode</span><span class="s4">: </span><span class="s6">0o777 </span><span class="s4">}</span>
+  <span class="s3">if </span><span class="s4">(</span><span class="s3">typeof </span><span class="s1">options </span><span class="s4">=== </span><span class="s2">'number'</span><span class="s4">) </span><span class="s1">options </span><span class="s4">= { </span><span class="s1">mode</span><span class="s4">: </span><span class="s1">options </span><span class="s4">}</span>
+  <span class="s3">return </span><span class="s4">{ </span><span class="s1">...defaults</span><span class="s4">, </span><span class="s1">...options </span><span class="s4">}</span>
+<span class="s4">}</span>
+
+<span class="s3">const </span><span class="s1">permissionError </span><span class="s4">= </span><span class="s1">pth </span><span class="s4">=&gt; {</span>
+  <span class="s0">// This replicates the exception of `fs.mkdir` with native the</span>
+  <span class="s0">// `recusive` option when run on an invalid drive under Windows.</span>
+  <span class="s3">const </span><span class="s1">error </span><span class="s4">= </span><span class="s3">new </span><span class="s1">Error</span><span class="s4">(</span><span class="s2">`operation not permitted, mkdir '</span><span class="s1">$</span><span class="s4">{</span><span class="s1">pth</span><span class="s4">}</span><span class="s2">'`</span><span class="s4">)</span>
+  <span class="s1">error</span><span class="s4">.</span><span class="s1">code </span><span class="s4">= </span><span class="s2">'EPERM'</span>
+  <span class="s1">error</span><span class="s4">.</span><span class="s1">errno </span><span class="s4">= -</span><span class="s6">4048</span>
+  <span class="s1">error</span><span class="s4">.</span><span class="s1">path </span><span class="s4">= </span><span class="s1">pth</span>
+  <span class="s1">error</span><span class="s4">.</span><span class="s1">syscall </span><span class="s4">= </span><span class="s2">'mkdir'</span>
+  <span class="s3">return </span><span class="s1">error</span>
+<span class="s4">}</span>
+
+<span class="s1">module</span><span class="s4">.</span><span class="s1">exports</span><span class="s4">.</span><span class="s1">makeDir </span><span class="s4">= </span><span class="s1">async </span><span class="s4">(</span><span class="s1">input</span><span class="s4">, </span><span class="s1">options</span><span class="s4">) =&gt; {</span>
+  <span class="s1">checkPath</span><span class="s4">(</span><span class="s1">input</span><span class="s4">)</span>
+  <span class="s1">options </span><span class="s4">= </span><span class="s1">processOptions</span><span class="s4">(</span><span class="s1">options</span><span class="s4">)</span>
+
+  <span class="s3">if </span><span class="s4">(</span><span class="s1">useNativeRecursiveOption</span><span class="s4">) {</span>
+    <span class="s3">const </span><span class="s1">pth </span><span class="s4">= </span><span class="s1">path</span><span class="s4">.</span><span class="s1">resolve</span><span class="s4">(</span><span class="s1">input</span><span class="s4">)</span>
+
+    <span class="s3">return </span><span class="s1">fs</span><span class="s4">.</span><span class="s1">mkdir</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">, {</span>
+      <span class="s1">mode</span><span class="s4">: </span><span class="s1">options</span><span class="s4">.</span><span class="s1">mode</span><span class="s4">,</span>
+      <span class="s1">recursive</span><span class="s4">: </span><span class="s3">true</span>
+    <span class="s4">})</span>
+  <span class="s4">}</span>
+
+  <span class="s3">const </span><span class="s1">make </span><span class="s4">= </span><span class="s1">async pth </span><span class="s4">=&gt; {</span>
+    <span class="s3">try </span><span class="s4">{</span>
+      <span class="s3">await </span><span class="s1">fs</span><span class="s4">.</span><span class="s1">mkdir</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">, </span><span class="s1">options</span><span class="s4">.</span><span class="s1">mode</span><span class="s4">)</span>
+    <span class="s4">} </span><span class="s3">catch </span><span class="s4">(</span><span class="s1">error</span><span class="s4">) {</span>
+      <span class="s3">if </span><span class="s4">(</span><span class="s1">error</span><span class="s4">.</span><span class="s1">code </span><span class="s4">=== </span><span class="s2">'EPERM'</span><span class="s4">) {</span>
+        <span class="s3">throw </span><span class="s1">error</span>
+      <span class="s4">}</span>
+
+      <span class="s3">if </span><span class="s4">(</span><span class="s1">error</span><span class="s4">.</span><span class="s1">code </span><span class="s4">=== </span><span class="s2">'ENOENT'</span><span class="s4">) {</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s1">path</span><span class="s4">.</span><span class="s1">dirname</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">) === </span><span class="s1">pth</span><span class="s4">) {</span>
+          <span class="s3">throw </span><span class="s1">permissionError</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">)</span>
+        <span class="s4">}</span>
+
+        <span class="s3">if </span><span class="s4">(</span><span class="s1">error</span><span class="s4">.</span><span class="s1">message</span><span class="s4">.</span><span class="s1">includes</span><span class="s4">(</span><span class="s2">'null bytes'</span><span class="s4">)) {</span>
+          <span class="s3">throw </span><span class="s1">error</span>
+        <span class="s4">}</span>
+
+        <span class="s3">await </span><span class="s1">make</span><span class="s4">(</span><span class="s1">path</span><span class="s4">.</span><span class="s1">dirname</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">))</span>
+        <span class="s3">return </span><span class="s1">make</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">)</span>
+      <span class="s4">}</span>
+
+      <span class="s3">try </span><span class="s4">{</span>
+        <span class="s3">const </span><span class="s1">stats </span><span class="s4">= </span><span class="s3">await </span><span class="s1">fs</span><span class="s4">.</span><span class="s1">stat</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">)</span>
+        <span class="s3">if </span><span class="s4">(!</span><span class="s1">stats</span><span class="s4">.</span><span class="s1">isDirectory</span><span class="s4">()) {</span>
+          <span class="s0">// This error is never exposed to the user</span>
+          <span class="s0">// it is caught below, and the original error is thrown</span>
+          <span class="s3">throw new </span><span class="s1">Error</span><span class="s4">(</span><span class="s2">'The path is not a directory'</span><span class="s4">)</span>
+        <span class="s4">}</span>
+      <span class="s4">} </span><span class="s3">catch </span><span class="s4">{</span>
+        <span class="s3">throw </span><span class="s1">error</span>
+      <span class="s4">}</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+
+  <span class="s3">return </span><span class="s1">make</span><span class="s4">(</span><span class="s1">path</span><span class="s4">.</span><span class="s1">resolve</span><span class="s4">(</span><span class="s1">input</span><span class="s4">))</span>
+<span class="s4">}</span>
+
+<span class="s1">module</span><span class="s4">.</span><span class="s1">exports</span><span class="s4">.</span><span class="s1">makeDirSync </span><span class="s4">= (</span><span class="s1">input</span><span class="s4">, </span><span class="s1">options</span><span class="s4">) =&gt; {</span>
+  <span class="s1">checkPath</span><span class="s4">(</span><span class="s1">input</span><span class="s4">)</span>
+  <span class="s1">options </span><span class="s4">= </span><span class="s1">processOptions</span><span class="s4">(</span><span class="s1">options</span><span class="s4">)</span>
+
+  <span class="s3">if </span><span class="s4">(</span><span class="s1">useNativeRecursiveOption</span><span class="s4">) {</span>
+    <span class="s3">const </span><span class="s1">pth </span><span class="s4">= </span><span class="s1">path</span><span class="s4">.</span><span class="s1">resolve</span><span class="s4">(</span><span class="s1">input</span><span class="s4">)</span>
+
+    <span class="s3">return </span><span class="s1">fs</span><span class="s4">.</span><span class="s1">mkdirSync</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">, {</span>
+      <span class="s1">mode</span><span class="s4">: </span><span class="s1">options</span><span class="s4">.</span><span class="s1">mode</span><span class="s4">,</span>
+      <span class="s1">recursive</span><span class="s4">: </span><span class="s3">true</span>
+    <span class="s4">})</span>
+  <span class="s4">}</span>
+
+  <span class="s3">const </span><span class="s1">make </span><span class="s4">= </span><span class="s1">pth </span><span class="s4">=&gt; {</span>
+    <span class="s3">try </span><span class="s4">{</span>
+      <span class="s1">fs</span><span class="s4">.</span><span class="s1">mkdirSync</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">, </span><span class="s1">options</span><span class="s4">.</span><span class="s1">mode</span><span class="s4">)</span>
+    <span class="s4">} </span><span class="s3">catch </span><span class="s4">(</span><span class="s1">error</span><span class="s4">) {</span>
+      <span class="s3">if </span><span class="s4">(</span><span class="s1">error</span><span class="s4">.</span><span class="s1">code </span><span class="s4">=== </span><span class="s2">'EPERM'</span><span class="s4">) {</span>
+        <span class="s3">throw </span><span class="s1">error</span>
+      <span class="s4">}</span>
+
+      <span class="s3">if </span><span class="s4">(</span><span class="s1">error</span><span class="s4">.</span><span class="s1">code </span><span class="s4">=== </span><span class="s2">'ENOENT'</span><span class="s4">) {</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s1">path</span><span class="s4">.</span><span class="s1">dirname</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">) === </span><span class="s1">pth</span><span class="s4">) {</span>
+          <span class="s3">throw </span><span class="s1">permissionError</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">)</span>
+        <span class="s4">}</span>
+
+        <span class="s3">if </span><span class="s4">(</span><span class="s1">error</span><span class="s4">.</span><span class="s1">message</span><span class="s4">.</span><span class="s1">includes</span><span class="s4">(</span><span class="s2">'null bytes'</span><span class="s4">)) {</span>
+          <span class="s3">throw </span><span class="s1">error</span>
+        <span class="s4">}</span>
+
+        <span class="s1">make</span><span class="s4">(</span><span class="s1">path</span><span class="s4">.</span><span class="s1">dirname</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">))</span>
+        <span class="s3">return </span><span class="s1">make</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">)</span>
+      <span class="s4">}</span>
+
+      <span class="s3">try </span><span class="s4">{</span>
+        <span class="s3">if </span><span class="s4">(!</span><span class="s1">fs</span><span class="s4">.</span><span class="s1">statSync</span><span class="s4">(</span><span class="s1">pth</span><span class="s4">).</span><span class="s1">isDirectory</span><span class="s4">()) {</span>
+          <span class="s0">// This error is never exposed to the user</span>
+          <span class="s0">// it is caught below, and the original error is thrown</span>
+          <span class="s3">throw new </span><span class="s1">Error</span><span class="s4">(</span><span class="s2">'The path is not a directory'</span><span class="s4">)</span>
+        <span class="s4">}</span>
+      <span class="s4">} </span><span class="s3">catch </span><span class="s4">{</span>
+        <span class="s3">throw </span><span class="s1">error</span>
+      <span class="s4">}</span>
+    <span class="s4">}</span>
+  <span class="s4">}</span>
+
+  <span class="s3">return </span><span class="s1">make</span><span class="s4">(</span><span class="s1">path</span><span class="s4">.</span><span class="s1">resolve</span><span class="s4">(</span><span class="s1">input</span><span class="s4">))</span>
+<span class="s4">}</span>
+</pre>
+</body>
+</html>

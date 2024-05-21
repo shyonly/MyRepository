@@ -1,0 +1,195 @@
+<html>
+<head>
+<title>routeros.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #42c3d4;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+routeros.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+Language: Microtik RouterOS script 
+Author: Ivan Dementev &lt;ivan_div@mail.ru&gt; 
+Description: Scripting host provides a way to automate some router maintenance tasks by means of executing user-defined scripts bounded to some event occurrence 
+Website: https://wiki.mikrotik.com/wiki/Manual:Scripting 
+*/</span>
+
+<span class="s0">// Colors from RouterOS terminal:</span>
+<span class="s0">//   green        - #0E9A00</span>
+<span class="s0">//   teal         - #0C9A9A</span>
+<span class="s0">//   purple       - #99069A</span>
+<span class="s0">//   light-brown  - #9A9900</span>
+
+<span class="s2">function </span><span class="s1">routeros</span><span class="s3">(</span><span class="s1">hljs</span><span class="s3">) {</span>
+  <span class="s2">const </span><span class="s1">STATEMENTS </span><span class="s3">= </span><span class="s4">'foreach do while for if from to step else on-error and or not in'</span><span class="s3">;</span>
+
+  <span class="s0">// Global commands: Every global command should start with &quot;:&quot; token, otherwise it will be treated as variable.</span>
+  <span class="s2">const </span><span class="s1">GLOBAL_COMMANDS </span><span class="s3">= </span><span class="s4">'global local beep delay put len typeof pick log time set find environment terminal error execute parse resolve toarray tobool toid toip toip6 tonum tostr totime'</span><span class="s3">;</span>
+
+  <span class="s0">// Common commands: Following commands available from most sub-menus:</span>
+  <span class="s2">const </span><span class="s1">COMMON_COMMANDS </span><span class="s3">= </span><span class="s4">'add remove enable disable set get print export edit find run debug error info warning'</span><span class="s3">;</span>
+
+  <span class="s2">const </span><span class="s1">LITERALS </span><span class="s3">= </span><span class="s4">'true false yes no nothing nil null'</span><span class="s3">;</span>
+
+  <span class="s2">const </span><span class="s1">OBJECTS </span><span class="s3">= </span><span class="s4">'traffic-flow traffic-generator firewall scheduler aaa accounting address-list address align area bandwidth-server bfd bgp bridge client clock community config connection console customer default dhcp-client dhcp-server discovery dns e-mail ethernet filter firmware gps graphing group hardware health hotspot identity igmp-proxy incoming instance interface ip ipsec ipv6 irq l2tp-server lcd ldp logging mac-server mac-winbox mangle manual mirror mme mpls nat nd neighbor network note ntp ospf ospf-v3 ovpn-server page peer pim ping policy pool port ppp pppoe-client pptp-server prefix profile proposal proxy queue radius resource rip ripng route routing screen script security-profiles server service service-port settings shares smb sms sniffer snmp snooper socks sstp-server system tool tracking type upgrade upnp user-manager users user vlan secret vrrp watchdog web-access wireless pptp pppoe lan wan layer7-protocol lease simple raw'</span><span class="s3">;</span>
+
+  <span class="s2">const </span><span class="s1">VAR </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'variable'</span><span class="s3">,</span>
+    <span class="s1">variants</span><span class="s3">: [</span>
+      <span class="s3">{</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s5">/\$[\w\d#@][\w\d_]*/</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s5">/\$\{(.*?)\}/</span>
+      <span class="s3">}</span>
+    <span class="s3">]</span>
+  <span class="s3">};</span>
+
+  <span class="s2">const </span><span class="s1">QUOTE_STRING </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'string'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s5">/&quot;/</span><span class="s3">,</span>
+    <span class="s1">end</span><span class="s3">: </span><span class="s5">/&quot;/</span><span class="s3">,</span>
+    <span class="s1">contains</span><span class="s3">: [</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">BACKSLASH_ESCAPE</span><span class="s3">,</span>
+      <span class="s1">VAR</span><span class="s3">,</span>
+      <span class="s3">{</span>
+        <span class="s1">className</span><span class="s3">: </span><span class="s4">'variable'</span><span class="s3">,</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s5">/\$\(/</span><span class="s3">,</span>
+        <span class="s1">end</span><span class="s3">: </span><span class="s5">/\)/</span><span class="s3">,</span>
+        <span class="s1">contains</span><span class="s3">: [ </span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">BACKSLASH_ESCAPE </span><span class="s3">]</span>
+      <span class="s3">}</span>
+    <span class="s3">]</span>
+  <span class="s3">};</span>
+
+  <span class="s2">const </span><span class="s1">APOS_STRING </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'string'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s5">/'/</span><span class="s3">,</span>
+    <span class="s1">end</span><span class="s3">: </span><span class="s5">/'/</span>
+  <span class="s3">};</span>
+
+  <span class="s2">return </span><span class="s3">{</span>
+    <span class="s1">name</span><span class="s3">: </span><span class="s4">'Microtik RouterOS script'</span><span class="s3">,</span>
+    <span class="s1">aliases</span><span class="s3">: [</span>
+      <span class="s4">'mikrotik'</span>
+    <span class="s3">],</span>
+    <span class="s1">case_insensitive</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+    <span class="s1">keywords</span><span class="s3">: {</span>
+      <span class="s1">$pattern</span><span class="s3">: </span><span class="s5">/:?[\w-]+/</span><span class="s3">,</span>
+      <span class="s1">literal</span><span class="s3">: </span><span class="s1">LITERALS</span><span class="s3">,</span>
+      <span class="s1">keyword</span><span class="s3">: </span><span class="s1">STATEMENTS </span><span class="s3">+ </span><span class="s4">' :' </span><span class="s3">+ </span><span class="s1">STATEMENTS</span><span class="s3">.</span><span class="s1">split</span><span class="s3">(</span><span class="s4">' '</span><span class="s3">).</span><span class="s1">join</span><span class="s3">(</span><span class="s4">' :'</span><span class="s3">) + </span><span class="s4">' :' </span><span class="s3">+ </span><span class="s1">GLOBAL_COMMANDS</span><span class="s3">.</span><span class="s1">split</span><span class="s3">(</span><span class="s4">' '</span><span class="s3">).</span><span class="s1">join</span><span class="s3">(</span><span class="s4">' :'</span><span class="s3">)</span>
+    <span class="s3">},</span>
+    <span class="s1">contains</span><span class="s3">: [</span>
+      <span class="s3">{ </span><span class="s0">// illegal syntax</span>
+        <span class="s1">variants</span><span class="s3">: [</span>
+          <span class="s3">{ </span><span class="s0">// -- comment</span>
+            <span class="s1">begin</span><span class="s3">: </span><span class="s5">/\/\*/</span><span class="s3">,</span>
+            <span class="s1">end</span><span class="s3">: </span><span class="s5">/\*\//</span>
+          <span class="s3">},</span>
+          <span class="s3">{ </span><span class="s0">// Stan comment</span>
+            <span class="s1">begin</span><span class="s3">: </span><span class="s5">/\/\//</span><span class="s3">,</span>
+            <span class="s1">end</span><span class="s3">: </span><span class="s5">/$/</span>
+          <span class="s3">},</span>
+          <span class="s3">{ </span><span class="s0">// HTML tags</span>
+            <span class="s1">begin</span><span class="s3">: </span><span class="s5">/&lt;\//</span><span class="s3">,</span>
+            <span class="s1">end</span><span class="s3">: </span><span class="s5">/&gt;/</span>
+          <span class="s3">}</span>
+        <span class="s3">],</span>
+        <span class="s1">illegal</span><span class="s3">: </span><span class="s5">/./</span>
+      <span class="s3">},</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">COMMENT</span><span class="s3">(</span><span class="s4">'^#'</span><span class="s3">, </span><span class="s4">'$'</span><span class="s3">),</span>
+      <span class="s1">QUOTE_STRING</span><span class="s3">,</span>
+      <span class="s1">APOS_STRING</span><span class="s3">,</span>
+      <span class="s1">VAR</span><span class="s3">,</span>
+      <span class="s0">// attribute=value</span>
+      <span class="s3">{</span>
+        <span class="s0">// &gt; is to avoid matches with =&gt; in other grammars</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s5">/[\w-]+=([^\s{}[\]()&gt;]+)/</span><span class="s3">,</span>
+        <span class="s1">relevance</span><span class="s3">: </span><span class="s6">0</span><span class="s3">,</span>
+        <span class="s1">returnBegin</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+        <span class="s1">contains</span><span class="s3">: [</span>
+          <span class="s3">{</span>
+            <span class="s1">className</span><span class="s3">: </span><span class="s4">'attribute'</span><span class="s3">,</span>
+            <span class="s1">begin</span><span class="s3">: </span><span class="s5">/[^=]+/</span>
+          <span class="s3">},</span>
+          <span class="s3">{</span>
+            <span class="s1">begin</span><span class="s3">: </span><span class="s5">/=/</span><span class="s3">,</span>
+            <span class="s1">endsWithParent</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+            <span class="s1">relevance</span><span class="s3">: </span><span class="s6">0</span><span class="s3">,</span>
+            <span class="s1">contains</span><span class="s3">: [</span>
+              <span class="s1">QUOTE_STRING</span><span class="s3">,</span>
+              <span class="s1">APOS_STRING</span><span class="s3">,</span>
+              <span class="s1">VAR</span><span class="s3">,</span>
+              <span class="s3">{</span>
+                <span class="s1">className</span><span class="s3">: </span><span class="s4">'literal'</span><span class="s3">,</span>
+                <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">b(' </span><span class="s3">+ </span><span class="s1">LITERALS</span><span class="s3">.</span><span class="s1">split</span><span class="s3">(</span><span class="s4">' '</span><span class="s3">).</span><span class="s1">join</span><span class="s3">(</span><span class="s4">'|'</span><span class="s3">) + </span><span class="s4">')</span><span class="s2">\\</span><span class="s4">b'</span>
+              <span class="s3">},</span>
+              <span class="s3">{</span>
+                <span class="s0">// Do not format unclassified values. Needed to exclude highlighting of values as built_in.</span>
+                <span class="s1">begin</span><span class="s3">: </span><span class="s5">/(&quot;[^&quot;]*&quot;|[^\s{}[\]]+)/</span>
+              <span class="s3">}</span>
+              <span class="s0">/* 
+              { 
+                // IPv4 addresses and subnets 
+                className: 'number', 
+                variants: [ 
+                  {begin: IPADDR_wBITMASK+'(,'+IPADDR_wBITMASK+')*'}, //192.168.0.0/24,1.2.3.0/24 
+                  {begin: IPADDR+'-'+IPADDR},       // 192.168.0.1-192.168.0.3 
+                  {begin: IPADDR+'(,'+IPADDR+')*'}, // 192.168.0.1,192.168.0.34,192.168.24.1,192.168.0.1 
+                ] 
+              }, 
+              { 
+                // MAC addresses and DHCP Client IDs 
+                className: 'number', 
+                begin: /\b(1:)?([0-9A-Fa-f]{1,2}[:-]){5}([0-9A-Fa-f]){1,2}\b/, 
+              }, 
+              */</span>
+            <span class="s3">]</span>
+          <span class="s3">}</span>
+        <span class="s3">]</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s0">// HEX values</span>
+        <span class="s1">className</span><span class="s3">: </span><span class="s4">'number'</span><span class="s3">,</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s5">/\*[0-9a-fA-F]+/</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">b(' </span><span class="s3">+ </span><span class="s1">COMMON_COMMANDS</span><span class="s3">.</span><span class="s1">split</span><span class="s3">(</span><span class="s4">' '</span><span class="s3">).</span><span class="s1">join</span><span class="s3">(</span><span class="s4">'|'</span><span class="s3">) + </span><span class="s4">')([</span><span class="s2">\\</span><span class="s4">s[(</span><span class="s2">\\</span><span class="s4">]|])'</span><span class="s3">,</span>
+        <span class="s1">returnBegin</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+        <span class="s1">contains</span><span class="s3">: [</span>
+          <span class="s3">{</span>
+            <span class="s1">className</span><span class="s3">: </span><span class="s4">'builtin-name'</span><span class="s3">, </span><span class="s0">// 'function',</span>
+            <span class="s1">begin</span><span class="s3">: </span><span class="s5">/\w+/</span>
+          <span class="s3">}</span>
+        <span class="s3">]</span>
+      <span class="s3">},</span>
+      <span class="s3">{</span>
+        <span class="s1">className</span><span class="s3">: </span><span class="s4">'built_in'</span><span class="s3">,</span>
+        <span class="s1">variants</span><span class="s3">: [</span>
+          <span class="s3">{</span>
+            <span class="s1">begin</span><span class="s3">: </span><span class="s4">'(</span><span class="s2">\\</span><span class="s4">.</span><span class="s2">\\</span><span class="s4">./|/|</span><span class="s2">\\</span><span class="s4">s)((' </span><span class="s3">+ </span><span class="s1">OBJECTS</span><span class="s3">.</span><span class="s1">split</span><span class="s3">(</span><span class="s4">' '</span><span class="s3">).</span><span class="s1">join</span><span class="s3">(</span><span class="s4">'|'</span><span class="s3">) + </span><span class="s4">');?</span><span class="s2">\\</span><span class="s4">s)+'</span>
+          <span class="s3">},</span>
+          <span class="s3">{</span>
+            <span class="s1">begin</span><span class="s3">: </span><span class="s5">/\.\./</span><span class="s3">,</span>
+            <span class="s1">relevance</span><span class="s3">: </span><span class="s6">0</span>
+          <span class="s3">}</span>
+        <span class="s3">]</span>
+      <span class="s3">}</span>
+    <span class="s3">]</span>
+  <span class="s3">};</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">routeros</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

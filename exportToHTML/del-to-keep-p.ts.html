@@ -1,0 +1,126 @@
+<html>
+<head>
+<title>del-to-keep-p.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #67a37c; font-style: italic;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #bcbec4;}
+.s5 { color: #6aab73;}
+.s6 { color: #7a7e85;}
+.s7 { color: #42c3d4;}
+.s8 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+del-to-keep-p.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* </span><span class="s1">@description </span><span class="s0">删除时保留 EMPTY_P</span>
+ <span class="s0">* </span><span class="s1">@author </span><span class="s0">wangfupeng</span>
+ <span class="s0">*/</span>
+
+<span class="s3">import </span><span class="s4">{ </span><span class="s2">EMPTY_P </span><span class="s4">} </span><span class="s2">from </span><span class="s5">'../../utils/const'</span>
+<span class="s3">import </span><span class="s2">Editor from </span><span class="s5">'../../editor/index'</span>
+<span class="s3">import </span><span class="s2">$ from </span><span class="s5">'../../utils/dom-core'</span>
+
+<span class="s0">/**</span>
+ <span class="s0">* 删除时保留 EMPTY_P</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">editor 编辑器实例</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">deleteUpEvents delete 键 up 时的 hooks</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">deleteDownEvents delete 建 down 时的 hooks</span>
+ <span class="s0">*/</span>
+<span class="s3">function </span><span class="s2">deleteToKeepP</span><span class="s4">(</span><span class="s2">editor</span><span class="s4">: </span><span class="s2">Editor</span><span class="s4">, </span><span class="s2">deleteUpEvents</span><span class="s4">: </span><span class="s2">Function</span><span class="s4">[], </span><span class="s2">deleteDownEvents</span><span class="s4">: </span><span class="s2">Function</span><span class="s4">[]) {</span>
+    <span class="s3">function </span><span class="s2">upFn</span><span class="s4">() {</span>
+        <span class="s3">const </span><span class="s2">$textElem </span><span class="s4">= </span><span class="s2">editor</span><span class="s4">.</span><span class="s2">$textElem</span>
+        <span class="s3">const </span><span class="s2">html </span><span class="s4">= </span><span class="s2">editor</span><span class="s4">.</span><span class="s2">$textElem</span><span class="s4">.</span><span class="s2">html</span><span class="s4">()</span>
+        <span class="s3">const </span><span class="s2">text </span><span class="s4">= </span><span class="s2">editor</span><span class="s4">.</span><span class="s2">$textElem</span><span class="s4">.</span><span class="s2">text</span><span class="s4">()</span>
+        <span class="s3">const </span><span class="s2">txtHtml </span><span class="s4">= </span><span class="s2">html</span><span class="s4">.</span><span class="s2">trim</span><span class="s4">()</span>
+        <span class="s0">/**</span>
+          <span class="s1">@description </span>
+            <span class="s0">如果编辑区清空的状态下，单单插入一张图片，删除图片后，会存在空的情况：'&lt;p data-we-empty-p=&quot;&quot;&gt;&lt;/p&gt;'</span>
+            <span class="s0">需要包含这种边界情况</span>
+        <span class="s0">**/</span>
+
+        <span class="s3">const </span><span class="s2">emptyTags</span><span class="s4">: </span><span class="s2">string</span><span class="s4">[] = [</span><span class="s5">'&lt;p&gt;&lt;br&gt;&lt;/p&gt;'</span><span class="s4">, </span><span class="s5">'&lt;br&gt;'</span><span class="s4">, </span><span class="s5">'&lt;p data-we-empty-p=&quot;&quot;&gt;&lt;/p&gt;'</span><span class="s4">, </span><span class="s2">EMPTY_P</span><span class="s4">]</span>
+
+        <span class="s6">// 编辑器中的字符是&quot;&quot;或空白，说明内容为空</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s7">/^\s*$/</span><span class="s4">.</span><span class="s2">test</span><span class="s4">(</span><span class="s2">text</span><span class="s4">) &amp;&amp; (!</span><span class="s2">txtHtml </span><span class="s4">|| </span><span class="s2">emptyTags</span><span class="s4">.</span><span class="s2">includes</span><span class="s4">(</span><span class="s2">txtHtml</span><span class="s4">))) {</span>
+            <span class="s6">// 内容空了</span>
+            <span class="s2">$textElem</span><span class="s4">.</span><span class="s2">html</span><span class="s4">(</span><span class="s2">EMPTY_P</span><span class="s4">)</span>
+
+            <span class="s0">/**</span>
+             <span class="s0">* 当编辑器 - 文本区内容为空的情况下，会插入一个空的P，此时应该将选区移动到这个空标签上，重置选区</span>
+             <span class="s0">* bug: 如果选区没有从$textElem上调整到p上，就会有问题，在清空内容，设置标题时，会报错。</span>
+             <span class="s0">*/</span>
+            <span class="s3">const </span><span class="s2">containerElem </span><span class="s4">= </span><span class="s2">$textElem</span><span class="s4">.</span><span class="s2">getNode</span><span class="s4">()</span>
+
+            <span class="s6">// 设置新的选区</span>
+            <span class="s2">editor</span><span class="s4">.</span><span class="s2">selection</span><span class="s4">.</span><span class="s2">createRangeByElems</span><span class="s4">(</span>
+                <span class="s2">containerElem</span><span class="s4">.</span><span class="s2">childNodes</span><span class="s4">[</span><span class="s8">0</span><span class="s4">],</span>
+                <span class="s2">containerElem</span><span class="s4">.</span><span class="s2">childNodes</span><span class="s4">[</span><span class="s8">0</span><span class="s4">]</span>
+            <span class="s4">)</span>
+
+            <span class="s3">const </span><span class="s2">$selectionElem </span><span class="s4">= </span><span class="s2">editor</span><span class="s4">.</span><span class="s2">selection</span><span class="s4">.</span><span class="s2">getSelectionContainerElem</span><span class="s4">()!</span>
+
+            <span class="s2">editor</span><span class="s4">.</span><span class="s2">selection</span><span class="s4">.</span><span class="s2">restoreSelection</span><span class="s4">()</span>
+
+            <span class="s6">// 设置折叠后的光标位置，在firebox等浏览器下</span>
+            <span class="s6">// 光标设置在end位置会自动换行</span>
+            <span class="s2">editor</span><span class="s4">.</span><span class="s2">selection</span><span class="s4">.</span><span class="s2">moveCursor</span><span class="s4">(</span><span class="s2">$selectionElem</span><span class="s4">.</span><span class="s2">getNode</span><span class="s4">(), </span><span class="s8">0</span><span class="s4">)</span>
+        <span class="s4">}</span>
+    <span class="s4">}</span>
+    <span class="s2">deleteUpEvents</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">upFn</span><span class="s4">)</span>
+
+    <span class="s3">function </span><span class="s2">downFn</span><span class="s4">(</span><span class="s2">e</span><span class="s4">: </span><span class="s2">Event</span><span class="s4">) {</span>
+        <span class="s3">const </span><span class="s2">$textElem </span><span class="s4">= </span><span class="s2">editor</span><span class="s4">.</span><span class="s2">$textElem</span>
+        <span class="s3">const </span><span class="s2">txtHtml </span><span class="s4">= </span><span class="s2">$textElem</span><span class="s4">.</span><span class="s2">html</span><span class="s4">().</span><span class="s2">toLowerCase</span><span class="s4">().</span><span class="s2">trim</span><span class="s4">()</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">txtHtml </span><span class="s4">=== </span><span class="s2">EMPTY_P</span><span class="s4">) {</span>
+            <span class="s6">// 最后剩下一个空行，就不再删除了</span>
+            <span class="s2">e</span><span class="s4">.</span><span class="s2">preventDefault</span><span class="s4">()</span>
+            <span class="s3">return</span>
+        <span class="s4">}</span>
+    <span class="s4">}</span>
+    <span class="s2">deleteDownEvents</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">downFn</span><span class="s4">)</span>
+<span class="s4">}</span>
+
+<span class="s0">/**</span>
+ <span class="s0">* 剪切时保留 EMPTY_P</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">editor 编辑器实例</span>
+ <span class="s0">* </span><span class="s1">@param </span><span class="s0">cutEvents keydown hooks</span>
+ <span class="s0">*/</span>
+<span class="s3">export function </span><span class="s2">cutToKeepP</span><span class="s4">(</span><span class="s2">editor</span><span class="s4">: </span><span class="s2">Editor</span><span class="s4">, </span><span class="s2">cutEvents</span><span class="s4">: </span><span class="s2">Function</span><span class="s4">[]) {</span>
+    <span class="s3">function </span><span class="s2">upFn</span><span class="s4">(</span><span class="s2">e</span><span class="s4">: </span><span class="s2">KeyboardEvent</span><span class="s4">) {</span>
+        <span class="s3">if </span><span class="s4">(</span><span class="s2">e</span><span class="s4">.</span><span class="s2">keyCode </span><span class="s4">!== </span><span class="s8">88</span><span class="s4">) {</span>
+            <span class="s3">return</span>
+        <span class="s4">}</span>
+
+        <span class="s3">const </span><span class="s2">$textElem </span><span class="s4">= </span><span class="s2">editor</span><span class="s4">.</span><span class="s2">$textElem</span>
+        <span class="s3">const </span><span class="s2">txtHtml </span><span class="s4">= </span><span class="s2">$textElem</span><span class="s4">.</span><span class="s2">html</span><span class="s4">().</span><span class="s2">toLowerCase</span><span class="s4">().</span><span class="s2">trim</span><span class="s4">()</span>
+
+        <span class="s6">// firefox 时用 txtHtml === '&lt;br&gt;' 判断，其他用 !txtHtml 判断</span>
+        <span class="s3">if </span><span class="s4">(!</span><span class="s2">txtHtml </span><span class="s4">|| </span><span class="s2">txtHtml </span><span class="s4">=== </span><span class="s5">'&lt;br&gt;'</span><span class="s4">) {</span>
+            <span class="s6">// 内容空了</span>
+            <span class="s3">const </span><span class="s2">$p </span><span class="s4">= </span><span class="s2">$</span><span class="s4">(</span><span class="s2">EMPTY_P</span><span class="s4">)</span>
+            <span class="s2">$textElem</span><span class="s4">.</span><span class="s2">html</span><span class="s4">(</span><span class="s5">' '</span><span class="s4">) </span><span class="s6">// 一定要先清空，否则在 firefox 下有问题</span>
+            <span class="s2">$textElem</span><span class="s4">.</span><span class="s2">append</span><span class="s4">(</span><span class="s2">$p</span><span class="s4">)</span>
+            <span class="s2">editor</span><span class="s4">.</span><span class="s2">selection</span><span class="s4">.</span><span class="s2">createRangeByElem</span><span class="s4">(</span><span class="s2">$p</span><span class="s4">, </span><span class="s3">false</span><span class="s4">, </span><span class="s3">true</span><span class="s4">)</span>
+            <span class="s2">editor</span><span class="s4">.</span><span class="s2">selection</span><span class="s4">.</span><span class="s2">restoreSelection</span><span class="s4">()</span>
+            <span class="s6">// 设置折叠后的光标位置，在firebox等浏览器下</span>
+            <span class="s6">// 光标设置在end位置会自动换行</span>
+            <span class="s2">editor</span><span class="s4">.</span><span class="s2">selection</span><span class="s4">.</span><span class="s2">moveCursor</span><span class="s4">(</span><span class="s2">$p</span><span class="s4">.</span><span class="s2">getNode</span><span class="s4">(), </span><span class="s8">0</span><span class="s4">)</span>
+        <span class="s4">}</span>
+    <span class="s4">}</span>
+
+    <span class="s2">cutEvents</span><span class="s4">.</span><span class="s2">push</span><span class="s4">(</span><span class="s2">upFn</span><span class="s4">)</span>
+<span class="s4">}</span>
+
+<span class="s3">export default </span><span class="s2">deleteToKeepP</span>
+</pre>
+</body>
+</html>

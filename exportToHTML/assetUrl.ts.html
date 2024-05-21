@@ -1,0 +1,99 @@
+<html>
+<head>
+<title>assetUrl.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+assetUrl.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">// vue compiler module for transforming `&lt;tag&gt;:&lt;attribute&gt;` to `require`</span>
+
+<span class="s2">import </span><span class="s3">{ </span><span class="s1">urlToRequire</span><span class="s3">, </span><span class="s1">ASTNode</span><span class="s3">, </span><span class="s1">Attr </span><span class="s3">} </span><span class="s1">from </span><span class="s4">'./utils'</span>
+
+<span class="s2">export interface </span><span class="s1">AssetURLOptions </span><span class="s3">{</span>
+  <span class="s3">[</span><span class="s1">name</span><span class="s3">: </span><span class="s1">string</span><span class="s3">]: </span><span class="s1">string </span><span class="s3">| </span><span class="s1">string</span><span class="s3">[]</span>
+<span class="s3">}</span>
+
+<span class="s2">export interface </span><span class="s1">TransformAssetUrlsOptions </span><span class="s3">{</span>
+  <span class="s5">/**</span>
+   <span class="s5">* If base is provided, instead of transforming relative asset urls into</span>
+   <span class="s5">* imports, they will be directly rewritten to absolute urls.</span>
+   <span class="s5">*/</span>
+  <span class="s1">base</span><span class="s3">?: </span><span class="s1">string</span>
+<span class="s3">}</span>
+
+<span class="s2">const </span><span class="s1">defaultOptions</span><span class="s3">: </span><span class="s1">AssetURLOptions </span><span class="s3">= {</span>
+  <span class="s1">audio</span><span class="s3">: </span><span class="s4">'src'</span><span class="s3">,</span>
+  <span class="s1">video</span><span class="s3">: [</span><span class="s4">'src'</span><span class="s3">, </span><span class="s4">'poster'</span><span class="s3">],</span>
+  <span class="s1">source</span><span class="s3">: </span><span class="s4">'src'</span><span class="s3">,</span>
+  <span class="s1">img</span><span class="s3">: </span><span class="s4">'src'</span><span class="s3">,</span>
+  <span class="s1">image</span><span class="s3">: [</span><span class="s4">'xlink:href'</span><span class="s3">, </span><span class="s4">'href'</span><span class="s3">],</span>
+  <span class="s1">use</span><span class="s3">: [</span><span class="s4">'xlink:href'</span><span class="s3">, </span><span class="s4">'href'</span><span class="s3">]</span>
+<span class="s3">}</span>
+
+<span class="s2">export default </span><span class="s3">(</span>
+  <span class="s1">userOptions</span><span class="s3">?: </span><span class="s1">AssetURLOptions</span><span class="s3">,</span>
+  <span class="s1">transformAssetUrlsOption</span><span class="s3">?: </span><span class="s1">TransformAssetUrlsOptions</span>
+<span class="s3">) =&gt; {</span>
+  <span class="s2">const </span><span class="s1">options </span><span class="s3">= </span><span class="s1">userOptions</span>
+    <span class="s3">? </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">assign</span><span class="s3">({}, </span><span class="s1">defaultOptions</span><span class="s3">, </span><span class="s1">userOptions</span><span class="s3">)</span>
+    <span class="s3">: </span><span class="s1">defaultOptions</span>
+
+  <span class="s2">return </span><span class="s3">{</span>
+    <span class="s1">postTransformNode</span><span class="s3">: (</span><span class="s1">node</span><span class="s3">: </span><span class="s1">ASTNode</span><span class="s3">) =&gt; {</span>
+      <span class="s1">transform</span><span class="s3">(</span><span class="s1">node</span><span class="s3">, </span><span class="s1">options</span><span class="s3">, </span><span class="s1">transformAssetUrlsOption</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">transform</span><span class="s3">(</span>
+  <span class="s1">node</span><span class="s3">: </span><span class="s1">ASTNode</span><span class="s3">,</span>
+  <span class="s1">options</span><span class="s3">: </span><span class="s1">AssetURLOptions</span><span class="s3">,</span>
+  <span class="s1">transformAssetUrlsOption</span><span class="s3">?: </span><span class="s1">TransformAssetUrlsOptions</span>
+<span class="s3">) {</span>
+  <span class="s2">for </span><span class="s3">(</span><span class="s2">const </span><span class="s1">tag </span><span class="s2">in </span><span class="s1">options</span><span class="s3">) {</span>
+    <span class="s2">if </span><span class="s3">((</span><span class="s1">tag </span><span class="s3">=== </span><span class="s4">'*' </span><span class="s3">|| </span><span class="s1">node</span><span class="s3">.</span><span class="s1">tag </span><span class="s3">=== </span><span class="s1">tag</span><span class="s3">) &amp;&amp; </span><span class="s1">node</span><span class="s3">.</span><span class="s1">attrs</span><span class="s3">) {</span>
+      <span class="s2">const </span><span class="s1">attributes </span><span class="s3">= </span><span class="s1">options</span><span class="s3">[</span><span class="s1">tag</span><span class="s3">]</span>
+      <span class="s2">if </span><span class="s3">(</span><span class="s2">typeof </span><span class="s1">attributes </span><span class="s3">=== </span><span class="s4">'string'</span><span class="s3">) {</span>
+        <span class="s1">node</span><span class="s3">.</span><span class="s1">attrs</span><span class="s3">.</span><span class="s1">some</span><span class="s3">(</span><span class="s1">attr </span><span class="s3">=&gt;</span>
+          <span class="s1">rewrite</span><span class="s3">(</span><span class="s1">attr</span><span class="s3">, </span><span class="s1">attributes</span><span class="s3">, </span><span class="s1">transformAssetUrlsOption</span><span class="s3">)</span>
+        <span class="s3">)</span>
+      <span class="s3">} </span><span class="s2">else if </span><span class="s3">(</span><span class="s1">Array</span><span class="s3">.</span><span class="s1">isArray</span><span class="s3">(</span><span class="s1">attributes</span><span class="s3">)) {</span>
+        <span class="s1">attributes</span><span class="s3">.</span><span class="s1">forEach</span><span class="s3">(</span><span class="s1">item </span><span class="s3">=&gt;</span>
+          <span class="s1">node</span><span class="s3">.</span><span class="s1">attrs</span><span class="s3">.</span><span class="s1">some</span><span class="s3">(</span><span class="s1">attr </span><span class="s3">=&gt; </span><span class="s1">rewrite</span><span class="s3">(</span><span class="s1">attr</span><span class="s3">, </span><span class="s1">item</span><span class="s3">, </span><span class="s1">transformAssetUrlsOption</span><span class="s3">))</span>
+        <span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s2">function </span><span class="s1">rewrite</span><span class="s3">(</span>
+  <span class="s1">attr</span><span class="s3">: </span><span class="s1">Attr</span><span class="s3">,</span>
+  <span class="s1">name</span><span class="s3">: </span><span class="s1">string</span><span class="s3">,</span>
+  <span class="s1">transformAssetUrlsOption</span><span class="s3">?: </span><span class="s1">TransformAssetUrlsOptions</span>
+<span class="s3">) {</span>
+  <span class="s2">if </span><span class="s3">(</span><span class="s1">attr</span><span class="s3">.</span><span class="s1">name </span><span class="s3">=== </span><span class="s1">name</span><span class="s3">) {</span>
+    <span class="s2">const </span><span class="s1">value </span><span class="s3">= </span><span class="s1">attr</span><span class="s3">.</span><span class="s1">value</span>
+    <span class="s0">// only transform static URLs</span>
+    <span class="s2">if </span><span class="s3">(</span><span class="s1">value</span><span class="s3">.</span><span class="s1">charAt</span><span class="s3">(</span><span class="s6">0</span><span class="s3">) === </span><span class="s4">'&quot;' </span><span class="s3">&amp;&amp; </span><span class="s1">value</span><span class="s3">.</span><span class="s1">charAt</span><span class="s3">(</span><span class="s1">value</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s6">1</span><span class="s3">) === </span><span class="s4">'&quot;'</span><span class="s3">) {</span>
+      <span class="s1">attr</span><span class="s3">.</span><span class="s1">value </span><span class="s3">= </span><span class="s1">urlToRequire</span><span class="s3">(</span><span class="s1">value</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s6">1</span><span class="s3">, -</span><span class="s6">1</span><span class="s3">), </span><span class="s1">transformAssetUrlsOption</span><span class="s3">)</span>
+      <span class="s2">return true</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+  <span class="s2">return false</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

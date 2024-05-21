@@ -1,0 +1,158 @@
+<html>
+<head>
+<title>optimizer.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #7a7e85;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+optimizer.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">makeMap</span><span class="s2">, </span><span class="s1">isBuiltInTag</span><span class="s2">, </span><span class="s1">cached</span><span class="s2">, </span><span class="s1">no </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'shared/util'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">ASTElement</span><span class="s2">, </span><span class="s1">CompilerOptions</span><span class="s2">, </span><span class="s1">ASTNode </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/compiler'</span>
+
+<span class="s0">let </span><span class="s1">isStaticKey</span>
+<span class="s0">let </span><span class="s1">isPlatformReservedTag</span>
+
+<span class="s0">const </span><span class="s1">genStaticKeysCached </span><span class="s2">= </span><span class="s1">cached</span><span class="s2">(</span><span class="s1">genStaticKeys</span><span class="s2">)</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* Goal of the optimizer: walk the generated template AST tree</span>
+ <span class="s4">* and detect sub-trees that are purely static, i.e. parts of</span>
+ <span class="s4">* the DOM that never needs to change.</span>
+ <span class="s4">*</span>
+ <span class="s4">* Once we detect these sub-trees, we can:</span>
+ <span class="s4">*</span>
+ <span class="s4">* 1. Hoist them into constants, so that we no longer need to</span>
+ <span class="s4">*    create fresh nodes for them on each re-render;</span>
+ <span class="s4">* 2. Completely skip them in the patching process.</span>
+ <span class="s4">*/</span>
+<span class="s0">export function </span><span class="s1">optimize</span><span class="s2">(</span>
+  <span class="s1">root</span><span class="s2">: </span><span class="s1">ASTElement </span><span class="s2">| </span><span class="s0">null </span><span class="s2">| </span><span class="s1">undefined</span><span class="s2">,</span>
+  <span class="s1">options</span><span class="s2">: </span><span class="s1">CompilerOptions</span>
+<span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">root</span><span class="s2">) </span><span class="s0">return</span>
+  <span class="s1">isStaticKey </span><span class="s2">= </span><span class="s1">genStaticKeysCached</span><span class="s2">(</span><span class="s1">options</span><span class="s2">.</span><span class="s1">staticKeys </span><span class="s2">|| </span><span class="s3">''</span><span class="s2">)</span>
+  <span class="s1">isPlatformReservedTag </span><span class="s2">= </span><span class="s1">options</span><span class="s2">.</span><span class="s1">isReservedTag </span><span class="s2">|| </span><span class="s1">no</span>
+  <span class="s5">// first pass: mark all non-static nodes.</span>
+  <span class="s1">markStatic</span><span class="s2">(</span><span class="s1">root</span><span class="s2">)</span>
+  <span class="s5">// second pass: mark static roots.</span>
+  <span class="s1">markStaticRoots</span><span class="s2">(</span><span class="s1">root</span><span class="s2">, </span><span class="s0">false</span><span class="s2">)</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">genStaticKeys</span><span class="s2">(</span><span class="s1">keys</span><span class="s2">: </span><span class="s1">string</span><span class="s2">): </span><span class="s1">Function </span><span class="s2">{</span>
+  <span class="s0">return </span><span class="s1">makeMap</span><span class="s2">(</span>
+    <span class="s3">'type,tag,attrsList,attrsMap,plain,parent,children,attrs,start,end,rawAttrsMap' </span><span class="s2">+</span>
+      <span class="s2">(</span><span class="s1">keys </span><span class="s2">? </span><span class="s3">',' </span><span class="s2">+ </span><span class="s1">keys </span><span class="s2">: </span><span class="s3">''</span><span class="s2">)</span>
+  <span class="s2">)</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">markStatic</span><span class="s2">(</span><span class="s1">node</span><span class="s2">: </span><span class="s1">ASTNode</span><span class="s2">) {</span>
+  <span class="s1">node</span><span class="s2">.</span><span class="s1">static </span><span class="s2">= </span><span class="s1">isStatic</span><span class="s2">(</span><span class="s1">node</span><span class="s2">)</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s6">1</span><span class="s2">) {</span>
+    <span class="s5">// do not make component slot content static. this avoids</span>
+    <span class="s5">// 1. components not able to mutate slot nodes</span>
+    <span class="s5">// 2. static slot content fails for hot-reloading</span>
+    <span class="s0">if </span><span class="s2">(</span>
+      <span class="s2">!</span><span class="s1">isPlatformReservedTag</span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">tag</span><span class="s2">) &amp;&amp;</span>
+      <span class="s1">node</span><span class="s2">.</span><span class="s1">tag </span><span class="s2">!== </span><span class="s3">'slot' </span><span class="s2">&amp;&amp;</span>
+      <span class="s1">node</span><span class="s2">.</span><span class="s1">attrsMap</span><span class="s2">[</span><span class="s3">'inline-template'</span><span class="s2">] == </span><span class="s0">null</span>
+    <span class="s2">) {</span>
+      <span class="s0">return</span>
+    <span class="s2">}</span>
+    <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s6">0</span><span class="s2">, </span><span class="s1">l </span><span class="s2">= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">children</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">l</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+      <span class="s0">const </span><span class="s1">child </span><span class="s2">= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]</span>
+      <span class="s1">markStatic</span><span class="s2">(</span><span class="s1">child</span><span class="s2">)</span>
+      <span class="s0">if </span><span class="s2">(!</span><span class="s1">child</span><span class="s2">.</span><span class="s1">static</span><span class="s2">) {</span>
+        <span class="s1">node</span><span class="s2">.</span><span class="s1">static </span><span class="s2">= </span><span class="s0">false</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">ifConditions</span><span class="s2">) {</span>
+      <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s6">1</span><span class="s2">, </span><span class="s1">l </span><span class="s2">= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">ifConditions</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">l</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+        <span class="s0">const </span><span class="s1">block </span><span class="s2">= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">ifConditions</span><span class="s2">[</span><span class="s1">i</span><span class="s2">].</span><span class="s1">block</span>
+        <span class="s1">markStatic</span><span class="s2">(</span><span class="s1">block</span><span class="s2">)</span>
+        <span class="s0">if </span><span class="s2">(!</span><span class="s1">block</span><span class="s2">.</span><span class="s1">static</span><span class="s2">) {</span>
+          <span class="s1">node</span><span class="s2">.</span><span class="s1">static </span><span class="s2">= </span><span class="s0">false</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">markStaticRoots</span><span class="s2">(</span><span class="s1">node</span><span class="s2">: </span><span class="s1">ASTNode</span><span class="s2">, </span><span class="s1">isInFor</span><span class="s2">: </span><span class="s1">boolean</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s6">1</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">static </span><span class="s2">|| </span><span class="s1">node</span><span class="s2">.</span><span class="s1">once</span><span class="s2">) {</span>
+      <span class="s1">node</span><span class="s2">.</span><span class="s1">staticInFor </span><span class="s2">= </span><span class="s1">isInFor</span>
+    <span class="s2">}</span>
+    <span class="s5">// For a node to qualify as a static root, it should have children that</span>
+    <span class="s5">// are not just static text. Otherwise the cost of hoisting out will</span>
+    <span class="s5">// outweigh the benefits and it's better off to just always render it fresh.</span>
+    <span class="s0">if </span><span class="s2">(</span>
+      <span class="s1">node</span><span class="s2">.</span><span class="s1">static </span><span class="s2">&amp;&amp;</span>
+      <span class="s1">node</span><span class="s2">.</span><span class="s1">children</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&amp;&amp;</span>
+      <span class="s2">!(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">children</span><span class="s2">.</span><span class="s1">length </span><span class="s2">=== </span><span class="s6">1 </span><span class="s2">&amp;&amp; </span><span class="s1">node</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s6">0</span><span class="s2">].</span><span class="s1">type </span><span class="s2">=== </span><span class="s6">3</span><span class="s2">)</span>
+    <span class="s2">) {</span>
+      <span class="s1">node</span><span class="s2">.</span><span class="s1">staticRoot </span><span class="s2">= </span><span class="s0">true</span>
+      <span class="s0">return</span>
+    <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+      <span class="s1">node</span><span class="s2">.</span><span class="s1">staticRoot </span><span class="s2">= </span><span class="s0">false</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">children</span><span class="s2">) {</span>
+      <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s6">0</span><span class="s2">, </span><span class="s1">l </span><span class="s2">= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">children</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">l</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+        <span class="s1">markStaticRoots</span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">children</span><span class="s2">[</span><span class="s1">i</span><span class="s2">], </span><span class="s1">isInFor </span><span class="s2">|| !!</span><span class="s1">node</span><span class="s2">.</span><span class="s1">for</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">ifConditions</span><span class="s2">) {</span>
+      <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s6">1</span><span class="s2">, </span><span class="s1">l </span><span class="s2">= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">ifConditions</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">l</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+        <span class="s1">markStaticRoots</span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">ifConditions</span><span class="s2">[</span><span class="s1">i</span><span class="s2">].</span><span class="s1">block</span><span class="s2">, </span><span class="s1">isInFor</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">isStatic</span><span class="s2">(</span><span class="s1">node</span><span class="s2">: </span><span class="s1">ASTNode</span><span class="s2">): </span><span class="s1">boolean </span><span class="s2">{</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s6">2</span><span class="s2">) {</span>
+    <span class="s5">// expression</span>
+    <span class="s0">return false</span>
+  <span class="s2">}</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s6">3</span><span class="s2">) {</span>
+    <span class="s5">// text</span>
+    <span class="s0">return true</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s2">!!(</span>
+    <span class="s1">node</span><span class="s2">.</span><span class="s1">pre </span><span class="s2">||</span>
+    <span class="s2">(!</span><span class="s1">node</span><span class="s2">.</span><span class="s1">hasBindings </span><span class="s2">&amp;&amp; </span><span class="s5">// no dynamic bindings</span>
+      <span class="s2">!</span><span class="s1">node</span><span class="s2">.</span><span class="s1">if </span><span class="s2">&amp;&amp;</span>
+      <span class="s2">!</span><span class="s1">node</span><span class="s2">.</span><span class="s1">for </span><span class="s2">&amp;&amp; </span><span class="s5">// not v-if or v-for or v-else</span>
+      <span class="s2">!</span><span class="s1">isBuiltInTag</span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">tag</span><span class="s2">) &amp;&amp; </span><span class="s5">// not a built-in</span>
+      <span class="s1">isPlatformReservedTag</span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">tag</span><span class="s2">) &amp;&amp; </span><span class="s5">// not a component</span>
+      <span class="s2">!</span><span class="s1">isDirectChildOfTemplateFor</span><span class="s2">(</span><span class="s1">node</span><span class="s2">) &amp;&amp;</span>
+      <span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">node</span><span class="s2">).</span><span class="s1">every</span><span class="s2">(</span><span class="s1">isStaticKey</span><span class="s2">))</span>
+  <span class="s2">)</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">isDirectChildOfTemplateFor</span><span class="s2">(</span><span class="s1">node</span><span class="s2">: </span><span class="s1">ASTElement</span><span class="s2">): </span><span class="s1">boolean </span><span class="s2">{</span>
+  <span class="s0">while </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">parent</span><span class="s2">) {</span>
+    <span class="s1">node </span><span class="s2">= </span><span class="s1">node</span><span class="s2">.</span><span class="s1">parent</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">tag </span><span class="s2">!== </span><span class="s3">'template'</span><span class="s2">) {</span>
+      <span class="s0">return false</span>
+    <span class="s2">}</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">for</span><span class="s2">) {</span>
+      <span class="s0">return true</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+  <span class="s0">return false</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

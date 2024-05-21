@@ -1,0 +1,119 @@
+<html>
+<head>
+<title>normalize-scoped-slots.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+.s5 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+normalize-scoped-slots.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">def </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'core/util/lang'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">normalizeChildren </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'core/vdom/helpers/normalize-children'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">emptyObject</span><span class="s2">, </span><span class="s1">isArray </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'shared/util'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">isAsyncPlaceholder </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./is-async-placeholder'</span>
+<span class="s0">import </span><span class="s1">type VNode from </span><span class="s3">'../vnode'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">Component </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/component'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">currentInstance</span><span class="s2">, </span><span class="s1">setCurrentInstance </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'v3/currentInstance'</span>
+
+<span class="s0">export function </span><span class="s1">normalizeScopedSlots</span><span class="s2">(</span>
+  <span class="s1">ownerVm</span><span class="s2">: </span><span class="s1">Component</span><span class="s2">,</span>
+  <span class="s1">scopedSlots</span><span class="s2">: { [</span><span class="s1">key</span><span class="s2">: </span><span class="s1">string</span><span class="s2">]: </span><span class="s1">Function </span><span class="s2">} | </span><span class="s1">undefined</span><span class="s2">,</span>
+  <span class="s1">normalSlots</span><span class="s2">: { [</span><span class="s1">key</span><span class="s2">: </span><span class="s1">string</span><span class="s2">]: </span><span class="s1">VNode</span><span class="s2">[] },</span>
+  <span class="s1">prevScopedSlots</span><span class="s2">?: { [</span><span class="s1">key</span><span class="s2">: </span><span class="s1">string</span><span class="s2">]: </span><span class="s1">Function </span><span class="s2">}</span>
+<span class="s2">): </span><span class="s1">any </span><span class="s2">{</span>
+  <span class="s0">let </span><span class="s1">res</span>
+  <span class="s0">const </span><span class="s1">hasNormalSlots </span><span class="s2">= </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">normalSlots</span><span class="s2">).</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s4">0</span>
+  <span class="s0">const </span><span class="s1">isStable </span><span class="s2">= </span><span class="s1">scopedSlots </span><span class="s2">? !!</span><span class="s1">scopedSlots</span><span class="s2">.</span><span class="s1">$stable </span><span class="s2">: !</span><span class="s1">hasNormalSlots</span>
+  <span class="s0">const </span><span class="s1">key </span><span class="s2">= </span><span class="s1">scopedSlots </span><span class="s2">&amp;&amp; </span><span class="s1">scopedSlots</span><span class="s2">.</span><span class="s1">$key</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">scopedSlots</span><span class="s2">) {</span>
+    <span class="s1">res </span><span class="s2">= {}</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">scopedSlots</span><span class="s2">.</span><span class="s1">_normalized</span><span class="s2">) {</span>
+    <span class="s5">// fast path 1: child component re-render only, parent did not change</span>
+    <span class="s0">return </span><span class="s1">scopedSlots</span><span class="s2">.</span><span class="s1">_normalized</span>
+  <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span>
+    <span class="s1">isStable </span><span class="s2">&amp;&amp;</span>
+    <span class="s1">prevScopedSlots </span><span class="s2">&amp;&amp;</span>
+    <span class="s1">prevScopedSlots </span><span class="s2">!== </span><span class="s1">emptyObject </span><span class="s2">&amp;&amp;</span>
+    <span class="s1">key </span><span class="s2">=== </span><span class="s1">prevScopedSlots</span><span class="s2">.</span><span class="s1">$key </span><span class="s2">&amp;&amp;</span>
+    <span class="s2">!</span><span class="s1">hasNormalSlots </span><span class="s2">&amp;&amp;</span>
+    <span class="s2">!</span><span class="s1">prevScopedSlots</span><span class="s2">.</span><span class="s1">$hasNormal</span>
+  <span class="s2">) {</span>
+    <span class="s5">// fast path 2: stable scoped slots w/ no normal slots to proxy,</span>
+    <span class="s5">// only need to normalize once</span>
+    <span class="s0">return </span><span class="s1">prevScopedSlots</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s1">res </span><span class="s2">= {}</span>
+    <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">scopedSlots</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">scopedSlots</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] &amp;&amp; </span><span class="s1">key</span><span class="s2">[</span><span class="s4">0</span><span class="s2">] !== </span><span class="s3">'$'</span><span class="s2">) {</span>
+        <span class="s1">res</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = </span><span class="s1">normalizeScopedSlot</span><span class="s2">(</span>
+          <span class="s1">ownerVm</span><span class="s2">,</span>
+          <span class="s1">normalSlots</span><span class="s2">,</span>
+          <span class="s1">key</span><span class="s2">,</span>
+          <span class="s1">scopedSlots</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+        <span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+  <span class="s5">// expose normal slots on scopedSlots</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">normalSlots</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!(</span><span class="s1">key </span><span class="s0">in </span><span class="s1">res</span><span class="s2">)) {</span>
+      <span class="s1">res</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = </span><span class="s1">proxyNormalSlot</span><span class="s2">(</span><span class="s1">normalSlots</span><span class="s2">, </span><span class="s1">key</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+  <span class="s5">// avoriaz seems to mock a non-extensible $scopedSlots object</span>
+  <span class="s5">// and when that is passed down this would cause an error</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">scopedSlots </span><span class="s2">&amp;&amp; </span><span class="s1">Object</span><span class="s2">.</span><span class="s1">isExtensible</span><span class="s2">(</span><span class="s1">scopedSlots</span><span class="s2">)) {</span>
+    <span class="s1">scopedSlots</span><span class="s2">.</span><span class="s1">_normalized </span><span class="s2">= </span><span class="s1">res</span>
+  <span class="s2">}</span>
+  <span class="s1">def</span><span class="s2">(</span><span class="s1">res</span><span class="s2">, </span><span class="s3">'$stable'</span><span class="s2">, </span><span class="s1">isStable</span><span class="s2">)</span>
+  <span class="s1">def</span><span class="s2">(</span><span class="s1">res</span><span class="s2">, </span><span class="s3">'$key'</span><span class="s2">, </span><span class="s1">key</span><span class="s2">)</span>
+  <span class="s1">def</span><span class="s2">(</span><span class="s1">res</span><span class="s2">, </span><span class="s3">'$hasNormal'</span><span class="s2">, </span><span class="s1">hasNormalSlots</span><span class="s2">)</span>
+  <span class="s0">return </span><span class="s1">res</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">normalizeScopedSlot</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">, </span><span class="s1">normalSlots</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">fn</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">normalized </span><span class="s2">= </span><span class="s0">function </span><span class="s2">() {</span>
+    <span class="s0">const </span><span class="s1">cur </span><span class="s2">= </span><span class="s1">currentInstance</span>
+    <span class="s1">setCurrentInstance</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">)</span>
+    <span class="s0">let </span><span class="s1">res </span><span class="s2">= </span><span class="s1">arguments</span><span class="s2">.</span><span class="s1">length </span><span class="s2">? </span><span class="s1">fn</span><span class="s2">.</span><span class="s1">apply</span><span class="s2">(</span><span class="s0">null</span><span class="s2">, </span><span class="s1">arguments</span><span class="s2">) : </span><span class="s1">fn</span><span class="s2">({})</span>
+    <span class="s1">res </span><span class="s2">=</span>
+      <span class="s1">res </span><span class="s2">&amp;&amp; </span><span class="s0">typeof </span><span class="s1">res </span><span class="s2">=== </span><span class="s3">'object' </span><span class="s2">&amp;&amp; !</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">res</span><span class="s2">)</span>
+        <span class="s2">? [</span><span class="s1">res</span><span class="s2">] </span><span class="s5">// single vnode</span>
+        <span class="s2">: </span><span class="s1">normalizeChildren</span><span class="s2">(</span><span class="s1">res</span><span class="s2">)</span>
+    <span class="s0">const </span><span class="s1">vnode</span><span class="s2">: </span><span class="s1">VNode </span><span class="s2">| </span><span class="s0">null </span><span class="s2">= </span><span class="s1">res </span><span class="s2">&amp;&amp; </span><span class="s1">res</span><span class="s2">[</span><span class="s4">0</span><span class="s2">]</span>
+    <span class="s1">setCurrentInstance</span><span class="s2">(</span><span class="s1">cur</span><span class="s2">)</span>
+    <span class="s0">return </span><span class="s1">res </span><span class="s2">&amp;&amp;</span>
+      <span class="s2">(!</span><span class="s1">vnode </span><span class="s2">||</span>
+        <span class="s2">(</span><span class="s1">res</span><span class="s2">.</span><span class="s1">length </span><span class="s2">=== </span><span class="s4">1 </span><span class="s2">&amp;&amp; </span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">isComment </span><span class="s2">&amp;&amp; !</span><span class="s1">isAsyncPlaceholder</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">))) </span><span class="s5">// #9658, #10391</span>
+      <span class="s2">? </span><span class="s1">undefined</span>
+      <span class="s2">: </span><span class="s1">res</span>
+  <span class="s2">}</span>
+  <span class="s5">// this is a slot using the new v-slot syntax without scope. although it is</span>
+  <span class="s5">// compiled as a scoped slot, render fn users would expect it to be present</span>
+  <span class="s5">// on this.$slots because the usage is semantically a normal slot.</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">fn</span><span class="s2">.</span><span class="s1">proxy</span><span class="s2">) {</span>
+    <span class="s1">Object</span><span class="s2">.</span><span class="s1">defineProperty</span><span class="s2">(</span><span class="s1">normalSlots</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, {</span>
+      <span class="s1">get</span><span class="s2">: </span><span class="s1">normalized</span><span class="s2">,</span>
+      <span class="s1">enumerable</span><span class="s2">: </span><span class="s0">true</span><span class="s2">,</span>
+      <span class="s1">configurable</span><span class="s2">: </span><span class="s0">true</span>
+    <span class="s2">})</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s1">normalized</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">proxyNormalSlot</span><span class="s2">(</span><span class="s1">slots</span><span class="s2">, </span><span class="s1">key</span><span class="s2">) {</span>
+  <span class="s0">return </span><span class="s2">() =&gt; </span><span class="s1">slots</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<html>
+<head>
+<title>replaceShorthandObjectMethod.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+replaceShorthandObjectMethod.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* Copyright (c) 2014-present, Facebook, Inc.</span>
+ <span class="s0">*</span>
+ <span class="s0">* This source code is licensed under the MIT license found in the</span>
+ <span class="s0">* LICENSE file in the root directory of this source tree.</span>
+ <span class="s0">*/</span>
+
+<span class="s2">import </span><span class="s3">* as </span><span class="s1">util from </span><span class="s4">&quot;./util&quot;</span><span class="s3">;</span>
+
+<span class="s5">// this function converts a shorthand object generator method into a normal</span>
+<span class="s5">// (non-shorthand) object property which is a generator function expression. for</span>
+<span class="s5">// example, this:</span>
+<span class="s5">//</span>
+<span class="s5">//  var foo = {</span>
+<span class="s5">//    *bar(baz) { return 5; }</span>
+<span class="s5">//  }</span>
+<span class="s5">//</span>
+<span class="s5">// should be replaced with:</span>
+<span class="s5">//</span>
+<span class="s5">//  var foo = {</span>
+<span class="s5">//    bar: function*(baz) { return 5; }</span>
+<span class="s5">//  }</span>
+<span class="s5">//</span>
+<span class="s5">// to do this, it clones the parameter array and the body of the object generator</span>
+<span class="s5">// method into a new FunctionExpression.</span>
+<span class="s5">//</span>
+<span class="s5">// this method can be passed any Function AST node path, and it will return</span>
+<span class="s5">// either:</span>
+<span class="s5">//   a) the path that was passed in (iff the path did not need to be replaced) or</span>
+<span class="s5">//   b) the path of the new FunctionExpression that was created as a replacement</span>
+<span class="s5">//     (iff the path did need to be replaced)</span>
+<span class="s5">//</span>
+<span class="s5">// In either case, though, the caller can count on the fact that the return value</span>
+<span class="s5">// is a Function AST node path.</span>
+<span class="s5">//</span>
+<span class="s5">// If this function is called with an AST node path that is not a Function (or with an</span>
+<span class="s5">// argument that isn't an AST node path), it will throw an error.</span>
+<span class="s2">export default function </span><span class="s1">replaceShorthandObjectMethod</span><span class="s3">(</span><span class="s1">path</span><span class="s3">) {</span>
+  <span class="s2">const </span><span class="s1">t </span><span class="s3">= </span><span class="s1">util</span><span class="s3">.</span><span class="s1">getTypes</span><span class="s3">();</span>
+
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">path</span><span class="s3">.</span><span class="s1">node </span><span class="s3">|| !</span><span class="s1">t</span><span class="s3">.</span><span class="s1">isFunction</span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">)) {</span>
+    <span class="s2">throw new </span><span class="s1">Error</span><span class="s3">(</span><span class="s4">&quot;replaceShorthandObjectMethod can only be called on Function AST node paths.&quot;</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s5">// this function only replaces shorthand object methods (called ObjectMethod</span>
+  <span class="s5">// in Babel-speak).</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">t</span><span class="s3">.</span><span class="s1">isObjectMethod</span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">)) {</span>
+    <span class="s2">return </span><span class="s1">path</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s5">// this function only replaces generators.</span>
+  <span class="s2">if </span><span class="s3">(!</span><span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">generator</span><span class="s3">) {</span>
+    <span class="s2">return </span><span class="s1">path</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s2">const </span><span class="s1">parameters </span><span class="s3">= </span><span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">params</span><span class="s3">.</span><span class="s1">map</span><span class="s3">(</span><span class="s2">function </span><span class="s3">(</span><span class="s1">param</span><span class="s3">) {</span>
+    <span class="s2">return </span><span class="s1">t</span><span class="s3">.</span><span class="s1">cloneDeep</span><span class="s3">(</span><span class="s1">param</span><span class="s3">);</span>
+  <span class="s3">})</span>
+
+  <span class="s2">const </span><span class="s1">functionExpression </span><span class="s3">= </span><span class="s1">t</span><span class="s3">.</span><span class="s1">functionExpression</span><span class="s3">(</span>
+    <span class="s2">null</span><span class="s3">, </span><span class="s5">// id</span>
+    <span class="s1">parameters</span><span class="s3">, </span><span class="s5">// params</span>
+    <span class="s1">t</span><span class="s3">.</span><span class="s1">cloneDeep</span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">body</span><span class="s3">), </span><span class="s5">// body</span>
+    <span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">generator</span><span class="s3">,</span>
+    <span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">async</span>
+  <span class="s3">);</span>
+
+  <span class="s1">util</span><span class="s3">.</span><span class="s1">replaceWithOrRemove</span><span class="s3">(</span><span class="s1">path</span><span class="s3">,</span>
+    <span class="s1">t</span><span class="s3">.</span><span class="s1">objectProperty</span><span class="s3">(</span>
+      <span class="s1">t</span><span class="s3">.</span><span class="s1">cloneDeep</span><span class="s3">(</span><span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">key</span><span class="s3">), </span><span class="s5">// key</span>
+      <span class="s1">functionExpression</span><span class="s3">, </span><span class="s5">//value</span>
+      <span class="s1">path</span><span class="s3">.</span><span class="s1">node</span><span class="s3">.</span><span class="s1">computed</span><span class="s3">, </span><span class="s5">// computed</span>
+      <span class="s2">false </span><span class="s5">// shorthand</span>
+    <span class="s3">)</span>
+  <span class="s3">);</span>
+
+  <span class="s5">// path now refers to the ObjectProperty AST node path, but we want to return a</span>
+  <span class="s5">// Function AST node path for the function expression we created. we know that</span>
+  <span class="s5">// the FunctionExpression we just created is the value of the ObjectProperty,</span>
+  <span class="s5">// so return the &quot;value&quot; path off of this path.</span>
+  <span class="s2">return </span><span class="s1">path</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s4">&quot;value&quot;</span><span class="s3">);</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

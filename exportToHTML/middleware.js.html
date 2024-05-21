@@ -1,0 +1,261 @@
+<html>
+<head>
+<title>middleware.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #6aab73;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #cf8e6d;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #42c3d4;}
+.s7 { color: #7a7e85;}
+.s8 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+middleware.js</font>
+</center></td></tr></table>
+<pre><span class="s0">&quot;use strict&quot;</span><span class="s1">;</span>
+
+<span class="s3">const </span><span class="s2">path </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;path&quot;</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s2">mime </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;mime-types&quot;</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s2">parseRange </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;range-parser&quot;</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s2">getFilenameFromUrl </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./utils/getFilenameFromUrl&quot;</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s1">{</span>
+  <span class="s2">getHeaderNames</span><span class="s1">,</span>
+  <span class="s2">getHeaderFromRequest</span><span class="s1">,</span>
+  <span class="s2">getHeaderFromResponse</span><span class="s1">,</span>
+  <span class="s2">setHeaderForResponse</span><span class="s1">,</span>
+  <span class="s2">setStatusCode</span><span class="s1">,</span>
+  <span class="s2">send</span>
+<span class="s1">} = </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./utils/compatibleAPI&quot;</span><span class="s1">);</span>
+
+<span class="s3">const </span><span class="s2">ready </span><span class="s1">= </span><span class="s2">require</span><span class="s1">(</span><span class="s0">&quot;./utils/ready&quot;</span><span class="s1">);</span>
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;./index.js&quot;).NextFunction} NextFunction */</span>
+
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;./index.js&quot;).IncomingMessage} IncomingMessage */</span>
+
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{import(&quot;./index.js&quot;).ServerResponse} ServerResponse */</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} type</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} size</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{import(&quot;range-parser&quot;).Range} [range]</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{string}</span>
+ <span class="s4">*/</span>
+
+
+<span class="s3">function </span><span class="s2">getValueContentRangeHeader</span><span class="s1">(</span><span class="s2">type</span><span class="s1">, </span><span class="s2">size</span><span class="s1">, </span><span class="s2">range</span><span class="s1">) {</span>
+  <span class="s3">return </span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">type</span><span class="s1">} </span><span class="s2">$</span><span class="s1">{</span><span class="s2">range </span><span class="s1">? </span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s2">range</span><span class="s1">.</span><span class="s2">start</span><span class="s1">}</span><span class="s0">-</span><span class="s2">$</span><span class="s1">{</span><span class="s2">range</span><span class="s1">.</span><span class="s2">end</span><span class="s1">}</span><span class="s0">` </span><span class="s1">: </span><span class="s0">&quot;*&quot;</span><span class="s1">}</span><span class="s0">/</span><span class="s2">$</span><span class="s1">{</span><span class="s2">size</span><span class="s1">}</span><span class="s0">`</span><span class="s1">;</span>
+<span class="s1">}</span>
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string | number} title</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} body</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{string}</span>
+ <span class="s4">*/</span>
+
+
+<span class="s3">function </span><span class="s2">createHtmlDocument</span><span class="s1">(</span><span class="s2">title</span><span class="s1">, </span><span class="s2">body</span><span class="s1">) {</span>
+  <span class="s3">return </span><span class="s0">`</span><span class="s2">$</span><span class="s1">{</span><span class="s0">&quot;&lt;!DOCTYPE html&gt;</span><span class="s3">\n</span><span class="s0">&quot; </span><span class="s1">+ </span><span class="s0">'&lt;html lang=&quot;en&quot;&gt;</span><span class="s3">\n</span><span class="s0">' </span><span class="s1">+ </span><span class="s0">&quot;&lt;head&gt;</span><span class="s3">\n</span><span class="s0">&quot; </span><span class="s1">+ </span><span class="s0">'&lt;meta charset=&quot;utf-8&quot;&gt;</span><span class="s3">\n</span><span class="s0">' </span><span class="s1">+ </span><span class="s0">&quot;&lt;title&gt;&quot;</span><span class="s1">}</span><span class="s2">$</span><span class="s1">{</span><span class="s2">title</span><span class="s1">}</span><span class="s0">&lt;/title&gt;</span><span class="s3">\n</span><span class="s0">` </span><span class="s1">+ </span><span class="s0">`&lt;/head&gt;</span><span class="s3">\n</span><span class="s0">` </span><span class="s1">+ </span><span class="s0">`&lt;body&gt;</span><span class="s3">\n</span><span class="s0">` </span><span class="s1">+ </span><span class="s0">`&lt;pre&gt;</span><span class="s2">$</span><span class="s1">{</span><span class="s2">body</span><span class="s1">}</span><span class="s0">&lt;/pre&gt;</span><span class="s3">\n</span><span class="s0">` </span><span class="s1">+ </span><span class="s0">`&lt;/body&gt;</span><span class="s3">\n</span><span class="s0">` </span><span class="s1">+ </span><span class="s0">`&lt;/html&gt;</span><span class="s3">\n</span><span class="s0">`</span><span class="s1">;</span>
+<span class="s1">}</span>
+
+<span class="s3">const </span><span class="s2">BYTES_RANGE_REGEXP </span><span class="s1">= </span><span class="s6">/^ *bytes/i</span><span class="s1">;</span>
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@template </span><span class="s4">{IncomingMessage} Request</span>
+ <span class="s4">* </span><span class="s5">@template </span><span class="s4">{ServerResponse} Response</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{import(&quot;./index.js&quot;).Context&lt;Request, Response&gt;} context</span>
+ <span class="s4">* </span><span class="s5">@return </span><span class="s4">{import(&quot;./index.js&quot;).Middleware&lt;Request, Response&gt;}</span>
+ <span class="s4">*/</span>
+
+<span class="s3">function </span><span class="s2">wrapper</span><span class="s1">(</span><span class="s2">context</span><span class="s1">) {</span>
+  <span class="s3">return </span><span class="s2">async </span><span class="s3">function </span><span class="s2">middleware</span><span class="s1">(</span><span class="s2">req</span><span class="s1">, </span><span class="s2">res</span><span class="s1">, </span><span class="s2">next</span><span class="s1">) {</span>
+    <span class="s3">const </span><span class="s2">acceptedMethods </span><span class="s1">= </span><span class="s2">context</span><span class="s1">.</span><span class="s2">options</span><span class="s1">.</span><span class="s2">methods </span><span class="s1">|| [</span><span class="s0">&quot;GET&quot;</span><span class="s1">, </span><span class="s0">&quot;HEAD&quot;</span><span class="s1">]; </span><span class="s7">// fixes #282. credit @cexoso. in certain edge situations res.locals is undefined.</span>
+    <span class="s7">// eslint-disable-next-line no-param-reassign</span>
+
+    <span class="s2">res</span><span class="s1">.</span><span class="s2">locals </span><span class="s1">= </span><span class="s2">res</span><span class="s1">.</span><span class="s2">locals </span><span class="s1">|| {};</span>
+
+    <span class="s3">if </span><span class="s1">(</span><span class="s2">req</span><span class="s1">.</span><span class="s2">method </span><span class="s1">&amp;&amp; !</span><span class="s2">acceptedMethods</span><span class="s1">.</span><span class="s2">includes</span><span class="s1">(</span><span class="s2">req</span><span class="s1">.</span><span class="s2">method</span><span class="s1">)) {</span>
+      <span class="s3">await </span><span class="s2">goNext</span><span class="s1">();</span>
+      <span class="s3">return</span><span class="s1">;</span>
+    <span class="s1">}</span>
+
+    <span class="s2">ready</span><span class="s1">(</span><span class="s2">context</span><span class="s1">, </span><span class="s2">processRequest</span><span class="s1">, </span><span class="s2">req</span><span class="s1">);</span>
+
+    <span class="s2">async </span><span class="s3">function </span><span class="s2">goNext</span><span class="s1">() {</span>
+      <span class="s3">if </span><span class="s1">(!</span><span class="s2">context</span><span class="s1">.</span><span class="s2">options</span><span class="s1">.</span><span class="s2">serverSideRender</span><span class="s1">) {</span>
+        <span class="s3">return </span><span class="s2">next</span><span class="s1">();</span>
+      <span class="s1">}</span>
+
+      <span class="s3">return new </span><span class="s2">Promise</span><span class="s1">(</span><span class="s2">resolve </span><span class="s1">=&gt; {</span>
+        <span class="s2">ready</span><span class="s1">(</span><span class="s2">context</span><span class="s1">, () =&gt; {</span>
+          <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{any} */</span>
+          <span class="s7">// eslint-disable-next-line no-param-reassign</span>
+          <span class="s2">res</span><span class="s1">.</span><span class="s2">locals</span><span class="s1">.</span><span class="s2">webpack </span><span class="s1">= {</span>
+            <span class="s2">devMiddleware</span><span class="s1">: </span><span class="s2">context</span>
+          <span class="s1">};</span>
+          <span class="s2">resolve</span><span class="s1">(</span><span class="s2">next</span><span class="s1">());</span>
+        <span class="s1">}, </span><span class="s2">req</span><span class="s1">);</span>
+      <span class="s1">});</span>
+    <span class="s1">}</span>
+
+    <span class="s2">async </span><span class="s3">function </span><span class="s2">processRequest</span><span class="s1">() {</span>
+      <span class="s3">const </span><span class="s2">filename </span><span class="s1">= </span><span class="s2">getFilenameFromUrl</span><span class="s1">(</span><span class="s2">context</span><span class="s1">,</span>
+      <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{string} */</span>
+      <span class="s2">req</span><span class="s1">.</span><span class="s2">url</span><span class="s1">);</span>
+
+      <span class="s3">if </span><span class="s1">(!</span><span class="s2">filename</span><span class="s1">) {</span>
+        <span class="s3">await </span><span class="s2">goNext</span><span class="s1">();</span>
+        <span class="s3">return</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s3">let </span><span class="s1">{</span>
+        <span class="s2">headers</span>
+      <span class="s1">} = </span><span class="s2">context</span><span class="s1">.</span><span class="s2">options</span><span class="s1">;</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">headers </span><span class="s1">=== </span><span class="s0">&quot;function&quot;</span><span class="s1">) {</span>
+        <span class="s7">// @ts-ignore</span>
+        <span class="s2">headers </span><span class="s1">= </span><span class="s2">headers</span><span class="s1">(</span><span class="s2">req</span><span class="s1">, </span><span class="s2">res</span><span class="s1">, </span><span class="s2">context</span><span class="s1">);</span>
+      <span class="s1">}</span>
+      <span class="s4">/**</span>
+       <span class="s4">* </span><span class="s5">@type </span><span class="s4">{{key: string, value: string | number}[]}</span>
+       <span class="s4">*/</span>
+
+
+      <span class="s3">const </span><span class="s2">allHeaders </span><span class="s1">= [];</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">headers </span><span class="s1">!== </span><span class="s0">&quot;undefined&quot;</span><span class="s1">) {</span>
+        <span class="s3">if </span><span class="s1">(!</span><span class="s2">Array</span><span class="s1">.</span><span class="s2">isArray</span><span class="s1">(</span><span class="s2">headers</span><span class="s1">)) {</span>
+          <span class="s7">// eslint-disable-next-line guard-for-in</span>
+          <span class="s3">for </span><span class="s1">(</span><span class="s3">const </span><span class="s2">name </span><span class="s3">in </span><span class="s2">headers</span><span class="s1">) {</span>
+            <span class="s7">// @ts-ignore</span>
+            <span class="s2">allHeaders</span><span class="s1">.</span><span class="s2">push</span><span class="s1">({</span>
+              <span class="s2">key</span><span class="s1">: </span><span class="s2">name</span><span class="s1">,</span>
+              <span class="s2">value</span><span class="s1">: </span><span class="s2">headers</span><span class="s1">[</span><span class="s2">name</span><span class="s1">]</span>
+            <span class="s1">});</span>
+          <span class="s1">}</span>
+
+          <span class="s2">headers </span><span class="s1">= </span><span class="s2">allHeaders</span><span class="s1">;</span>
+        <span class="s1">}</span>
+
+        <span class="s2">headers</span><span class="s1">.</span><span class="s2">forEach</span><span class="s1">(</span>
+        <span class="s4">/**</span>
+         <span class="s4">* </span><span class="s5">@param </span><span class="s4">{{key: string, value: any}} header</span>
+         <span class="s4">*/</span>
+        <span class="s2">header </span><span class="s1">=&gt; {</span>
+          <span class="s2">setHeaderForResponse</span><span class="s1">(</span><span class="s2">res</span><span class="s1">, </span><span class="s2">header</span><span class="s1">.</span><span class="s2">key</span><span class="s1">, </span><span class="s2">header</span><span class="s1">.</span><span class="s2">value</span><span class="s1">);</span>
+        <span class="s1">});</span>
+      <span class="s1">}</span>
+
+      <span class="s3">if </span><span class="s1">(!</span><span class="s2">getHeaderFromResponse</span><span class="s1">(</span><span class="s2">res</span><span class="s1">, </span><span class="s0">&quot;Content-Type&quot;</span><span class="s1">)) {</span>
+        <span class="s7">// content-type name(like application/javascript; charset=utf-8) or false</span>
+        <span class="s3">const </span><span class="s2">contentType </span><span class="s1">= </span><span class="s2">mime</span><span class="s1">.</span><span class="s2">contentType</span><span class="s1">(</span><span class="s2">path</span><span class="s1">.</span><span class="s2">extname</span><span class="s1">(</span><span class="s2">filename</span><span class="s1">)); </span><span class="s7">// Only set content-type header if media type is known</span>
+        <span class="s7">// https://tools.ietf.org/html/rfc7231#section-3.1.1.5</span>
+
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">contentType</span><span class="s1">) {</span>
+          <span class="s2">setHeaderForResponse</span><span class="s1">(</span><span class="s2">res</span><span class="s1">, </span><span class="s0">&quot;Content-Type&quot;</span><span class="s1">, </span><span class="s2">contentType</span><span class="s1">);</span>
+        <span class="s1">}</span>
+      <span class="s1">}</span>
+
+      <span class="s3">if </span><span class="s1">(!</span><span class="s2">getHeaderFromResponse</span><span class="s1">(</span><span class="s2">res</span><span class="s1">, </span><span class="s0">&quot;Accept-Ranges&quot;</span><span class="s1">)) {</span>
+        <span class="s2">setHeaderForResponse</span><span class="s1">(</span><span class="s2">res</span><span class="s1">, </span><span class="s0">&quot;Accept-Ranges&quot;</span><span class="s1">, </span><span class="s0">&quot;bytes&quot;</span><span class="s1">);</span>
+      <span class="s1">}</span>
+
+      <span class="s3">const </span><span class="s2">rangeHeader </span><span class="s1">= </span><span class="s2">getHeaderFromRequest</span><span class="s1">(</span><span class="s2">req</span><span class="s1">, </span><span class="s0">&quot;range&quot;</span><span class="s1">);</span>
+      <span class="s3">let </span><span class="s2">start</span><span class="s1">;</span>
+      <span class="s3">let </span><span class="s2">end</span><span class="s1">;</span>
+
+      <span class="s3">if </span><span class="s1">(</span><span class="s2">rangeHeader </span><span class="s1">&amp;&amp; </span><span class="s2">BYTES_RANGE_REGEXP</span><span class="s1">.</span><span class="s2">test</span><span class="s1">(</span><span class="s2">rangeHeader</span><span class="s1">)) {</span>
+        <span class="s3">const </span><span class="s2">size </span><span class="s1">= </span><span class="s3">await new </span><span class="s2">Promise</span><span class="s1">(</span><span class="s2">resolve </span><span class="s1">=&gt; {</span>
+          <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{import(&quot;fs&quot;).lstat} */</span>
+          <span class="s2">context</span><span class="s1">.</span><span class="s2">outputFileSystem</span><span class="s1">.</span><span class="s2">lstat</span><span class="s1">(</span><span class="s2">filename</span><span class="s1">, (</span><span class="s2">error</span><span class="s1">, </span><span class="s2">stats</span><span class="s1">) =&gt; {</span>
+            <span class="s3">if </span><span class="s1">(</span><span class="s2">error</span><span class="s1">) {</span>
+              <span class="s2">context</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">error</span><span class="s1">(</span><span class="s2">error</span><span class="s1">);</span>
+              <span class="s3">return</span><span class="s1">;</span>
+            <span class="s1">}</span>
+
+            <span class="s2">resolve</span><span class="s1">(</span><span class="s2">stats</span><span class="s1">.</span><span class="s2">size</span><span class="s1">);</span>
+          <span class="s1">});</span>
+        <span class="s1">});</span>
+        <span class="s3">const </span><span class="s2">parsedRanges </span><span class="s1">= </span><span class="s2">parseRange</span><span class="s1">(</span><span class="s2">size</span><span class="s1">, </span><span class="s2">rangeHeader</span><span class="s1">, {</span>
+          <span class="s2">combine</span><span class="s1">: </span><span class="s3">true</span>
+        <span class="s1">});</span>
+
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">parsedRanges </span><span class="s1">=== -</span><span class="s8">1</span><span class="s1">) {</span>
+          <span class="s3">const </span><span class="s2">message </span><span class="s1">= </span><span class="s0">&quot;Unsatisfiable range for 'Range' header.&quot;</span><span class="s1">;</span>
+          <span class="s2">context</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">error</span><span class="s1">(</span><span class="s2">message</span><span class="s1">);</span>
+          <span class="s3">const </span><span class="s2">existingHeaders </span><span class="s1">= </span><span class="s2">getHeaderNames</span><span class="s1">(</span><span class="s2">res</span><span class="s1">);</span>
+
+          <span class="s3">for </span><span class="s1">(</span><span class="s3">let </span><span class="s2">i </span><span class="s1">= </span><span class="s8">0</span><span class="s1">; </span><span class="s2">i </span><span class="s1">&lt; </span><span class="s2">existingHeaders</span><span class="s1">.</span><span class="s2">length</span><span class="s1">; </span><span class="s2">i</span><span class="s1">++) {</span>
+            <span class="s2">res</span><span class="s1">.</span><span class="s2">removeHeader</span><span class="s1">(</span><span class="s2">existingHeaders</span><span class="s1">[</span><span class="s2">i</span><span class="s1">]);</span>
+          <span class="s1">}</span>
+
+          <span class="s2">setStatusCode</span><span class="s1">(</span><span class="s2">res</span><span class="s1">, </span><span class="s8">416</span><span class="s1">);</span>
+          <span class="s2">setHeaderForResponse</span><span class="s1">(</span><span class="s2">res</span><span class="s1">, </span><span class="s0">&quot;Content-Range&quot;</span><span class="s1">, </span><span class="s2">getValueContentRangeHeader</span><span class="s1">(</span><span class="s0">&quot;bytes&quot;</span><span class="s1">, </span><span class="s2">size</span><span class="s1">));</span>
+          <span class="s2">setHeaderForResponse</span><span class="s1">(</span><span class="s2">res</span><span class="s1">, </span><span class="s0">&quot;Content-Type&quot;</span><span class="s1">, </span><span class="s0">&quot;text/html; charset=utf-8&quot;</span><span class="s1">);</span>
+          <span class="s3">const </span><span class="s2">document </span><span class="s1">= </span><span class="s2">createHtmlDocument</span><span class="s1">(</span><span class="s8">416</span><span class="s1">, </span><span class="s0">`Error: </span><span class="s2">$</span><span class="s1">{</span><span class="s2">message</span><span class="s1">}</span><span class="s0">`</span><span class="s1">);</span>
+          <span class="s3">const </span><span class="s2">byteLength </span><span class="s1">= </span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">byteLength</span><span class="s1">(</span><span class="s2">document</span><span class="s1">);</span>
+          <span class="s2">setHeaderForResponse</span><span class="s1">(</span><span class="s2">res</span><span class="s1">, </span><span class="s0">&quot;Content-Length&quot;</span><span class="s1">, </span><span class="s2">Buffer</span><span class="s1">.</span><span class="s2">byteLength</span><span class="s1">(</span><span class="s2">document</span><span class="s1">));</span>
+          <span class="s2">send</span><span class="s1">(</span><span class="s2">req</span><span class="s1">, </span><span class="s2">res</span><span class="s1">, </span><span class="s2">document</span><span class="s1">, </span><span class="s2">byteLength</span><span class="s1">);</span>
+          <span class="s3">return</span><span class="s1">;</span>
+        <span class="s1">} </span><span class="s3">else if </span><span class="s1">(</span><span class="s2">parsedRanges </span><span class="s1">=== -</span><span class="s8">2</span><span class="s1">) {</span>
+          <span class="s2">context</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">error</span><span class="s1">(</span><span class="s0">&quot;A malformed 'Range' header was provided. A regular response will be sent for this request.&quot;</span><span class="s1">);</span>
+        <span class="s1">} </span><span class="s3">else if </span><span class="s1">(</span><span class="s2">parsedRanges</span><span class="s1">.</span><span class="s2">length </span><span class="s1">&gt; </span><span class="s8">1</span><span class="s1">) {</span>
+          <span class="s2">context</span><span class="s1">.</span><span class="s2">logger</span><span class="s1">.</span><span class="s2">error</span><span class="s1">(</span><span class="s0">&quot;A 'Range' header with multiple ranges was provided. Multiple ranges are not supported, so a regular response will be sent for this request.&quot;</span><span class="s1">);</span>
+        <span class="s1">}</span>
+
+        <span class="s3">if </span><span class="s1">(</span><span class="s2">parsedRanges </span><span class="s1">!== -</span><span class="s8">2 </span><span class="s1">&amp;&amp; </span><span class="s2">parsedRanges</span><span class="s1">.</span><span class="s2">length </span><span class="s1">=== </span><span class="s8">1</span><span class="s1">) {</span>
+          <span class="s7">// Content-Range</span>
+          <span class="s2">setStatusCode</span><span class="s1">(</span><span class="s2">res</span><span class="s1">, </span><span class="s8">206</span><span class="s1">);</span>
+          <span class="s2">setHeaderForResponse</span><span class="s1">(</span><span class="s2">res</span><span class="s1">, </span><span class="s0">&quot;Content-Range&quot;</span><span class="s1">, </span><span class="s2">getValueContentRangeHeader</span><span class="s1">(</span><span class="s0">&quot;bytes&quot;</span><span class="s1">, </span><span class="s2">size</span><span class="s1">,</span>
+          <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{import(&quot;range-parser&quot;).Ranges} */</span>
+          <span class="s2">parsedRanges</span><span class="s1">[</span><span class="s8">0</span><span class="s1">]));</span>
+          <span class="s1">[{</span>
+            <span class="s2">start</span><span class="s1">,</span>
+            <span class="s2">end</span>
+          <span class="s1">}] = </span><span class="s2">parsedRanges</span><span class="s1">;</span>
+        <span class="s1">}</span>
+      <span class="s1">}</span>
+
+      <span class="s3">const </span><span class="s2">isFsSupportsStream </span><span class="s1">= </span><span class="s3">typeof </span><span class="s2">context</span><span class="s1">.</span><span class="s2">outputFileSystem</span><span class="s1">.</span><span class="s2">createReadStream </span><span class="s1">=== </span><span class="s0">&quot;function&quot;</span><span class="s1">;</span>
+      <span class="s3">let </span><span class="s2">bufferOtStream</span><span class="s1">;</span>
+      <span class="s3">let </span><span class="s2">byteLength</span><span class="s1">;</span>
+
+      <span class="s3">try </span><span class="s1">{</span>
+        <span class="s3">if </span><span class="s1">(</span><span class="s3">typeof </span><span class="s2">start </span><span class="s1">!== </span><span class="s0">&quot;undefined&quot; </span><span class="s1">&amp;&amp; </span><span class="s3">typeof </span><span class="s2">end </span><span class="s1">!== </span><span class="s0">&quot;undefined&quot; </span><span class="s1">&amp;&amp; </span><span class="s2">isFsSupportsStream</span><span class="s1">) {</span>
+          <span class="s2">bufferOtStream </span><span class="s1">=</span>
+          <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{import(&quot;fs&quot;).createReadStream} */</span>
+          <span class="s2">context</span><span class="s1">.</span><span class="s2">outputFileSystem</span><span class="s1">.</span><span class="s2">createReadStream</span><span class="s1">(</span><span class="s2">filename</span><span class="s1">, {</span>
+            <span class="s2">start</span><span class="s1">,</span>
+            <span class="s2">end</span>
+          <span class="s1">});</span>
+          <span class="s2">byteLength </span><span class="s1">= </span><span class="s2">end </span><span class="s1">- </span><span class="s2">start </span><span class="s1">+ </span><span class="s8">1</span><span class="s1">;</span>
+        <span class="s1">} </span><span class="s3">else </span><span class="s1">{</span>
+          <span class="s2">bufferOtStream </span><span class="s1">=</span>
+          <span class="s4">/** </span><span class="s5">@type </span><span class="s4">{import(&quot;fs&quot;).readFileSync} */</span>
+          <span class="s2">context</span><span class="s1">.</span><span class="s2">outputFileSystem</span><span class="s1">.</span><span class="s2">readFileSync</span><span class="s1">(</span><span class="s2">filename</span><span class="s1">);</span>
+          <span class="s1">({</span>
+            <span class="s2">byteLength</span>
+          <span class="s1">} = </span><span class="s2">bufferOtStream</span><span class="s1">);</span>
+        <span class="s1">}</span>
+      <span class="s1">} </span><span class="s3">catch </span><span class="s1">(</span><span class="s2">_ignoreError</span><span class="s1">) {</span>
+        <span class="s3">await </span><span class="s2">goNext</span><span class="s1">();</span>
+        <span class="s3">return</span><span class="s1">;</span>
+      <span class="s1">}</span>
+
+      <span class="s2">send</span><span class="s1">(</span><span class="s2">req</span><span class="s1">, </span><span class="s2">res</span><span class="s1">, </span><span class="s2">bufferOtStream</span><span class="s1">, </span><span class="s2">byteLength</span><span class="s1">);</span>
+    <span class="s1">}</span>
+  <span class="s1">};</span>
+<span class="s1">}</span>
+
+<span class="s2">module</span><span class="s1">.</span><span class="s2">exports </span><span class="s1">= </span><span class="s2">wrapper</span><span class="s1">;</span></pre>
+</body>
+</html>

@@ -1,0 +1,862 @@
+<html>
+<head>
+<title>Chunk.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #67a37c; font-style: italic;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+Chunk.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+    MIT License http://www.opensource.org/licenses/mit-license.php 
+    Author Tobias Koppers @sokra 
+*/</span>
+
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">const </span><span class="s1">ChunkGraph </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./ChunkGraph&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">Entrypoint </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./Entrypoint&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s3">{ </span><span class="s1">intersect </span><span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./util/SetHelpers&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">SortableSet </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./util/SortableSet&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">StringXor </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./util/StringXor&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s3">{</span>
+	<span class="s1">compareModulesByIdentifier</span><span class="s3">,</span>
+	<span class="s1">compareChunkGroupsByIndex</span><span class="s3">,</span>
+	<span class="s1">compareModulesById</span>
+<span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./util/comparators&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s3">{ </span><span class="s1">createArrayToSetDeprecationSet </span><span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./util/deprecation&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s3">{ </span><span class="s1">mergeRuntime </span><span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./util/runtime&quot;</span><span class="s3">);</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;webpack-sources&quot;).Source} Source */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./ChunkGraph&quot;).ChunkFilterPredicate} ChunkFilterPredicate */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./ChunkGraph&quot;).ChunkSizeOptions} ChunkSizeOptions */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./ChunkGraph&quot;).ModuleFilterPredicate} ModuleFilterPredicate */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./ChunkGroup&quot;)} ChunkGroup */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./ChunkGroup&quot;).ChunkGroupOptions} ChunkGroupOptions */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Compilation&quot;)} Compilation */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Compilation&quot;).AssetInfo} AssetInfo */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Compilation&quot;).PathData} PathData */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Entrypoint&quot;).EntryOptions} EntryOptions */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Module&quot;)} Module */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./ModuleGraph&quot;)} ModuleGraph */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./util/Hash&quot;)} Hash */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./util/runtime&quot;).RuntimeSpec} RuntimeSpec */</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{number | string} ChunkId */</span>
+
+<span class="s4">const </span><span class="s1">ChunkFilesSet </span><span class="s3">= </span><span class="s1">createArrayToSetDeprecationSet</span><span class="s3">(</span><span class="s2">&quot;chunk.files&quot;</span><span class="s3">);</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{Object} WithId an object who has an id property *</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{string | number} id the id of the object</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@deprecated</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{Object} ChunkMaps</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{Record&lt;string|number, string&gt;} hash</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{Record&lt;string|number, Record&lt;string, string&gt;&gt;} contentHash</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{Record&lt;string|number, string&gt;} name</span>
+ <span class="s5">*/</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* </span><span class="s6">@deprecated</span>
+ <span class="s5">* </span><span class="s6">@typedef </span><span class="s5">{Object} ChunkModuleMaps</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{Record&lt;string|number, (string|number)[]&gt;} id</span>
+ <span class="s5">* </span><span class="s6">@property </span><span class="s5">{Record&lt;string|number, string&gt;} hash</span>
+ <span class="s5">*/</span>
+
+<span class="s4">let </span><span class="s1">debugId </span><span class="s3">= </span><span class="s7">1000</span><span class="s3">;</span>
+
+<span class="s5">/**</span>
+ <span class="s5">* A Chunk is a unit of encapsulation for Modules.</span>
+ <span class="s5">* Chunks are &quot;rendered&quot; into bundles that get emitted when the build completes.</span>
+ <span class="s5">*/</span>
+<span class="s4">class </span><span class="s1">Chunk </span><span class="s3">{</span>
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string=} name of chunk being created, is optional (for subclasses)</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{boolean} backCompat enable backward-compatibility</span>
+	 <span class="s5">*/</span>
+	<span class="s1">constructor</span><span class="s3">(</span><span class="s1">name</span><span class="s3">, </span><span class="s1">backCompat </span><span class="s3">= </span><span class="s4">true</span><span class="s3">) {</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ChunkId | null} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">id </span><span class="s3">= </span><span class="s4">null</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ChunkId[] | null} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">ids </span><span class="s3">= </span><span class="s4">null</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{number} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">debugId </span><span class="s3">= </span><span class="s1">debugId</span><span class="s3">++;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{string | undefined} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">name </span><span class="s3">= </span><span class="s1">name</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{SortableSet&lt;string&gt;} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">idNameHints </span><span class="s3">= </span><span class="s4">new </span><span class="s1">SortableSet</span><span class="s3">();</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{boolean} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">preventIntegration </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{(string | function(PathData, AssetInfo=): string) | undefined} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">filenameTemplate </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{(string | function(PathData, AssetInfo=): string) | undefined} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">cssFilenameTemplate </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@private </span><span class="s5">@type {SortableSet&lt;ChunkGroup&gt;} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_groups </span><span class="s3">= </span><span class="s4">new </span><span class="s1">SortableSet</span><span class="s3">(</span><span class="s1">undefined</span><span class="s3">, </span><span class="s1">compareChunkGroupsByIndex</span><span class="s3">);</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{RuntimeSpec} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">runtime </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Set&lt;string&gt;} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">files </span><span class="s3">= </span><span class="s1">backCompat </span><span class="s3">? </span><span class="s4">new </span><span class="s1">ChunkFilesSet</span><span class="s3">() : </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">();</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Set&lt;string&gt;} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">auxiliaryFiles </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">();</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{boolean} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">rendered </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{string=} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">hash </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Record&lt;string, string&gt;} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">contentHash </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">create</span><span class="s3">(</span><span class="s4">null</span><span class="s3">);</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{string=} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">renderedHash </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{string=} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">chunkReason </span><span class="s3">= </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{boolean} */</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">extraAsync </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s0">// TODO remove in webpack 6</span>
+	<span class="s0">// BACKWARD-COMPAT START</span>
+	<span class="s1">get entryModule</span><span class="s3">() {</span>
+		<span class="s4">const </span><span class="s1">entryModules </span><span class="s3">= </span><span class="s1">Array</span><span class="s3">.</span><span class="s1">from</span><span class="s3">(</span>
+			<span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+				<span class="s4">this</span><span class="s3">,</span>
+				<span class="s2">&quot;Chunk.entryModule&quot;</span><span class="s3">,</span>
+				<span class="s2">&quot;DEP_WEBPACK_CHUNK_ENTRY_MODULE&quot;</span>
+			<span class="s3">).</span><span class="s1">getChunkEntryModulesIterable</span><span class="s3">(</span><span class="s4">this</span><span class="s3">)</span>
+		<span class="s3">);</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">entryModules</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s7">0</span><span class="s3">) {</span>
+			<span class="s4">return </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">entryModules</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s7">1</span><span class="s3">) {</span>
+			<span class="s4">return </span><span class="s1">entryModules</span><span class="s3">[</span><span class="s7">0</span><span class="s3">];</span>
+		<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+			<span class="s4">throw new </span><span class="s1">Error</span><span class="s3">(</span>
+				<span class="s2">&quot;Module.entryModule: Multiple entry modules are not supported by the deprecated API (Use the new ChunkGroup API)&quot;</span>
+			<span class="s3">);</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} true, if the chunk contains an entry module</span>
+	 <span class="s5">*/</span>
+	<span class="s1">hasEntryModule</span><span class="s3">() {</span>
+		<span class="s4">return </span><span class="s3">(</span>
+			<span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+				<span class="s4">this</span><span class="s3">,</span>
+				<span class="s2">&quot;Chunk.hasEntryModule&quot;</span><span class="s3">,</span>
+				<span class="s2">&quot;DEP_WEBPACK_CHUNK_HAS_ENTRY_MODULE&quot;</span>
+			<span class="s3">).</span><span class="s1">getNumberOfEntryModules</span><span class="s3">(</span><span class="s4">this</span><span class="s3">) &gt; </span><span class="s7">0</span>
+		<span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Module} module the module</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} true, if the chunk could be added</span>
+	 <span class="s5">*/</span>
+	<span class="s1">addModule</span><span class="s3">(</span><span class="s1">module</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s1">chunkGraph </span><span class="s3">= </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.addModule&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_ADD_MODULE&quot;</span>
+		<span class="s3">);</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">isModuleInChunk</span><span class="s3">(</span><span class="s1">module</span><span class="s3">, </span><span class="s4">this</span><span class="s3">)) </span><span class="s4">return false</span><span class="s3">;</span>
+		<span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">connectChunkAndModule</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">module</span><span class="s3">);</span>
+		<span class="s4">return true</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Module} module the module</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">removeModule</span><span class="s3">(</span><span class="s1">module</span><span class="s3">) {</span>
+		<span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.removeModule&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_REMOVE_MODULE&quot;</span>
+		<span class="s3">).</span><span class="s1">disconnectChunkAndModule</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">module</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{number} the number of module which are contained in this chunk</span>
+	 <span class="s5">*/</span>
+	<span class="s1">getNumberOfModules</span><span class="s3">() {</span>
+		<span class="s4">return </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.getNumberOfModules&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_GET_NUMBER_OF_MODULES&quot;</span>
+		<span class="s3">).</span><span class="s1">getNumberOfChunkModules</span><span class="s3">(</span><span class="s4">this</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s1">get modulesIterable</span><span class="s3">() {</span>
+		<span class="s4">const </span><span class="s1">chunkGraph </span><span class="s3">= </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.modulesIterable&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_MODULES_ITERABLE&quot;</span>
+		<span class="s3">);</span>
+		<span class="s4">return </span><span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">getOrderedChunkModulesIterable</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s1">compareModulesByIdentifier</span>
+		<span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Chunk} otherChunk the chunk to compare with</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{-1|0|1} the comparison result</span>
+	 <span class="s5">*/</span>
+	<span class="s1">compareTo</span><span class="s3">(</span><span class="s1">otherChunk</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s1">chunkGraph </span><span class="s3">= </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.compareTo&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_COMPARE_TO&quot;</span>
+		<span class="s3">);</span>
+		<span class="s4">return </span><span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">compareChunks</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">otherChunk</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Module} module the module</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} true, if the chunk contains the module</span>
+	 <span class="s5">*/</span>
+	<span class="s1">containsModule</span><span class="s3">(</span><span class="s1">module</span><span class="s3">) {</span>
+		<span class="s4">return </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.containsModule&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_CONTAINS_MODULE&quot;</span>
+		<span class="s3">).</span><span class="s1">isModuleInChunk</span><span class="s3">(</span><span class="s1">module</span><span class="s3">, </span><span class="s4">this</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{Module[]} the modules for this chunk</span>
+	 <span class="s5">*/</span>
+	<span class="s1">getModules</span><span class="s3">() {</span>
+		<span class="s4">return </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.getModules&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_GET_MODULES&quot;</span>
+		<span class="s3">).</span><span class="s1">getChunkModules</span><span class="s3">(</span><span class="s4">this</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">remove</span><span class="s3">() {</span>
+		<span class="s4">const </span><span class="s1">chunkGraph </span><span class="s3">= </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.remove&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_REMOVE&quot;</span>
+		<span class="s3">);</span>
+		<span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">disconnectChunk</span><span class="s3">(</span><span class="s4">this</span><span class="s3">);</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">disconnectFromGroups</span><span class="s3">();</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Module} module the module</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Chunk} otherChunk the target chunk</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">moveModule</span><span class="s3">(</span><span class="s1">module</span><span class="s3">, </span><span class="s1">otherChunk</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s1">chunkGraph </span><span class="s3">= </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.moveModule&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_MOVE_MODULE&quot;</span>
+		<span class="s3">);</span>
+		<span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">disconnectChunkAndModule</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">module</span><span class="s3">);</span>
+		<span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">connectChunkAndModule</span><span class="s3">(</span><span class="s1">otherChunk</span><span class="s3">, </span><span class="s1">module</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Chunk} otherChunk the other chunk</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} true, if the specified chunk has been integrated</span>
+	 <span class="s5">*/</span>
+	<span class="s1">integrate</span><span class="s3">(</span><span class="s1">otherChunk</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s1">chunkGraph </span><span class="s3">= </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.integrate&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_INTEGRATE&quot;</span>
+		<span class="s3">);</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">canChunksBeIntegrated</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">otherChunk</span><span class="s3">)) {</span>
+			<span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">integrateChunks</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">otherChunk</span><span class="s3">);</span>
+			<span class="s4">return true</span><span class="s3">;</span>
+		<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+			<span class="s4">return false</span><span class="s3">;</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Chunk} otherChunk the other chunk</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} true, if chunks could be integrated</span>
+	 <span class="s5">*/</span>
+	<span class="s1">canBeIntegrated</span><span class="s3">(</span><span class="s1">otherChunk</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s1">chunkGraph </span><span class="s3">= </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.canBeIntegrated&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_CAN_BE_INTEGRATED&quot;</span>
+		<span class="s3">);</span>
+		<span class="s4">return </span><span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">canChunksBeIntegrated</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">otherChunk</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} true, if this chunk contains no module</span>
+	 <span class="s5">*/</span>
+	<span class="s1">isEmpty</span><span class="s3">() {</span>
+		<span class="s4">const </span><span class="s1">chunkGraph </span><span class="s3">= </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.isEmpty&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_IS_EMPTY&quot;</span>
+		<span class="s3">);</span>
+		<span class="s4">return </span><span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">getNumberOfChunkModules</span><span class="s3">(</span><span class="s4">this</span><span class="s3">) === </span><span class="s7">0</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{number} total size of all modules in this chunk</span>
+	 <span class="s5">*/</span>
+	<span class="s1">modulesSize</span><span class="s3">() {</span>
+		<span class="s4">const </span><span class="s1">chunkGraph </span><span class="s3">= </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.modulesSize&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_MODULES_SIZE&quot;</span>
+		<span class="s3">);</span>
+		<span class="s4">return </span><span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">getChunkModulesSize</span><span class="s3">(</span><span class="s4">this</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ChunkSizeOptions} options options object</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{number} total size of this chunk</span>
+	 <span class="s5">*/</span>
+	<span class="s1">size</span><span class="s3">(</span><span class="s1">options </span><span class="s3">= {}) {</span>
+		<span class="s4">const </span><span class="s1">chunkGraph </span><span class="s3">= </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.size&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_SIZE&quot;</span>
+		<span class="s3">);</span>
+		<span class="s4">return </span><span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">getChunkSize</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">options</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Chunk} otherChunk the other chunk</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ChunkSizeOptions} options options object</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{number} total size of the chunk or false if the chunk can't be integrated</span>
+	 <span class="s5">*/</span>
+	<span class="s1">integratedSize</span><span class="s3">(</span><span class="s1">otherChunk</span><span class="s3">, </span><span class="s1">options</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s1">chunkGraph </span><span class="s3">= </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.integratedSize&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_INTEGRATED_SIZE&quot;</span>
+		<span class="s3">);</span>
+		<span class="s4">return </span><span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">getIntegratedChunksSize</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">otherChunk</span><span class="s3">, </span><span class="s1">options</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ModuleFilterPredicate} filterFn function used to filter modules</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{ChunkModuleMaps} module map information</span>
+	 <span class="s5">*/</span>
+	<span class="s1">getChunkModuleMaps</span><span class="s3">(</span><span class="s1">filterFn</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s1">chunkGraph </span><span class="s3">= </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.getChunkModuleMaps&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_GET_CHUNK_MODULE_MAPS&quot;</span>
+		<span class="s3">);</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Record&lt;string|number, (string|number)[]&gt;} */</span>
+		<span class="s4">const </span><span class="s1">chunkModuleIdMap </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">create</span><span class="s3">(</span><span class="s4">null</span><span class="s3">);</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Record&lt;string|number, string&gt;} */</span>
+		<span class="s4">const </span><span class="s1">chunkModuleHashMap </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">create</span><span class="s3">(</span><span class="s4">null</span><span class="s3">);</span>
+
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">asyncChunk of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">getAllAsyncChunks</span><span class="s3">()) {</span>
+			<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ChunkId[] | undefined} */</span>
+			<span class="s4">let </span><span class="s1">array</span><span class="s3">;</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">module of chunkGraph</span><span class="s3">.</span><span class="s1">getOrderedChunkModulesIterable</span><span class="s3">(</span>
+				<span class="s1">asyncChunk</span><span class="s3">,</span>
+				<span class="s1">compareModulesById</span><span class="s3">(</span><span class="s1">chunkGraph</span><span class="s3">)</span>
+			<span class="s3">)) {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">filterFn</span><span class="s3">(</span><span class="s1">module</span><span class="s3">)) {</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">array </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+						<span class="s1">array </span><span class="s3">= [];</span>
+						<span class="s1">chunkModuleIdMap</span><span class="s3">[</span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ChunkId} */ </span><span class="s3">(</span><span class="s1">asyncChunk</span><span class="s3">.</span><span class="s1">id</span><span class="s3">)] = </span><span class="s1">array</span><span class="s3">;</span>
+					<span class="s3">}</span>
+					<span class="s4">const </span><span class="s1">moduleId </span><span class="s3">= </span><span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">getModuleId</span><span class="s3">(</span><span class="s1">module</span><span class="s3">);</span>
+					<span class="s1">array</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">moduleId</span><span class="s3">);</span>
+					<span class="s1">chunkModuleHashMap</span><span class="s3">[</span><span class="s1">moduleId</span><span class="s3">] = </span><span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">getRenderedModuleHash</span><span class="s3">(</span>
+						<span class="s1">module</span><span class="s3">,</span>
+						<span class="s1">undefined</span>
+					<span class="s3">);</span>
+				<span class="s3">}</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+
+		<span class="s4">return </span><span class="s3">{</span>
+			<span class="s1">id</span><span class="s3">: </span><span class="s1">chunkModuleIdMap</span><span class="s3">,</span>
+			<span class="s1">hash</span><span class="s3">: </span><span class="s1">chunkModuleHashMap</span>
+		<span class="s3">};</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ModuleFilterPredicate} filterFn predicate function used to filter modules</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ChunkFilterPredicate=} filterChunkFn predicate function used to filter chunks</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} return true if module exists in graph</span>
+	 <span class="s5">*/</span>
+	<span class="s1">hasModuleInGraph</span><span class="s3">(</span><span class="s1">filterFn</span><span class="s3">, </span><span class="s1">filterChunkFn</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s1">chunkGraph </span><span class="s3">= </span><span class="s1">ChunkGraph</span><span class="s3">.</span><span class="s1">getChunkGraphForChunk</span><span class="s3">(</span>
+			<span class="s4">this</span><span class="s3">,</span>
+			<span class="s2">&quot;Chunk.hasModuleInGraph&quot;</span><span class="s3">,</span>
+			<span class="s2">&quot;DEP_WEBPACK_CHUNK_HAS_MODULE_IN_GRAPH&quot;</span>
+		<span class="s3">);</span>
+		<span class="s4">return </span><span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">hasModuleInGraph</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">filterFn</span><span class="s3">, </span><span class="s1">filterChunkFn</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@deprecated</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{boolean} realHash whether the full hash or the rendered hash is to be used</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{ChunkMaps} the chunk map information</span>
+	 <span class="s5">*/</span>
+	<span class="s1">getChunkMaps</span><span class="s3">(</span><span class="s1">realHash</span><span class="s3">) {</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Record&lt;string|number, string&gt;} */</span>
+		<span class="s4">const </span><span class="s1">chunkHashMap </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">create</span><span class="s3">(</span><span class="s4">null</span><span class="s3">);</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Record&lt;string|number, Record&lt;string, string&gt;&gt;} */</span>
+		<span class="s4">const </span><span class="s1">chunkContentHashMap </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">create</span><span class="s3">(</span><span class="s4">null</span><span class="s3">);</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Record&lt;string|number, string&gt;} */</span>
+		<span class="s4">const </span><span class="s1">chunkNameMap </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">create</span><span class="s3">(</span><span class="s4">null</span><span class="s3">);</span>
+
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunk of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">getAllAsyncChunks</span><span class="s3">()) {</span>
+			<span class="s4">const </span><span class="s1">id </span><span class="s3">= </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ChunkId} */ </span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">.</span><span class="s1">id</span><span class="s3">);</span>
+			<span class="s1">chunkHashMap</span><span class="s3">[</span><span class="s1">id</span><span class="s3">] =</span>
+				<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{string} */</span>
+				<span class="s3">(</span><span class="s1">realHash </span><span class="s3">? </span><span class="s1">chunk</span><span class="s3">.</span><span class="s1">hash </span><span class="s3">: </span><span class="s1">chunk</span><span class="s3">.</span><span class="s1">renderedHash</span><span class="s3">);</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">key of Object</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">.</span><span class="s1">contentHash</span><span class="s3">)) {</span>
+				<span class="s4">if </span><span class="s3">(!</span><span class="s1">chunkContentHashMap</span><span class="s3">[</span><span class="s1">key</span><span class="s3">]) {</span>
+					<span class="s1">chunkContentHashMap</span><span class="s3">[</span><span class="s1">key</span><span class="s3">] = </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">create</span><span class="s3">(</span><span class="s4">null</span><span class="s3">);</span>
+				<span class="s3">}</span>
+				<span class="s1">chunkContentHashMap</span><span class="s3">[</span><span class="s1">key</span><span class="s3">][</span><span class="s1">id</span><span class="s3">] = </span><span class="s1">chunk</span><span class="s3">.</span><span class="s1">contentHash</span><span class="s3">[</span><span class="s1">key</span><span class="s3">];</span>
+			<span class="s3">}</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">.</span><span class="s1">name</span><span class="s3">) {</span>
+				<span class="s1">chunkNameMap</span><span class="s3">[</span><span class="s1">id</span><span class="s3">] = </span><span class="s1">chunk</span><span class="s3">.</span><span class="s1">name</span><span class="s3">;</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+
+		<span class="s4">return </span><span class="s3">{</span>
+			<span class="s1">hash</span><span class="s3">: </span><span class="s1">chunkHashMap</span><span class="s3">,</span>
+			<span class="s1">contentHash</span><span class="s3">: </span><span class="s1">chunkContentHashMap</span><span class="s3">,</span>
+			<span class="s1">name</span><span class="s3">: </span><span class="s1">chunkNameMap</span>
+		<span class="s3">};</span>
+	<span class="s3">}</span>
+	<span class="s0">// BACKWARD-COMPAT END</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} whether or not the Chunk will have a runtime</span>
+	 <span class="s5">*/</span>
+	<span class="s1">hasRuntime</span><span class="s3">() {</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunkGroup of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_groups</span><span class="s3">) {</span>
+			<span class="s4">if </span><span class="s3">(</span>
+				<span class="s1">chunkGroup </span><span class="s4">instanceof </span><span class="s1">Entrypoint </span><span class="s3">&amp;&amp;</span>
+				<span class="s1">chunkGroup</span><span class="s3">.</span><span class="s1">getRuntimeChunk</span><span class="s3">() === </span><span class="s4">this</span>
+			<span class="s3">) {</span>
+				<span class="s4">return true</span><span class="s3">;</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+		<span class="s4">return false</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} whether or not this chunk can be an initial chunk</span>
+	 <span class="s5">*/</span>
+	<span class="s1">canBeInitial</span><span class="s3">() {</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunkGroup of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_groups</span><span class="s3">) {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">chunkGroup</span><span class="s3">.</span><span class="s1">isInitial</span><span class="s3">()) </span><span class="s4">return true</span><span class="s3">;</span>
+		<span class="s3">}</span>
+		<span class="s4">return false</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} whether this chunk can only be an initial chunk</span>
+	 <span class="s5">*/</span>
+	<span class="s1">isOnlyInitial</span><span class="s3">() {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_groups</span><span class="s3">.</span><span class="s1">size </span><span class="s3">&lt;= </span><span class="s7">0</span><span class="s3">) </span><span class="s4">return false</span><span class="s3">;</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunkGroup of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_groups</span><span class="s3">) {</span>
+			<span class="s4">if </span><span class="s3">(!</span><span class="s1">chunkGroup</span><span class="s3">.</span><span class="s1">isInitial</span><span class="s3">()) </span><span class="s4">return false</span><span class="s3">;</span>
+		<span class="s3">}</span>
+		<span class="s4">return true</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{EntryOptions | undefined} the entry options for this chunk</span>
+	 <span class="s5">*/</span>
+	<span class="s1">getEntryOptions</span><span class="s3">() {</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunkGroup of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_groups</span><span class="s3">) {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">chunkGroup </span><span class="s4">instanceof </span><span class="s1">Entrypoint</span><span class="s3">) {</span>
+				<span class="s4">return </span><span class="s1">chunkGroup</span><span class="s3">.</span><span class="s1">options</span><span class="s3">;</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+		<span class="s4">return </span><span class="s1">undefined</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ChunkGroup} chunkGroup the chunkGroup the chunk is being added</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">addGroup</span><span class="s3">(</span><span class="s1">chunkGroup</span><span class="s3">) {</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_groups</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">chunkGroup</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ChunkGroup} chunkGroup the chunkGroup the chunk is being removed from</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">removeGroup</span><span class="s3">(</span><span class="s1">chunkGroup</span><span class="s3">) {</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_groups</span><span class="s3">.</span><span class="s1">delete</span><span class="s3">(</span><span class="s1">chunkGroup</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ChunkGroup} chunkGroup the chunkGroup to check</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} returns true if chunk has chunkGroup reference and exists in chunkGroup</span>
+	 <span class="s5">*/</span>
+	<span class="s1">isInGroup</span><span class="s3">(</span><span class="s1">chunkGroup</span><span class="s3">) {</span>
+		<span class="s4">return this</span><span class="s3">.</span><span class="s1">_groups</span><span class="s3">.</span><span class="s1">has</span><span class="s3">(</span><span class="s1">chunkGroup</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{number} the amount of groups that the said chunk is in</span>
+	 <span class="s5">*/</span>
+	<span class="s1">getNumberOfGroups</span><span class="s3">() {</span>
+		<span class="s4">return this</span><span class="s3">.</span><span class="s1">_groups</span><span class="s3">.</span><span class="s1">size</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{SortableSet&lt;ChunkGroup&gt;} the chunkGroups that the said chunk is referenced in</span>
+	 <span class="s5">*/</span>
+	<span class="s1">get groupsIterable</span><span class="s3">() {</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_groups</span><span class="s3">.</span><span class="s1">sort</span><span class="s3">();</span>
+		<span class="s4">return this</span><span class="s3">.</span><span class="s1">_groups</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">disconnectFromGroups</span><span class="s3">() {</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunkGroup of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_groups</span><span class="s3">) {</span>
+			<span class="s1">chunkGroup</span><span class="s3">.</span><span class="s1">removeChunk</span><span class="s3">(</span><span class="s4">this</span><span class="s3">);</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Chunk} newChunk the new chunk that will be split out of</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">split</span><span class="s3">(</span><span class="s1">newChunk</span><span class="s3">) {</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunkGroup of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_groups</span><span class="s3">) {</span>
+			<span class="s1">chunkGroup</span><span class="s3">.</span><span class="s1">insertChunk</span><span class="s3">(</span><span class="s1">newChunk</span><span class="s3">, </span><span class="s4">this</span><span class="s3">);</span>
+			<span class="s1">newChunk</span><span class="s3">.</span><span class="s1">addGroup</span><span class="s3">(</span><span class="s1">chunkGroup</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">idHint of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">idNameHints</span><span class="s3">) {</span>
+			<span class="s1">newChunk</span><span class="s3">.</span><span class="s1">idNameHints</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">idHint</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s1">newChunk</span><span class="s3">.</span><span class="s1">runtime </span><span class="s3">= </span><span class="s1">mergeRuntime</span><span class="s3">(</span><span class="s1">newChunk</span><span class="s3">.</span><span class="s1">runtime</span><span class="s3">, </span><span class="s4">this</span><span class="s3">.</span><span class="s1">runtime</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Hash} hash hash (will be modified)</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ChunkGraph} chunkGraph the chunk graph</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">updateHash</span><span class="s3">(</span><span class="s1">hash</span><span class="s3">, </span><span class="s1">chunkGraph</span><span class="s3">) {</span>
+		<span class="s1">hash</span><span class="s3">.</span><span class="s1">update</span><span class="s3">(</span>
+			<span class="s2">`</span><span class="s1">$</span><span class="s3">{</span><span class="s4">this</span><span class="s3">.</span><span class="s1">id</span><span class="s3">} </span><span class="s1">$</span><span class="s3">{</span><span class="s4">this</span><span class="s3">.</span><span class="s1">ids </span><span class="s3">? </span><span class="s4">this</span><span class="s3">.</span><span class="s1">ids</span><span class="s3">.</span><span class="s1">join</span><span class="s3">() : </span><span class="s2">&quot;&quot;</span><span class="s3">} </span><span class="s1">$</span><span class="s3">{</span><span class="s4">this</span><span class="s3">.</span><span class="s1">name </span><span class="s3">|| </span><span class="s2">&quot;&quot;</span><span class="s3">} </span><span class="s2">`</span>
+		<span class="s3">);</span>
+		<span class="s4">const </span><span class="s1">xor </span><span class="s3">= </span><span class="s4">new </span><span class="s1">StringXor</span><span class="s3">();</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">m of chunkGraph</span><span class="s3">.</span><span class="s1">getChunkModulesIterable</span><span class="s3">(</span><span class="s4">this</span><span class="s3">)) {</span>
+			<span class="s1">xor</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">getModuleHash</span><span class="s3">(</span><span class="s1">m</span><span class="s3">, </span><span class="s4">this</span><span class="s3">.</span><span class="s1">runtime</span><span class="s3">));</span>
+		<span class="s3">}</span>
+		<span class="s1">xor</span><span class="s3">.</span><span class="s1">updateHash</span><span class="s3">(</span><span class="s1">hash</span><span class="s3">);</span>
+		<span class="s4">const </span><span class="s1">entryModules </span><span class="s3">=</span>
+			<span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">getChunkEntryModulesWithChunkGroupIterable</span><span class="s3">(</span><span class="s4">this</span><span class="s3">);</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s3">[</span><span class="s1">m</span><span class="s3">, </span><span class="s1">chunkGroup</span><span class="s3">] </span><span class="s1">of entryModules</span><span class="s3">) {</span>
+			<span class="s1">hash</span><span class="s3">.</span><span class="s1">update</span><span class="s3">(</span>
+				<span class="s2">`entry</span><span class="s1">$</span><span class="s3">{</span><span class="s1">chunkGraph</span><span class="s3">.</span><span class="s1">getModuleId</span><span class="s3">(</span><span class="s1">m</span><span class="s3">)}</span><span class="s1">$</span><span class="s3">{</span>
+					<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ChunkGroup} */ </span><span class="s3">(</span><span class="s1">chunkGroup</span><span class="s3">).</span><span class="s1">id</span>
+				<span class="s3">}</span><span class="s2">`</span>
+			<span class="s3">);</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{Set&lt;Chunk&gt;} a set of all the async chunks</span>
+	 <span class="s5">*/</span>
+	<span class="s1">getAllAsyncChunks</span><span class="s3">() {</span>
+		<span class="s4">const </span><span class="s1">queue </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">();</span>
+		<span class="s4">const </span><span class="s1">chunks </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">();</span>
+
+		<span class="s4">const </span><span class="s1">initialChunks </span><span class="s3">= </span><span class="s1">intersect</span><span class="s3">(</span>
+			<span class="s1">Array</span><span class="s3">.</span><span class="s1">from</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">groupsIterable</span><span class="s3">, </span><span class="s1">g </span><span class="s3">=&gt; </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">(</span><span class="s1">g</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">))</span>
+		<span class="s3">);</span>
+
+		<span class="s4">const </span><span class="s1">initialQueue </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">groupsIterable</span><span class="s3">);</span>
+
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunkGroup of initialQueue</span><span class="s3">) {</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">child of chunkGroup</span><span class="s3">.</span><span class="s1">childrenIterable</span><span class="s3">) {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">child </span><span class="s4">instanceof </span><span class="s1">Entrypoint</span><span class="s3">) {</span>
+					<span class="s1">initialQueue</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+				<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+					<span class="s1">queue</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+				<span class="s3">}</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunkGroup of queue</span><span class="s3">) {</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunk of chunkGroup</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">) {</span>
+				<span class="s4">if </span><span class="s3">(!</span><span class="s1">initialChunks</span><span class="s3">.</span><span class="s1">has</span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">)) {</span>
+					<span class="s1">chunks</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">);</span>
+				<span class="s3">}</span>
+			<span class="s3">}</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">child of chunkGroup</span><span class="s3">.</span><span class="s1">childrenIterable</span><span class="s3">) {</span>
+				<span class="s1">queue</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+
+		<span class="s4">return </span><span class="s1">chunks</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{Set&lt;Chunk&gt;} a set of all the initial chunks (including itself)</span>
+	 <span class="s5">*/</span>
+	<span class="s1">getAllInitialChunks</span><span class="s3">() {</span>
+		<span class="s4">const </span><span class="s1">chunks </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">();</span>
+		<span class="s4">const </span><span class="s1">queue </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">groupsIterable</span><span class="s3">);</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">group of queue</span><span class="s3">) {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">group</span><span class="s3">.</span><span class="s1">isInitial</span><span class="s3">()) {</span>
+				<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">c of group</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">) </span><span class="s1">chunks</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">c</span><span class="s3">);</span>
+				<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">g of group</span><span class="s3">.</span><span class="s1">childrenIterable</span><span class="s3">) </span><span class="s1">queue</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">g</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+		<span class="s4">return </span><span class="s1">chunks</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{Set&lt;Chunk&gt;} a set of all the referenced chunks (including itself)</span>
+	 <span class="s5">*/</span>
+	<span class="s1">getAllReferencedChunks</span><span class="s3">() {</span>
+		<span class="s4">const </span><span class="s1">queue </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">groupsIterable</span><span class="s3">);</span>
+		<span class="s4">const </span><span class="s1">chunks </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">();</span>
+
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunkGroup of queue</span><span class="s3">) {</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunk of chunkGroup</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">) {</span>
+				<span class="s1">chunks</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">);</span>
+			<span class="s3">}</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">child of chunkGroup</span><span class="s3">.</span><span class="s1">childrenIterable</span><span class="s3">) {</span>
+				<span class="s1">queue</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+
+		<span class="s4">return </span><span class="s1">chunks</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{Set&lt;Entrypoint&gt;} a set of all the referenced entrypoints</span>
+	 <span class="s5">*/</span>
+	<span class="s1">getAllReferencedAsyncEntrypoints</span><span class="s3">() {</span>
+		<span class="s4">const </span><span class="s1">queue </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">groupsIterable</span><span class="s3">);</span>
+		<span class="s4">const </span><span class="s1">entrypoints </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">();</span>
+
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunkGroup of queue</span><span class="s3">) {</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">entrypoint of chunkGroup</span><span class="s3">.</span><span class="s1">asyncEntrypointsIterable</span><span class="s3">) {</span>
+				<span class="s1">entrypoints</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">entrypoint</span><span class="s3">);</span>
+			<span class="s3">}</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">child of chunkGroup</span><span class="s3">.</span><span class="s1">childrenIterable</span><span class="s3">) {</span>
+				<span class="s1">queue</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+
+		<span class="s4">return </span><span class="s1">entrypoints</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{boolean} true, if the chunk references async chunks</span>
+	 <span class="s5">*/</span>
+	<span class="s1">hasAsyncChunks</span><span class="s3">() {</span>
+		<span class="s4">const </span><span class="s1">queue </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">();</span>
+
+		<span class="s4">const </span><span class="s1">initialChunks </span><span class="s3">= </span><span class="s1">intersect</span><span class="s3">(</span>
+			<span class="s1">Array</span><span class="s3">.</span><span class="s1">from</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">groupsIterable</span><span class="s3">, </span><span class="s1">g </span><span class="s3">=&gt; </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">(</span><span class="s1">g</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">))</span>
+		<span class="s3">);</span>
+
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunkGroup of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">groupsIterable</span><span class="s3">) {</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">child of chunkGroup</span><span class="s3">.</span><span class="s1">childrenIterable</span><span class="s3">) {</span>
+				<span class="s1">queue</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunkGroup of queue</span><span class="s3">) {</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunk of chunkGroup</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">) {</span>
+				<span class="s4">if </span><span class="s3">(!</span><span class="s1">initialChunks</span><span class="s3">.</span><span class="s1">has</span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">)) {</span>
+					<span class="s4">return true</span><span class="s3">;</span>
+				<span class="s3">}</span>
+			<span class="s3">}</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">child of chunkGroup</span><span class="s3">.</span><span class="s1">childrenIterable</span><span class="s3">) {</span>
+				<span class="s1">queue</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">child</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+
+		<span class="s4">return false</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ChunkGraph} chunkGraph the chunk graph</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ChunkFilterPredicate=} filterFn function used to filter chunks</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{Record&lt;string, (string | number)[]&gt;} a record object of names to lists of child ids(?)</span>
+	 <span class="s5">*/</span>
+	<span class="s1">getChildIdsByOrders</span><span class="s3">(</span><span class="s1">chunkGraph</span><span class="s3">, </span><span class="s1">filterFn</span><span class="s3">) {</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Map&lt;string, {order: number, group: ChunkGroup}[]&gt;} */</span>
+		<span class="s4">const </span><span class="s1">lists </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Map</span><span class="s3">();</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">group of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">groupsIterable</span><span class="s3">) {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">group</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">[</span><span class="s1">group</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s7">1</span><span class="s3">] === </span><span class="s4">this</span><span class="s3">) {</span>
+				<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">childGroup of group</span><span class="s3">.</span><span class="s1">childrenIterable</span><span class="s3">) {</span>
+					<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">key of Object</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">(</span><span class="s1">childGroup</span><span class="s3">.</span><span class="s1">options</span><span class="s3">)) {</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">key</span><span class="s3">.</span><span class="s1">endsWith</span><span class="s3">(</span><span class="s2">&quot;Order&quot;</span><span class="s3">)) {</span>
+							<span class="s4">const </span><span class="s1">name </span><span class="s3">= </span><span class="s1">key</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s7">0</span><span class="s3">, </span><span class="s1">key</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s2">&quot;Order&quot;</span><span class="s3">.</span><span class="s1">length</span><span class="s3">);</span>
+							<span class="s4">let </span><span class="s1">list </span><span class="s3">= </span><span class="s1">lists</span><span class="s3">.</span><span class="s1">get</span><span class="s3">(</span><span class="s1">name</span><span class="s3">);</span>
+							<span class="s4">if </span><span class="s3">(</span><span class="s1">list </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+								<span class="s1">list </span><span class="s3">= [];</span>
+								<span class="s1">lists</span><span class="s3">.</span><span class="s1">set</span><span class="s3">(</span><span class="s1">name</span><span class="s3">, </span><span class="s1">list</span><span class="s3">);</span>
+							<span class="s3">}</span>
+							<span class="s1">list</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({</span>
+								<span class="s1">order</span><span class="s3">:</span>
+									<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{number} */</span>
+									<span class="s3">(</span>
+										<span class="s1">childGroup</span><span class="s3">.</span><span class="s1">options</span><span class="s3">[</span>
+											<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{keyof ChunkGroupOptions} */ </span><span class="s3">(</span><span class="s1">key</span><span class="s3">)</span>
+										<span class="s3">]</span>
+									<span class="s3">),</span>
+								<span class="s1">group</span><span class="s3">: </span><span class="s1">childGroup</span>
+							<span class="s3">});</span>
+						<span class="s3">}</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Record&lt;string, (string | number)[]&gt;} */</span>
+		<span class="s4">const </span><span class="s1">result </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">create</span><span class="s3">(</span><span class="s4">null</span><span class="s3">);</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s3">[</span><span class="s1">name</span><span class="s3">, </span><span class="s1">list</span><span class="s3">] </span><span class="s1">of lists</span><span class="s3">) {</span>
+			<span class="s1">list</span><span class="s3">.</span><span class="s1">sort</span><span class="s3">((</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">) =&gt; {</span>
+				<span class="s4">const </span><span class="s1">cmp </span><span class="s3">= </span><span class="s1">b</span><span class="s3">.</span><span class="s1">order </span><span class="s3">- </span><span class="s1">a</span><span class="s3">.</span><span class="s1">order</span><span class="s3">;</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">cmp </span><span class="s3">!== </span><span class="s7">0</span><span class="s3">) </span><span class="s4">return </span><span class="s1">cmp</span><span class="s3">;</span>
+				<span class="s4">return </span><span class="s1">a</span><span class="s3">.</span><span class="s1">group</span><span class="s3">.</span><span class="s1">compareTo</span><span class="s3">(</span><span class="s1">chunkGraph</span><span class="s3">, </span><span class="s1">b</span><span class="s3">.</span><span class="s1">group</span><span class="s3">);</span>
+			<span class="s3">});</span>
+			<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Set&lt;string | number&gt;} */</span>
+			<span class="s4">const </span><span class="s1">chunkIdSet </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">();</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">item of list</span><span class="s3">) {</span>
+				<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunk of item</span><span class="s3">.</span><span class="s1">group</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">) {</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">filterFn </span><span class="s3">&amp;&amp; !</span><span class="s1">filterFn</span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">, </span><span class="s1">chunkGraph</span><span class="s3">)) </span><span class="s4">continue</span><span class="s3">;</span>
+					<span class="s1">chunkIdSet</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ChunkId} */ </span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">.</span><span class="s1">id</span><span class="s3">));</span>
+				<span class="s3">}</span>
+			<span class="s3">}</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">chunkIdSet</span><span class="s3">.</span><span class="s1">size </span><span class="s3">&gt; </span><span class="s7">0</span><span class="s3">) {</span>
+				<span class="s1">result</span><span class="s3">[</span><span class="s1">name</span><span class="s3">] = </span><span class="s1">Array</span><span class="s3">.</span><span class="s1">from</span><span class="s3">(</span><span class="s1">chunkIdSet</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+		<span class="s4">return </span><span class="s1">result</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ChunkGraph} chunkGraph the chunk graph</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} type option name</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{{ onChunks: Chunk[], chunks: Set&lt;Chunk&gt; }[] | undefined} referenced chunks for a specific type</span>
+	 <span class="s5">*/</span>
+	<span class="s1">getChildrenOfTypeInOrder</span><span class="s3">(</span><span class="s1">chunkGraph</span><span class="s3">, </span><span class="s1">type</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s1">list </span><span class="s3">= [];</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">group of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">groupsIterable</span><span class="s3">) {</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">childGroup of group</span><span class="s3">.</span><span class="s1">childrenIterable</span><span class="s3">) {</span>
+				<span class="s4">const </span><span class="s1">order </span><span class="s3">=</span>
+					<span class="s1">childGroup</span><span class="s3">.</span><span class="s1">options</span><span class="s3">[</span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{keyof ChunkGroupOptions} */ </span><span class="s3">(</span><span class="s1">type</span><span class="s3">)];</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">order </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) </span><span class="s4">continue</span><span class="s3">;</span>
+				<span class="s1">list</span><span class="s3">.</span><span class="s1">push</span><span class="s3">({</span>
+					<span class="s1">order</span><span class="s3">,</span>
+					<span class="s1">group</span><span class="s3">,</span>
+					<span class="s1">childGroup</span>
+				<span class="s3">});</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">list</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s7">0</span><span class="s3">) </span><span class="s4">return </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s1">list</span><span class="s3">.</span><span class="s1">sort</span><span class="s3">((</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">) =&gt; {</span>
+			<span class="s4">const </span><span class="s1">cmp </span><span class="s3">=</span>
+				<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{number} */ </span><span class="s3">(</span><span class="s1">b</span><span class="s3">.</span><span class="s1">order</span><span class="s3">) - </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{number} */ </span><span class="s3">(</span><span class="s1">a</span><span class="s3">.</span><span class="s1">order</span><span class="s3">);</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">cmp </span><span class="s3">!== </span><span class="s7">0</span><span class="s3">) </span><span class="s4">return </span><span class="s1">cmp</span><span class="s3">;</span>
+			<span class="s4">return </span><span class="s1">a</span><span class="s3">.</span><span class="s1">group</span><span class="s3">.</span><span class="s1">compareTo</span><span class="s3">(</span><span class="s1">chunkGraph</span><span class="s3">, </span><span class="s1">b</span><span class="s3">.</span><span class="s1">group</span><span class="s3">);</span>
+		<span class="s3">});</span>
+		<span class="s4">const </span><span class="s1">result </span><span class="s3">= [];</span>
+		<span class="s4">let </span><span class="s1">lastEntry</span><span class="s3">;</span>
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s3">{ </span><span class="s1">group</span><span class="s3">, </span><span class="s1">childGroup </span><span class="s3">} </span><span class="s1">of list</span><span class="s3">) {</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">lastEntry </span><span class="s3">&amp;&amp; </span><span class="s1">lastEntry</span><span class="s3">.</span><span class="s1">onChunks </span><span class="s3">=== </span><span class="s1">group</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">) {</span>
+				<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunk of childGroup</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">) {</span>
+					<span class="s1">lastEntry</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">);</span>
+				<span class="s3">}</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s1">result</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span>
+					<span class="s3">(</span><span class="s1">lastEntry </span><span class="s3">= {</span>
+						<span class="s1">onChunks</span><span class="s3">: </span><span class="s1">group</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">,</span>
+						<span class="s1">chunks</span><span class="s3">: </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">(</span><span class="s1">childGroup</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">)</span>
+					<span class="s3">})</span>
+				<span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+		<span class="s4">return </span><span class="s1">result</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ChunkGraph} chunkGraph the chunk graph</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{boolean=} includeDirectChildren include direct children (by default only children of async children are included)</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{ChunkFilterPredicate=} filterFn function used to filter chunks</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{Record&lt;string|number, Record&lt;string, (string | number)[]&gt;&gt;} a record object of names to lists of child ids(?) by chunk id</span>
+	 <span class="s5">*/</span>
+	<span class="s1">getChildIdsByOrdersMap</span><span class="s3">(</span><span class="s1">chunkGraph</span><span class="s3">, </span><span class="s1">includeDirectChildren</span><span class="s3">, </span><span class="s1">filterFn</span><span class="s3">) {</span>
+		<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Record&lt;string|number, Record&lt;string, (string | number)[]&gt;&gt;} */</span>
+		<span class="s4">const </span><span class="s1">chunkMaps </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">create</span><span class="s3">(</span><span class="s4">null</span><span class="s3">);</span>
+
+		<span class="s5">/**</span>
+		 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Chunk} chunk a chunk</span>
+		 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+		 <span class="s5">*/</span>
+		<span class="s4">const </span><span class="s1">addChildIdsByOrdersToMap </span><span class="s3">= </span><span class="s1">chunk </span><span class="s3">=&gt; {</span>
+			<span class="s4">const </span><span class="s1">data </span><span class="s3">= </span><span class="s1">chunk</span><span class="s3">.</span><span class="s1">getChildIdsByOrders</span><span class="s3">(</span><span class="s1">chunkGraph</span><span class="s3">, </span><span class="s1">filterFn</span><span class="s3">);</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">key of Object</span><span class="s3">.</span><span class="s1">keys</span><span class="s3">(</span><span class="s1">data</span><span class="s3">)) {</span>
+				<span class="s4">let </span><span class="s1">chunkMap </span><span class="s3">= </span><span class="s1">chunkMaps</span><span class="s3">[</span><span class="s1">key</span><span class="s3">];</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">chunkMap </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+					<span class="s1">chunkMaps</span><span class="s3">[</span><span class="s1">key</span><span class="s3">] = </span><span class="s1">chunkMap </span><span class="s3">= </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">create</span><span class="s3">(</span><span class="s4">null</span><span class="s3">);</span>
+				<span class="s3">}</span>
+				<span class="s1">chunkMap</span><span class="s3">[</span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ChunkId} */ </span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">.</span><span class="s1">id</span><span class="s3">)] = </span><span class="s1">data</span><span class="s3">[</span><span class="s1">key</span><span class="s3">];</span>
+			<span class="s3">}</span>
+		<span class="s3">};</span>
+
+		<span class="s4">if </span><span class="s3">(</span><span class="s1">includeDirectChildren</span><span class="s3">) {</span>
+			<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{Set&lt;Chunk&gt;} */</span>
+			<span class="s4">const </span><span class="s1">chunks </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Set</span><span class="s3">();</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunkGroup of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">groupsIterable</span><span class="s3">) {</span>
+				<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunk of chunkGroup</span><span class="s3">.</span><span class="s1">chunks</span><span class="s3">) {</span>
+					<span class="s1">chunks</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">);</span>
+				<span class="s3">}</span>
+			<span class="s3">}</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunk of chunks</span><span class="s3">) {</span>
+				<span class="s1">addChildIdsByOrdersToMap</span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+
+		<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">chunk of </span><span class="s4">this</span><span class="s3">.</span><span class="s1">getAllAsyncChunks</span><span class="s3">()) {</span>
+			<span class="s1">addChildIdsByOrdersToMap</span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">);</span>
+		<span class="s3">}</span>
+
+		<span class="s4">return </span><span class="s1">chunkMaps</span><span class="s3">;</span>
+	<span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">Chunk</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

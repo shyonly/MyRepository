@@ -1,0 +1,202 @@
+<html>
+<head>
+<title>cssVars.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #42c3d4;}
+.s5 { color: #2aacb8;}
+.s6 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+cssVars.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">BindingMetadata </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./types'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">SFCDescriptor </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./parseComponent'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">PluginCreator </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'postcss'</span>
+<span class="s0">import </span><span class="s1">hash from </span><span class="s3">'hash-sum'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">prefixIdentifiers </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./prefixIdentifiers'</span>
+
+<span class="s0">export const </span><span class="s1">CSS_VARS_HELPER </span><span class="s2">= </span><span class="s3">`useCssVars`</span>
+
+<span class="s0">export function </span><span class="s1">genCssVarsFromList</span><span class="s2">(</span>
+  <span class="s1">vars</span><span class="s2">: </span><span class="s1">string</span><span class="s2">[],</span>
+  <span class="s1">id</span><span class="s2">: </span><span class="s1">string</span><span class="s2">,</span>
+  <span class="s1">isProd</span><span class="s2">: </span><span class="s1">boolean</span><span class="s2">,</span>
+  <span class="s1">isSSR </span><span class="s2">= </span><span class="s0">false</span>
+<span class="s2">): </span><span class="s1">string </span><span class="s2">{</span>
+  <span class="s0">return </span><span class="s3">`{</span><span class="s0">\n  </span><span class="s1">$</span><span class="s2">{</span><span class="s1">vars</span>
+    <span class="s2">.</span><span class="s1">map</span><span class="s2">(</span>
+      <span class="s1">key </span><span class="s2">=&gt; </span><span class="s3">`&quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">isSSR </span><span class="s2">? </span><span class="s3">`--` </span><span class="s2">: </span><span class="s3">``</span><span class="s2">}</span><span class="s1">$</span><span class="s2">{</span><span class="s1">genVarName</span><span class="s2">(</span><span class="s1">id</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">isProd</span><span class="s2">)}</span><span class="s3">&quot;: (</span><span class="s1">$</span><span class="s2">{</span><span class="s1">key</span><span class="s2">}</span><span class="s3">)`</span>
+    <span class="s2">)</span>
+    <span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s3">',</span><span class="s0">\n  </span><span class="s3">'</span><span class="s2">)}</span><span class="s0">\n</span><span class="s3">}`</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">genVarName</span><span class="s2">(</span><span class="s1">id</span><span class="s2">: </span><span class="s1">string</span><span class="s2">, </span><span class="s1">raw</span><span class="s2">: </span><span class="s1">string</span><span class="s2">, </span><span class="s1">isProd</span><span class="s2">: </span><span class="s1">boolean</span><span class="s2">): </span><span class="s1">string </span><span class="s2">{</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">isProd</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">hash</span><span class="s2">(</span><span class="s1">id </span><span class="s2">+ </span><span class="s1">raw</span><span class="s2">)</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s0">return </span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">id</span><span class="s2">}</span><span class="s3">-</span><span class="s1">$</span><span class="s2">{</span><span class="s1">raw</span><span class="s2">.</span><span class="s1">replace</span><span class="s2">(</span><span class="s4">/([^\w-])/g</span><span class="s2">, </span><span class="s3">'_'</span><span class="s2">)}</span><span class="s3">`</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">normalizeExpression</span><span class="s2">(</span><span class="s1">exp</span><span class="s2">: </span><span class="s1">string</span><span class="s2">) {</span>
+  <span class="s1">exp </span><span class="s2">= </span><span class="s1">exp</span><span class="s2">.</span><span class="s1">trim</span><span class="s2">()</span>
+  <span class="s0">if </span><span class="s2">(</span>
+    <span class="s2">(</span><span class="s1">exp</span><span class="s2">[</span><span class="s5">0</span><span class="s2">] === </span><span class="s3">`'` </span><span class="s2">&amp;&amp; </span><span class="s1">exp</span><span class="s2">[</span><span class="s1">exp</span><span class="s2">.</span><span class="s1">length </span><span class="s2">- </span><span class="s5">1</span><span class="s2">] === </span><span class="s3">`'`</span><span class="s2">) ||</span>
+    <span class="s2">(</span><span class="s1">exp</span><span class="s2">[</span><span class="s5">0</span><span class="s2">] === </span><span class="s3">`&quot;` </span><span class="s2">&amp;&amp; </span><span class="s1">exp</span><span class="s2">[</span><span class="s1">exp</span><span class="s2">.</span><span class="s1">length </span><span class="s2">- </span><span class="s5">1</span><span class="s2">] === </span><span class="s3">`&quot;`</span><span class="s2">)</span>
+  <span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">exp</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s5">1</span><span class="s2">, -</span><span class="s5">1</span><span class="s2">)</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s1">exp</span>
+<span class="s2">}</span>
+
+<span class="s0">const </span><span class="s1">vBindRE </span><span class="s2">= </span><span class="s4">/v-bind\s*\(/g</span>
+
+<span class="s0">export function </span><span class="s1">parseCssVars</span><span class="s2">(</span><span class="s1">sfc</span><span class="s2">: </span><span class="s1">SFCDescriptor</span><span class="s2">): </span><span class="s1">string</span><span class="s2">[] {</span>
+  <span class="s0">const </span><span class="s1">vars</span><span class="s2">: </span><span class="s1">string</span><span class="s2">[] = []</span>
+  <span class="s1">sfc</span><span class="s2">.</span><span class="s1">styles</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">style </span><span class="s2">=&gt; {</span>
+    <span class="s0">let </span><span class="s1">match</span>
+    <span class="s6">// ignore v-bind() in comments /* ... */</span>
+    <span class="s0">const </span><span class="s1">content </span><span class="s2">= </span><span class="s1">style</span><span class="s2">.</span><span class="s1">content</span><span class="s2">.</span><span class="s1">replace</span><span class="s2">(</span><span class="s4">/\/\*([\s\S]*?)\*\//g</span><span class="s2">, </span><span class="s3">''</span><span class="s2">)</span>
+    <span class="s0">while </span><span class="s2">((</span><span class="s1">match </span><span class="s2">= </span><span class="s1">vBindRE</span><span class="s2">.</span><span class="s1">exec</span><span class="s2">(</span><span class="s1">content</span><span class="s2">))) {</span>
+      <span class="s0">const </span><span class="s1">start </span><span class="s2">= </span><span class="s1">match</span><span class="s2">.</span><span class="s1">index </span><span class="s2">+ </span><span class="s1">match</span><span class="s2">[</span><span class="s5">0</span><span class="s2">].</span><span class="s1">length</span>
+      <span class="s0">const </span><span class="s1">end </span><span class="s2">= </span><span class="s1">lexBinding</span><span class="s2">(</span><span class="s1">content</span><span class="s2">, </span><span class="s1">start</span><span class="s2">)</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">end </span><span class="s2">!== </span><span class="s0">null</span><span class="s2">) {</span>
+        <span class="s0">const </span><span class="s1">variable </span><span class="s2">= </span><span class="s1">normalizeExpression</span><span class="s2">(</span><span class="s1">content</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s1">start</span><span class="s2">, </span><span class="s1">end</span><span class="s2">))</span>
+        <span class="s0">if </span><span class="s2">(!</span><span class="s1">vars</span><span class="s2">.</span><span class="s1">includes</span><span class="s2">(</span><span class="s1">variable</span><span class="s2">)) {</span>
+          <span class="s1">vars</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">variable</span><span class="s2">)</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">})</span>
+  <span class="s0">return </span><span class="s1">vars</span>
+<span class="s2">}</span>
+
+<span class="s0">const enum </span><span class="s1">LexerState </span><span class="s2">{</span>
+  <span class="s1">inParens</span><span class="s2">,</span>
+  <span class="s1">inSingleQuoteString</span><span class="s2">,</span>
+  <span class="s1">inDoubleQuoteString</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">lexBinding</span><span class="s2">(</span><span class="s1">content</span><span class="s2">: </span><span class="s1">string</span><span class="s2">, </span><span class="s1">start</span><span class="s2">: </span><span class="s1">number</span><span class="s2">): </span><span class="s1">number </span><span class="s2">| </span><span class="s0">null </span><span class="s2">{</span>
+  <span class="s0">let </span><span class="s1">state</span><span class="s2">: </span><span class="s1">LexerState </span><span class="s2">= </span><span class="s1">LexerState</span><span class="s2">.</span><span class="s1">inParens</span>
+  <span class="s0">let </span><span class="s1">parenDepth </span><span class="s2">= </span><span class="s5">0</span>
+
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s1">start</span><span class="s2">; </span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">content</span><span class="s2">.</span><span class="s1">length</span><span class="s2">; </span><span class="s1">i</span><span class="s2">++) {</span>
+    <span class="s0">const </span><span class="s1">char </span><span class="s2">= </span><span class="s1">content</span><span class="s2">.</span><span class="s1">charAt</span><span class="s2">(</span><span class="s1">i</span><span class="s2">)</span>
+    <span class="s0">switch </span><span class="s2">(</span><span class="s1">state</span><span class="s2">) {</span>
+      <span class="s0">case </span><span class="s1">LexerState</span><span class="s2">.</span><span class="s1">inParens</span><span class="s2">:</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">char </span><span class="s2">=== </span><span class="s3">`'`</span><span class="s2">) {</span>
+          <span class="s1">state </span><span class="s2">= </span><span class="s1">LexerState</span><span class="s2">.</span><span class="s1">inSingleQuoteString</span>
+        <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">char </span><span class="s2">=== </span><span class="s3">`&quot;`</span><span class="s2">) {</span>
+          <span class="s1">state </span><span class="s2">= </span><span class="s1">LexerState</span><span class="s2">.</span><span class="s1">inDoubleQuoteString</span>
+        <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">char </span><span class="s2">=== </span><span class="s3">`(`</span><span class="s2">) {</span>
+          <span class="s1">parenDepth</span><span class="s2">++</span>
+        <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">char </span><span class="s2">=== </span><span class="s3">`)`</span><span class="s2">) {</span>
+          <span class="s0">if </span><span class="s2">(</span><span class="s1">parenDepth </span><span class="s2">&gt; </span><span class="s5">0</span><span class="s2">) {</span>
+            <span class="s1">parenDepth</span><span class="s2">--</span>
+          <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+            <span class="s0">return </span><span class="s1">i</span>
+          <span class="s2">}</span>
+        <span class="s2">}</span>
+        <span class="s0">break</span>
+      <span class="s0">case </span><span class="s1">LexerState</span><span class="s2">.</span><span class="s1">inSingleQuoteString</span><span class="s2">:</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">char </span><span class="s2">=== </span><span class="s3">`'`</span><span class="s2">) {</span>
+          <span class="s1">state </span><span class="s2">= </span><span class="s1">LexerState</span><span class="s2">.</span><span class="s1">inParens</span>
+        <span class="s2">}</span>
+        <span class="s0">break</span>
+      <span class="s0">case </span><span class="s1">LexerState</span><span class="s2">.</span><span class="s1">inDoubleQuoteString</span><span class="s2">:</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">char </span><span class="s2">=== </span><span class="s3">`&quot;`</span><span class="s2">) {</span>
+          <span class="s1">state </span><span class="s2">= </span><span class="s1">LexerState</span><span class="s2">.</span><span class="s1">inParens</span>
+        <span class="s2">}</span>
+        <span class="s0">break</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+  <span class="s0">return null</span>
+<span class="s2">}</span>
+
+<span class="s6">// for compileStyle</span>
+<span class="s0">export interface </span><span class="s1">CssVarsPluginOptions </span><span class="s2">{</span>
+  <span class="s1">id</span><span class="s2">: </span><span class="s1">string</span>
+  <span class="s1">isProd</span><span class="s2">: </span><span class="s1">boolean</span>
+<span class="s2">}</span>
+
+<span class="s0">export const </span><span class="s1">cssVarsPlugin</span><span class="s2">: </span><span class="s1">PluginCreator</span><span class="s2">&lt;</span><span class="s1">CssVarsPluginOptions</span><span class="s2">&gt; = </span><span class="s1">opts </span><span class="s2">=&gt; {</span>
+  <span class="s0">const </span><span class="s2">{ </span><span class="s1">id</span><span class="s2">, </span><span class="s1">isProd </span><span class="s2">} = </span><span class="s1">opts</span><span class="s2">!</span>
+  <span class="s0">return </span><span class="s2">{</span>
+    <span class="s1">postcssPlugin</span><span class="s2">: </span><span class="s3">'vue-sfc-vars'</span><span class="s2">,</span>
+    <span class="s1">Declaration</span><span class="s2">(</span><span class="s1">decl</span><span class="s2">) {</span>
+      <span class="s6">// rewrite CSS variables</span>
+      <span class="s0">const </span><span class="s1">value </span><span class="s2">= </span><span class="s1">decl</span><span class="s2">.</span><span class="s1">value</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">vBindRE</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">value</span><span class="s2">)) {</span>
+        <span class="s1">vBindRE</span><span class="s2">.</span><span class="s1">lastIndex </span><span class="s2">= </span><span class="s5">0</span>
+        <span class="s0">let </span><span class="s1">transformed </span><span class="s2">= </span><span class="s3">''</span>
+        <span class="s0">let </span><span class="s1">lastIndex </span><span class="s2">= </span><span class="s5">0</span>
+        <span class="s0">let </span><span class="s1">match</span>
+        <span class="s0">while </span><span class="s2">((</span><span class="s1">match </span><span class="s2">= </span><span class="s1">vBindRE</span><span class="s2">.</span><span class="s1">exec</span><span class="s2">(</span><span class="s1">value</span><span class="s2">))) {</span>
+          <span class="s0">const </span><span class="s1">start </span><span class="s2">= </span><span class="s1">match</span><span class="s2">.</span><span class="s1">index </span><span class="s2">+ </span><span class="s1">match</span><span class="s2">[</span><span class="s5">0</span><span class="s2">].</span><span class="s1">length</span>
+          <span class="s0">const </span><span class="s1">end </span><span class="s2">= </span><span class="s1">lexBinding</span><span class="s2">(</span><span class="s1">value</span><span class="s2">, </span><span class="s1">start</span><span class="s2">)</span>
+          <span class="s0">if </span><span class="s2">(</span><span class="s1">end </span><span class="s2">!== </span><span class="s0">null</span><span class="s2">) {</span>
+            <span class="s0">const </span><span class="s1">variable </span><span class="s2">= </span><span class="s1">normalizeExpression</span><span class="s2">(</span><span class="s1">value</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s1">start</span><span class="s2">, </span><span class="s1">end</span><span class="s2">))</span>
+            <span class="s1">transformed </span><span class="s2">+=</span>
+              <span class="s1">value</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s1">lastIndex</span><span class="s2">, </span><span class="s1">match</span><span class="s2">.</span><span class="s1">index</span><span class="s2">) +</span>
+              <span class="s3">`var(--</span><span class="s1">$</span><span class="s2">{</span><span class="s1">genVarName</span><span class="s2">(</span><span class="s1">id</span><span class="s2">, </span><span class="s1">variable</span><span class="s2">, </span><span class="s1">isProd</span><span class="s2">)}</span><span class="s3">)`</span>
+            <span class="s1">lastIndex </span><span class="s2">= </span><span class="s1">end </span><span class="s2">+ </span><span class="s5">1</span>
+          <span class="s2">}</span>
+        <span class="s2">}</span>
+        <span class="s1">decl</span><span class="s2">.</span><span class="s1">value </span><span class="s2">= </span><span class="s1">transformed </span><span class="s2">+ </span><span class="s1">value</span><span class="s2">.</span><span class="s1">slice</span><span class="s2">(</span><span class="s1">lastIndex</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+<span class="s1">cssVarsPlugin</span><span class="s2">.</span><span class="s1">postcss </span><span class="s2">= </span><span class="s0">true</span>
+
+<span class="s0">export function </span><span class="s1">genCssVarsCode</span><span class="s2">(</span>
+  <span class="s1">vars</span><span class="s2">: </span><span class="s1">string</span><span class="s2">[],</span>
+  <span class="s1">bindings</span><span class="s2">: </span><span class="s1">BindingMetadata</span><span class="s2">,</span>
+  <span class="s1">id</span><span class="s2">: </span><span class="s1">string</span><span class="s2">,</span>
+  <span class="s1">isProd</span><span class="s2">: </span><span class="s1">boolean</span>
+<span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">varsExp </span><span class="s2">= </span><span class="s1">genCssVarsFromList</span><span class="s2">(</span><span class="s1">vars</span><span class="s2">, </span><span class="s1">id</span><span class="s2">, </span><span class="s1">isProd</span><span class="s2">)</span>
+  <span class="s0">return </span><span class="s3">`_</span><span class="s1">$</span><span class="s2">{</span><span class="s1">CSS_VARS_HELPER</span><span class="s2">}</span><span class="s3">((_vm, _setup) =&gt; </span><span class="s1">$</span><span class="s2">{</span><span class="s1">prefixIdentifiers</span><span class="s2">(</span>
+    <span class="s3">`(</span><span class="s1">$</span><span class="s2">{</span><span class="s1">varsExp</span><span class="s2">}</span><span class="s3">)`</span><span class="s2">,</span>
+    <span class="s0">false</span><span class="s2">,</span>
+    <span class="s0">false</span><span class="s2">,</span>
+    <span class="s1">undefined</span><span class="s2">,</span>
+    <span class="s1">bindings</span>
+  <span class="s2">)}</span><span class="s3">)`</span>
+<span class="s2">}</span>
+
+<span class="s6">// &lt;script setup&gt; already gets the calls injected as part of the transform</span>
+<span class="s6">// this is only for single normal &lt;script&gt;</span>
+<span class="s0">export function </span><span class="s1">genNormalScriptCssVarsCode</span><span class="s2">(</span>
+  <span class="s1">cssVars</span><span class="s2">: </span><span class="s1">string</span><span class="s2">[],</span>
+  <span class="s1">bindings</span><span class="s2">: </span><span class="s1">BindingMetadata</span><span class="s2">,</span>
+  <span class="s1">id</span><span class="s2">: </span><span class="s1">string</span><span class="s2">,</span>
+  <span class="s1">isProd</span><span class="s2">: </span><span class="s1">boolean</span>
+<span class="s2">): </span><span class="s1">string </span><span class="s2">{</span>
+  <span class="s0">return </span><span class="s2">(</span>
+    <span class="s3">`</span><span class="s0">\n</span><span class="s3">import { </span><span class="s1">$</span><span class="s2">{</span><span class="s1">CSS_VARS_HELPER</span><span class="s2">} </span><span class="s3">as _</span><span class="s1">$</span><span class="s2">{</span><span class="s1">CSS_VARS_HELPER</span><span class="s2">} </span><span class="s3">} from 'vue'</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+    <span class="s3">`const __injectCSSVars__ = () =&gt; {</span><span class="s0">\n</span><span class="s1">$</span><span class="s2">{</span><span class="s1">genCssVarsCode</span><span class="s2">(</span>
+      <span class="s1">cssVars</span><span class="s2">,</span>
+      <span class="s1">bindings</span><span class="s2">,</span>
+      <span class="s1">id</span><span class="s2">,</span>
+      <span class="s1">isProd</span>
+    <span class="s2">)}</span><span class="s3">}</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+    <span class="s3">`const __setup__ = __default__.setup</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+    <span class="s3">`__default__.setup = __setup__</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+    <span class="s3">`  ? (props, ctx) =&gt; { __injectCSSVars__();return __setup__(props, ctx) }</span><span class="s0">\n</span><span class="s3">` </span><span class="s2">+</span>
+    <span class="s3">`  : __injectCSSVars__</span><span class="s0">\n</span><span class="s3">`</span>
+  <span class="s2">)</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,269 @@
+<html>
+<head>
+<title>apiSetup.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+apiSetup.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">Component </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/component'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">PropOptions </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/options'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">popTarget</span><span class="s2">, </span><span class="s1">pushTarget </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../core/observer/dep'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">def</span><span class="s2">, </span><span class="s1">invokeWithErrorHandling</span><span class="s2">, </span><span class="s1">isReserved</span><span class="s2">, </span><span class="s1">warn </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../core/util'</span>
+<span class="s0">import </span><span class="s1">VNode from </span><span class="s3">'../core/vdom/vnode'</span>
+<span class="s0">import </span><span class="s2">{</span>
+  <span class="s1">bind</span><span class="s2">,</span>
+  <span class="s1">emptyObject</span><span class="s2">,</span>
+  <span class="s1">isArray</span><span class="s2">,</span>
+  <span class="s1">isFunction</span><span class="s2">,</span>
+  <span class="s1">isObject</span>
+<span class="s2">} </span><span class="s1">from </span><span class="s3">'../shared/util'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">currentInstance</span><span class="s2">, </span><span class="s1">setCurrentInstance </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./currentInstance'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">shallowReactive </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./reactivity/reactive'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">proxyWithRefUnwrap </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./reactivity/ref'</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@internal</span>
+ <span class="s4">*/</span>
+<span class="s0">export interface </span><span class="s1">SetupContext </span><span class="s2">{</span>
+  <span class="s1">attrs</span><span class="s2">: </span><span class="s1">Record</span><span class="s2">&lt;</span><span class="s1">string</span><span class="s2">, </span><span class="s1">any</span><span class="s2">&gt;</span>
+  <span class="s1">listeners</span><span class="s2">: </span><span class="s1">Record</span><span class="s2">&lt;</span><span class="s1">string</span><span class="s2">, </span><span class="s1">Function </span><span class="s2">| </span><span class="s1">Function</span><span class="s2">[]&gt;</span>
+  <span class="s1">slots</span><span class="s2">: </span><span class="s1">Record</span><span class="s2">&lt;</span><span class="s1">string</span><span class="s2">, () =&gt; </span><span class="s1">VNode</span><span class="s2">[]&gt;</span>
+  <span class="s1">emit</span><span class="s2">: (</span><span class="s1">event</span><span class="s2">: </span><span class="s1">string</span><span class="s2">, </span><span class="s1">...args</span><span class="s2">: </span><span class="s1">any</span><span class="s2">[]) =&gt; </span><span class="s1">any</span>
+  <span class="s1">expose</span><span class="s2">: (</span><span class="s1">exposed</span><span class="s2">: </span><span class="s1">Record</span><span class="s2">&lt;</span><span class="s1">string</span><span class="s2">, </span><span class="s1">any</span><span class="s2">&gt;) =&gt; </span><span class="s0">void</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">initSetup</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">: </span><span class="s1">Component</span><span class="s2">) {</span>
+  <span class="s0">const </span><span class="s1">options </span><span class="s2">= </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$options</span>
+  <span class="s0">const </span><span class="s1">setup </span><span class="s2">= </span><span class="s1">options</span><span class="s2">.</span><span class="s1">setup</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">setup</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">ctx </span><span class="s2">= (</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_setupContext </span><span class="s2">= </span><span class="s1">createSetupContext</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">))</span>
+
+    <span class="s1">setCurrentInstance</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">)</span>
+    <span class="s1">pushTarget</span><span class="s2">()</span>
+    <span class="s0">const </span><span class="s1">setupResult </span><span class="s2">= </span><span class="s1">invokeWithErrorHandling</span><span class="s2">(</span>
+      <span class="s1">setup</span><span class="s2">,</span>
+      <span class="s0">null</span><span class="s2">,</span>
+      <span class="s2">[</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_props </span><span class="s2">|| </span><span class="s1">shallowReactive</span><span class="s2">({}), </span><span class="s1">ctx</span><span class="s2">],</span>
+      <span class="s1">vm</span><span class="s2">,</span>
+      <span class="s3">`setup`</span>
+    <span class="s2">)</span>
+    <span class="s1">popTarget</span><span class="s2">()</span>
+    <span class="s1">setCurrentInstance</span><span class="s2">()</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isFunction</span><span class="s2">(</span><span class="s1">setupResult</span><span class="s2">)) {</span>
+      <span class="s6">// render function</span>
+      <span class="s6">// @ts-ignore</span>
+      <span class="s1">options</span><span class="s2">.</span><span class="s1">render </span><span class="s2">= </span><span class="s1">setupResult</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">isObject</span><span class="s2">(</span><span class="s1">setupResult</span><span class="s2">)) {</span>
+      <span class="s6">// bindings</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">__DEV__ </span><span class="s2">&amp;&amp; </span><span class="s1">setupResult </span><span class="s0">instanceof </span><span class="s1">VNode</span><span class="s2">) {</span>
+        <span class="s1">warn</span><span class="s2">(</span>
+          <span class="s3">`setup() should not return VNodes directly - ` </span><span class="s2">+</span>
+            <span class="s3">`return a render function instead.`</span>
+        <span class="s2">)</span>
+      <span class="s2">}</span>
+      <span class="s1">vm</span><span class="s2">.</span><span class="s1">_setupState </span><span class="s2">= </span><span class="s1">setupResult</span>
+      <span class="s6">// __sfc indicates compiled bindings from &lt;script setup&gt;</span>
+      <span class="s0">if </span><span class="s2">(!</span><span class="s1">setupResult</span><span class="s2">.</span><span class="s1">__sfc</span><span class="s2">) {</span>
+        <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">setupResult</span><span class="s2">) {</span>
+          <span class="s0">if </span><span class="s2">(!</span><span class="s1">isReserved</span><span class="s2">(</span><span class="s1">key</span><span class="s2">)) {</span>
+            <span class="s1">proxyWithRefUnwrap</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">, </span><span class="s1">setupResult</span><span class="s2">, </span><span class="s1">key</span><span class="s2">)</span>
+          <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">__DEV__</span><span class="s2">) {</span>
+            <span class="s1">warn</span><span class="s2">(</span><span class="s3">`Avoid using variables that start with _ or $ in setup().`</span><span class="s2">)</span>
+          <span class="s2">}</span>
+        <span class="s2">}</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s6">// exposed for compiled render fn</span>
+        <span class="s0">const </span><span class="s1">proxy </span><span class="s2">= (</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_setupProxy </span><span class="s2">= {})</span>
+        <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">setupResult</span><span class="s2">) {</span>
+          <span class="s0">if </span><span class="s2">(</span><span class="s1">key </span><span class="s2">!== </span><span class="s3">'__sfc'</span><span class="s2">) {</span>
+            <span class="s1">proxyWithRefUnwrap</span><span class="s2">(</span><span class="s1">proxy</span><span class="s2">, </span><span class="s1">setupResult</span><span class="s2">, </span><span class="s1">key</span><span class="s2">)</span>
+          <span class="s2">}</span>
+        <span class="s2">}</span>
+      <span class="s2">}</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">__DEV__ </span><span class="s2">&amp;&amp; </span><span class="s1">setupResult </span><span class="s2">!== </span><span class="s1">undefined</span><span class="s2">) {</span>
+      <span class="s1">warn</span><span class="s2">(</span>
+        <span class="s3">`setup() should return an object. Received: </span><span class="s1">$</span><span class="s2">{</span>
+          <span class="s1">setupResult </span><span class="s2">=== </span><span class="s0">null </span><span class="s2">? </span><span class="s3">'null' </span><span class="s2">: </span><span class="s0">typeof </span><span class="s1">setupResult</span>
+        <span class="s2">}</span><span class="s3">`</span>
+      <span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">createSetupContext</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">: </span><span class="s1">Component</span><span class="s2">): </span><span class="s1">SetupContext </span><span class="s2">{</span>
+  <span class="s0">let </span><span class="s1">exposeCalled </span><span class="s2">= </span><span class="s0">false</span>
+  <span class="s0">return </span><span class="s2">{</span>
+    <span class="s1">get attrs</span><span class="s2">() {</span>
+      <span class="s0">if </span><span class="s2">(!</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_attrsProxy</span><span class="s2">) {</span>
+        <span class="s0">const </span><span class="s1">proxy </span><span class="s2">= (</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_attrsProxy </span><span class="s2">= {})</span>
+        <span class="s1">def</span><span class="s2">(</span><span class="s1">proxy</span><span class="s2">, </span><span class="s3">'_v_attr_proxy'</span><span class="s2">, </span><span class="s0">true</span><span class="s2">)</span>
+        <span class="s1">syncSetupProxy</span><span class="s2">(</span><span class="s1">proxy</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$attrs</span><span class="s2">, </span><span class="s1">emptyObject</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">, </span><span class="s3">'$attrs'</span><span class="s2">)</span>
+      <span class="s2">}</span>
+      <span class="s0">return </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_attrsProxy</span>
+    <span class="s2">},</span>
+    <span class="s1">get listeners</span><span class="s2">() {</span>
+      <span class="s0">if </span><span class="s2">(!</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_listenersProxy</span><span class="s2">) {</span>
+        <span class="s0">const </span><span class="s1">proxy </span><span class="s2">= (</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_listenersProxy </span><span class="s2">= {})</span>
+        <span class="s1">syncSetupProxy</span><span class="s2">(</span><span class="s1">proxy</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$listeners</span><span class="s2">, </span><span class="s1">emptyObject</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">, </span><span class="s3">'$listeners'</span><span class="s2">)</span>
+      <span class="s2">}</span>
+      <span class="s0">return </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_listenersProxy</span>
+    <span class="s2">},</span>
+    <span class="s1">get slots</span><span class="s2">() {</span>
+      <span class="s0">return </span><span class="s1">initSlotsProxy</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">)</span>
+    <span class="s2">},</span>
+    <span class="s1">emit</span><span class="s2">: </span><span class="s1">bind</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$emit</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">) as </span><span class="s1">any</span><span class="s2">,</span>
+    <span class="s1">expose</span><span class="s2">(</span><span class="s1">exposed</span><span class="s2">?: </span><span class="s1">Record</span><span class="s2">&lt;</span><span class="s1">string</span><span class="s2">, </span><span class="s1">any</span><span class="s2">&gt;) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">__DEV__</span><span class="s2">) {</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">exposeCalled</span><span class="s2">) {</span>
+          <span class="s1">warn</span><span class="s2">(</span><span class="s3">`expose() should be called only once per setup().`</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">)</span>
+        <span class="s2">}</span>
+        <span class="s1">exposeCalled </span><span class="s2">= </span><span class="s0">true</span>
+      <span class="s2">}</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">exposed</span><span class="s2">) {</span>
+        <span class="s1">Object</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">(</span><span class="s1">exposed</span><span class="s2">).</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">key </span><span class="s2">=&gt;</span>
+          <span class="s1">proxyWithRefUnwrap</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">, </span><span class="s1">exposed</span><span class="s2">, </span><span class="s1">key</span><span class="s2">)</span>
+        <span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">syncSetupProxy</span><span class="s2">(</span>
+  <span class="s1">to</span><span class="s2">: </span><span class="s1">any</span><span class="s2">,</span>
+  <span class="s1">from</span><span class="s2">: </span><span class="s1">any</span><span class="s2">,</span>
+  <span class="s1">prev</span><span class="s2">: </span><span class="s1">any</span><span class="s2">,</span>
+  <span class="s1">instance</span><span class="s2">: </span><span class="s1">Component</span><span class="s2">,</span>
+  <span class="s1">type</span><span class="s2">: </span><span class="s1">string</span>
+<span class="s2">) {</span>
+  <span class="s0">let </span><span class="s1">changed </span><span class="s2">= </span><span class="s0">false</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">from</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!(</span><span class="s1">key </span><span class="s0">in </span><span class="s1">to</span><span class="s2">)) {</span>
+      <span class="s1">changed </span><span class="s2">= </span><span class="s0">true</span>
+      <span class="s1">defineProxyAttr</span><span class="s2">(</span><span class="s1">to</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, </span><span class="s1">instance</span><span class="s2">, </span><span class="s1">type</span><span class="s2">)</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">from</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] !== </span><span class="s1">prev</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]) {</span>
+      <span class="s1">changed </span><span class="s2">= </span><span class="s0">true</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">to</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!(</span><span class="s1">key </span><span class="s0">in </span><span class="s1">from</span><span class="s2">)) {</span>
+      <span class="s1">changed </span><span class="s2">= </span><span class="s0">true</span>
+      <span class="s0">delete </span><span class="s1">to</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s1">changed</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">defineProxyAttr</span><span class="s2">(</span>
+  <span class="s1">proxy</span><span class="s2">: </span><span class="s1">any</span><span class="s2">,</span>
+  <span class="s1">key</span><span class="s2">: </span><span class="s1">string</span><span class="s2">,</span>
+  <span class="s1">instance</span><span class="s2">: </span><span class="s1">Component</span><span class="s2">,</span>
+  <span class="s1">type</span><span class="s2">: </span><span class="s1">string</span>
+<span class="s2">) {</span>
+  <span class="s1">Object</span><span class="s2">.</span><span class="s1">defineProperty</span><span class="s2">(</span><span class="s1">proxy</span><span class="s2">, </span><span class="s1">key</span><span class="s2">, {</span>
+    <span class="s1">enumerable</span><span class="s2">: </span><span class="s0">true</span><span class="s2">,</span>
+    <span class="s1">configurable</span><span class="s2">: </span><span class="s0">true</span><span class="s2">,</span>
+    <span class="s1">get</span><span class="s2">() {</span>
+      <span class="s0">return </span><span class="s1">instance</span><span class="s2">[</span><span class="s1">type</span><span class="s2">][</span><span class="s1">key</span><span class="s2">]</span>
+    <span class="s2">}</span>
+  <span class="s2">})</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">initSlotsProxy</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">: </span><span class="s1">Component</span><span class="s2">) {</span>
+  <span class="s0">if </span><span class="s2">(!</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_slotsProxy</span><span class="s2">) {</span>
+    <span class="s1">syncSetupSlots</span><span class="s2">((</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_slotsProxy </span><span class="s2">= {}), </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$scopedSlots</span><span class="s2">)</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_slotsProxy</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">syncSetupSlots</span><span class="s2">(</span><span class="s1">to</span><span class="s2">: </span><span class="s1">any</span><span class="s2">, </span><span class="s1">from</span><span class="s2">: </span><span class="s1">any</span><span class="s2">) {</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">from</span><span class="s2">) {</span>
+    <span class="s1">to</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = </span><span class="s1">from</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+  <span class="s2">}</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">to</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!(</span><span class="s1">key </span><span class="s0">in </span><span class="s1">from</span><span class="s2">)) {</span>
+      <span class="s0">delete </span><span class="s1">to</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@internal </span><span class="s4">use manual type def because public setup context type relies on</span>
+ <span class="s4">* legacy VNode types</span>
+ <span class="s4">*/</span>
+<span class="s0">export function </span><span class="s1">useSlots</span><span class="s2">(): </span><span class="s1">SetupContext</span><span class="s2">[</span><span class="s3">'slots'</span><span class="s2">] {</span>
+  <span class="s0">return </span><span class="s1">getContext</span><span class="s2">().</span><span class="s1">slots</span>
+<span class="s2">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@internal </span><span class="s4">use manual type def because public setup context type relies on</span>
+ <span class="s4">* legacy VNode types</span>
+ <span class="s4">*/</span>
+<span class="s0">export function </span><span class="s1">useAttrs</span><span class="s2">(): </span><span class="s1">SetupContext</span><span class="s2">[</span><span class="s3">'attrs'</span><span class="s2">] {</span>
+  <span class="s0">return </span><span class="s1">getContext</span><span class="s2">().</span><span class="s1">attrs</span>
+<span class="s2">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* Vue 2 only</span>
+ <span class="s4">* </span><span class="s5">@internal </span><span class="s4">use manual type def because public setup context type relies on</span>
+ <span class="s4">* legacy VNode types</span>
+ <span class="s4">*/</span>
+<span class="s0">export function </span><span class="s1">useListeners</span><span class="s2">(): </span><span class="s1">SetupContext</span><span class="s2">[</span><span class="s3">'listeners'</span><span class="s2">] {</span>
+  <span class="s0">return </span><span class="s1">getContext</span><span class="s2">().</span><span class="s1">listeners</span>
+<span class="s2">}</span>
+
+<span class="s0">function </span><span class="s1">getContext</span><span class="s2">(): </span><span class="s1">SetupContext </span><span class="s2">{</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">__DEV__ </span><span class="s2">&amp;&amp; !</span><span class="s1">currentInstance</span><span class="s2">) {</span>
+    <span class="s1">warn</span><span class="s2">(</span><span class="s3">`useContext() called without active instance.`</span><span class="s2">)</span>
+  <span class="s2">}</span>
+  <span class="s0">const </span><span class="s1">vm </span><span class="s2">= </span><span class="s1">currentInstance</span><span class="s2">!</span>
+  <span class="s0">return </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_setupContext </span><span class="s2">|| (</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_setupContext </span><span class="s2">= </span><span class="s1">createSetupContext</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">))</span>
+<span class="s2">}</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* Runtime helper for merging default declarations. Imported by compiled code</span>
+ <span class="s4">* only.</span>
+ <span class="s4">* </span><span class="s5">@internal</span>
+ <span class="s4">*/</span>
+<span class="s0">export function </span><span class="s1">mergeDefaults</span><span class="s2">(</span>
+  <span class="s1">raw</span><span class="s2">: </span><span class="s1">string</span><span class="s2">[] | </span><span class="s1">Record</span><span class="s2">&lt;</span><span class="s1">string</span><span class="s2">, </span><span class="s1">PropOptions</span><span class="s2">&gt;,</span>
+  <span class="s1">defaults</span><span class="s2">: </span><span class="s1">Record</span><span class="s2">&lt;</span><span class="s1">string</span><span class="s2">, </span><span class="s1">any</span><span class="s2">&gt;</span>
+<span class="s2">): </span><span class="s1">Record</span><span class="s2">&lt;</span><span class="s1">string</span><span class="s2">, </span><span class="s1">PropOptions</span><span class="s2">&gt; {</span>
+  <span class="s0">const </span><span class="s1">props </span><span class="s2">= </span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">raw</span><span class="s2">)</span>
+    <span class="s2">? </span><span class="s1">raw</span><span class="s2">.</span><span class="s1">reduce</span><span class="s2">(</span>
+        <span class="s2">(</span><span class="s1">normalized</span><span class="s2">, </span><span class="s1">p</span><span class="s2">) =&gt; ((</span><span class="s1">normalized</span><span class="s2">[</span><span class="s1">p</span><span class="s2">] = {}), </span><span class="s1">normalized</span><span class="s2">),</span>
+        <span class="s2">{} as </span><span class="s1">Record</span><span class="s2">&lt;</span><span class="s1">string</span><span class="s2">, </span><span class="s1">PropOptions</span><span class="s2">&gt;</span>
+      <span class="s2">)</span>
+    <span class="s2">: </span><span class="s1">raw</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">const </span><span class="s1">key </span><span class="s0">in </span><span class="s1">defaults</span><span class="s2">) {</span>
+    <span class="s0">const </span><span class="s1">opt </span><span class="s2">= </span><span class="s1">props</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">opt</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">opt</span><span class="s2">) || </span><span class="s1">isFunction</span><span class="s2">(</span><span class="s1">opt</span><span class="s2">)) {</span>
+        <span class="s1">props</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = { </span><span class="s1">type</span><span class="s2">: </span><span class="s1">opt</span><span class="s2">, </span><span class="s0">default</span><span class="s2">: </span><span class="s1">defaults</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] }</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s1">opt</span><span class="s2">.</span><span class="s1">default </span><span class="s2">= </span><span class="s1">defaults</span><span class="s2">[</span><span class="s1">key</span><span class="s2">]</span>
+      <span class="s2">}</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">opt </span><span class="s2">=== </span><span class="s0">null</span><span class="s2">) {</span>
+      <span class="s1">props</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] = { </span><span class="s0">default</span><span class="s2">: </span><span class="s1">defaults</span><span class="s2">[</span><span class="s1">key</span><span class="s2">] }</span>
+    <span class="s2">} </span><span class="s0">else if </span><span class="s2">(</span><span class="s1">__DEV__</span><span class="s2">) {</span>
+      <span class="s1">warn</span><span class="s2">(</span><span class="s3">`props default key &quot;</span><span class="s1">$</span><span class="s2">{</span><span class="s1">key</span><span class="s2">}</span><span class="s3">&quot; has no corresponding declaration.`</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+  <span class="s0">return </span><span class="s1">props</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

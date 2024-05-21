@@ -1,0 +1,1301 @@
+<html>
+<head>
+<title>popper.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #5f826b; font-style: italic;}
+.s1 { color: #67a37c; font-style: italic;}
+.s2 { color: #bcbec4;}
+.s3 { color: #7a7e85;}
+.s4 { color: #bcbec4;}
+.s5 { color: #cf8e6d;}
+.s6 { color: #6aab73;}
+.s7 { color: #2aacb8;}
+.s8 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+popper.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/**</span>
+ <span class="s0">* </span><span class="s1">@fileOverview </span><span class="s0">Kickass library to create and place poppers near their reference elements.</span>
+ <span class="s0">* </span><span class="s1">@version </span><span class="s0">{{version}}</span>
+ <span class="s0">* </span><span class="s1">@license</span>
+ <span class="s0">* Copyright (c) 2016 Federico Zivolo and contributors</span>
+ <span class="s0">*</span>
+ <span class="s0">* Permission is hereby granted, free of charge, to any person obtaining a copy</span>
+ <span class="s0">* of this software and associated documentation files (the &quot;Software&quot;), to deal</span>
+ <span class="s0">* in the Software without restriction, including without limitation the rights</span>
+ <span class="s0">* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell</span>
+ <span class="s0">* copies of the Software, and to permit persons to whom the Software is</span>
+ <span class="s0">* furnished to do so, subject to the following conditions:</span>
+ <span class="s0">*</span>
+ <span class="s0">* The above copyright notice and this permission notice shall be included in all</span>
+ <span class="s0">* copies or substantial portions of the Software.</span>
+ <span class="s0">*</span>
+ <span class="s0">* THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR</span>
+ <span class="s0">* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,</span>
+ <span class="s0">* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE</span>
+ <span class="s0">* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER</span>
+ <span class="s0">* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,</span>
+ <span class="s0">* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE</span>
+ <span class="s0">* SOFTWARE.</span>
+ <span class="s0">*/</span>
+
+<span class="s3">//</span>
+<span class="s3">// Cross module loader</span>
+<span class="s3">// Supported: Node, AMD, Browser globals</span>
+<span class="s3">//</span>
+<span class="s4">;(</span><span class="s5">function </span><span class="s4">(</span><span class="s2">root</span><span class="s4">, </span><span class="s2">factory</span><span class="s4">) {</span>
+    <span class="s5">if </span><span class="s4">(</span><span class="s5">typeof </span><span class="s2">define </span><span class="s4">=== </span><span class="s6">'function' </span><span class="s4">&amp;&amp; </span><span class="s2">define</span><span class="s4">.</span><span class="s2">amd</span><span class="s4">) {</span>
+        <span class="s3">// AMD. Register as an anonymous module.</span>
+        <span class="s2">define</span><span class="s4">(</span><span class="s2">factory</span><span class="s4">);</span>
+    <span class="s4">} </span><span class="s5">else if </span><span class="s4">(</span><span class="s5">typeof </span><span class="s2">module </span><span class="s4">=== </span><span class="s6">'object' </span><span class="s4">&amp;&amp; </span><span class="s2">module</span><span class="s4">.</span><span class="s2">exports</span><span class="s4">) {</span>
+        <span class="s3">// Node. Does not work with strict CommonJS, but</span>
+        <span class="s3">// only CommonJS-like environments that support module.exports,</span>
+        <span class="s3">// like Node.</span>
+        <span class="s2">module</span><span class="s4">.</span><span class="s2">exports </span><span class="s4">= </span><span class="s2">factory</span><span class="s4">();</span>
+    <span class="s4">} </span><span class="s5">else </span><span class="s4">{</span>
+        <span class="s3">// Browser globals (root is window)</span>
+        <span class="s2">root</span><span class="s4">.</span><span class="s2">Popper </span><span class="s4">= </span><span class="s2">factory</span><span class="s4">();</span>
+    <span class="s4">}</span>
+<span class="s4">}(</span><span class="s5">this</span><span class="s4">, </span><span class="s5">function </span><span class="s4">() {</span>
+
+    <span class="s6">'use strict'</span><span class="s4">;</span>
+
+    <span class="s5">var </span><span class="s2">root </span><span class="s4">= </span><span class="s2">window</span><span class="s4">;</span>
+
+    <span class="s3">// default options</span>
+    <span class="s5">var </span><span class="s2">DEFAULTS </span><span class="s4">= {</span>
+        <span class="s3">// placement of the popper</span>
+        <span class="s2">placement</span><span class="s4">: </span><span class="s6">'bottom'</span><span class="s4">,</span>
+
+        <span class="s2">gpuAcceleration</span><span class="s4">: </span><span class="s5">true</span><span class="s4">,</span>
+
+        <span class="s3">// shift popper from its origin by the given amount of pixels (can be negative)</span>
+        <span class="s2">offset</span><span class="s4">: </span><span class="s7">0</span><span class="s4">,</span>
+
+        <span class="s3">// the element which will act as boundary of the popper</span>
+        <span class="s2">boundariesElement</span><span class="s4">: </span><span class="s6">'viewport'</span><span class="s4">,</span>
+
+        <span class="s3">// amount of pixel used to define a minimum distance between the boundaries and the popper</span>
+        <span class="s2">boundariesPadding</span><span class="s4">: </span><span class="s7">5</span><span class="s4">,</span>
+
+        <span class="s3">// popper will try to prevent overflow following this order,</span>
+        <span class="s3">// by default, then, it could overflow on the left and on top of the boundariesElement</span>
+        <span class="s2">preventOverflowOrder</span><span class="s4">: [</span><span class="s6">'left'</span><span class="s4">, </span><span class="s6">'right'</span><span class="s4">, </span><span class="s6">'top'</span><span class="s4">, </span><span class="s6">'bottom'</span><span class="s4">],</span>
+
+        <span class="s3">// the behavior used by flip to change the placement of the popper</span>
+        <span class="s2">flipBehavior</span><span class="s4">: </span><span class="s6">'flip'</span><span class="s4">,</span>
+
+        <span class="s2">arrowElement</span><span class="s4">: </span><span class="s6">'[x-arrow]'</span><span class="s4">,</span>
+
+        <span class="s2">arrowOffset</span><span class="s4">: </span><span class="s7">0</span><span class="s4">,</span>
+
+        <span class="s3">// list of functions used to modify the offsets before they are applied to the popper</span>
+        <span class="s2">modifiers</span><span class="s4">: [ </span><span class="s6">'shift'</span><span class="s4">, </span><span class="s6">'offset'</span><span class="s4">, </span><span class="s6">'preventOverflow'</span><span class="s4">, </span><span class="s6">'keepTogether'</span><span class="s4">, </span><span class="s6">'arrow'</span><span class="s4">, </span><span class="s6">'flip'</span><span class="s4">, </span><span class="s6">'applyStyle'</span><span class="s4">],</span>
+
+        <span class="s2">modifiersIgnored</span><span class="s4">: [],</span>
+
+        <span class="s2">forceAbsolute</span><span class="s4">: </span><span class="s5">false</span>
+    <span class="s4">};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Create a new Popper.js instance</span>
+     <span class="s0">* </span><span class="s1">@constructor </span><span class="s0">Popper</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{HTMLElement} reference - The reference element used to position the popper</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{HTMLElement|Object} popper</span>
+     <span class="s0">*      The HTML element used as popper, or a configuration used to generate the popper.</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{String} [popper.tagName='div'] The tag name of the generated popper.</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Array} [popper.classNames=['popper']] Array of classes to apply to the generated popper.</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Array} [popper.attributes] Array of attributes to apply, specify `attr:value` to assign a value to it.</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{HTMLElement|String} [popper.parent=window.document.body] The parent element, given as HTMLElement or as query string.</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{String} [popper.content=''] The content of the popper, it can be text, html, or node; if it is not text, set `contentType` to `html` or `node`.</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{String} [popper.contentType='text'] If `html`, the `content` will be parsed as HTML. If `node`, it will be appended as-is.</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{String} [popper.arrowTagName='div'] Same as `popper.tagName` but for the arrow element.</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Array} [popper.arrowClassNames='popper__arrow'] Same as `popper.classNames` but for the arrow element.</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{String} [popper.arrowAttributes=['x-arrow']] Same as `popper.attributes` but for the arrow element.</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Object} options</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{String} [options.placement=bottom]</span>
+     <span class="s0">*      Placement of the popper accepted values: `top(-start, -end), right(-start, -end), bottom(-start, -right),</span>
+     <span class="s0">*      left(-start, -end)`</span>
+     <span class="s0">*</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{HTMLElement|String} [options.arrowElement='[x-arrow]']</span>
+     <span class="s0">*      The DOM Node used as arrow for the popper, or a CSS selector used to get the DOM node. It must be child of</span>
+     <span class="s0">*      its parent Popper. Popper.js will apply to the given element the style required to align the arrow with its</span>
+     <span class="s0">*      reference element.</span>
+     <span class="s0">*      By default, it will look for a child node of the popper with the `x-arrow` attribute.</span>
+     <span class="s0">*</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Boolean} [options.gpuAcceleration=true]</span>
+     <span class="s0">*      When this property is set to true, the popper position will be applied using CSS3 translate3d, allowing the</span>
+     <span class="s0">*      browser to use the GPU to accelerate the rendering.</span>
+     <span class="s0">*      If set to false, the popper will be placed using `top` and `left` properties, not using the GPU.</span>
+     <span class="s0">*</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Number} [options.offset=0]</span>
+     <span class="s0">*      Amount of pixels the popper will be shifted (can be negative).</span>
+     <span class="s0">*</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{String|Element} [options.boundariesElement='viewport']</span>
+     <span class="s0">*      The element which will define the boundaries of the popper position, the popper will never be placed outside</span>
+     <span class="s0">*      of the defined boundaries (except if `keepTogether` is enabled)</span>
+     <span class="s0">*</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Number} [options.boundariesPadding=5]</span>
+     <span class="s0">*      Additional padding for the boundaries</span>
+     <span class="s0">*</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Array} [options.preventOverflowOrder=['left', 'right', 'top', 'bottom']]</span>
+     <span class="s0">*      Order used when Popper.js tries to avoid overflows from the boundaries, they will be checked in order,</span>
+     <span class="s0">*      this means that the last ones will never overflow</span>
+     <span class="s0">*</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{String|Array} [options.flipBehavior='flip']</span>
+     <span class="s0">*      The behavior used by the `flip` modifier to change the placement of the popper when the latter is trying to</span>
+     <span class="s0">*      overlap its reference element. Defining `flip` as value, the placement will be flipped on</span>
+     <span class="s0">*      its axis (`right - left`, `top - bottom`).</span>
+     <span class="s0">*      You can even pass an array of placements (eg: `['right', 'left', 'top']` ) to manually specify</span>
+     <span class="s0">*      how alter the placement when a flip is needed. (eg. in the above example, it would first flip from right to left,</span>
+     <span class="s0">*      then, if even in its new placement, the popper is overlapping its reference element, it will be moved to top)</span>
+     <span class="s0">*</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Array} [options.modifiers=[ 'shift', 'offset', 'preventOverflow', 'keepTogether', 'arrow', 'flip', 'applyStyle']]</span>
+     <span class="s0">*      List of functions used to modify the data before they are applied to the popper, add your custom functions</span>
+     <span class="s0">*      to this array to edit the offsets and placement.</span>
+     <span class="s0">*      The function should reflect the @params and @returns of preventOverflow</span>
+     <span class="s0">*</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Array} [options.modifiersIgnored=[]]</span>
+     <span class="s0">*      Put here any built-in modifier name you want to exclude from the modifiers list</span>
+     <span class="s0">*      The function should reflect the @params and @returns of preventOverflow</span>
+     <span class="s0">*</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Boolean} [options.removeOnDestroy=false]</span>
+     <span class="s0">*      Set to true if you want to automatically remove the popper when you call the `destroy` method.</span>
+     <span class="s0">*/</span>
+    <span class="s5">function </span><span class="s2">Popper</span><span class="s4">(</span><span class="s2">reference</span><span class="s4">, </span><span class="s2">popper</span><span class="s4">, </span><span class="s2">options</span><span class="s4">) {</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">_reference </span><span class="s4">= </span><span class="s2">reference</span><span class="s4">.</span><span class="s2">jquery </span><span class="s4">? </span><span class="s2">reference</span><span class="s4">[</span><span class="s7">0</span><span class="s4">] : </span><span class="s2">reference</span><span class="s4">;</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">state </span><span class="s4">= {};</span>
+
+        <span class="s3">// if the popper variable is a configuration object, parse it to generate an HTMLElement</span>
+        <span class="s3">// generate a default popper if is not defined</span>
+        <span class="s5">var </span><span class="s2">isNotDefined </span><span class="s4">= </span><span class="s5">typeof </span><span class="s2">popper </span><span class="s4">=== </span><span class="s6">'undefined' </span><span class="s4">|| </span><span class="s2">popper </span><span class="s4">=== </span><span class="s5">null</span><span class="s4">;</span>
+        <span class="s5">var </span><span class="s2">isConfig </span><span class="s4">= </span><span class="s2">popper </span><span class="s4">&amp;&amp; </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">toString</span><span class="s4">.</span><span class="s2">call</span><span class="s4">(</span><span class="s2">popper</span><span class="s4">) === </span><span class="s6">'[object Object]'</span><span class="s4">;</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">isNotDefined </span><span class="s4">|| </span><span class="s2">isConfig</span><span class="s4">) {</span>
+            <span class="s5">this</span><span class="s4">.</span><span class="s2">_popper </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">parse</span><span class="s4">(</span><span class="s2">isConfig </span><span class="s4">? </span><span class="s2">popper </span><span class="s4">: {});</span>
+        <span class="s4">}</span>
+        <span class="s3">// otherwise, use the given HTMLElement as popper</span>
+        <span class="s5">else </span><span class="s4">{</span>
+            <span class="s5">this</span><span class="s4">.</span><span class="s2">_popper </span><span class="s4">= </span><span class="s2">popper</span><span class="s4">.</span><span class="s2">jquery </span><span class="s4">? </span><span class="s2">popper</span><span class="s4">[</span><span class="s7">0</span><span class="s4">] : </span><span class="s2">popper</span><span class="s4">;</span>
+        <span class="s4">}</span>
+
+        <span class="s3">// with {} we create a new object with the options inside it</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">_options </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">({}, </span><span class="s2">DEFAULTS</span><span class="s4">, </span><span class="s2">options</span><span class="s4">);</span>
+
+        <span class="s3">// refactoring modifiers' list</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">modifiers </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">map</span><span class="s4">(</span><span class="s5">function</span><span class="s4">(</span><span class="s2">modifier</span><span class="s4">){</span>
+            <span class="s3">// remove ignored modifiers</span>
+            <span class="s5">if </span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">modifiersIgnored</span><span class="s4">.</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s2">modifier</span><span class="s4">) !== -</span><span class="s7">1</span><span class="s4">) </span><span class="s5">return</span><span class="s4">;</span>
+
+            <span class="s3">// set the x-placement attribute before everything else because it could be used to add margins to the popper</span>
+            <span class="s3">// margins needs to be calculated to get the correct popper offsets</span>
+            <span class="s5">if </span><span class="s4">(</span><span class="s2">modifier </span><span class="s4">=== </span><span class="s6">'applyStyle'</span><span class="s4">) {</span>
+                <span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">.</span><span class="s2">setAttribute</span><span class="s4">(</span><span class="s6">'x-placement'</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">placement</span><span class="s4">);</span>
+            <span class="s4">}</span>
+
+            <span class="s3">// return predefined modifier identified by string or keep the custom one</span>
+            <span class="s5">return this</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">[</span><span class="s2">modifier</span><span class="s4">] || </span><span class="s2">modifier</span><span class="s4">;</span>
+        <span class="s4">}.</span><span class="s2">bind</span><span class="s4">(</span><span class="s5">this</span><span class="s4">));</span>
+
+        <span class="s3">// make sure to apply the popper position before any computation</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">position </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_getPosition</span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_reference</span><span class="s4">);</span>
+        <span class="s2">setStyle</span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">, { </span><span class="s2">position</span><span class="s4">: </span><span class="s5">this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">position</span><span class="s4">, </span><span class="s2">top</span><span class="s4">: </span><span class="s7">0 </span><span class="s4">});</span>
+
+        <span class="s3">// fire the first update to position the popper in the right place</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">update</span><span class="s4">();</span>
+
+        <span class="s3">// setup event listeners, they will take care of update the position in specific situations</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">_setupEventListeners</span><span class="s4">();</span>
+        <span class="s5">return this</span><span class="s4">;</span>
+    <span class="s4">}</span>
+
+
+    <span class="s3">//</span>
+    <span class="s3">// Methods</span>
+    <span class="s3">//</span>
+    <span class="s0">/**</span>
+     <span class="s0">* Destroy the popper</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">destroy </span><span class="s4">= </span><span class="s5">function</span><span class="s4">() {</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">.</span><span class="s2">removeAttribute</span><span class="s4">(</span><span class="s6">'x-placement'</span><span class="s4">);</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">.</span><span class="s2">style</span><span class="s4">.</span><span class="s2">left </span><span class="s4">= </span><span class="s6">''</span><span class="s4">;</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">.</span><span class="s2">style</span><span class="s4">.</span><span class="s2">position </span><span class="s4">= </span><span class="s6">''</span><span class="s4">;</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">.</span><span class="s2">style</span><span class="s4">.</span><span class="s2">top </span><span class="s4">= </span><span class="s6">''</span><span class="s4">;</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">.</span><span class="s2">style</span><span class="s4">[</span><span class="s2">getSupportedPropertyName</span><span class="s4">(</span><span class="s6">'transform'</span><span class="s4">)] = </span><span class="s6">''</span><span class="s4">;</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">_removeEventListeners</span><span class="s4">();</span>
+
+        <span class="s3">// remove the popper if user explicity asked for the deletion on destroy</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">removeOnDestroy</span><span class="s4">) {</span>
+            <span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">.</span><span class="s2">remove</span><span class="s4">();</span>
+        <span class="s4">}</span>
+        <span class="s5">return this</span><span class="s4">;</span>
+    <span class="s4">};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Updates the position of the popper, computing the new offsets and applying the new style</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">update </span><span class="s4">= </span><span class="s5">function</span><span class="s4">() {</span>
+        <span class="s5">var </span><span class="s2">data </span><span class="s4">= { </span><span class="s2">instance</span><span class="s4">: </span><span class="s5">this</span><span class="s4">, </span><span class="s2">styles</span><span class="s4">: {} };</span>
+
+        <span class="s3">// store placement inside the data object, modifiers will be able to edit `placement` if needed</span>
+        <span class="s3">// and refer to _originalPlacement to know the original value</span>
+        <span class="s2">data</span><span class="s4">.</span><span class="s2">placement </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">placement</span><span class="s4">;</span>
+        <span class="s2">data</span><span class="s4">.</span><span class="s2">_originalPlacement </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">placement</span><span class="s4">;</span>
+
+        <span class="s3">// compute the popper and reference offsets and put them inside data.offsets</span>
+        <span class="s2">data</span><span class="s4">.</span><span class="s2">offsets </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_getOffsets</span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_reference</span><span class="s4">, </span><span class="s2">data</span><span class="s4">.</span><span class="s2">placement</span><span class="s4">);</span>
+
+        <span class="s3">// get boundaries</span>
+        <span class="s2">data</span><span class="s4">.</span><span class="s2">boundaries </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_getBoundaries</span><span class="s4">(</span><span class="s2">data</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">boundariesPadding</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">boundariesElement</span><span class="s4">);</span>
+
+        <span class="s2">data </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">runModifiers</span><span class="s4">(</span><span class="s2">data</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">);</span>
+
+        <span class="s5">if </span><span class="s4">(</span><span class="s5">typeof this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">updateCallback </span><span class="s4">=== </span><span class="s6">'function'</span><span class="s4">) {</span>
+            <span class="s5">this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">updateCallback</span><span class="s4">(</span><span class="s2">data</span><span class="s4">);</span>
+        <span class="s4">}</span>
+    <span class="s4">};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* If a function is passed, it will be executed after the initialization of popper with as first argument the Popper instance.</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Function} callback</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">onCreate </span><span class="s4">= </span><span class="s5">function</span><span class="s4">(</span><span class="s2">callback</span><span class="s4">) {</span>
+        <span class="s3">// the createCallbacks return as first argument the popper instance</span>
+        <span class="s2">callback</span><span class="s4">(</span><span class="s5">this</span><span class="s4">);</span>
+        <span class="s5">return this</span><span class="s4">;</span>
+    <span class="s4">};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* If a function is passed, it will be executed after each update of popper with as first argument the set of coordinates and informations</span>
+     <span class="s0">* used to style popper and its arrow.</span>
+     <span class="s0">* NOTE: it doesn't get fired on the first call of the `Popper.update()` method inside the `Popper` constructor!</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Function} callback</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">onUpdate </span><span class="s4">= </span><span class="s5">function</span><span class="s4">(</span><span class="s2">callback</span><span class="s4">) {</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">updateCallback </span><span class="s4">= </span><span class="s2">callback</span><span class="s4">;</span>
+        <span class="s5">return this</span><span class="s4">;</span>
+    <span class="s4">};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Helper used to generate poppers from a configuration file</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">config {Object} configuration</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{HTMLElement} popper</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">parse </span><span class="s4">= </span><span class="s5">function</span><span class="s4">(</span><span class="s2">config</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">defaultConfig </span><span class="s4">= {</span>
+            <span class="s2">tagName</span><span class="s4">: </span><span class="s6">'div'</span><span class="s4">,</span>
+            <span class="s2">classNames</span><span class="s4">: [ </span><span class="s6">'popper' </span><span class="s4">],</span>
+            <span class="s2">attributes</span><span class="s4">: [],</span>
+            <span class="s2">parent</span><span class="s4">: </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">.</span><span class="s2">body</span><span class="s4">,</span>
+            <span class="s2">content</span><span class="s4">: </span><span class="s6">''</span><span class="s4">,</span>
+            <span class="s2">contentType</span><span class="s4">: </span><span class="s6">'text'</span><span class="s4">,</span>
+            <span class="s2">arrowTagName</span><span class="s4">: </span><span class="s6">'div'</span><span class="s4">,</span>
+            <span class="s2">arrowClassNames</span><span class="s4">: [ </span><span class="s6">'popper__arrow' </span><span class="s4">],</span>
+            <span class="s2">arrowAttributes</span><span class="s4">: [ </span><span class="s6">'x-arrow'</span><span class="s4">]</span>
+        <span class="s4">};</span>
+        <span class="s2">config </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">({}, </span><span class="s2">defaultConfig</span><span class="s4">, </span><span class="s2">config</span><span class="s4">);</span>
+
+        <span class="s5">var </span><span class="s2">d </span><span class="s4">= </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">;</span>
+
+        <span class="s5">var </span><span class="s2">popper </span><span class="s4">= </span><span class="s2">d</span><span class="s4">.</span><span class="s2">createElement</span><span class="s4">(</span><span class="s2">config</span><span class="s4">.</span><span class="s2">tagName</span><span class="s4">);</span>
+        <span class="s2">addClassNames</span><span class="s4">(</span><span class="s2">popper</span><span class="s4">, </span><span class="s2">config</span><span class="s4">.</span><span class="s2">classNames</span><span class="s4">);</span>
+        <span class="s2">addAttributes</span><span class="s4">(</span><span class="s2">popper</span><span class="s4">, </span><span class="s2">config</span><span class="s4">.</span><span class="s2">attributes</span><span class="s4">);</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">config</span><span class="s4">.</span><span class="s2">contentType </span><span class="s4">=== </span><span class="s6">'node'</span><span class="s4">) {</span>
+            <span class="s2">popper</span><span class="s4">.</span><span class="s2">appendChild</span><span class="s4">(</span><span class="s2">config</span><span class="s4">.</span><span class="s2">content</span><span class="s4">.</span><span class="s2">jquery </span><span class="s4">? </span><span class="s2">config</span><span class="s4">.</span><span class="s2">content</span><span class="s4">[</span><span class="s7">0</span><span class="s4">] : </span><span class="s2">config</span><span class="s4">.</span><span class="s2">content</span><span class="s4">);</span>
+        <span class="s4">}</span><span class="s5">else if </span><span class="s4">(</span><span class="s2">config</span><span class="s4">.</span><span class="s2">contentType </span><span class="s4">=== </span><span class="s6">'html'</span><span class="s4">) {</span>
+            <span class="s2">popper</span><span class="s4">.</span><span class="s2">innerHTML </span><span class="s4">= </span><span class="s2">config</span><span class="s4">.</span><span class="s2">content</span><span class="s4">;</span>
+        <span class="s4">} </span><span class="s5">else </span><span class="s4">{</span>
+            <span class="s2">popper</span><span class="s4">.</span><span class="s2">textContent </span><span class="s4">= </span><span class="s2">config</span><span class="s4">.</span><span class="s2">content</span><span class="s4">;</span>
+        <span class="s4">}</span>
+
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">config</span><span class="s4">.</span><span class="s2">arrowTagName</span><span class="s4">) {</span>
+            <span class="s5">var </span><span class="s2">arrow </span><span class="s4">= </span><span class="s2">d</span><span class="s4">.</span><span class="s2">createElement</span><span class="s4">(</span><span class="s2">config</span><span class="s4">.</span><span class="s2">arrowTagName</span><span class="s4">);</span>
+            <span class="s2">addClassNames</span><span class="s4">(</span><span class="s2">arrow</span><span class="s4">, </span><span class="s2">config</span><span class="s4">.</span><span class="s2">arrowClassNames</span><span class="s4">);</span>
+            <span class="s2">addAttributes</span><span class="s4">(</span><span class="s2">arrow</span><span class="s4">, </span><span class="s2">config</span><span class="s4">.</span><span class="s2">arrowAttributes</span><span class="s4">);</span>
+            <span class="s2">popper</span><span class="s4">.</span><span class="s2">appendChild</span><span class="s4">(</span><span class="s2">arrow</span><span class="s4">);</span>
+        <span class="s4">}</span>
+
+        <span class="s5">var </span><span class="s2">parent </span><span class="s4">= </span><span class="s2">config</span><span class="s4">.</span><span class="s2">parent</span><span class="s4">.</span><span class="s2">jquery </span><span class="s4">? </span><span class="s2">config</span><span class="s4">.</span><span class="s2">parent</span><span class="s4">[</span><span class="s7">0</span><span class="s4">] : </span><span class="s2">config</span><span class="s4">.</span><span class="s2">parent</span><span class="s4">;</span>
+
+        <span class="s3">// if the given parent is a string, use it to match an element</span>
+        <span class="s3">// if more than one element is matched, the first one will be used as parent</span>
+        <span class="s3">// if no elements are matched, the script will throw an error</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s5">typeof </span><span class="s2">parent </span><span class="s4">=== </span><span class="s6">'string'</span><span class="s4">) {</span>
+            <span class="s2">parent </span><span class="s4">= </span><span class="s2">d</span><span class="s4">.</span><span class="s2">querySelectorAll</span><span class="s4">(</span><span class="s2">config</span><span class="s4">.</span><span class="s2">parent</span><span class="s4">);</span>
+            <span class="s5">if </span><span class="s4">(</span><span class="s2">parent</span><span class="s4">.</span><span class="s2">length </span><span class="s4">&gt; </span><span class="s7">1</span><span class="s4">) {</span>
+                <span class="s2">console</span><span class="s4">.</span><span class="s2">warn</span><span class="s4">(</span><span class="s6">'WARNING: the given `parent` query(' </span><span class="s4">+ </span><span class="s2">config</span><span class="s4">.</span><span class="s2">parent </span><span class="s4">+ </span><span class="s6">') matched more than one element, the first one will be used'</span><span class="s4">);</span>
+            <span class="s4">}</span>
+            <span class="s5">if </span><span class="s4">(</span><span class="s2">parent</span><span class="s4">.</span><span class="s2">length </span><span class="s4">=== </span><span class="s7">0</span><span class="s4">) {</span>
+                <span class="s5">throw </span><span class="s6">'ERROR: the given `parent` doesn</span><span class="s5">\'</span><span class="s6">t exists!'</span><span class="s4">;</span>
+            <span class="s4">}</span>
+            <span class="s2">parent </span><span class="s4">= </span><span class="s2">parent</span><span class="s4">[</span><span class="s7">0</span><span class="s4">];</span>
+        <span class="s4">}</span>
+        <span class="s3">// if the given parent is a DOM nodes list or an array of nodes with more than one element,</span>
+        <span class="s3">// the first one will be used as parent</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">parent</span><span class="s4">.</span><span class="s2">length </span><span class="s4">&gt; </span><span class="s7">1 </span><span class="s4">&amp;&amp; </span><span class="s2">parent </span><span class="s5">instanceof </span><span class="s2">Element </span><span class="s4">=== </span><span class="s5">false</span><span class="s4">) {</span>
+            <span class="s2">console</span><span class="s4">.</span><span class="s2">warn</span><span class="s4">(</span><span class="s6">'WARNING: you have passed as parent a list of elements, the first one will be used'</span><span class="s4">);</span>
+            <span class="s2">parent </span><span class="s4">= </span><span class="s2">parent</span><span class="s4">[</span><span class="s7">0</span><span class="s4">];</span>
+        <span class="s4">}</span>
+
+        <span class="s3">// append the generated popper to its parent</span>
+        <span class="s2">parent</span><span class="s4">.</span><span class="s2">appendChild</span><span class="s4">(</span><span class="s2">popper</span><span class="s4">);</span>
+
+        <span class="s5">return </span><span class="s2">popper</span><span class="s4">;</span>
+
+        <span class="s0">/**</span>
+         <span class="s0">* Adds class names to the given element</span>
+         <span class="s0">* </span><span class="s1">@function</span>
+         <span class="s0">* </span><span class="s1">@ignore</span>
+         <span class="s0">* </span><span class="s1">@param </span><span class="s0">{HTMLElement} target</span>
+         <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Array} classes</span>
+         <span class="s0">*/</span>
+        <span class="s5">function </span><span class="s2">addClassNames</span><span class="s4">(</span><span class="s2">element</span><span class="s4">, </span><span class="s2">classNames</span><span class="s4">) {</span>
+            <span class="s2">classNames</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">(</span><span class="s5">function</span><span class="s4">(</span><span class="s2">className</span><span class="s4">) {</span>
+                <span class="s2">element</span><span class="s4">.</span><span class="s2">classList</span><span class="s4">.</span><span class="s2">add</span><span class="s4">(</span><span class="s2">className</span><span class="s4">);</span>
+            <span class="s4">});</span>
+        <span class="s4">}</span>
+
+        <span class="s0">/**</span>
+         <span class="s0">* Adds attributes to the given element</span>
+         <span class="s0">* </span><span class="s1">@function</span>
+         <span class="s0">* </span><span class="s1">@ignore</span>
+         <span class="s0">* </span><span class="s1">@param </span><span class="s0">{HTMLElement} target</span>
+         <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Array} attributes</span>
+         <span class="s0">* </span><span class="s1">@example</span>
+         <span class="s0">* addAttributes(element, [ 'data-info:foobar' ]);</span>
+         <span class="s0">*/</span>
+        <span class="s5">function </span><span class="s2">addAttributes</span><span class="s4">(</span><span class="s2">element</span><span class="s4">, </span><span class="s2">attributes</span><span class="s4">) {</span>
+            <span class="s2">attributes</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">(</span><span class="s5">function</span><span class="s4">(</span><span class="s2">attribute</span><span class="s4">) {</span>
+                <span class="s2">element</span><span class="s4">.</span><span class="s2">setAttribute</span><span class="s4">(</span><span class="s2">attribute</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s6">':'</span><span class="s4">)[</span><span class="s7">0</span><span class="s4">], </span><span class="s2">attribute</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s6">':'</span><span class="s4">)[</span><span class="s7">1</span><span class="s4">] || </span><span class="s6">''</span><span class="s4">);</span>
+            <span class="s4">});</span>
+        <span class="s4">}</span>
+
+    <span class="s4">};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Helper used to get the position which will be applied to the popper</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">config {HTMLElement} popper element</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">reference {HTMLElement} reference element</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{String} position</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">_getPosition </span><span class="s4">= </span><span class="s5">function</span><span class="s4">(</span><span class="s2">popper</span><span class="s4">, </span><span class="s2">reference</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">container </span><span class="s4">= </span><span class="s2">getOffsetParent</span><span class="s4">(</span><span class="s2">reference</span><span class="s4">);</span>
+
+        <span class="s5">if </span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">forceAbsolute</span><span class="s4">) {</span>
+            <span class="s5">return </span><span class="s6">'absolute'</span><span class="s4">;</span>
+        <span class="s4">}</span>
+
+        <span class="s3">// Decide if the popper will be fixed</span>
+        <span class="s3">// If the reference element is inside a fixed context, the popper will be fixed as well to allow them to scroll together</span>
+        <span class="s5">var </span><span class="s2">isParentFixed </span><span class="s4">= </span><span class="s2">isFixed</span><span class="s4">(</span><span class="s2">reference</span><span class="s4">, </span><span class="s2">container</span><span class="s4">);</span>
+        <span class="s5">return </span><span class="s2">isParentFixed </span><span class="s4">? </span><span class="s6">'fixed' </span><span class="s4">: </span><span class="s6">'absolute'</span><span class="s4">;</span>
+    <span class="s4">};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Get offsets to the popper</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper</span>
+     <span class="s0">* </span><span class="s1">@access </span><span class="s0">private</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Element} popper - the popper element</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Element} reference - the reference element (the popper will be relative to this)</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Object} An object containing the offsets which will be applied to the popper</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">_getOffsets </span><span class="s4">= </span><span class="s5">function</span><span class="s4">(</span><span class="s2">popper</span><span class="s4">, </span><span class="s2">reference</span><span class="s4">, </span><span class="s2">placement</span><span class="s4">) {</span>
+        <span class="s2">placement </span><span class="s4">= </span><span class="s2">placement</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s6">'-'</span><span class="s4">)[</span><span class="s7">0</span><span class="s4">];</span>
+        <span class="s5">var </span><span class="s2">popperOffsets </span><span class="s4">= {};</span>
+
+        <span class="s2">popperOffsets</span><span class="s4">.</span><span class="s2">position </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">position</span><span class="s4">;</span>
+        <span class="s5">var </span><span class="s2">isParentFixed </span><span class="s4">= </span><span class="s2">popperOffsets</span><span class="s4">.</span><span class="s2">position </span><span class="s4">=== </span><span class="s6">'fixed'</span><span class="s4">;</span>
+
+        <span class="s3">//</span>
+        <span class="s3">// Get reference element position</span>
+        <span class="s3">//</span>
+        <span class="s5">var </span><span class="s2">referenceOffsets </span><span class="s4">= </span><span class="s2">getOffsetRectRelativeToCustomParent</span><span class="s4">(</span><span class="s2">reference</span><span class="s4">, </span><span class="s2">getOffsetParent</span><span class="s4">(</span><span class="s2">popper</span><span class="s4">), </span><span class="s2">isParentFixed</span><span class="s4">);</span>
+
+        <span class="s3">//</span>
+        <span class="s3">// Get popper sizes</span>
+        <span class="s3">//</span>
+        <span class="s5">var </span><span class="s2">popperRect </span><span class="s4">= </span><span class="s2">getOuterSizes</span><span class="s4">(</span><span class="s2">popper</span><span class="s4">);</span>
+
+        <span class="s3">//</span>
+        <span class="s3">// Compute offsets of popper</span>
+        <span class="s3">//</span>
+
+        <span class="s3">// depending by the popper placement we have to compute its offsets slightly differently</span>
+        <span class="s5">if </span><span class="s4">([</span><span class="s6">'right'</span><span class="s4">, </span><span class="s6">'left'</span><span class="s4">].</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s2">placement</span><span class="s4">) !== -</span><span class="s7">1</span><span class="s4">) {</span>
+            <span class="s2">popperOffsets</span><span class="s4">.</span><span class="s2">top </span><span class="s4">= </span><span class="s2">referenceOffsets</span><span class="s4">.</span><span class="s2">top </span><span class="s4">+ </span><span class="s2">referenceOffsets</span><span class="s4">.</span><span class="s2">height </span><span class="s4">/ </span><span class="s7">2 </span><span class="s4">- </span><span class="s2">popperRect</span><span class="s4">.</span><span class="s2">height </span><span class="s4">/ </span><span class="s7">2</span><span class="s4">;</span>
+            <span class="s5">if </span><span class="s4">(</span><span class="s2">placement </span><span class="s4">=== </span><span class="s6">'left'</span><span class="s4">) {</span>
+                <span class="s2">popperOffsets</span><span class="s4">.</span><span class="s2">left </span><span class="s4">= </span><span class="s2">referenceOffsets</span><span class="s4">.</span><span class="s2">left </span><span class="s4">- </span><span class="s2">popperRect</span><span class="s4">.</span><span class="s2">width</span><span class="s4">;</span>
+            <span class="s4">} </span><span class="s5">else </span><span class="s4">{</span>
+                <span class="s2">popperOffsets</span><span class="s4">.</span><span class="s2">left </span><span class="s4">= </span><span class="s2">referenceOffsets</span><span class="s4">.</span><span class="s2">right</span><span class="s4">;</span>
+            <span class="s4">}</span>
+        <span class="s4">} </span><span class="s5">else </span><span class="s4">{</span>
+            <span class="s2">popperOffsets</span><span class="s4">.</span><span class="s2">left </span><span class="s4">= </span><span class="s2">referenceOffsets</span><span class="s4">.</span><span class="s2">left </span><span class="s4">+ </span><span class="s2">referenceOffsets</span><span class="s4">.</span><span class="s2">width </span><span class="s4">/ </span><span class="s7">2 </span><span class="s4">- </span><span class="s2">popperRect</span><span class="s4">.</span><span class="s2">width </span><span class="s4">/ </span><span class="s7">2</span><span class="s4">;</span>
+            <span class="s5">if </span><span class="s4">(</span><span class="s2">placement </span><span class="s4">=== </span><span class="s6">'top'</span><span class="s4">) {</span>
+                <span class="s2">popperOffsets</span><span class="s4">.</span><span class="s2">top </span><span class="s4">= </span><span class="s2">referenceOffsets</span><span class="s4">.</span><span class="s2">top </span><span class="s4">- </span><span class="s2">popperRect</span><span class="s4">.</span><span class="s2">height</span><span class="s4">;</span>
+            <span class="s4">} </span><span class="s5">else </span><span class="s4">{</span>
+                <span class="s2">popperOffsets</span><span class="s4">.</span><span class="s2">top </span><span class="s4">= </span><span class="s2">referenceOffsets</span><span class="s4">.</span><span class="s2">bottom</span><span class="s4">;</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+
+        <span class="s3">// Add width and height to our offsets object</span>
+        <span class="s2">popperOffsets</span><span class="s4">.</span><span class="s2">width   </span><span class="s4">= </span><span class="s2">popperRect</span><span class="s4">.</span><span class="s2">width</span><span class="s4">;</span>
+        <span class="s2">popperOffsets</span><span class="s4">.</span><span class="s2">height  </span><span class="s4">= </span><span class="s2">popperRect</span><span class="s4">.</span><span class="s2">height</span><span class="s4">;</span>
+
+        <span class="s5">return </span><span class="s4">{</span>
+            <span class="s2">popper</span><span class="s4">: </span><span class="s2">popperOffsets</span><span class="s4">,</span>
+            <span class="s2">reference</span><span class="s4">: </span><span class="s2">referenceOffsets</span>
+        <span class="s4">};</span>
+    <span class="s4">};</span>
+
+
+    <span class="s0">/**</span>
+     <span class="s0">* Setup needed event listeners used to update the popper position</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper</span>
+     <span class="s0">* </span><span class="s1">@access </span><span class="s0">private</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">_setupEventListeners </span><span class="s4">= </span><span class="s5">function</span><span class="s4">() {</span>
+        <span class="s3">// NOTE: 1 DOM access here</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">updateBound </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">update</span><span class="s4">.</span><span class="s2">bind</span><span class="s4">(</span><span class="s5">this</span><span class="s4">);</span>
+        <span class="s2">root</span><span class="s4">.</span><span class="s2">addEventListener</span><span class="s4">(</span><span class="s6">'resize'</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">updateBound</span><span class="s4">);</span>
+        <span class="s3">// if the boundariesElement is window we don't need to listen for the scroll event</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">boundariesElement </span><span class="s4">!== </span><span class="s6">'window'</span><span class="s4">) {</span>
+            <span class="s5">var </span><span class="s2">target </span><span class="s4">= </span><span class="s2">getScrollParent</span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_reference</span><span class="s4">);</span>
+            <span class="s3">// here it could be both `body` or `documentElement` thanks to Firefox, we then check both</span>
+            <span class="s5">if </span><span class="s4">(</span><span class="s2">target </span><span class="s4">=== </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">.</span><span class="s2">body </span><span class="s4">|| </span><span class="s2">target </span><span class="s4">=== </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">.</span><span class="s2">documentElement</span><span class="s4">) {</span>
+                <span class="s2">target </span><span class="s4">= </span><span class="s2">root</span><span class="s4">;</span>
+            <span class="s4">}</span>
+            <span class="s2">target</span><span class="s4">.</span><span class="s2">addEventListener</span><span class="s4">(</span><span class="s6">'scroll'</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">updateBound</span><span class="s4">);</span>
+            <span class="s5">this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">scrollTarget </span><span class="s4">= </span><span class="s2">target</span><span class="s4">;</span>
+        <span class="s4">}</span>
+    <span class="s4">};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Remove event listeners used to update the popper position</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper</span>
+     <span class="s0">* </span><span class="s1">@access </span><span class="s0">private</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">_removeEventListeners </span><span class="s4">= </span><span class="s5">function</span><span class="s4">() {</span>
+        <span class="s3">// NOTE: 1 DOM access here</span>
+        <span class="s2">root</span><span class="s4">.</span><span class="s2">removeEventListener</span><span class="s4">(</span><span class="s6">'resize'</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">updateBound</span><span class="s4">);</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">boundariesElement </span><span class="s4">!== </span><span class="s6">'window' </span><span class="s4">&amp;&amp; </span><span class="s5">this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">scrollTarget</span><span class="s4">) {</span>
+            <span class="s5">this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">scrollTarget</span><span class="s4">.</span><span class="s2">removeEventListener</span><span class="s4">(</span><span class="s6">'scroll'</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">updateBound</span><span class="s4">);</span>
+            <span class="s5">this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">scrollTarget </span><span class="s4">= </span><span class="s5">null</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">state</span><span class="s4">.</span><span class="s2">updateBound </span><span class="s4">= </span><span class="s5">null</span><span class="s4">;</span>
+    <span class="s4">};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Computed the boundaries limits and return them</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper</span>
+     <span class="s0">* </span><span class="s1">@access </span><span class="s0">private</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Object} data - Object containing the property &quot;offsets&quot; generated by `_getOffsets`</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Number} padding - Boundaries padding</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Element} boundariesElement - Element used to define the boundaries</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Object} Coordinates of the boundaries</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">_getBoundaries </span><span class="s4">= </span><span class="s5">function</span><span class="s4">(</span><span class="s2">data</span><span class="s4">, </span><span class="s2">padding</span><span class="s4">, </span><span class="s2">boundariesElement</span><span class="s4">) {</span>
+        <span class="s3">// NOTE: 1 DOM access here</span>
+        <span class="s5">var </span><span class="s2">boundaries </span><span class="s4">= {};</span>
+        <span class="s5">var </span><span class="s2">width</span><span class="s4">, </span><span class="s2">height</span><span class="s4">;</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">boundariesElement </span><span class="s4">=== </span><span class="s6">'window'</span><span class="s4">) {</span>
+            <span class="s5">var </span><span class="s2">body </span><span class="s4">= </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">.</span><span class="s2">body</span><span class="s4">,</span>
+                <span class="s2">html </span><span class="s4">= </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">.</span><span class="s2">documentElement</span><span class="s4">;</span>
+
+            <span class="s2">height </span><span class="s4">= </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">max</span><span class="s4">( </span><span class="s2">body</span><span class="s4">.</span><span class="s2">scrollHeight</span><span class="s4">, </span><span class="s2">body</span><span class="s4">.</span><span class="s2">offsetHeight</span><span class="s4">, </span><span class="s2">html</span><span class="s4">.</span><span class="s2">clientHeight</span><span class="s4">, </span><span class="s2">html</span><span class="s4">.</span><span class="s2">scrollHeight</span><span class="s4">, </span><span class="s2">html</span><span class="s4">.</span><span class="s2">offsetHeight </span><span class="s4">);</span>
+            <span class="s2">width </span><span class="s4">= </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">max</span><span class="s4">( </span><span class="s2">body</span><span class="s4">.</span><span class="s2">scrollWidth</span><span class="s4">, </span><span class="s2">body</span><span class="s4">.</span><span class="s2">offsetWidth</span><span class="s4">, </span><span class="s2">html</span><span class="s4">.</span><span class="s2">clientWidth</span><span class="s4">, </span><span class="s2">html</span><span class="s4">.</span><span class="s2">scrollWidth</span><span class="s4">, </span><span class="s2">html</span><span class="s4">.</span><span class="s2">offsetWidth </span><span class="s4">);</span>
+
+            <span class="s2">boundaries </span><span class="s4">= {</span>
+                <span class="s2">top</span><span class="s4">: </span><span class="s7">0</span><span class="s4">,</span>
+                <span class="s2">right</span><span class="s4">: </span><span class="s2">width</span><span class="s4">,</span>
+                <span class="s2">bottom</span><span class="s4">: </span><span class="s2">height</span><span class="s4">,</span>
+                <span class="s2">left</span><span class="s4">: </span><span class="s7">0</span>
+            <span class="s4">};</span>
+        <span class="s4">} </span><span class="s5">else if </span><span class="s4">(</span><span class="s2">boundariesElement </span><span class="s4">=== </span><span class="s6">'viewport'</span><span class="s4">) {</span>
+            <span class="s5">var </span><span class="s2">offsetParent </span><span class="s4">= </span><span class="s2">getOffsetParent</span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">);</span>
+            <span class="s5">var </span><span class="s2">scrollParent </span><span class="s4">= </span><span class="s2">getScrollParent</span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">);</span>
+            <span class="s5">var </span><span class="s2">offsetParentRect </span><span class="s4">= </span><span class="s2">getOffsetRect</span><span class="s4">(</span><span class="s2">offsetParent</span><span class="s4">);</span>
+
+            <span class="s3">// Thanks the fucking native API, `document.body.scrollTop` &amp; `document.documentElement.scrollTop`</span>
+            <span class="s5">var </span><span class="s2">getScrollTopValue </span><span class="s4">= </span><span class="s5">function </span><span class="s4">(</span><span class="s2">element</span><span class="s4">) {</span>
+                <span class="s5">return </span><span class="s2">element </span><span class="s4">== </span><span class="s2">document</span><span class="s4">.</span><span class="s2">body </span><span class="s4">? </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">max</span><span class="s4">(</span><span class="s2">document</span><span class="s4">.</span><span class="s2">documentElement</span><span class="s4">.</span><span class="s2">scrollTop</span><span class="s4">, </span><span class="s2">document</span><span class="s4">.</span><span class="s2">body</span><span class="s4">.</span><span class="s2">scrollTop</span><span class="s4">) : </span><span class="s2">element</span><span class="s4">.</span><span class="s2">scrollTop</span><span class="s4">;</span>
+            <span class="s4">}</span>
+            <span class="s5">var </span><span class="s2">getScrollLeftValue </span><span class="s4">= </span><span class="s5">function </span><span class="s4">(</span><span class="s2">element</span><span class="s4">) {</span>
+                <span class="s5">return </span><span class="s2">element </span><span class="s4">== </span><span class="s2">document</span><span class="s4">.</span><span class="s2">body </span><span class="s4">? </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">max</span><span class="s4">(</span><span class="s2">document</span><span class="s4">.</span><span class="s2">documentElement</span><span class="s4">.</span><span class="s2">scrollLeft</span><span class="s4">, </span><span class="s2">document</span><span class="s4">.</span><span class="s2">body</span><span class="s4">.</span><span class="s2">scrollLeft</span><span class="s4">) : </span><span class="s2">element</span><span class="s4">.</span><span class="s2">scrollLeft</span><span class="s4">;</span>
+            <span class="s4">}</span>
+
+            <span class="s3">// if the popper is fixed we don't have to substract scrolling from the boundaries</span>
+            <span class="s5">var </span><span class="s2">scrollTop </span><span class="s4">= </span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">position </span><span class="s4">=== </span><span class="s6">'fixed' </span><span class="s4">? </span><span class="s7">0 </span><span class="s4">: </span><span class="s2">getScrollTopValue</span><span class="s4">(</span><span class="s2">scrollParent</span><span class="s4">);</span>
+            <span class="s5">var </span><span class="s2">scrollLeft </span><span class="s4">= </span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">position </span><span class="s4">=== </span><span class="s6">'fixed' </span><span class="s4">? </span><span class="s7">0 </span><span class="s4">: </span><span class="s2">getScrollLeftValue</span><span class="s4">(</span><span class="s2">scrollParent</span><span class="s4">);</span>
+
+            <span class="s2">boundaries </span><span class="s4">= {</span>
+                <span class="s2">top</span><span class="s4">: </span><span class="s7">0 </span><span class="s4">- (</span><span class="s2">offsetParentRect</span><span class="s4">.</span><span class="s2">top </span><span class="s4">- </span><span class="s2">scrollTop</span><span class="s4">),</span>
+                <span class="s2">right</span><span class="s4">: </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">.</span><span class="s2">documentElement</span><span class="s4">.</span><span class="s2">clientWidth </span><span class="s4">- (</span><span class="s2">offsetParentRect</span><span class="s4">.</span><span class="s2">left </span><span class="s4">- </span><span class="s2">scrollLeft</span><span class="s4">),</span>
+                <span class="s2">bottom</span><span class="s4">: </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">.</span><span class="s2">documentElement</span><span class="s4">.</span><span class="s2">clientHeight </span><span class="s4">- (</span><span class="s2">offsetParentRect</span><span class="s4">.</span><span class="s2">top </span><span class="s4">- </span><span class="s2">scrollTop</span><span class="s4">),</span>
+                <span class="s2">left</span><span class="s4">: </span><span class="s7">0 </span><span class="s4">- (</span><span class="s2">offsetParentRect</span><span class="s4">.</span><span class="s2">left </span><span class="s4">- </span><span class="s2">scrollLeft</span><span class="s4">)</span>
+            <span class="s4">};</span>
+        <span class="s4">} </span><span class="s5">else </span><span class="s4">{</span>
+            <span class="s5">if </span><span class="s4">(</span><span class="s2">getOffsetParent</span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">) === </span><span class="s2">boundariesElement</span><span class="s4">) {</span>
+                <span class="s2">boundaries </span><span class="s4">= {</span>
+                    <span class="s2">top</span><span class="s4">: </span><span class="s7">0</span><span class="s4">,</span>
+                    <span class="s2">left</span><span class="s4">: </span><span class="s7">0</span><span class="s4">,</span>
+                    <span class="s2">right</span><span class="s4">: </span><span class="s2">boundariesElement</span><span class="s4">.</span><span class="s2">clientWidth</span><span class="s4">,</span>
+                    <span class="s2">bottom</span><span class="s4">: </span><span class="s2">boundariesElement</span><span class="s4">.</span><span class="s2">clientHeight</span>
+                <span class="s4">};</span>
+            <span class="s4">} </span><span class="s5">else </span><span class="s4">{</span>
+                <span class="s2">boundaries </span><span class="s4">= </span><span class="s2">getOffsetRect</span><span class="s4">(</span><span class="s2">boundariesElement</span><span class="s4">);</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+        <span class="s2">boundaries</span><span class="s4">.</span><span class="s2">left </span><span class="s4">+= </span><span class="s2">padding</span><span class="s4">;</span>
+        <span class="s2">boundaries</span><span class="s4">.</span><span class="s2">right </span><span class="s4">-= </span><span class="s2">padding</span><span class="s4">;</span>
+        <span class="s2">boundaries</span><span class="s4">.</span><span class="s2">top </span><span class="s4">= </span><span class="s2">boundaries</span><span class="s4">.</span><span class="s2">top </span><span class="s4">+ </span><span class="s2">padding</span><span class="s4">;</span>
+        <span class="s2">boundaries</span><span class="s4">.</span><span class="s2">bottom </span><span class="s4">= </span><span class="s2">boundaries</span><span class="s4">.</span><span class="s2">bottom </span><span class="s4">- </span><span class="s2">padding</span><span class="s4">;</span>
+        <span class="s5">return </span><span class="s2">boundaries</span><span class="s4">;</span>
+    <span class="s4">};</span>
+
+
+    <span class="s0">/**</span>
+     <span class="s0">* Loop trough the list of modifiers and run them in order, each of them will then edit the data object</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper</span>
+     <span class="s0">* </span><span class="s1">@access </span><span class="s0">public</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Object} data</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Array} modifiers</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Function} ends</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">runModifiers </span><span class="s4">= </span><span class="s5">function</span><span class="s4">(</span><span class="s2">data</span><span class="s4">, </span><span class="s2">modifiers</span><span class="s4">, </span><span class="s2">ends</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">modifiersToRun </span><span class="s4">= </span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">();</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">ends </span><span class="s4">!== </span><span class="s2">undefined</span><span class="s4">) {</span>
+            <span class="s2">modifiersToRun </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">(</span><span class="s7">0</span><span class="s4">, </span><span class="s2">getArrayKeyIndex</span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">, </span><span class="s2">ends</span><span class="s4">));</span>
+        <span class="s4">}</span>
+
+        <span class="s2">modifiersToRun</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">(</span><span class="s5">function</span><span class="s4">(</span><span class="s2">modifier</span><span class="s4">) {</span>
+            <span class="s5">if </span><span class="s4">(</span><span class="s2">isFunction</span><span class="s4">(</span><span class="s2">modifier</span><span class="s4">)) {</span>
+                <span class="s2">data </span><span class="s4">= </span><span class="s2">modifier</span><span class="s4">.</span><span class="s2">call</span><span class="s4">(</span><span class="s5">this</span><span class="s4">, </span><span class="s2">data</span><span class="s4">);</span>
+            <span class="s4">}</span>
+        <span class="s4">}.</span><span class="s2">bind</span><span class="s4">(</span><span class="s5">this</span><span class="s4">));</span>
+
+        <span class="s5">return </span><span class="s2">data</span><span class="s4">;</span>
+    <span class="s4">};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Helper used to know if the given modifier depends from another one.</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{String} requesting - name of requesting modifier</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{String} requested - name of requested modifier</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Boolean}</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">isModifierRequired </span><span class="s4">= </span><span class="s5">function</span><span class="s4">(</span><span class="s2">requesting</span><span class="s4">, </span><span class="s2">requested</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">index </span><span class="s4">= </span><span class="s2">getArrayKeyIndex</span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">, </span><span class="s2">requesting</span><span class="s4">);</span>
+        <span class="s5">return </span><span class="s4">!!</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">(</span><span class="s7">0</span><span class="s4">, </span><span class="s2">index</span><span class="s4">).</span><span class="s2">filter</span><span class="s4">(</span><span class="s5">function</span><span class="s4">(</span><span class="s2">modifier</span><span class="s4">) {</span>
+            <span class="s5">return </span><span class="s2">modifier </span><span class="s4">=== </span><span class="s2">requested</span><span class="s4">;</span>
+        <span class="s4">}).</span><span class="s2">length</span><span class="s4">;</span>
+    <span class="s4">};</span>
+
+    <span class="s3">//</span>
+    <span class="s3">// Modifiers</span>
+    <span class="s3">//</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Modifiers list</span>
+     <span class="s0">* </span><span class="s1">@namespace </span><span class="s0">Popper.modifiers</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper</span>
+     <span class="s0">* </span><span class="s1">@type </span><span class="s0">{Object}</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">modifiers </span><span class="s4">= {};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Apply the computed styles to the popper element</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper.modifiers</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Object} data - The data object generated by `update` method</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Object} The same data object</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">applyStyle </span><span class="s4">= </span><span class="s5">function</span><span class="s4">(</span><span class="s2">data</span><span class="s4">) {</span>
+        <span class="s3">// apply the final offsets to the popper</span>
+        <span class="s3">// NOTE: 1 DOM access here</span>
+        <span class="s5">var </span><span class="s2">styles </span><span class="s4">= {</span>
+            <span class="s2">position</span><span class="s4">: </span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">position</span>
+        <span class="s4">};</span>
+
+        <span class="s3">// round top and left to avoid blurry text</span>
+        <span class="s5">var </span><span class="s2">left </span><span class="s4">= </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">round</span><span class="s4">(</span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">left</span><span class="s4">);</span>
+        <span class="s5">var </span><span class="s2">top </span><span class="s4">= </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">round</span><span class="s4">(</span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">top</span><span class="s4">);</span>
+
+        <span class="s3">// if gpuAcceleration is set to true and transform is supported, we use `translate3d` to apply the position to the popper</span>
+        <span class="s3">// we automatically use the supported prefixed version if needed</span>
+        <span class="s5">var </span><span class="s2">prefixedProperty</span><span class="s4">;</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">gpuAcceleration </span><span class="s4">&amp;&amp; (</span><span class="s2">prefixedProperty </span><span class="s4">= </span><span class="s2">getSupportedPropertyName</span><span class="s4">(</span><span class="s6">'transform'</span><span class="s4">))) {</span>
+            <span class="s2">styles</span><span class="s4">[</span><span class="s2">prefixedProperty</span><span class="s4">] = </span><span class="s6">'translate3d(' </span><span class="s4">+ </span><span class="s2">left </span><span class="s4">+ </span><span class="s6">'px, ' </span><span class="s4">+ </span><span class="s2">top </span><span class="s4">+ </span><span class="s6">'px, 0)'</span><span class="s4">;</span>
+            <span class="s2">styles</span><span class="s4">.</span><span class="s2">top </span><span class="s4">= </span><span class="s7">0</span><span class="s4">;</span>
+            <span class="s2">styles</span><span class="s4">.</span><span class="s2">left </span><span class="s4">= </span><span class="s7">0</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s3">// othwerise, we use the standard `left` and `top` properties</span>
+        <span class="s5">else </span><span class="s4">{</span>
+            <span class="s2">styles</span><span class="s4">.</span><span class="s2">left </span><span class="s4">=</span><span class="s2">left</span><span class="s4">;</span>
+            <span class="s2">styles</span><span class="s4">.</span><span class="s2">top </span><span class="s4">= </span><span class="s2">top</span><span class="s4">;</span>
+        <span class="s4">}</span>
+
+        <span class="s3">// any property present in `data.styles` will be applied to the popper,</span>
+        <span class="s3">// in this way we can make the 3rd party modifiers add custom styles to it</span>
+        <span class="s3">// Be aware, modifiers could override the properties defined in the previous</span>
+        <span class="s3">// lines of this modifier!</span>
+        <span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">(</span><span class="s2">styles</span><span class="s4">, </span><span class="s2">data</span><span class="s4">.</span><span class="s2">styles</span><span class="s4">);</span>
+
+        <span class="s2">setStyle</span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">, </span><span class="s2">styles</span><span class="s4">);</span>
+
+        <span class="s3">// set an attribute which will be useful to style the tooltip (use it to properly position its arrow)</span>
+        <span class="s3">// NOTE: 1 DOM access here</span>
+        <span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">.</span><span class="s2">setAttribute</span><span class="s4">(</span><span class="s6">'x-placement'</span><span class="s4">, </span><span class="s2">data</span><span class="s4">.</span><span class="s2">placement</span><span class="s4">);</span>
+
+        <span class="s3">// if the arrow modifier is required and the arrow style has been computed, apply the arrow style</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">isModifierRequired</span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">applyStyle</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">arrow</span><span class="s4">) &amp;&amp; </span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">arrow</span><span class="s4">) {</span>
+            <span class="s2">setStyle</span><span class="s4">(</span><span class="s2">data</span><span class="s4">.</span><span class="s2">arrowElement</span><span class="s4">, </span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">arrow</span><span class="s4">);</span>
+        <span class="s4">}</span>
+
+        <span class="s5">return </span><span class="s2">data</span><span class="s4">;</span>
+    <span class="s4">};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Modifier used to shift the popper on the start or end of its reference element side</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper.modifiers</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Object} data - The data object generated by `update` method</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Object} The data object, properly modified</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">shift </span><span class="s4">= </span><span class="s5">function</span><span class="s4">(</span><span class="s2">data</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">placement </span><span class="s4">= </span><span class="s2">data</span><span class="s4">.</span><span class="s2">placement</span><span class="s4">;</span>
+        <span class="s5">var </span><span class="s2">basePlacement </span><span class="s4">= </span><span class="s2">placement</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s6">'-'</span><span class="s4">)[</span><span class="s7">0</span><span class="s4">];</span>
+        <span class="s5">var </span><span class="s2">shiftVariation </span><span class="s4">= </span><span class="s2">placement</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s6">'-'</span><span class="s4">)[</span><span class="s7">1</span><span class="s4">];</span>
+
+        <span class="s3">// if shift shiftVariation is specified, run the modifier</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">shiftVariation</span><span class="s4">) {</span>
+            <span class="s5">var </span><span class="s2">reference </span><span class="s4">= </span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">reference</span><span class="s4">;</span>
+            <span class="s5">var </span><span class="s2">popper </span><span class="s4">= </span><span class="s2">getPopperClientRect</span><span class="s4">(</span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">);</span>
+
+            <span class="s5">var </span><span class="s2">shiftOffsets </span><span class="s4">= {</span>
+                <span class="s2">y</span><span class="s4">: {</span>
+                    <span class="s2">start</span><span class="s4">:  { </span><span class="s2">top</span><span class="s4">: </span><span class="s2">reference</span><span class="s4">.</span><span class="s2">top </span><span class="s4">},</span>
+                    <span class="s2">end</span><span class="s4">:    { </span><span class="s2">top</span><span class="s4">: </span><span class="s2">reference</span><span class="s4">.</span><span class="s2">top </span><span class="s4">+ </span><span class="s2">reference</span><span class="s4">.</span><span class="s2">height </span><span class="s4">- </span><span class="s2">popper</span><span class="s4">.</span><span class="s2">height </span><span class="s4">}</span>
+                <span class="s4">},</span>
+                <span class="s2">x</span><span class="s4">: {</span>
+                    <span class="s2">start</span><span class="s4">:  { </span><span class="s2">left</span><span class="s4">: </span><span class="s2">reference</span><span class="s4">.</span><span class="s2">left </span><span class="s4">},</span>
+                    <span class="s2">end</span><span class="s4">:    { </span><span class="s2">left</span><span class="s4">: </span><span class="s2">reference</span><span class="s4">.</span><span class="s2">left </span><span class="s4">+ </span><span class="s2">reference</span><span class="s4">.</span><span class="s2">width </span><span class="s4">- </span><span class="s2">popper</span><span class="s4">.</span><span class="s2">width </span><span class="s4">}</span>
+                <span class="s4">}</span>
+            <span class="s4">};</span>
+
+            <span class="s5">var </span><span class="s2">axis </span><span class="s4">= [</span><span class="s6">'bottom'</span><span class="s4">, </span><span class="s6">'top'</span><span class="s4">].</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s2">basePlacement</span><span class="s4">) !== -</span><span class="s7">1 </span><span class="s4">? </span><span class="s6">'x' </span><span class="s4">: </span><span class="s6">'y'</span><span class="s4">;</span>
+
+            <span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">(</span><span class="s2">popper</span><span class="s4">, </span><span class="s2">shiftOffsets</span><span class="s4">[</span><span class="s2">axis</span><span class="s4">][</span><span class="s2">shiftVariation</span><span class="s4">]);</span>
+        <span class="s4">}</span>
+
+        <span class="s5">return </span><span class="s2">data</span><span class="s4">;</span>
+    <span class="s4">};</span>
+
+
+    <span class="s0">/**</span>
+     <span class="s0">* Modifier used to make sure the popper does not overflows from it's boundaries</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper.modifiers</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Object} data - The data object generated by `update` method</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Object} The data object, properly modified</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">preventOverflow </span><span class="s4">= </span><span class="s5">function</span><span class="s4">(</span><span class="s2">data</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">order </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">preventOverflowOrder</span><span class="s4">;</span>
+        <span class="s5">var </span><span class="s2">popper </span><span class="s4">= </span><span class="s2">getPopperClientRect</span><span class="s4">(</span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">);</span>
+
+        <span class="s5">var </span><span class="s2">check </span><span class="s4">= {</span>
+            <span class="s2">left</span><span class="s4">: </span><span class="s5">function</span><span class="s4">() {</span>
+                <span class="s5">var </span><span class="s2">left </span><span class="s4">= </span><span class="s2">popper</span><span class="s4">.</span><span class="s2">left</span><span class="s4">;</span>
+                <span class="s5">if </span><span class="s4">(</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">left </span><span class="s4">&lt; </span><span class="s2">data</span><span class="s4">.</span><span class="s2">boundaries</span><span class="s4">.</span><span class="s2">left</span><span class="s4">) {</span>
+                    <span class="s2">left </span><span class="s4">= </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">max</span><span class="s4">(</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">left</span><span class="s4">, </span><span class="s2">data</span><span class="s4">.</span><span class="s2">boundaries</span><span class="s4">.</span><span class="s2">left</span><span class="s4">);</span>
+                <span class="s4">}</span>
+                <span class="s5">return </span><span class="s4">{ </span><span class="s2">left</span><span class="s4">: </span><span class="s2">left </span><span class="s4">};</span>
+            <span class="s4">},</span>
+            <span class="s2">right</span><span class="s4">: </span><span class="s5">function</span><span class="s4">() {</span>
+                <span class="s5">var </span><span class="s2">left </span><span class="s4">= </span><span class="s2">popper</span><span class="s4">.</span><span class="s2">left</span><span class="s4">;</span>
+                <span class="s5">if </span><span class="s4">(</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">right </span><span class="s4">&gt; </span><span class="s2">data</span><span class="s4">.</span><span class="s2">boundaries</span><span class="s4">.</span><span class="s2">right</span><span class="s4">) {</span>
+                    <span class="s2">left </span><span class="s4">= </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">min</span><span class="s4">(</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">left</span><span class="s4">, </span><span class="s2">data</span><span class="s4">.</span><span class="s2">boundaries</span><span class="s4">.</span><span class="s2">right </span><span class="s4">- </span><span class="s2">popper</span><span class="s4">.</span><span class="s2">width</span><span class="s4">);</span>
+                <span class="s4">}</span>
+                <span class="s5">return </span><span class="s4">{ </span><span class="s2">left</span><span class="s4">: </span><span class="s2">left </span><span class="s4">};</span>
+            <span class="s4">},</span>
+            <span class="s2">top</span><span class="s4">: </span><span class="s5">function</span><span class="s4">() {</span>
+                <span class="s5">var </span><span class="s2">top </span><span class="s4">= </span><span class="s2">popper</span><span class="s4">.</span><span class="s2">top</span><span class="s4">;</span>
+                <span class="s5">if </span><span class="s4">(</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">top </span><span class="s4">&lt; </span><span class="s2">data</span><span class="s4">.</span><span class="s2">boundaries</span><span class="s4">.</span><span class="s2">top</span><span class="s4">) {</span>
+                    <span class="s2">top </span><span class="s4">= </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">max</span><span class="s4">(</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">top</span><span class="s4">, </span><span class="s2">data</span><span class="s4">.</span><span class="s2">boundaries</span><span class="s4">.</span><span class="s2">top</span><span class="s4">);</span>
+                <span class="s4">}</span>
+                <span class="s5">return </span><span class="s4">{ </span><span class="s2">top</span><span class="s4">: </span><span class="s2">top </span><span class="s4">};</span>
+            <span class="s4">},</span>
+            <span class="s2">bottom</span><span class="s4">: </span><span class="s5">function</span><span class="s4">() {</span>
+                <span class="s5">var </span><span class="s2">top </span><span class="s4">= </span><span class="s2">popper</span><span class="s4">.</span><span class="s2">top</span><span class="s4">;</span>
+                <span class="s5">if </span><span class="s4">(</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">bottom </span><span class="s4">&gt; </span><span class="s2">data</span><span class="s4">.</span><span class="s2">boundaries</span><span class="s4">.</span><span class="s2">bottom</span><span class="s4">) {</span>
+                    <span class="s2">top </span><span class="s4">= </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">min</span><span class="s4">(</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">top</span><span class="s4">, </span><span class="s2">data</span><span class="s4">.</span><span class="s2">boundaries</span><span class="s4">.</span><span class="s2">bottom </span><span class="s4">- </span><span class="s2">popper</span><span class="s4">.</span><span class="s2">height</span><span class="s4">);</span>
+                <span class="s4">}</span>
+                <span class="s5">return </span><span class="s4">{ </span><span class="s2">top</span><span class="s4">: </span><span class="s2">top </span><span class="s4">};</span>
+            <span class="s4">}</span>
+        <span class="s4">};</span>
+
+        <span class="s2">order</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">(</span><span class="s5">function</span><span class="s4">(</span><span class="s2">direction</span><span class="s4">) {</span>
+            <span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">(</span><span class="s2">popper</span><span class="s4">, </span><span class="s2">check</span><span class="s4">[</span><span class="s2">direction</span><span class="s4">]());</span>
+        <span class="s4">});</span>
+
+        <span class="s5">return </span><span class="s2">data</span><span class="s4">;</span>
+    <span class="s4">};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Modifier used to make sure the popper is always near its reference</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper.modifiers</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Object} data - The data object generated by _update method</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Object} The data object, properly modified</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">keepTogether </span><span class="s4">= </span><span class="s5">function</span><span class="s4">(</span><span class="s2">data</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">popper  </span><span class="s4">= </span><span class="s2">getPopperClientRect</span><span class="s4">(</span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">);</span>
+        <span class="s5">var </span><span class="s2">reference </span><span class="s4">= </span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">reference</span><span class="s4">;</span>
+        <span class="s5">var </span><span class="s2">f </span><span class="s4">= </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">floor</span><span class="s4">;</span>
+
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">right </span><span class="s4">&lt; </span><span class="s2">f</span><span class="s4">(</span><span class="s2">reference</span><span class="s4">.</span><span class="s2">left</span><span class="s4">)) {</span>
+            <span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">left </span><span class="s4">= </span><span class="s2">f</span><span class="s4">(</span><span class="s2">reference</span><span class="s4">.</span><span class="s2">left</span><span class="s4">) - </span><span class="s2">popper</span><span class="s4">.</span><span class="s2">width</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">left </span><span class="s4">&gt; </span><span class="s2">f</span><span class="s4">(</span><span class="s2">reference</span><span class="s4">.</span><span class="s2">right</span><span class="s4">)) {</span>
+            <span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">left </span><span class="s4">= </span><span class="s2">f</span><span class="s4">(</span><span class="s2">reference</span><span class="s4">.</span><span class="s2">right</span><span class="s4">);</span>
+        <span class="s4">}</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">bottom </span><span class="s4">&lt; </span><span class="s2">f</span><span class="s4">(</span><span class="s2">reference</span><span class="s4">.</span><span class="s2">top</span><span class="s4">)) {</span>
+            <span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">top </span><span class="s4">= </span><span class="s2">f</span><span class="s4">(</span><span class="s2">reference</span><span class="s4">.</span><span class="s2">top</span><span class="s4">) - </span><span class="s2">popper</span><span class="s4">.</span><span class="s2">height</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">top </span><span class="s4">&gt; </span><span class="s2">f</span><span class="s4">(</span><span class="s2">reference</span><span class="s4">.</span><span class="s2">bottom</span><span class="s4">)) {</span>
+            <span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">.</span><span class="s2">top </span><span class="s4">= </span><span class="s2">f</span><span class="s4">(</span><span class="s2">reference</span><span class="s4">.</span><span class="s2">bottom</span><span class="s4">);</span>
+        <span class="s4">}</span>
+
+        <span class="s5">return </span><span class="s2">data</span><span class="s4">;</span>
+    <span class="s4">};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Modifier used to flip the placement of the popper when the latter is starting overlapping its reference element.</span>
+     <span class="s0">* Requires the `preventOverflow` modifier before it in order to work.</span>
+     <span class="s0">* **NOTE:** This modifier will run all its previous modifiers everytime it tries to flip the popper!</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper.modifiers</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Object} data - The data object generated by _update method</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Object} The data object, properly modified</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">flip </span><span class="s4">= </span><span class="s5">function</span><span class="s4">(</span><span class="s2">data</span><span class="s4">) {</span>
+        <span class="s3">// check if preventOverflow is in the list of modifiers before the flip modifier.</span>
+        <span class="s3">// otherwise flip would not work as expected.</span>
+        <span class="s5">if </span><span class="s4">(!</span><span class="s5">this</span><span class="s4">.</span><span class="s2">isModifierRequired</span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">flip</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">preventOverflow</span><span class="s4">)) {</span>
+            <span class="s2">console</span><span class="s4">.</span><span class="s2">warn</span><span class="s4">(</span><span class="s6">'WARNING: preventOverflow modifier is required by flip modifier in order to work, be sure to include it before flip!'</span><span class="s4">);</span>
+            <span class="s5">return </span><span class="s2">data</span><span class="s4">;</span>
+        <span class="s4">}</span>
+
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">data</span><span class="s4">.</span><span class="s2">flipped </span><span class="s4">&amp;&amp; </span><span class="s2">data</span><span class="s4">.</span><span class="s2">placement </span><span class="s4">=== </span><span class="s2">data</span><span class="s4">.</span><span class="s2">_originalPlacement</span><span class="s4">) {</span>
+            <span class="s3">// seems like flip is trying to loop, probably there's not enough space on any of the flippable sides</span>
+            <span class="s5">return </span><span class="s2">data</span><span class="s4">;</span>
+        <span class="s4">}</span>
+
+        <span class="s5">var </span><span class="s2">placement </span><span class="s4">= </span><span class="s2">data</span><span class="s4">.</span><span class="s2">placement</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s6">'-'</span><span class="s4">)[</span><span class="s7">0</span><span class="s4">];</span>
+        <span class="s5">var </span><span class="s2">placementOpposite </span><span class="s4">= </span><span class="s2">getOppositePlacement</span><span class="s4">(</span><span class="s2">placement</span><span class="s4">);</span>
+        <span class="s5">var </span><span class="s2">variation </span><span class="s4">= </span><span class="s2">data</span><span class="s4">.</span><span class="s2">placement</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s6">'-'</span><span class="s4">)[</span><span class="s7">1</span><span class="s4">] || </span><span class="s6">''</span><span class="s4">;</span>
+
+        <span class="s5">var </span><span class="s2">flipOrder </span><span class="s4">= [];</span>
+        <span class="s5">if</span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">flipBehavior </span><span class="s4">=== </span><span class="s6">'flip'</span><span class="s4">) {</span>
+            <span class="s2">flipOrder </span><span class="s4">= [</span>
+                <span class="s2">placement</span><span class="s4">,</span>
+                <span class="s2">placementOpposite</span>
+            <span class="s4">];</span>
+        <span class="s4">} </span><span class="s5">else </span><span class="s4">{</span>
+            <span class="s2">flipOrder </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">flipBehavior</span><span class="s4">;</span>
+        <span class="s4">}</span>
+
+        <span class="s2">flipOrder</span><span class="s4">.</span><span class="s2">forEach</span><span class="s4">(</span><span class="s5">function</span><span class="s4">(</span><span class="s2">step</span><span class="s4">, </span><span class="s2">index</span><span class="s4">) {</span>
+            <span class="s5">if </span><span class="s4">(</span><span class="s2">placement </span><span class="s4">!== </span><span class="s2">step </span><span class="s4">|| </span><span class="s2">flipOrder</span><span class="s4">.</span><span class="s2">length </span><span class="s4">=== </span><span class="s2">index </span><span class="s4">+ </span><span class="s7">1</span><span class="s4">) {</span>
+                <span class="s5">return</span><span class="s4">;</span>
+            <span class="s4">}</span>
+
+            <span class="s2">placement </span><span class="s4">= </span><span class="s2">data</span><span class="s4">.</span><span class="s2">placement</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s6">'-'</span><span class="s4">)[</span><span class="s7">0</span><span class="s4">];</span>
+            <span class="s2">placementOpposite </span><span class="s4">= </span><span class="s2">getOppositePlacement</span><span class="s4">(</span><span class="s2">placement</span><span class="s4">);</span>
+
+            <span class="s5">var </span><span class="s2">popperOffsets </span><span class="s4">= </span><span class="s2">getPopperClientRect</span><span class="s4">(</span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">);</span>
+
+            <span class="s3">// this boolean is used to distinguish right and bottom from top and left</span>
+            <span class="s3">// they need different computations to get flipped</span>
+            <span class="s5">var </span><span class="s2">a </span><span class="s4">= [</span><span class="s6">'right'</span><span class="s4">, </span><span class="s6">'bottom'</span><span class="s4">].</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s2">placement</span><span class="s4">) !== -</span><span class="s7">1</span><span class="s4">;</span>
+
+            <span class="s3">// using Math.floor because the reference offsets may contain decimals we are not going to consider here</span>
+            <span class="s5">if </span><span class="s4">(</span>
+                <span class="s2">a </span><span class="s4">&amp;&amp; </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">floor</span><span class="s4">(</span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">reference</span><span class="s4">[</span><span class="s2">placement</span><span class="s4">]) &gt; </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">floor</span><span class="s4">(</span><span class="s2">popperOffsets</span><span class="s4">[</span><span class="s2">placementOpposite</span><span class="s4">]) ||</span>
+                <span class="s4">!</span><span class="s2">a </span><span class="s4">&amp;&amp; </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">floor</span><span class="s4">(</span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">reference</span><span class="s4">[</span><span class="s2">placement</span><span class="s4">]) &lt; </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">floor</span><span class="s4">(</span><span class="s2">popperOffsets</span><span class="s4">[</span><span class="s2">placementOpposite</span><span class="s4">])</span>
+            <span class="s4">) {</span>
+                <span class="s3">// we'll use this boolean to detect any flip loop</span>
+                <span class="s2">data</span><span class="s4">.</span><span class="s2">flipped </span><span class="s4">= </span><span class="s5">true</span><span class="s4">;</span>
+                <span class="s2">data</span><span class="s4">.</span><span class="s2">placement </span><span class="s4">= </span><span class="s2">flipOrder</span><span class="s4">[</span><span class="s2">index </span><span class="s4">+ </span><span class="s7">1</span><span class="s4">];</span>
+                <span class="s5">if </span><span class="s4">(</span><span class="s2">variation</span><span class="s4">) {</span>
+                    <span class="s2">data</span><span class="s4">.</span><span class="s2">placement </span><span class="s4">+= </span><span class="s6">'-' </span><span class="s4">+ </span><span class="s2">variation</span><span class="s4">;</span>
+                <span class="s4">}</span>
+                <span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_getOffsets</span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_reference</span><span class="s4">, </span><span class="s2">data</span><span class="s4">.</span><span class="s2">placement</span><span class="s4">).</span><span class="s2">popper</span><span class="s4">;</span>
+
+                <span class="s2">data </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">runModifiers</span><span class="s4">(</span><span class="s2">data</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_flip</span><span class="s4">);</span>
+            <span class="s4">}</span>
+        <span class="s4">}.</span><span class="s2">bind</span><span class="s4">(</span><span class="s5">this</span><span class="s4">));</span>
+        <span class="s5">return </span><span class="s2">data</span><span class="s4">;</span>
+    <span class="s4">};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Modifier used to add an offset to the popper, useful if you more granularity positioning your popper.</span>
+     <span class="s0">* The offsets will shift the popper on the side of its reference element.</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper.modifiers</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Object} data - The data object generated by _update method</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Object} The data object, properly modified</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">offset </span><span class="s4">= </span><span class="s5">function</span><span class="s4">(</span><span class="s2">data</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">offset </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">offset</span><span class="s4">;</span>
+        <span class="s5">var </span><span class="s2">popper  </span><span class="s4">= </span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">;</span>
+
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">data</span><span class="s4">.</span><span class="s2">placement</span><span class="s4">.</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s6">'left'</span><span class="s4">) !== -</span><span class="s7">1</span><span class="s4">) {</span>
+            <span class="s2">popper</span><span class="s4">.</span><span class="s2">top </span><span class="s4">-= </span><span class="s2">offset</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s5">else if </span><span class="s4">(</span><span class="s2">data</span><span class="s4">.</span><span class="s2">placement</span><span class="s4">.</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s6">'right'</span><span class="s4">) !== -</span><span class="s7">1</span><span class="s4">) {</span>
+            <span class="s2">popper</span><span class="s4">.</span><span class="s2">top </span><span class="s4">+= </span><span class="s2">offset</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s5">else if </span><span class="s4">(</span><span class="s2">data</span><span class="s4">.</span><span class="s2">placement</span><span class="s4">.</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s6">'top'</span><span class="s4">) !== -</span><span class="s7">1</span><span class="s4">) {</span>
+            <span class="s2">popper</span><span class="s4">.</span><span class="s2">left </span><span class="s4">-= </span><span class="s2">offset</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s5">else if </span><span class="s4">(</span><span class="s2">data</span><span class="s4">.</span><span class="s2">placement</span><span class="s4">.</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s6">'bottom'</span><span class="s4">) !== -</span><span class="s7">1</span><span class="s4">) {</span>
+            <span class="s2">popper</span><span class="s4">.</span><span class="s2">left </span><span class="s4">+= </span><span class="s2">offset</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s5">return </span><span class="s2">data</span><span class="s4">;</span>
+    <span class="s4">};</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Modifier used to move the arrows on the edge of the popper to make sure them are always between the popper and the reference element</span>
+     <span class="s0">* It will use the CSS outer size of the arrow element to know how many pixels of conjuction are needed</span>
+     <span class="s0">* </span><span class="s1">@method</span>
+     <span class="s0">* </span><span class="s1">@memberof </span><span class="s0">Popper.modifiers</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Object} data - The data object generated by _update method</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Object} The data object, properly modified</span>
+     <span class="s0">*/</span>
+    <span class="s2">Popper</span><span class="s4">.</span><span class="s2">prototype</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">arrow </span><span class="s4">= </span><span class="s5">function</span><span class="s4">(</span><span class="s2">data</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">arrow  </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">arrowElement</span><span class="s4">;</span>
+        <span class="s5">var </span><span class="s2">arrowOffset </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_options</span><span class="s4">.</span><span class="s2">arrowOffset</span><span class="s4">;</span>
+
+        <span class="s3">// if the arrowElement is a string, suppose it's a CSS selector</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s5">typeof </span><span class="s2">arrow </span><span class="s4">=== </span><span class="s6">'string'</span><span class="s4">) {</span>
+            <span class="s2">arrow </span><span class="s4">= </span><span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">.</span><span class="s2">querySelector</span><span class="s4">(</span><span class="s2">arrow</span><span class="s4">);</span>
+        <span class="s4">}</span>
+
+        <span class="s3">// if arrow element is not found, don't run the modifier</span>
+        <span class="s5">if </span><span class="s4">(!</span><span class="s2">arrow</span><span class="s4">) {</span>
+            <span class="s5">return </span><span class="s2">data</span><span class="s4">;</span>
+        <span class="s4">}</span>
+
+        <span class="s3">// the arrow element must be child of its popper</span>
+        <span class="s5">if </span><span class="s4">(!</span><span class="s5">this</span><span class="s4">.</span><span class="s2">_popper</span><span class="s4">.</span><span class="s2">contains</span><span class="s4">(</span><span class="s2">arrow</span><span class="s4">)) {</span>
+            <span class="s2">console</span><span class="s4">.</span><span class="s2">warn</span><span class="s4">(</span><span class="s6">'WARNING: `arrowElement` must be child of its popper element!'</span><span class="s4">);</span>
+            <span class="s5">return </span><span class="s2">data</span><span class="s4">;</span>
+        <span class="s4">}</span>
+
+        <span class="s3">// arrow depends on keepTogether in order to work</span>
+        <span class="s5">if </span><span class="s4">(!</span><span class="s5">this</span><span class="s4">.</span><span class="s2">isModifierRequired</span><span class="s4">(</span><span class="s5">this</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">arrow</span><span class="s4">, </span><span class="s5">this</span><span class="s4">.</span><span class="s2">modifiers</span><span class="s4">.</span><span class="s2">keepTogether</span><span class="s4">)) {</span>
+            <span class="s2">console</span><span class="s4">.</span><span class="s2">warn</span><span class="s4">(</span><span class="s6">'WARNING: keepTogether modifier is required by arrow modifier in order to work, be sure to include it before arrow!'</span><span class="s4">);</span>
+            <span class="s5">return </span><span class="s2">data</span><span class="s4">;</span>
+        <span class="s4">}</span>
+
+        <span class="s5">var </span><span class="s2">arrowStyle  </span><span class="s4">= {};</span>
+        <span class="s5">var </span><span class="s2">placement   </span><span class="s4">= </span><span class="s2">data</span><span class="s4">.</span><span class="s2">placement</span><span class="s4">.</span><span class="s2">split</span><span class="s4">(</span><span class="s6">'-'</span><span class="s4">)[</span><span class="s7">0</span><span class="s4">];</span>
+        <span class="s5">var </span><span class="s2">popper      </span><span class="s4">= </span><span class="s2">getPopperClientRect</span><span class="s4">(</span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">);</span>
+        <span class="s5">var </span><span class="s2">reference   </span><span class="s4">= </span><span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">reference</span><span class="s4">;</span>
+        <span class="s5">var </span><span class="s2">isVertical  </span><span class="s4">= [</span><span class="s6">'left'</span><span class="s4">, </span><span class="s6">'right'</span><span class="s4">].</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s2">placement</span><span class="s4">) !== -</span><span class="s7">1</span><span class="s4">;</span>
+
+        <span class="s5">var </span><span class="s2">len         </span><span class="s4">= </span><span class="s2">isVertical </span><span class="s4">? </span><span class="s6">'height' </span><span class="s4">: </span><span class="s6">'width'</span><span class="s4">;</span>
+        <span class="s5">var </span><span class="s2">side        </span><span class="s4">= </span><span class="s2">isVertical </span><span class="s4">? </span><span class="s6">'top' </span><span class="s4">: </span><span class="s6">'left'</span><span class="s4">;</span>
+        <span class="s5">var </span><span class="s2">translate   </span><span class="s4">= </span><span class="s2">isVertical </span><span class="s4">? </span><span class="s6">'translateY' </span><span class="s4">: </span><span class="s6">'translateX'</span><span class="s4">;</span>
+        <span class="s5">var </span><span class="s2">altSide     </span><span class="s4">= </span><span class="s2">isVertical </span><span class="s4">? </span><span class="s6">'left' </span><span class="s4">: </span><span class="s6">'top'</span><span class="s4">;</span>
+        <span class="s5">var </span><span class="s2">opSide      </span><span class="s4">= </span><span class="s2">isVertical </span><span class="s4">? </span><span class="s6">'bottom' </span><span class="s4">: </span><span class="s6">'right'</span><span class="s4">;</span>
+        <span class="s5">var </span><span class="s2">arrowSize   </span><span class="s4">= </span><span class="s2">getOuterSizes</span><span class="s4">(</span><span class="s2">arrow</span><span class="s4">)[</span><span class="s2">len</span><span class="s4">];</span>
+
+        <span class="s3">//</span>
+        <span class="s3">// extends keepTogether behavior making sure the popper and its reference have enough pixels in conjuction</span>
+        <span class="s3">//</span>
+
+        <span class="s3">// top/left side</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">reference</span><span class="s4">[</span><span class="s2">opSide</span><span class="s4">] - </span><span class="s2">arrowSize </span><span class="s4">&lt; </span><span class="s2">popper</span><span class="s4">[</span><span class="s2">side</span><span class="s4">]) {</span>
+            <span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">[</span><span class="s2">side</span><span class="s4">] -= </span><span class="s2">popper</span><span class="s4">[</span><span class="s2">side</span><span class="s4">] - (</span><span class="s2">reference</span><span class="s4">[</span><span class="s2">opSide</span><span class="s4">] - </span><span class="s2">arrowSize</span><span class="s4">);</span>
+        <span class="s4">}</span>
+        <span class="s3">// bottom/right side</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">reference</span><span class="s4">[</span><span class="s2">side</span><span class="s4">] + </span><span class="s2">arrowSize </span><span class="s4">&gt; </span><span class="s2">popper</span><span class="s4">[</span><span class="s2">opSide</span><span class="s4">]) {</span>
+            <span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">popper</span><span class="s4">[</span><span class="s2">side</span><span class="s4">] += (</span><span class="s2">reference</span><span class="s4">[</span><span class="s2">side</span><span class="s4">] + </span><span class="s2">arrowSize</span><span class="s4">) - </span><span class="s2">popper</span><span class="s4">[</span><span class="s2">opSide</span><span class="s4">];</span>
+        <span class="s4">}</span>
+
+        <span class="s3">// compute center of the popper</span>
+        <span class="s5">var </span><span class="s2">center </span><span class="s4">= </span><span class="s2">reference</span><span class="s4">[</span><span class="s2">side</span><span class="s4">] + (</span><span class="s2">arrowOffset </span><span class="s4">|| (</span><span class="s2">reference</span><span class="s4">[</span><span class="s2">len</span><span class="s4">] / </span><span class="s7">2</span><span class="s4">) - (</span><span class="s2">arrowSize </span><span class="s4">/ </span><span class="s7">2</span><span class="s4">));</span>
+
+        <span class="s5">var </span><span class="s2">sideValue </span><span class="s4">= </span><span class="s2">center </span><span class="s4">- </span><span class="s2">popper</span><span class="s4">[</span><span class="s2">side</span><span class="s4">];</span>
+
+        <span class="s3">// prevent arrow from being placed not contiguously to its popper</span>
+        <span class="s2">sideValue </span><span class="s4">= </span><span class="s2">Math</span><span class="s4">.</span><span class="s2">max</span><span class="s4">(</span><span class="s2">Math</span><span class="s4">.</span><span class="s2">min</span><span class="s4">(</span><span class="s2">popper</span><span class="s4">[</span><span class="s2">len</span><span class="s4">] - </span><span class="s2">arrowSize </span><span class="s4">- </span><span class="s7">8</span><span class="s4">, </span><span class="s2">sideValue</span><span class="s4">), </span><span class="s7">8</span><span class="s4">);</span>
+        <span class="s2">arrowStyle</span><span class="s4">[</span><span class="s2">side</span><span class="s4">] = </span><span class="s2">sideValue</span><span class="s4">;</span>
+        <span class="s2">arrowStyle</span><span class="s4">[</span><span class="s2">altSide</span><span class="s4">] = </span><span class="s6">''</span><span class="s4">; </span><span class="s3">// make sure to remove any old style from the arrow</span>
+
+        <span class="s2">data</span><span class="s4">.</span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">arrow </span><span class="s4">= </span><span class="s2">arrowStyle</span><span class="s4">;</span>
+        <span class="s2">data</span><span class="s4">.</span><span class="s2">arrowElement </span><span class="s4">= </span><span class="s2">arrow</span><span class="s4">;</span>
+
+        <span class="s5">return </span><span class="s2">data</span><span class="s4">;</span>
+    <span class="s4">};</span>
+
+
+    <span class="s3">//</span>
+    <span class="s3">// Helpers</span>
+    <span class="s3">//</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Get the outer sizes of the given element (offset size + margins)</span>
+     <span class="s0">* </span><span class="s1">@function</span>
+     <span class="s0">* </span><span class="s1">@ignore</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Element} element</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Object} object containing width and height properties</span>
+     <span class="s0">*/</span>
+    <span class="s5">function </span><span class="s2">getOuterSizes</span><span class="s4">(</span><span class="s2">element</span><span class="s4">) {</span>
+        <span class="s3">// NOTE: 1 DOM access here</span>
+        <span class="s5">var </span><span class="s2">_display </span><span class="s4">= </span><span class="s2">element</span><span class="s4">.</span><span class="s2">style</span><span class="s4">.</span><span class="s2">display</span><span class="s4">, </span><span class="s2">_visibility </span><span class="s4">= </span><span class="s2">element</span><span class="s4">.</span><span class="s2">style</span><span class="s4">.</span><span class="s2">visibility</span><span class="s4">;</span>
+        <span class="s2">element</span><span class="s4">.</span><span class="s2">style</span><span class="s4">.</span><span class="s2">display </span><span class="s4">= </span><span class="s6">'block'</span><span class="s4">; </span><span class="s2">element</span><span class="s4">.</span><span class="s2">style</span><span class="s4">.</span><span class="s2">visibility </span><span class="s4">= </span><span class="s6">'hidden'</span><span class="s4">;</span>
+        <span class="s5">var </span><span class="s2">calcWidthToForceRepaint </span><span class="s4">= </span><span class="s2">element</span><span class="s4">.</span><span class="s2">offsetWidth</span><span class="s4">;</span>
+
+        <span class="s3">// original method</span>
+        <span class="s5">var </span><span class="s2">styles </span><span class="s4">= </span><span class="s2">root</span><span class="s4">.</span><span class="s2">getComputedStyle</span><span class="s4">(</span><span class="s2">element</span><span class="s4">);</span>
+        <span class="s5">var </span><span class="s2">x </span><span class="s4">= </span><span class="s2">parseFloat</span><span class="s4">(</span><span class="s2">styles</span><span class="s4">.</span><span class="s2">marginTop</span><span class="s4">) + </span><span class="s2">parseFloat</span><span class="s4">(</span><span class="s2">styles</span><span class="s4">.</span><span class="s2">marginBottom</span><span class="s4">);</span>
+        <span class="s5">var </span><span class="s2">y </span><span class="s4">= </span><span class="s2">parseFloat</span><span class="s4">(</span><span class="s2">styles</span><span class="s4">.</span><span class="s2">marginLeft</span><span class="s4">) + </span><span class="s2">parseFloat</span><span class="s4">(</span><span class="s2">styles</span><span class="s4">.</span><span class="s2">marginRight</span><span class="s4">);</span>
+        <span class="s5">var </span><span class="s2">result </span><span class="s4">= { </span><span class="s2">width</span><span class="s4">: </span><span class="s2">element</span><span class="s4">.</span><span class="s2">offsetWidth </span><span class="s4">+ </span><span class="s2">y</span><span class="s4">, </span><span class="s2">height</span><span class="s4">: </span><span class="s2">element</span><span class="s4">.</span><span class="s2">offsetHeight </span><span class="s4">+ </span><span class="s2">x </span><span class="s4">};</span>
+
+        <span class="s3">// reset element styles</span>
+        <span class="s2">element</span><span class="s4">.</span><span class="s2">style</span><span class="s4">.</span><span class="s2">display </span><span class="s4">= </span><span class="s2">_display</span><span class="s4">; </span><span class="s2">element</span><span class="s4">.</span><span class="s2">style</span><span class="s4">.</span><span class="s2">visibility </span><span class="s4">= </span><span class="s2">_visibility</span><span class="s4">;</span>
+        <span class="s5">return </span><span class="s2">result</span><span class="s4">;</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Get the opposite placement of the given one/</span>
+     <span class="s0">* </span><span class="s1">@function</span>
+     <span class="s0">* </span><span class="s1">@ignore</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{String} placement</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{String} flipped placement</span>
+     <span class="s0">*/</span>
+    <span class="s5">function </span><span class="s2">getOppositePlacement</span><span class="s4">(</span><span class="s2">placement</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">hash </span><span class="s4">= {</span><span class="s2">left</span><span class="s4">: </span><span class="s6">'right'</span><span class="s4">, </span><span class="s2">right</span><span class="s4">: </span><span class="s6">'left'</span><span class="s4">, </span><span class="s2">bottom</span><span class="s4">: </span><span class="s6">'top'</span><span class="s4">, </span><span class="s2">top</span><span class="s4">: </span><span class="s6">'bottom' </span><span class="s4">};</span>
+        <span class="s5">return </span><span class="s2">placement</span><span class="s4">.</span><span class="s2">replace</span><span class="s4">(</span><span class="s8">/left|right|bottom|top/g</span><span class="s4">, </span><span class="s5">function</span><span class="s4">(</span><span class="s2">matched</span><span class="s4">){</span>
+            <span class="s5">return </span><span class="s2">hash</span><span class="s4">[</span><span class="s2">matched</span><span class="s4">];</span>
+        <span class="s4">});</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Given the popper offsets, generate an output similar to getBoundingClientRect</span>
+     <span class="s0">* </span><span class="s1">@function</span>
+     <span class="s0">* </span><span class="s1">@ignore</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Object} popperOffsets</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Object} ClientRect like output</span>
+     <span class="s0">*/</span>
+    <span class="s5">function </span><span class="s2">getPopperClientRect</span><span class="s4">(</span><span class="s2">popperOffsets</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">offsets </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">({}, </span><span class="s2">popperOffsets</span><span class="s4">);</span>
+        <span class="s2">offsets</span><span class="s4">.</span><span class="s2">right </span><span class="s4">= </span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">left </span><span class="s4">+ </span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">width</span><span class="s4">;</span>
+        <span class="s2">offsets</span><span class="s4">.</span><span class="s2">bottom </span><span class="s4">= </span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">top </span><span class="s4">+ </span><span class="s2">offsets</span><span class="s4">.</span><span class="s2">height</span><span class="s4">;</span>
+        <span class="s5">return </span><span class="s2">offsets</span><span class="s4">;</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Given an array and the key to find, returns its index</span>
+     <span class="s0">* </span><span class="s1">@function</span>
+     <span class="s0">* </span><span class="s1">@ignore</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Array} arr</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">keyToFind</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">index or null</span>
+     <span class="s0">*/</span>
+    <span class="s5">function </span><span class="s2">getArrayKeyIndex</span><span class="s4">(</span><span class="s2">arr</span><span class="s4">, </span><span class="s2">keyToFind</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">i </span><span class="s4">= </span><span class="s7">0</span><span class="s4">, </span><span class="s2">key</span><span class="s4">;</span>
+        <span class="s5">for </span><span class="s4">(</span><span class="s2">key </span><span class="s5">in </span><span class="s2">arr</span><span class="s4">) {</span>
+            <span class="s5">if </span><span class="s4">(</span><span class="s2">arr</span><span class="s4">[</span><span class="s2">key</span><span class="s4">] === </span><span class="s2">keyToFind</span><span class="s4">) {</span>
+                <span class="s5">return </span><span class="s2">i</span><span class="s4">;</span>
+            <span class="s4">}</span>
+            <span class="s2">i</span><span class="s4">++;</span>
+        <span class="s4">}</span>
+        <span class="s5">return null</span><span class="s4">;</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Get CSS computed property of the given element</span>
+     <span class="s0">* </span><span class="s1">@function</span>
+     <span class="s0">* </span><span class="s1">@ignore</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Eement} element</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{String} property</span>
+     <span class="s0">*/</span>
+    <span class="s5">function </span><span class="s2">getStyleComputedProperty</span><span class="s4">(</span><span class="s2">element</span><span class="s4">, </span><span class="s2">property</span><span class="s4">) {</span>
+        <span class="s3">// NOTE: 1 DOM access here</span>
+        <span class="s5">var </span><span class="s2">css </span><span class="s4">= </span><span class="s2">root</span><span class="s4">.</span><span class="s2">getComputedStyle</span><span class="s4">(</span><span class="s2">element</span><span class="s4">, </span><span class="s5">null</span><span class="s4">);</span>
+        <span class="s5">return </span><span class="s2">css</span><span class="s4">[</span><span class="s2">property</span><span class="s4">];</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Returns the offset parent of the given element</span>
+     <span class="s0">* </span><span class="s1">@function</span>
+     <span class="s0">* </span><span class="s1">@ignore</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Element} element</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Element} offset parent</span>
+     <span class="s0">*/</span>
+    <span class="s5">function </span><span class="s2">getOffsetParent</span><span class="s4">(</span><span class="s2">element</span><span class="s4">) {</span>
+        <span class="s3">// NOTE: 1 DOM access here</span>
+        <span class="s5">var </span><span class="s2">offsetParent </span><span class="s4">= </span><span class="s2">element</span><span class="s4">.</span><span class="s2">offsetParent</span><span class="s4">;</span>
+        <span class="s5">return </span><span class="s2">offsetParent </span><span class="s4">=== </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">.</span><span class="s2">body </span><span class="s4">|| !</span><span class="s2">offsetParent </span><span class="s4">? </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">.</span><span class="s2">documentElement </span><span class="s4">: </span><span class="s2">offsetParent</span><span class="s4">;</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Returns the scrolling parent of the given element</span>
+     <span class="s0">* </span><span class="s1">@function</span>
+     <span class="s0">* </span><span class="s1">@ignore</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Element} element</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Element} offset parent</span>
+     <span class="s0">*/</span>
+    <span class="s5">function </span><span class="s2">getScrollParent</span><span class="s4">(</span><span class="s2">element</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">parent </span><span class="s4">= </span><span class="s2">element</span><span class="s4">.</span><span class="s2">parentNode</span><span class="s4">;</span>
+
+        <span class="s5">if </span><span class="s4">(!</span><span class="s2">parent</span><span class="s4">) {</span>
+            <span class="s5">return </span><span class="s2">element</span><span class="s4">;</span>
+        <span class="s4">}</span>
+
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">parent </span><span class="s4">=== </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">) {</span>
+            <span class="s3">// Firefox puts the scrollTOp value on `documentElement` instead of `body`, we then check which of them is</span>
+            <span class="s3">// greater than 0 and return the proper element</span>
+            <span class="s5">if </span><span class="s4">(</span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">.</span><span class="s2">body</span><span class="s4">.</span><span class="s2">scrollTop </span><span class="s4">|| </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">.</span><span class="s2">body</span><span class="s4">.</span><span class="s2">scrollLeft</span><span class="s4">) {</span>
+                <span class="s5">return </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">.</span><span class="s2">body</span><span class="s4">;</span>
+            <span class="s4">} </span><span class="s5">else </span><span class="s4">{</span>
+                <span class="s5">return </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">.</span><span class="s2">documentElement</span><span class="s4">;</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+
+        <span class="s3">// Firefox want us to check `-x` and `-y` variations as well</span>
+        <span class="s5">if </span><span class="s4">(</span>
+            <span class="s4">[</span><span class="s6">'scroll'</span><span class="s4">, </span><span class="s6">'auto'</span><span class="s4">].</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s2">getStyleComputedProperty</span><span class="s4">(</span><span class="s2">parent</span><span class="s4">, </span><span class="s6">'overflow'</span><span class="s4">)) !== -</span><span class="s7">1 </span><span class="s4">||</span>
+            <span class="s4">[</span><span class="s6">'scroll'</span><span class="s4">, </span><span class="s6">'auto'</span><span class="s4">].</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s2">getStyleComputedProperty</span><span class="s4">(</span><span class="s2">parent</span><span class="s4">, </span><span class="s6">'overflow-x'</span><span class="s4">)) !== -</span><span class="s7">1 </span><span class="s4">||</span>
+            <span class="s4">[</span><span class="s6">'scroll'</span><span class="s4">, </span><span class="s6">'auto'</span><span class="s4">].</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s2">getStyleComputedProperty</span><span class="s4">(</span><span class="s2">parent</span><span class="s4">, </span><span class="s6">'overflow-y'</span><span class="s4">)) !== -</span><span class="s7">1</span>
+        <span class="s4">) {</span>
+            <span class="s3">// If the detected scrollParent is body, we perform an additional check on its parentNode</span>
+            <span class="s3">// in this way we'll get body if the browser is Chrome-ish, or documentElement otherwise</span>
+            <span class="s3">// fixes issue #65</span>
+            <span class="s5">return </span><span class="s2">parent</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s5">return </span><span class="s2">getScrollParent</span><span class="s4">(</span><span class="s2">element</span><span class="s4">.</span><span class="s2">parentNode</span><span class="s4">);</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Check if the given element is fixed or is inside a fixed parent</span>
+     <span class="s0">* </span><span class="s1">@function</span>
+     <span class="s0">* </span><span class="s1">@ignore</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Element} element</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Element} customContainer</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Boolean} answer to &quot;isFixed?&quot;</span>
+     <span class="s0">*/</span>
+    <span class="s5">function </span><span class="s2">isFixed</span><span class="s4">(</span><span class="s2">element</span><span class="s4">) {</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">element </span><span class="s4">=== </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">.</span><span class="s2">body</span><span class="s4">) {</span>
+            <span class="s5">return false</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">getStyleComputedProperty</span><span class="s4">(</span><span class="s2">element</span><span class="s4">, </span><span class="s6">'position'</span><span class="s4">) === </span><span class="s6">'fixed'</span><span class="s4">) {</span>
+            <span class="s5">return true</span><span class="s4">;</span>
+        <span class="s4">}</span>
+        <span class="s5">return </span><span class="s2">element</span><span class="s4">.</span><span class="s2">parentNode </span><span class="s4">? </span><span class="s2">isFixed</span><span class="s4">(</span><span class="s2">element</span><span class="s4">.</span><span class="s2">parentNode</span><span class="s4">) : </span><span class="s2">element</span><span class="s4">;</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Set the style to the given popper</span>
+     <span class="s0">* </span><span class="s1">@function</span>
+     <span class="s0">* </span><span class="s1">@ignore</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Element} element - Element to apply the style to</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{Object} styles - Object with a list of properties and values which will be applied to the element</span>
+     <span class="s0">*/</span>
+    <span class="s5">function </span><span class="s2">setStyle</span><span class="s4">(</span><span class="s2">element</span><span class="s4">, </span><span class="s2">styles</span><span class="s4">) {</span>
+        <span class="s5">function </span><span class="s2">is_numeric</span><span class="s4">(</span><span class="s2">n</span><span class="s4">) {</span>
+            <span class="s5">return </span><span class="s4">(</span><span class="s2">n </span><span class="s4">!== </span><span class="s6">'' </span><span class="s4">&amp;&amp; !</span><span class="s2">isNaN</span><span class="s4">(</span><span class="s2">parseFloat</span><span class="s4">(</span><span class="s2">n</span><span class="s4">)) &amp;&amp; </span><span class="s2">isFinite</span><span class="s4">(</span><span class="s2">n</span><span class="s4">));</span>
+        <span class="s4">}</span>
+        <span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">styles</span><span class="s4">).</span><span class="s2">forEach</span><span class="s4">(</span><span class="s5">function</span><span class="s4">(</span><span class="s2">prop</span><span class="s4">) {</span>
+            <span class="s5">var </span><span class="s2">unit </span><span class="s4">= </span><span class="s6">''</span><span class="s4">;</span>
+            <span class="s3">// add unit if the value is numeric and is one of the following</span>
+            <span class="s5">if </span><span class="s4">([</span><span class="s6">'width'</span><span class="s4">, </span><span class="s6">'height'</span><span class="s4">, </span><span class="s6">'top'</span><span class="s4">, </span><span class="s6">'right'</span><span class="s4">, </span><span class="s6">'bottom'</span><span class="s4">, </span><span class="s6">'left'</span><span class="s4">].</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s2">prop</span><span class="s4">) !== -</span><span class="s7">1 </span><span class="s4">&amp;&amp; </span><span class="s2">is_numeric</span><span class="s4">(</span><span class="s2">styles</span><span class="s4">[</span><span class="s2">prop</span><span class="s4">])) {</span>
+                <span class="s2">unit </span><span class="s4">= </span><span class="s6">'px'</span><span class="s4">;</span>
+            <span class="s4">}</span>
+            <span class="s2">element</span><span class="s4">.</span><span class="s2">style</span><span class="s4">[</span><span class="s2">prop</span><span class="s4">] = </span><span class="s2">styles</span><span class="s4">[</span><span class="s2">prop</span><span class="s4">] + </span><span class="s2">unit</span><span class="s4">;</span>
+        <span class="s4">});</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Check if the given variable is a function</span>
+     <span class="s0">* </span><span class="s1">@function</span>
+     <span class="s0">* </span><span class="s1">@ignore</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{*} functionToCheck - variable to check</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{Boolean} answer to: is a function?</span>
+     <span class="s0">*/</span>
+    <span class="s5">function </span><span class="s2">isFunction</span><span class="s4">(</span><span class="s2">functionToCheck</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">getType </span><span class="s4">= {};</span>
+        <span class="s5">return </span><span class="s2">functionToCheck </span><span class="s4">&amp;&amp; </span><span class="s2">getType</span><span class="s4">.</span><span class="s2">toString</span><span class="s4">.</span><span class="s2">call</span><span class="s4">(</span><span class="s2">functionToCheck</span><span class="s4">) === </span><span class="s6">'[object Function]'</span><span class="s4">;</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Get the position of the given element, relative to its offset parent</span>
+     <span class="s0">* </span><span class="s1">@function</span>
+     <span class="s0">* </span><span class="s1">@ignore</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{Element} element</span>
+     <span class="s0">* </span><span class="s1">@return </span><span class="s0">{Object} position - Coordinates of the element and its `scrollTop`</span>
+     <span class="s0">*/</span>
+    <span class="s5">function </span><span class="s2">getOffsetRect</span><span class="s4">(</span><span class="s2">element</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">elementRect </span><span class="s4">= {</span>
+            <span class="s2">width</span><span class="s4">: </span><span class="s2">element</span><span class="s4">.</span><span class="s2">offsetWidth</span><span class="s4">,</span>
+            <span class="s2">height</span><span class="s4">: </span><span class="s2">element</span><span class="s4">.</span><span class="s2">offsetHeight</span><span class="s4">,</span>
+            <span class="s2">left</span><span class="s4">: </span><span class="s2">element</span><span class="s4">.</span><span class="s2">offsetLeft</span><span class="s4">,</span>
+            <span class="s2">top</span><span class="s4">: </span><span class="s2">element</span><span class="s4">.</span><span class="s2">offsetTop</span>
+        <span class="s4">};</span>
+
+        <span class="s2">elementRect</span><span class="s4">.</span><span class="s2">right </span><span class="s4">= </span><span class="s2">elementRect</span><span class="s4">.</span><span class="s2">left </span><span class="s4">+ </span><span class="s2">elementRect</span><span class="s4">.</span><span class="s2">width</span><span class="s4">;</span>
+        <span class="s2">elementRect</span><span class="s4">.</span><span class="s2">bottom </span><span class="s4">= </span><span class="s2">elementRect</span><span class="s4">.</span><span class="s2">top </span><span class="s4">+ </span><span class="s2">elementRect</span><span class="s4">.</span><span class="s2">height</span><span class="s4">;</span>
+
+        <span class="s3">// position</span>
+        <span class="s5">return </span><span class="s2">elementRect</span><span class="s4">;</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Get bounding client rect of given element</span>
+     <span class="s0">* </span><span class="s1">@function</span>
+     <span class="s0">* </span><span class="s1">@ignore</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{HTMLElement} element</span>
+     <span class="s0">* </span><span class="s1">@return </span><span class="s0">{Object} client rect</span>
+     <span class="s0">*/</span>
+    <span class="s5">function </span><span class="s2">getBoundingClientRect</span><span class="s4">(</span><span class="s2">element</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">rect </span><span class="s4">= </span><span class="s2">element</span><span class="s4">.</span><span class="s2">getBoundingClientRect</span><span class="s4">();</span>
+
+        <span class="s3">// whether the IE version is lower than 11</span>
+        <span class="s5">var </span><span class="s2">isIE </span><span class="s4">= </span><span class="s2">navigator</span><span class="s4">.</span><span class="s2">userAgent</span><span class="s4">.</span><span class="s2">indexOf</span><span class="s4">(</span><span class="s6">&quot;MSIE&quot;</span><span class="s4">) != -</span><span class="s7">1</span><span class="s4">;</span>
+
+        <span class="s3">// fix ie document bounding top always 0 bug</span>
+        <span class="s5">var </span><span class="s2">rectTop </span><span class="s4">= </span><span class="s2">isIE </span><span class="s4">&amp;&amp; </span><span class="s2">element</span><span class="s4">.</span><span class="s2">tagName </span><span class="s4">=== </span><span class="s6">'HTML'</span>
+            <span class="s4">? -</span><span class="s2">element</span><span class="s4">.</span><span class="s2">scrollTop</span>
+            <span class="s4">: </span><span class="s2">rect</span><span class="s4">.</span><span class="s2">top</span><span class="s4">;</span>
+
+        <span class="s5">return </span><span class="s4">{</span>
+            <span class="s2">left</span><span class="s4">: </span><span class="s2">rect</span><span class="s4">.</span><span class="s2">left</span><span class="s4">,</span>
+            <span class="s2">top</span><span class="s4">: </span><span class="s2">rectTop</span><span class="s4">,</span>
+            <span class="s2">right</span><span class="s4">: </span><span class="s2">rect</span><span class="s4">.</span><span class="s2">right</span><span class="s4">,</span>
+            <span class="s2">bottom</span><span class="s4">: </span><span class="s2">rect</span><span class="s4">.</span><span class="s2">bottom</span><span class="s4">,</span>
+            <span class="s2">width</span><span class="s4">: </span><span class="s2">rect</span><span class="s4">.</span><span class="s2">right </span><span class="s4">- </span><span class="s2">rect</span><span class="s4">.</span><span class="s2">left</span><span class="s4">,</span>
+            <span class="s2">height</span><span class="s4">: </span><span class="s2">rect</span><span class="s4">.</span><span class="s2">bottom </span><span class="s4">- </span><span class="s2">rectTop</span>
+        <span class="s4">};</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Given an element and one of its parents, return the offset</span>
+     <span class="s0">* </span><span class="s1">@function</span>
+     <span class="s0">* </span><span class="s1">@ignore</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{HTMLElement} element</span>
+     <span class="s0">* </span><span class="s1">@param </span><span class="s0">{HTMLElement} parent</span>
+     <span class="s0">* </span><span class="s1">@return </span><span class="s0">{Object} rect</span>
+     <span class="s0">*/</span>
+    <span class="s5">function </span><span class="s2">getOffsetRectRelativeToCustomParent</span><span class="s4">(</span><span class="s2">element</span><span class="s4">, </span><span class="s2">parent</span><span class="s4">, </span><span class="s2">fixed</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">elementRect </span><span class="s4">= </span><span class="s2">getBoundingClientRect</span><span class="s4">(</span><span class="s2">element</span><span class="s4">);</span>
+        <span class="s5">var </span><span class="s2">parentRect </span><span class="s4">= </span><span class="s2">getBoundingClientRect</span><span class="s4">(</span><span class="s2">parent</span><span class="s4">);</span>
+
+        <span class="s5">if </span><span class="s4">(</span><span class="s2">fixed</span><span class="s4">) {</span>
+            <span class="s5">var </span><span class="s2">scrollParent </span><span class="s4">= </span><span class="s2">getScrollParent</span><span class="s4">(</span><span class="s2">parent</span><span class="s4">);</span>
+            <span class="s2">parentRect</span><span class="s4">.</span><span class="s2">top </span><span class="s4">+= </span><span class="s2">scrollParent</span><span class="s4">.</span><span class="s2">scrollTop</span><span class="s4">;</span>
+            <span class="s2">parentRect</span><span class="s4">.</span><span class="s2">bottom </span><span class="s4">+= </span><span class="s2">scrollParent</span><span class="s4">.</span><span class="s2">scrollTop</span><span class="s4">;</span>
+            <span class="s2">parentRect</span><span class="s4">.</span><span class="s2">left </span><span class="s4">+= </span><span class="s2">scrollParent</span><span class="s4">.</span><span class="s2">scrollLeft</span><span class="s4">;</span>
+            <span class="s2">parentRect</span><span class="s4">.</span><span class="s2">right </span><span class="s4">+= </span><span class="s2">scrollParent</span><span class="s4">.</span><span class="s2">scrollLeft</span><span class="s4">;</span>
+        <span class="s4">}</span>
+
+        <span class="s5">var </span><span class="s2">rect </span><span class="s4">= {</span>
+            <span class="s2">top</span><span class="s4">: </span><span class="s2">elementRect</span><span class="s4">.</span><span class="s2">top </span><span class="s4">- </span><span class="s2">parentRect</span><span class="s4">.</span><span class="s2">top </span><span class="s4">,</span>
+            <span class="s2">left</span><span class="s4">: </span><span class="s2">elementRect</span><span class="s4">.</span><span class="s2">left </span><span class="s4">- </span><span class="s2">parentRect</span><span class="s4">.</span><span class="s2">left </span><span class="s4">,</span>
+            <span class="s2">bottom</span><span class="s4">: (</span><span class="s2">elementRect</span><span class="s4">.</span><span class="s2">top </span><span class="s4">- </span><span class="s2">parentRect</span><span class="s4">.</span><span class="s2">top</span><span class="s4">) + </span><span class="s2">elementRect</span><span class="s4">.</span><span class="s2">height</span><span class="s4">,</span>
+            <span class="s2">right</span><span class="s4">: (</span><span class="s2">elementRect</span><span class="s4">.</span><span class="s2">left </span><span class="s4">- </span><span class="s2">parentRect</span><span class="s4">.</span><span class="s2">left</span><span class="s4">) + </span><span class="s2">elementRect</span><span class="s4">.</span><span class="s2">width</span><span class="s4">,</span>
+            <span class="s2">width</span><span class="s4">: </span><span class="s2">elementRect</span><span class="s4">.</span><span class="s2">width</span><span class="s4">,</span>
+            <span class="s2">height</span><span class="s4">: </span><span class="s2">elementRect</span><span class="s4">.</span><span class="s2">height</span>
+        <span class="s4">};</span>
+        <span class="s5">return </span><span class="s2">rect</span><span class="s4">;</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* Get the prefixed supported property name</span>
+     <span class="s0">* </span><span class="s1">@function</span>
+     <span class="s0">* </span><span class="s1">@ignore</span>
+     <span class="s0">* </span><span class="s1">@argument </span><span class="s0">{String} property (camelCase)</span>
+     <span class="s0">* </span><span class="s1">@returns </span><span class="s0">{String} prefixed property (camelCase)</span>
+     <span class="s0">*/</span>
+    <span class="s5">function </span><span class="s2">getSupportedPropertyName</span><span class="s4">(</span><span class="s2">property</span><span class="s4">) {</span>
+        <span class="s5">var </span><span class="s2">prefixes </span><span class="s4">= [</span><span class="s6">''</span><span class="s4">, </span><span class="s6">'ms'</span><span class="s4">, </span><span class="s6">'webkit'</span><span class="s4">, </span><span class="s6">'moz'</span><span class="s4">, </span><span class="s6">'o'</span><span class="s4">];</span>
+
+        <span class="s5">for </span><span class="s4">(</span><span class="s5">var </span><span class="s2">i </span><span class="s4">= </span><span class="s7">0</span><span class="s4">; </span><span class="s2">i </span><span class="s4">&lt; </span><span class="s2">prefixes</span><span class="s4">.</span><span class="s2">length</span><span class="s4">; </span><span class="s2">i</span><span class="s4">++) {</span>
+            <span class="s5">var </span><span class="s2">toCheck </span><span class="s4">= </span><span class="s2">prefixes</span><span class="s4">[</span><span class="s2">i</span><span class="s4">] ? </span><span class="s2">prefixes</span><span class="s4">[</span><span class="s2">i</span><span class="s4">] + </span><span class="s2">property</span><span class="s4">.</span><span class="s2">charAt</span><span class="s4">(</span><span class="s7">0</span><span class="s4">).</span><span class="s2">toUpperCase</span><span class="s4">() + </span><span class="s2">property</span><span class="s4">.</span><span class="s2">slice</span><span class="s4">(</span><span class="s7">1</span><span class="s4">) : </span><span class="s2">property</span><span class="s4">;</span>
+            <span class="s5">if </span><span class="s4">(</span><span class="s5">typeof </span><span class="s2">root</span><span class="s4">.</span><span class="s2">document</span><span class="s4">.</span><span class="s2">body</span><span class="s4">.</span><span class="s2">style</span><span class="s4">[</span><span class="s2">toCheck</span><span class="s4">] !== </span><span class="s6">'undefined'</span><span class="s4">) {</span>
+                <span class="s5">return </span><span class="s2">toCheck</span><span class="s4">;</span>
+            <span class="s4">}</span>
+        <span class="s4">}</span>
+        <span class="s5">return null</span><span class="s4">;</span>
+    <span class="s4">}</span>
+
+    <span class="s0">/**</span>
+     <span class="s0">* The Object.assign() method is used to copy the values of all enumerable own properties from one or more source</span>
+     <span class="s0">* objects to a target object. It will return the target object.</span>
+     <span class="s0">* This polyfill doesn't support symbol properties, since ES5 doesn't have symbols anyway</span>
+     <span class="s0">* Source: https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_Objects/Object/assign</span>
+     <span class="s0">* </span><span class="s1">@function</span>
+     <span class="s0">* </span><span class="s1">@ignore</span>
+     <span class="s0">*/</span>
+    <span class="s5">if </span><span class="s4">(!</span><span class="s2">Object</span><span class="s4">.</span><span class="s2">assign</span><span class="s4">) {</span>
+        <span class="s2">Object</span><span class="s4">.</span><span class="s2">defineProperty</span><span class="s4">(</span><span class="s2">Object</span><span class="s4">, </span><span class="s6">'assign'</span><span class="s4">, {</span>
+            <span class="s2">enumerable</span><span class="s4">: </span><span class="s5">false</span><span class="s4">,</span>
+            <span class="s2">configurable</span><span class="s4">: </span><span class="s5">true</span><span class="s4">,</span>
+            <span class="s2">writable</span><span class="s4">: </span><span class="s5">true</span><span class="s4">,</span>
+            <span class="s2">value</span><span class="s4">: </span><span class="s5">function</span><span class="s4">(</span><span class="s2">target</span><span class="s4">) {</span>
+                <span class="s5">if </span><span class="s4">(</span><span class="s2">target </span><span class="s4">=== </span><span class="s2">undefined </span><span class="s4">|| </span><span class="s2">target </span><span class="s4">=== </span><span class="s5">null</span><span class="s4">) {</span>
+                    <span class="s5">throw new </span><span class="s2">TypeError</span><span class="s4">(</span><span class="s6">'Cannot convert first argument to object'</span><span class="s4">);</span>
+                <span class="s4">}</span>
+
+                <span class="s5">var </span><span class="s2">to </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">(</span><span class="s2">target</span><span class="s4">);</span>
+                <span class="s5">for </span><span class="s4">(</span><span class="s5">var </span><span class="s2">i </span><span class="s4">= </span><span class="s7">1</span><span class="s4">; </span><span class="s2">i </span><span class="s4">&lt; </span><span class="s2">arguments</span><span class="s4">.</span><span class="s2">length</span><span class="s4">; </span><span class="s2">i</span><span class="s4">++) {</span>
+                    <span class="s5">var </span><span class="s2">nextSource </span><span class="s4">= </span><span class="s2">arguments</span><span class="s4">[</span><span class="s2">i</span><span class="s4">];</span>
+                    <span class="s5">if </span><span class="s4">(</span><span class="s2">nextSource </span><span class="s4">=== </span><span class="s2">undefined </span><span class="s4">|| </span><span class="s2">nextSource </span><span class="s4">=== </span><span class="s5">null</span><span class="s4">) {</span>
+                        <span class="s5">continue</span><span class="s4">;</span>
+                    <span class="s4">}</span>
+                    <span class="s2">nextSource </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">(</span><span class="s2">nextSource</span><span class="s4">);</span>
+
+                    <span class="s5">var </span><span class="s2">keysArray </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">keys</span><span class="s4">(</span><span class="s2">nextSource</span><span class="s4">);</span>
+                    <span class="s5">for </span><span class="s4">(</span><span class="s5">var </span><span class="s2">nextIndex </span><span class="s4">= </span><span class="s7">0</span><span class="s4">, </span><span class="s2">len </span><span class="s4">= </span><span class="s2">keysArray</span><span class="s4">.</span><span class="s2">length</span><span class="s4">; </span><span class="s2">nextIndex </span><span class="s4">&lt; </span><span class="s2">len</span><span class="s4">; </span><span class="s2">nextIndex</span><span class="s4">++) {</span>
+                        <span class="s5">var </span><span class="s2">nextKey </span><span class="s4">= </span><span class="s2">keysArray</span><span class="s4">[</span><span class="s2">nextIndex</span><span class="s4">];</span>
+                        <span class="s5">var </span><span class="s2">desc </span><span class="s4">= </span><span class="s2">Object</span><span class="s4">.</span><span class="s2">getOwnPropertyDescriptor</span><span class="s4">(</span><span class="s2">nextSource</span><span class="s4">, </span><span class="s2">nextKey</span><span class="s4">);</span>
+                        <span class="s5">if </span><span class="s4">(</span><span class="s2">desc </span><span class="s4">!== </span><span class="s2">undefined </span><span class="s4">&amp;&amp; </span><span class="s2">desc</span><span class="s4">.</span><span class="s2">enumerable</span><span class="s4">) {</span>
+                            <span class="s2">to</span><span class="s4">[</span><span class="s2">nextKey</span><span class="s4">] = </span><span class="s2">nextSource</span><span class="s4">[</span><span class="s2">nextKey</span><span class="s4">];</span>
+                        <span class="s4">}</span>
+                    <span class="s4">}</span>
+                <span class="s4">}</span>
+                <span class="s5">return </span><span class="s2">to</span><span class="s4">;</span>
+            <span class="s4">}</span>
+        <span class="s4">});</span>
+    <span class="s4">}</span>
+
+    <span class="s5">return </span><span class="s2">Popper</span><span class="s4">;</span>
+<span class="s4">}));</span>
+</pre>
+</body>
+</html>

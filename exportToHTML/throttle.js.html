@@ -1,0 +1,102 @@
+<html>
+<head>
+<title>throttle.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+.s6 { color: #5f826b; font-style: italic;}
+.s7 { color: #67a37c; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+throttle.js</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">requestAnimationFrame from </span><span class="s2">'../shims/requestAnimationFrame.js'</span><span class="s3">;</span>
+
+<span class="s4">// Defines minimum timeout before adding a trailing call.</span>
+<span class="s0">const </span><span class="s1">trailingTimeout </span><span class="s3">= </span><span class="s5">2</span><span class="s3">;</span>
+
+<span class="s6">/**</span>
+ <span class="s6">* Creates a wrapper function which ensures that provided callback will be</span>
+ <span class="s6">* invoked only once during the specified delay period.</span>
+ <span class="s6">*</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{Function} callback - Function to be invoked after the delay period.</span>
+ <span class="s6">* </span><span class="s7">@param </span><span class="s6">{number} delay - Delay after which to invoke callback.</span>
+ <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{Function}</span>
+ <span class="s6">*/</span>
+<span class="s0">export default function </span><span class="s3">(</span><span class="s1">callback</span><span class="s3">, </span><span class="s1">delay</span><span class="s3">) {</span>
+    <span class="s0">let </span><span class="s1">leadingCall </span><span class="s3">= </span><span class="s0">false</span><span class="s3">,</span>
+        <span class="s1">trailingCall </span><span class="s3">= </span><span class="s0">false</span><span class="s3">,</span>
+        <span class="s1">lastCallTime </span><span class="s3">= </span><span class="s5">0</span><span class="s3">;</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* Invokes the original callback function and schedules new invocation if</span>
+     <span class="s6">* the &quot;proxy&quot; was called during current request.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{void}</span>
+     <span class="s6">*/</span>
+    <span class="s0">function </span><span class="s1">resolvePending</span><span class="s3">() {</span>
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">leadingCall</span><span class="s3">) {</span>
+            <span class="s1">leadingCall </span><span class="s3">= </span><span class="s0">false</span><span class="s3">;</span>
+
+            <span class="s1">callback</span><span class="s3">();</span>
+        <span class="s3">}</span>
+
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">trailingCall</span><span class="s3">) {</span>
+            <span class="s1">proxy</span><span class="s3">();</span>
+        <span class="s3">}</span>
+    <span class="s3">}</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* Callback invoked after the specified delay. It will further postpone</span>
+     <span class="s6">* invocation of the original function delegating it to the</span>
+     <span class="s6">* requestAnimationFrame.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{void}</span>
+     <span class="s6">*/</span>
+    <span class="s0">function </span><span class="s1">timeoutCallback</span><span class="s3">() {</span>
+        <span class="s1">requestAnimationFrame</span><span class="s3">(</span><span class="s1">resolvePending</span><span class="s3">);</span>
+    <span class="s3">}</span>
+
+    <span class="s6">/**</span>
+     <span class="s6">* Schedules invocation of the original function.</span>
+     <span class="s6">*</span>
+     <span class="s6">* </span><span class="s7">@returns </span><span class="s6">{void}</span>
+     <span class="s6">*/</span>
+    <span class="s0">function </span><span class="s1">proxy</span><span class="s3">() {</span>
+        <span class="s0">const </span><span class="s1">timeStamp </span><span class="s3">= </span><span class="s1">Date</span><span class="s3">.</span><span class="s1">now</span><span class="s3">();</span>
+
+        <span class="s0">if </span><span class="s3">(</span><span class="s1">leadingCall</span><span class="s3">) {</span>
+            <span class="s4">// Reject immediately following calls.</span>
+            <span class="s0">if </span><span class="s3">(</span><span class="s1">timeStamp </span><span class="s3">- </span><span class="s1">lastCallTime </span><span class="s3">&lt; </span><span class="s1">trailingTimeout</span><span class="s3">) {</span>
+                <span class="s0">return</span><span class="s3">;</span>
+            <span class="s3">}</span>
+
+            <span class="s4">// Schedule new call to be in invoked when the pending one is resolved.</span>
+            <span class="s4">// This is important for &quot;transitions&quot; which never actually start</span>
+            <span class="s4">// immediately so there is a chance that we might miss one if change</span>
+            <span class="s4">// happens amids the pending invocation.</span>
+            <span class="s1">trailingCall </span><span class="s3">= </span><span class="s0">true</span><span class="s3">;</span>
+        <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+            <span class="s1">leadingCall </span><span class="s3">= </span><span class="s0">true</span><span class="s3">;</span>
+            <span class="s1">trailingCall </span><span class="s3">= </span><span class="s0">false</span><span class="s3">;</span>
+
+            <span class="s1">setTimeout</span><span class="s3">(</span><span class="s1">timeoutCallback</span><span class="s3">, </span><span class="s1">delay</span><span class="s3">);</span>
+        <span class="s3">}</span>
+
+        <span class="s1">lastCallTime </span><span class="s3">= </span><span class="s1">timeStamp</span><span class="s3">;</span>
+    <span class="s3">}</span>
+
+    <span class="s0">return </span><span class="s1">proxy</span><span class="s3">;</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

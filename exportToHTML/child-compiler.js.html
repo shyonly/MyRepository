@@ -1,0 +1,230 @@
+<html>
+<head>
+<title>child-compiler.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #5f826b; font-style: italic;}
+.s3 { color: #67a37c; font-style: italic;}
+.s4 { color: #6aab73;}
+.s5 { color: #bcbec4;}
+.s6 { color: #cf8e6d;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+child-compiler.js</font>
+</center></td></tr></table>
+<pre><span class="s0">// @ts-check</span>
+<span class="s2">/** </span><span class="s3">@typedef </span><span class="s2">{import(&quot;webpack/lib/Compilation.js&quot;)} WebpackCompilation */</span>
+<span class="s2">/** </span><span class="s3">@typedef </span><span class="s2">{import(&quot;webpack/lib/Compiler.js&quot;)} WebpackCompiler */</span>
+<span class="s2">/** </span><span class="s3">@typedef </span><span class="s2">{import(&quot;webpack/lib/Chunk.js&quot;)} WebpackChunk */</span>
+<span class="s4">'use strict'</span><span class="s5">;</span>
+
+<span class="s2">/**</span>
+ <span class="s2">* </span><span class="s3">@file</span>
+ <span class="s2">* This file uses webpack to compile a template with a child compiler.</span>
+ <span class="s2">*</span>
+ <span class="s2">* [TEMPLATE] -&gt; [JAVASCRIPT]</span>
+ <span class="s2">*</span>
+ <span class="s2">*/</span>
+
+<span class="s6">let </span><span class="s1">instanceId </span><span class="s5">= </span><span class="s7">0</span><span class="s5">;</span>
+<span class="s2">/**</span>
+ <span class="s2">* The HtmlWebpackChildCompiler is a helper to allow reusing one childCompiler</span>
+ <span class="s2">* for multiple HtmlWebpackPlugin instances to improve the compilation performance.</span>
+ <span class="s2">*/</span>
+<span class="s6">class </span><span class="s1">HtmlWebpackChildCompiler </span><span class="s5">{</span>
+  <span class="s2">/**</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@param </span><span class="s2">{string[]} templates</span>
+   <span class="s2">*/</span>
+  <span class="s1">constructor </span><span class="s5">(</span><span class="s1">templates</span><span class="s5">) {</span>
+    <span class="s2">/** Id for this ChildCompiler */</span>
+    <span class="s6">this</span><span class="s5">.</span><span class="s1">id </span><span class="s5">= </span><span class="s1">instanceId</span><span class="s5">++;</span>
+    <span class="s2">/**</span>
+     <span class="s2">* </span><span class="s3">@type </span><span class="s2">{string[]} templateIds</span>
+     <span class="s2">* The template array will allow us to keep track which input generated which output</span>
+     <span class="s2">*/</span>
+    <span class="s6">this</span><span class="s5">.</span><span class="s1">templates </span><span class="s5">= </span><span class="s1">templates</span><span class="s5">;</span>
+    <span class="s2">/**</span>
+     <span class="s2">* </span><span class="s3">@type </span><span class="s2">{Promise&lt;{[templatePath: string]: { content: string, hash: string, entry: WebpackChunk }}&gt;}</span>
+     <span class="s2">*/</span>
+    <span class="s6">this</span><span class="s5">.</span><span class="s1">compilationPromise</span><span class="s5">; </span><span class="s0">// eslint-disable-line</span>
+    <span class="s2">/**</span>
+     <span class="s2">* </span><span class="s3">@type </span><span class="s2">{number}</span>
+     <span class="s2">*/</span>
+    <span class="s6">this</span><span class="s5">.</span><span class="s1">compilationStartedTimestamp</span><span class="s5">; </span><span class="s0">// eslint-disable-line</span>
+    <span class="s2">/**</span>
+     <span class="s2">* </span><span class="s3">@type </span><span class="s2">{number}</span>
+     <span class="s2">*/</span>
+    <span class="s6">this</span><span class="s5">.</span><span class="s1">compilationEndedTimestamp</span><span class="s5">; </span><span class="s0">// eslint-disable-line</span>
+    <span class="s2">/**</span>
+     <span class="s2">* All file dependencies of the child compiler</span>
+     <span class="s2">* </span><span class="s3">@type </span><span class="s2">{{fileDependencies: string[], contextDependencies: string[], missingDependencies: string[]}}</span>
+     <span class="s2">*/</span>
+    <span class="s6">this</span><span class="s5">.</span><span class="s1">fileDependencies </span><span class="s5">= { </span><span class="s1">fileDependencies</span><span class="s5">: [], </span><span class="s1">contextDependencies</span><span class="s5">: [], </span><span class="s1">missingDependencies</span><span class="s5">: [] };</span>
+  <span class="s5">}</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* Returns true if the childCompiler is currently compiling</span>
+   <span class="s2">* </span><span class="s3">@returns </span><span class="s2">{boolean}</span>
+   <span class="s2">*/</span>
+  <span class="s1">isCompiling </span><span class="s5">() {</span>
+    <span class="s6">return </span><span class="s5">!</span><span class="s6">this</span><span class="s5">.</span><span class="s1">didCompile</span><span class="s5">() &amp;&amp; </span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationStartedTimestamp </span><span class="s5">!== </span><span class="s1">undefined</span><span class="s5">;</span>
+  <span class="s5">}</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* Returns true if the childCompiler is done compiling</span>
+   <span class="s2">*/</span>
+  <span class="s1">didCompile </span><span class="s5">() {</span>
+    <span class="s6">return this</span><span class="s5">.</span><span class="s1">compilationEndedTimestamp </span><span class="s5">!== </span><span class="s1">undefined</span><span class="s5">;</span>
+  <span class="s5">}</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* This function will start the template compilation</span>
+   <span class="s2">* once it is started no more templates can be added</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@param </span><span class="s2">{import('webpack').Compilation} mainCompilation</span>
+   <span class="s2">* </span><span class="s3">@returns </span><span class="s2">{Promise&lt;{[templatePath: string]: { content: string, hash: string, entry: WebpackChunk }}&gt;}</span>
+   <span class="s2">*/</span>
+  <span class="s1">compileTemplates </span><span class="s5">(</span><span class="s1">mainCompilation</span><span class="s5">) {</span>
+    <span class="s6">const </span><span class="s1">webpack </span><span class="s5">= </span><span class="s1">mainCompilation</span><span class="s5">.</span><span class="s1">compiler</span><span class="s5">.</span><span class="s1">webpack</span><span class="s5">;</span>
+    <span class="s6">const </span><span class="s1">Compilation </span><span class="s5">= </span><span class="s1">webpack</span><span class="s5">.</span><span class="s1">Compilation</span><span class="s5">;</span>
+
+    <span class="s6">const </span><span class="s1">NodeTemplatePlugin </span><span class="s5">= </span><span class="s1">webpack</span><span class="s5">.</span><span class="s1">node</span><span class="s5">.</span><span class="s1">NodeTemplatePlugin</span><span class="s5">;</span>
+    <span class="s6">const </span><span class="s1">NodeTargetPlugin </span><span class="s5">= </span><span class="s1">webpack</span><span class="s5">.</span><span class="s1">node</span><span class="s5">.</span><span class="s1">NodeTargetPlugin</span><span class="s5">;</span>
+    <span class="s6">const </span><span class="s1">LoaderTargetPlugin </span><span class="s5">= </span><span class="s1">webpack</span><span class="s5">.</span><span class="s1">LoaderTargetPlugin</span><span class="s5">;</span>
+    <span class="s6">const </span><span class="s1">EntryPlugin </span><span class="s5">= </span><span class="s1">webpack</span><span class="s5">.</span><span class="s1">EntryPlugin</span><span class="s5">;</span>
+
+    <span class="s0">// To prevent multiple compilations for the same template</span>
+    <span class="s0">// the compilation is cached in a promise.</span>
+    <span class="s0">// If it already exists return</span>
+    <span class="s6">if </span><span class="s5">(</span><span class="s6">this</span><span class="s5">.</span><span class="s1">compilationPromise</span><span class="s5">) {</span>
+      <span class="s6">return this</span><span class="s5">.</span><span class="s1">compilationPromise</span><span class="s5">;</span>
+    <span class="s5">}</span>
+
+    <span class="s6">const </span><span class="s1">outputOptions </span><span class="s5">= {</span>
+      <span class="s1">filename</span><span class="s5">: </span><span class="s4">'__child-[name]'</span><span class="s5">,</span>
+      <span class="s1">publicPath</span><span class="s5">: </span><span class="s4">''</span><span class="s5">,</span>
+      <span class="s1">library</span><span class="s5">: {</span>
+        <span class="s1">type</span><span class="s5">: </span><span class="s4">'var'</span><span class="s5">,</span>
+        <span class="s1">name</span><span class="s5">: </span><span class="s4">'HTML_WEBPACK_PLUGIN_RESULT'</span>
+      <span class="s5">},</span>
+      <span class="s1">scriptType</span><span class="s5">: </span><span class="s2">/** </span><span class="s3">@type </span><span class="s2">{'text/javascript'} */</span><span class="s5">(</span><span class="s4">'text/javascript'</span><span class="s5">),</span>
+      <span class="s1">iife</span><span class="s5">: </span><span class="s6">true</span>
+    <span class="s5">};</span>
+    <span class="s6">const </span><span class="s1">compilerName </span><span class="s5">= </span><span class="s4">'HtmlWebpackCompiler'</span><span class="s5">;</span>
+    <span class="s0">// Create an additional child compiler which takes the template</span>
+    <span class="s0">// and turns it into an Node.JS html factory.</span>
+    <span class="s0">// This allows us to use loaders during the compilation</span>
+    <span class="s6">const </span><span class="s1">childCompiler </span><span class="s5">= </span><span class="s1">mainCompilation</span><span class="s5">.</span><span class="s1">createChildCompiler</span><span class="s5">(</span><span class="s1">compilerName</span><span class="s5">, </span><span class="s1">outputOptions</span><span class="s5">, [</span>
+      <span class="s0">// Compile the template to nodejs javascript</span>
+      <span class="s6">new </span><span class="s1">NodeTargetPlugin</span><span class="s5">(),</span>
+      <span class="s6">new </span><span class="s1">NodeTemplatePlugin</span><span class="s5">(),</span>
+      <span class="s6">new </span><span class="s1">LoaderTargetPlugin</span><span class="s5">(</span><span class="s4">'node'</span><span class="s5">),</span>
+      <span class="s6">new </span><span class="s1">webpack</span><span class="s5">.</span><span class="s1">library</span><span class="s5">.</span><span class="s1">EnableLibraryPlugin</span><span class="s5">(</span><span class="s4">'var'</span><span class="s5">)</span>
+    <span class="s5">]);</span>
+    <span class="s0">// The file path context which webpack uses to resolve all relative files to</span>
+    <span class="s1">childCompiler</span><span class="s5">.</span><span class="s1">context </span><span class="s5">= </span><span class="s1">mainCompilation</span><span class="s5">.</span><span class="s1">compiler</span><span class="s5">.</span><span class="s1">context</span><span class="s5">;</span>
+
+    <span class="s0">// Generate output file names</span>
+    <span class="s6">const </span><span class="s1">temporaryTemplateNames </span><span class="s5">= </span><span class="s6">this</span><span class="s5">.</span><span class="s1">templates</span><span class="s5">.</span><span class="s1">map</span><span class="s5">((</span><span class="s1">template</span><span class="s5">, </span><span class="s1">index</span><span class="s5">) =&gt; </span><span class="s4">`__child-HtmlWebpackPlugin_</span><span class="s1">$</span><span class="s5">{</span><span class="s1">index</span><span class="s5">}</span><span class="s4">-</span><span class="s1">$</span><span class="s5">{</span><span class="s6">this</span><span class="s5">.</span><span class="s1">id</span><span class="s5">}</span><span class="s4">`</span><span class="s5">);</span>
+
+    <span class="s0">// Add all templates</span>
+    <span class="s6">this</span><span class="s5">.</span><span class="s1">templates</span><span class="s5">.</span><span class="s1">forEach</span><span class="s5">((</span><span class="s1">template</span><span class="s5">, </span><span class="s1">index</span><span class="s5">) =&gt; {</span>
+      <span class="s6">new </span><span class="s1">EntryPlugin</span><span class="s5">(</span><span class="s1">childCompiler</span><span class="s5">.</span><span class="s1">context</span><span class="s5">, </span><span class="s4">'data:text/javascript,__webpack_public_path__ = __webpack_base_uri__ = htmlWebpackPluginPublicPath;'</span><span class="s5">, </span><span class="s4">`HtmlWebpackPlugin_</span><span class="s1">$</span><span class="s5">{</span><span class="s1">index</span><span class="s5">}</span><span class="s4">-</span><span class="s1">$</span><span class="s5">{</span><span class="s6">this</span><span class="s5">.</span><span class="s1">id</span><span class="s5">}</span><span class="s4">`</span><span class="s5">).</span><span class="s1">apply</span><span class="s5">(</span><span class="s1">childCompiler</span><span class="s5">);</span>
+      <span class="s6">new </span><span class="s1">EntryPlugin</span><span class="s5">(</span><span class="s1">childCompiler</span><span class="s5">.</span><span class="s1">context</span><span class="s5">, </span><span class="s1">template</span><span class="s5">, </span><span class="s4">`HtmlWebpackPlugin_</span><span class="s1">$</span><span class="s5">{</span><span class="s1">index</span><span class="s5">}</span><span class="s4">-</span><span class="s1">$</span><span class="s5">{</span><span class="s6">this</span><span class="s5">.</span><span class="s1">id</span><span class="s5">}</span><span class="s4">`</span><span class="s5">).</span><span class="s1">apply</span><span class="s5">(</span><span class="s1">childCompiler</span><span class="s5">);</span>
+    <span class="s5">});</span>
+
+    <span class="s0">// The templates are compiled and executed by NodeJS - similar to server side rendering</span>
+    <span class="s0">// Unfortunately this causes issues as some loaders require an absolute URL to support ES Modules</span>
+    <span class="s0">// The following config enables relative URL support for the child compiler</span>
+    <span class="s1">childCompiler</span><span class="s5">.</span><span class="s1">options</span><span class="s5">.</span><span class="s1">module </span><span class="s5">= { </span><span class="s1">...childCompiler</span><span class="s5">.</span><span class="s1">options</span><span class="s5">.</span><span class="s1">module </span><span class="s5">};</span>
+    <span class="s1">childCompiler</span><span class="s5">.</span><span class="s1">options</span><span class="s5">.</span><span class="s1">module</span><span class="s5">.</span><span class="s1">parser </span><span class="s5">= { </span><span class="s1">...childCompiler</span><span class="s5">.</span><span class="s1">options</span><span class="s5">.</span><span class="s1">module</span><span class="s5">.</span><span class="s1">parser </span><span class="s5">};</span>
+    <span class="s1">childCompiler</span><span class="s5">.</span><span class="s1">options</span><span class="s5">.</span><span class="s1">module</span><span class="s5">.</span><span class="s1">parser</span><span class="s5">.</span><span class="s1">javascript </span><span class="s5">= { </span><span class="s1">...childCompiler</span><span class="s5">.</span><span class="s1">options</span><span class="s5">.</span><span class="s1">module</span><span class="s5">.</span><span class="s1">parser</span><span class="s5">.</span><span class="s1">javascript</span><span class="s5">,</span>
+      <span class="s1">url</span><span class="s5">: </span><span class="s4">'relative' </span><span class="s5">};</span>
+
+    <span class="s6">this</span><span class="s5">.</span><span class="s1">compilationStartedTimestamp </span><span class="s5">= </span><span class="s6">new </span><span class="s1">Date</span><span class="s5">().</span><span class="s1">getTime</span><span class="s5">();</span>
+    <span class="s6">this</span><span class="s5">.</span><span class="s1">compilationPromise </span><span class="s5">= </span><span class="s6">new </span><span class="s1">Promise</span><span class="s5">((</span><span class="s1">resolve</span><span class="s5">, </span><span class="s1">reject</span><span class="s5">) =&gt; {</span>
+      <span class="s6">const </span><span class="s1">extractedAssets </span><span class="s5">= [];</span>
+      <span class="s1">childCompiler</span><span class="s5">.</span><span class="s1">hooks</span><span class="s5">.</span><span class="s1">thisCompilation</span><span class="s5">.</span><span class="s1">tap</span><span class="s5">(</span><span class="s4">'HtmlWebpackPlugin'</span><span class="s5">, (</span><span class="s1">compilation</span><span class="s5">) =&gt; {</span>
+        <span class="s1">compilation</span><span class="s5">.</span><span class="s1">hooks</span><span class="s5">.</span><span class="s1">processAssets</span><span class="s5">.</span><span class="s1">tap</span><span class="s5">(</span>
+          <span class="s5">{</span>
+            <span class="s1">name</span><span class="s5">: </span><span class="s4">'HtmlWebpackPlugin'</span><span class="s5">,</span>
+            <span class="s1">stage</span><span class="s5">: </span><span class="s1">Compilation</span><span class="s5">.</span><span class="s1">PROCESS_ASSETS_STAGE_ADDITIONS</span>
+          <span class="s5">},</span>
+          <span class="s5">(</span><span class="s1">assets</span><span class="s5">) =&gt; {</span>
+            <span class="s1">temporaryTemplateNames</span><span class="s5">.</span><span class="s1">forEach</span><span class="s5">((</span><span class="s1">temporaryTemplateName</span><span class="s5">) =&gt; {</span>
+              <span class="s6">if </span><span class="s5">(</span><span class="s1">assets</span><span class="s5">[</span><span class="s1">temporaryTemplateName</span><span class="s5">]) {</span>
+                <span class="s1">extractedAssets</span><span class="s5">.</span><span class="s1">push</span><span class="s5">(</span><span class="s1">assets</span><span class="s5">[</span><span class="s1">temporaryTemplateName</span><span class="s5">]);</span>
+                <span class="s1">compilation</span><span class="s5">.</span><span class="s1">deleteAsset</span><span class="s5">(</span><span class="s1">temporaryTemplateName</span><span class="s5">);</span>
+              <span class="s5">}</span>
+            <span class="s5">});</span>
+          <span class="s5">}</span>
+        <span class="s5">);</span>
+      <span class="s5">});</span>
+
+      <span class="s1">childCompiler</span><span class="s5">.</span><span class="s1">runAsChild</span><span class="s5">((</span><span class="s1">err</span><span class="s5">, </span><span class="s1">entries</span><span class="s5">, </span><span class="s1">childCompilation</span><span class="s5">) =&gt; {</span>
+        <span class="s0">// Extract templates</span>
+        <span class="s6">const </span><span class="s1">compiledTemplates </span><span class="s5">= </span><span class="s1">entries</span>
+          <span class="s5">? </span><span class="s1">extractedAssets</span><span class="s5">.</span><span class="s1">map</span><span class="s5">((</span><span class="s1">asset</span><span class="s5">) =&gt; </span><span class="s1">asset</span><span class="s5">.</span><span class="s1">source</span><span class="s5">())</span>
+          <span class="s5">: [];</span>
+        <span class="s0">// Extract file dependencies</span>
+        <span class="s6">if </span><span class="s5">(</span><span class="s1">entries </span><span class="s5">&amp;&amp; </span><span class="s1">childCompilation</span><span class="s5">) {</span>
+          <span class="s6">this</span><span class="s5">.</span><span class="s1">fileDependencies </span><span class="s5">= { </span><span class="s1">fileDependencies</span><span class="s5">: </span><span class="s1">Array</span><span class="s5">.</span><span class="s1">from</span><span class="s5">(</span><span class="s1">childCompilation</span><span class="s5">.</span><span class="s1">fileDependencies</span><span class="s5">), </span><span class="s1">contextDependencies</span><span class="s5">: </span><span class="s1">Array</span><span class="s5">.</span><span class="s1">from</span><span class="s5">(</span><span class="s1">childCompilation</span><span class="s5">.</span><span class="s1">contextDependencies</span><span class="s5">), </span><span class="s1">missingDependencies</span><span class="s5">: </span><span class="s1">Array</span><span class="s5">.</span><span class="s1">from</span><span class="s5">(</span><span class="s1">childCompilation</span><span class="s5">.</span><span class="s1">missingDependencies</span><span class="s5">) };</span>
+        <span class="s5">}</span>
+        <span class="s0">// Reject the promise if the childCompilation contains error</span>
+        <span class="s6">if </span><span class="s5">(</span><span class="s1">childCompilation </span><span class="s5">&amp;&amp; </span><span class="s1">childCompilation</span><span class="s5">.</span><span class="s1">errors </span><span class="s5">&amp;&amp; </span><span class="s1">childCompilation</span><span class="s5">.</span><span class="s1">errors</span><span class="s5">.</span><span class="s1">length</span><span class="s5">) {</span>
+          <span class="s6">const </span><span class="s1">errorDetails </span><span class="s5">= </span><span class="s1">childCompilation</span><span class="s5">.</span><span class="s1">errors</span><span class="s5">.</span><span class="s1">map</span><span class="s5">(</span><span class="s1">error </span><span class="s5">=&gt; {</span>
+            <span class="s6">let </span><span class="s1">message </span><span class="s5">= </span><span class="s1">error</span><span class="s5">.</span><span class="s1">message</span><span class="s5">;</span>
+            <span class="s6">if </span><span class="s5">(</span><span class="s1">error</span><span class="s5">.</span><span class="s1">stack</span><span class="s5">) {</span>
+              <span class="s1">message </span><span class="s5">+= </span><span class="s4">'</span><span class="s6">\n</span><span class="s4">' </span><span class="s5">+ </span><span class="s1">error</span><span class="s5">.</span><span class="s1">stack</span><span class="s5">;</span>
+            <span class="s5">}</span>
+            <span class="s6">return </span><span class="s1">message</span><span class="s5">;</span>
+          <span class="s5">}).</span><span class="s1">join</span><span class="s5">(</span><span class="s4">'</span><span class="s6">\n</span><span class="s4">'</span><span class="s5">);</span>
+          <span class="s1">reject</span><span class="s5">(</span><span class="s6">new </span><span class="s1">Error</span><span class="s5">(</span><span class="s4">'Child compilation failed:</span><span class="s6">\n</span><span class="s4">' </span><span class="s5">+ </span><span class="s1">errorDetails</span><span class="s5">));</span>
+          <span class="s6">return</span><span class="s5">;</span>
+        <span class="s5">}</span>
+        <span class="s0">// Reject if the error object contains errors</span>
+        <span class="s6">if </span><span class="s5">(</span><span class="s1">err</span><span class="s5">) {</span>
+          <span class="s1">reject</span><span class="s5">(</span><span class="s1">err</span><span class="s5">);</span>
+          <span class="s6">return</span><span class="s5">;</span>
+        <span class="s5">}</span>
+        <span class="s6">if </span><span class="s5">(!</span><span class="s1">childCompilation </span><span class="s5">|| !</span><span class="s1">entries</span><span class="s5">) {</span>
+          <span class="s1">reject</span><span class="s5">(</span><span class="s6">new </span><span class="s1">Error</span><span class="s5">(</span><span class="s4">'Empty child compilation'</span><span class="s5">));</span>
+          <span class="s6">return</span><span class="s5">;</span>
+        <span class="s5">}</span>
+        <span class="s2">/**</span>
+         <span class="s2">* </span><span class="s3">@type </span><span class="s2">{{[templatePath: string]: { content: string, hash: string, entry: WebpackChunk }}}</span>
+         <span class="s2">*/</span>
+        <span class="s6">const </span><span class="s1">result </span><span class="s5">= {};</span>
+        <span class="s1">compiledTemplates</span><span class="s5">.</span><span class="s1">forEach</span><span class="s5">((</span><span class="s1">templateSource</span><span class="s5">, </span><span class="s1">entryIndex</span><span class="s5">) =&gt; {</span>
+          <span class="s0">// The compiledTemplates are generated from the entries added in</span>
+          <span class="s0">// the addTemplate function.</span>
+          <span class="s0">// Therefore the array index of this.templates should be the as entryIndex.</span>
+          <span class="s1">result</span><span class="s5">[</span><span class="s6">this</span><span class="s5">.</span><span class="s1">templates</span><span class="s5">[</span><span class="s1">entryIndex</span><span class="s5">]] = {</span>
+            <span class="s1">content</span><span class="s5">: </span><span class="s1">templateSource</span><span class="s5">,</span>
+            <span class="s1">hash</span><span class="s5">: </span><span class="s1">childCompilation</span><span class="s5">.</span><span class="s1">hash </span><span class="s5">|| </span><span class="s4">'XXXX'</span><span class="s5">,</span>
+            <span class="s1">entry</span><span class="s5">: </span><span class="s1">entries</span><span class="s5">[</span><span class="s1">entryIndex</span><span class="s5">]</span>
+          <span class="s5">};</span>
+        <span class="s5">});</span>
+        <span class="s6">this</span><span class="s5">.</span><span class="s1">compilationEndedTimestamp </span><span class="s5">= </span><span class="s6">new </span><span class="s1">Date</span><span class="s5">().</span><span class="s1">getTime</span><span class="s5">();</span>
+        <span class="s1">resolve</span><span class="s5">(</span><span class="s1">result</span><span class="s5">);</span>
+      <span class="s5">});</span>
+    <span class="s5">});</span>
+
+    <span class="s6">return this</span><span class="s5">.</span><span class="s1">compilationPromise</span><span class="s5">;</span>
+  <span class="s5">}</span>
+<span class="s5">}</span>
+
+<span class="s1">module</span><span class="s5">.</span><span class="s1">exports </span><span class="s5">= {</span>
+  <span class="s1">HtmlWebpackChildCompiler</span>
+<span class="s5">};</span>
+</pre>
+</body>
+</html>

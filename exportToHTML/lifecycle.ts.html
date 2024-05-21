@@ -1,0 +1,437 @@
+<html>
+<head>
+<title>lifecycle.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+lifecycle.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">config from </span><span class="s2">'../config'</span>
+<span class="s0">import </span><span class="s1">Watcher</span><span class="s3">, { </span><span class="s1">WatcherOptions </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'../observer/watcher'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">mark</span><span class="s3">, </span><span class="s1">measure </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'../util/perf'</span>
+<span class="s0">import </span><span class="s1">VNode</span><span class="s3">, { </span><span class="s1">createEmptyVNode </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'../vdom/vnode'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">updateComponentListeners </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./events'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">resolveSlots </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'./render-helpers/resolve-slots'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">toggleObserving </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'../observer/index'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">pushTarget</span><span class="s3">, </span><span class="s1">popTarget </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'../observer/dep'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s3">{ </span><span class="s1">Component </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'types/component'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s3">{ </span><span class="s1">MountedComponentVNode </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'types/vnode'</span>
+
+<span class="s0">import </span><span class="s3">{</span>
+  <span class="s1">warn</span><span class="s3">,</span>
+  <span class="s1">noop</span><span class="s3">,</span>
+  <span class="s1">remove</span><span class="s3">,</span>
+  <span class="s1">emptyObject</span><span class="s3">,</span>
+  <span class="s1">validateProp</span><span class="s3">,</span>
+  <span class="s1">invokeWithErrorHandling</span>
+<span class="s3">} </span><span class="s1">from </span><span class="s2">'../util/index'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">currentInstance</span><span class="s3">, </span><span class="s1">setCurrentInstance </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'v3/currentInstance'</span>
+<span class="s0">import </span><span class="s3">{ </span><span class="s1">syncSetupProxy </span><span class="s3">} </span><span class="s1">from </span><span class="s2">'v3/apiSetup'</span>
+
+<span class="s0">export let </span><span class="s1">activeInstance</span><span class="s3">: </span><span class="s1">any </span><span class="s3">= </span><span class="s0">null</span>
+<span class="s0">export let </span><span class="s1">isUpdatingChildComponent</span><span class="s3">: </span><span class="s1">boolean </span><span class="s3">= </span><span class="s0">false</span>
+
+<span class="s0">export function </span><span class="s1">setActiveInstance</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">: </span><span class="s1">Component</span><span class="s3">) {</span>
+  <span class="s0">const </span><span class="s1">prevActiveInstance </span><span class="s3">= </span><span class="s1">activeInstance</span>
+  <span class="s1">activeInstance </span><span class="s3">= </span><span class="s1">vm</span>
+  <span class="s0">return </span><span class="s3">() =&gt; {</span>
+    <span class="s1">activeInstance </span><span class="s3">= </span><span class="s1">prevActiveInstance</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">export function </span><span class="s1">initLifecycle</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">: </span><span class="s1">Component</span><span class="s3">) {</span>
+  <span class="s0">const </span><span class="s1">options </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span>
+
+  <span class="s4">// locate first non-abstract parent</span>
+  <span class="s0">let </span><span class="s1">parent </span><span class="s3">= </span><span class="s1">options</span><span class="s3">.</span><span class="s1">parent</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">parent </span><span class="s3">&amp;&amp; !</span><span class="s1">options</span><span class="s3">.</span><span class="s1">abstract</span><span class="s3">) {</span>
+    <span class="s0">while </span><span class="s3">(</span><span class="s1">parent</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">abstract </span><span class="s3">&amp;&amp; </span><span class="s1">parent</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">) {</span>
+      <span class="s1">parent </span><span class="s3">= </span><span class="s1">parent</span><span class="s3">.</span><span class="s1">$parent</span>
+    <span class="s3">}</span>
+    <span class="s1">parent</span><span class="s3">.</span><span class="s1">$children</span><span class="s3">.</span><span class="s1">push</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">)</span>
+  <span class="s3">}</span>
+
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">$parent </span><span class="s3">= </span><span class="s1">parent</span>
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">$root </span><span class="s3">= </span><span class="s1">parent </span><span class="s3">? </span><span class="s1">parent</span><span class="s3">.</span><span class="s1">$root </span><span class="s3">: </span><span class="s1">vm</span>
+
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">$children </span><span class="s3">= []</span>
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">$refs </span><span class="s3">= {}</span>
+
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">_provided </span><span class="s3">= </span><span class="s1">parent </span><span class="s3">? </span><span class="s1">parent</span><span class="s3">.</span><span class="s1">_provided </span><span class="s3">: </span><span class="s1">Object</span><span class="s3">.</span><span class="s1">create</span><span class="s3">(</span><span class="s0">null</span><span class="s3">)</span>
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">_watcher </span><span class="s3">= </span><span class="s0">null</span>
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">_inactive </span><span class="s3">= </span><span class="s0">null</span>
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">_directInactive </span><span class="s3">= </span><span class="s0">false</span>
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">_isMounted </span><span class="s3">= </span><span class="s0">false</span>
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">_isDestroyed </span><span class="s3">= </span><span class="s0">false</span>
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">_isBeingDestroyed </span><span class="s3">= </span><span class="s0">false</span>
+<span class="s3">}</span>
+
+<span class="s0">export function </span><span class="s1">lifecycleMixin</span><span class="s3">(</span><span class="s1">Vue</span><span class="s3">: </span><span class="s0">typeof </span><span class="s1">Component</span><span class="s3">) {</span>
+  <span class="s1">Vue</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">_update </span><span class="s3">= </span><span class="s0">function </span><span class="s3">(</span><span class="s1">vnode</span><span class="s3">: </span><span class="s1">VNode</span><span class="s3">, </span><span class="s1">hydrating</span><span class="s3">?: </span><span class="s1">boolean</span><span class="s3">) {</span>
+    <span class="s0">const </span><span class="s1">vm</span><span class="s3">: </span><span class="s1">Component </span><span class="s3">= </span><span class="s0">this</span>
+    <span class="s0">const </span><span class="s1">prevEl </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$el</span>
+    <span class="s0">const </span><span class="s1">prevVnode </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_vnode</span>
+    <span class="s0">const </span><span class="s1">restoreActiveInstance </span><span class="s3">= </span><span class="s1">setActiveInstance</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">)</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">_vnode </span><span class="s3">= </span><span class="s1">vnode</span>
+    <span class="s4">// Vue.prototype.__patch__ is injected in entry points</span>
+    <span class="s4">// based on the rendering backend used.</span>
+    <span class="s0">if </span><span class="s3">(!</span><span class="s1">prevVnode</span><span class="s3">) {</span>
+      <span class="s4">// initial render</span>
+      <span class="s1">vm</span><span class="s3">.</span><span class="s1">$el </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">__patch__</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$el</span><span class="s3">, </span><span class="s1">vnode</span><span class="s3">, </span><span class="s1">hydrating</span><span class="s3">, </span><span class="s0">false </span><span class="s4">/* removeOnly */</span><span class="s3">)</span>
+    <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+      <span class="s4">// updates</span>
+      <span class="s1">vm</span><span class="s3">.</span><span class="s1">$el </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">__patch__</span><span class="s3">(</span><span class="s1">prevVnode</span><span class="s3">, </span><span class="s1">vnode</span><span class="s3">)</span>
+    <span class="s3">}</span>
+    <span class="s1">restoreActiveInstance</span><span class="s3">()</span>
+    <span class="s4">// update __vue__ reference</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">prevEl</span><span class="s3">) {</span>
+      <span class="s1">prevEl</span><span class="s3">.</span><span class="s1">__vue__ </span><span class="s3">= </span><span class="s0">null</span>
+    <span class="s3">}</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$el</span><span class="s3">) {</span>
+      <span class="s1">vm</span><span class="s3">.</span><span class="s1">$el</span><span class="s3">.</span><span class="s1">__vue__ </span><span class="s3">= </span><span class="s1">vm</span>
+    <span class="s3">}</span>
+    <span class="s4">// if parent is an HOC, update its $el as well</span>
+    <span class="s0">let </span><span class="s1">wrapper</span><span class="s3">: </span><span class="s1">Component </span><span class="s3">| </span><span class="s1">undefined </span><span class="s3">= </span><span class="s1">vm</span>
+    <span class="s0">while </span><span class="s3">(</span>
+      <span class="s1">wrapper </span><span class="s3">&amp;&amp;</span>
+      <span class="s1">wrapper</span><span class="s3">.</span><span class="s1">$vnode </span><span class="s3">&amp;&amp;</span>
+      <span class="s1">wrapper</span><span class="s3">.</span><span class="s1">$parent </span><span class="s3">&amp;&amp;</span>
+      <span class="s1">wrapper</span><span class="s3">.</span><span class="s1">$vnode </span><span class="s3">=== </span><span class="s1">wrapper</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">.</span><span class="s1">_vnode</span>
+    <span class="s3">) {</span>
+      <span class="s1">wrapper</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">.</span><span class="s1">$el </span><span class="s3">= </span><span class="s1">wrapper</span><span class="s3">.</span><span class="s1">$el</span>
+      <span class="s1">wrapper </span><span class="s3">= </span><span class="s1">wrapper</span><span class="s3">.</span><span class="s1">$parent</span>
+    <span class="s3">}</span>
+    <span class="s4">// updated hook is called by the scheduler to ensure that children are</span>
+    <span class="s4">// updated in a parent's updated hook.</span>
+  <span class="s3">}</span>
+
+  <span class="s1">Vue</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">$forceUpdate </span><span class="s3">= </span><span class="s0">function </span><span class="s3">() {</span>
+    <span class="s0">const </span><span class="s1">vm</span><span class="s3">: </span><span class="s1">Component </span><span class="s3">= </span><span class="s0">this</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_watcher</span><span class="s3">) {</span>
+      <span class="s1">vm</span><span class="s3">.</span><span class="s1">_watcher</span><span class="s3">.</span><span class="s1">update</span><span class="s3">()</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s1">Vue</span><span class="s3">.</span><span class="s1">prototype</span><span class="s3">.</span><span class="s1">$destroy </span><span class="s3">= </span><span class="s0">function </span><span class="s3">() {</span>
+    <span class="s0">const </span><span class="s1">vm</span><span class="s3">: </span><span class="s1">Component </span><span class="s3">= </span><span class="s0">this</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_isBeingDestroyed</span><span class="s3">) {</span>
+      <span class="s0">return</span>
+    <span class="s3">}</span>
+    <span class="s1">callHook</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s2">'beforeDestroy'</span><span class="s3">)</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">_isBeingDestroyed </span><span class="s3">= </span><span class="s0">true</span>
+    <span class="s4">// remove self from parent</span>
+    <span class="s0">const </span><span class="s1">parent </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$parent</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">parent </span><span class="s3">&amp;&amp; !</span><span class="s1">parent</span><span class="s3">.</span><span class="s1">_isBeingDestroyed </span><span class="s3">&amp;&amp; !</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">abstract</span><span class="s3">) {</span>
+      <span class="s1">remove</span><span class="s3">(</span><span class="s1">parent</span><span class="s3">.</span><span class="s1">$children</span><span class="s3">, </span><span class="s1">vm</span><span class="s3">)</span>
+    <span class="s3">}</span>
+    <span class="s4">// teardown scope. this includes both the render watcher and other</span>
+    <span class="s4">// watchers created</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">_scope</span><span class="s3">.</span><span class="s1">stop</span><span class="s3">()</span>
+    <span class="s4">// remove reference from data ob</span>
+    <span class="s4">// frozen object may not have observer.</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_data</span><span class="s3">.</span><span class="s1">__ob__</span><span class="s3">) {</span>
+      <span class="s1">vm</span><span class="s3">.</span><span class="s1">_data</span><span class="s3">.</span><span class="s1">__ob__</span><span class="s3">.</span><span class="s1">vmCount</span><span class="s3">--</span>
+    <span class="s3">}</span>
+    <span class="s4">// call the last hook...</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">_isDestroyed </span><span class="s3">= </span><span class="s0">true</span>
+    <span class="s4">// invoke destroy hooks on current rendered tree</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">__patch__</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_vnode</span><span class="s3">, </span><span class="s0">null</span><span class="s3">)</span>
+    <span class="s4">// fire destroyed hook</span>
+    <span class="s1">callHook</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s2">'destroyed'</span><span class="s3">)</span>
+    <span class="s4">// turn off all instance listeners.</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">$off</span><span class="s3">()</span>
+    <span class="s4">// remove __vue__ reference</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$el</span><span class="s3">) {</span>
+      <span class="s1">vm</span><span class="s3">.</span><span class="s1">$el</span><span class="s3">.</span><span class="s1">__vue__ </span><span class="s3">= </span><span class="s0">null</span>
+    <span class="s3">}</span>
+    <span class="s4">// release circular reference (#6759)</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$vnode</span><span class="s3">) {</span>
+      <span class="s1">vm</span><span class="s3">.</span><span class="s1">$vnode</span><span class="s3">.</span><span class="s1">parent </span><span class="s3">= </span><span class="s0">null</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">export function </span><span class="s1">mountComponent</span><span class="s3">(</span>
+  <span class="s1">vm</span><span class="s3">: </span><span class="s1">Component</span><span class="s3">,</span>
+  <span class="s1">el</span><span class="s3">: </span><span class="s1">Element </span><span class="s3">| </span><span class="s0">null </span><span class="s3">| </span><span class="s1">undefined</span><span class="s3">,</span>
+  <span class="s1">hydrating</span><span class="s3">?: </span><span class="s1">boolean</span>
+<span class="s3">): </span><span class="s1">Component </span><span class="s3">{</span>
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">$el </span><span class="s3">= </span><span class="s1">el</span>
+  <span class="s0">if </span><span class="s3">(!</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">render</span><span class="s3">) {</span>
+    <span class="s4">// @ts-expect-error invalid type</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">render </span><span class="s3">= </span><span class="s1">createEmptyVNode</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__</span><span class="s3">) {</span>
+      <span class="s4">/* istanbul ignore if */</span>
+      <span class="s0">if </span><span class="s3">(</span>
+        <span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">template </span><span class="s3">&amp;&amp; </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">template</span><span class="s3">.</span><span class="s1">charAt</span><span class="s3">(</span><span class="s5">0</span><span class="s3">) !== </span><span class="s2">'#'</span><span class="s3">) ||</span>
+        <span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">el </span><span class="s3">||</span>
+        <span class="s1">el</span>
+      <span class="s3">) {</span>
+        <span class="s1">warn</span><span class="s3">(</span>
+          <span class="s2">'You are using the runtime-only build of Vue where the template ' </span><span class="s3">+</span>
+            <span class="s2">'compiler is not available. Either pre-compile the templates into ' </span><span class="s3">+</span>
+            <span class="s2">'render functions, or use the compiler-included build.'</span><span class="s3">,</span>
+          <span class="s1">vm</span>
+        <span class="s3">)</span>
+      <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+        <span class="s1">warn</span><span class="s3">(</span>
+          <span class="s2">'Failed to mount component: template or render function not defined.'</span><span class="s3">,</span>
+          <span class="s1">vm</span>
+        <span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+  <span class="s1">callHook</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s2">'beforeMount'</span><span class="s3">)</span>
+
+  <span class="s0">let </span><span class="s1">updateComponent</span>
+  <span class="s4">/* istanbul ignore if */</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__ </span><span class="s3">&amp;&amp; </span><span class="s1">config</span><span class="s3">.</span><span class="s1">performance </span><span class="s3">&amp;&amp; </span><span class="s1">mark</span><span class="s3">) {</span>
+    <span class="s1">updateComponent </span><span class="s3">= () =&gt; {</span>
+      <span class="s0">const </span><span class="s1">name </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_name</span>
+      <span class="s0">const </span><span class="s1">id </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_uid</span>
+      <span class="s0">const </span><span class="s1">startTag </span><span class="s3">= </span><span class="s2">`vue-perf-start:</span><span class="s1">$</span><span class="s3">{</span><span class="s1">id</span><span class="s3">}</span><span class="s2">`</span>
+      <span class="s0">const </span><span class="s1">endTag </span><span class="s3">= </span><span class="s2">`vue-perf-end:</span><span class="s1">$</span><span class="s3">{</span><span class="s1">id</span><span class="s3">}</span><span class="s2">`</span>
+
+      <span class="s1">mark</span><span class="s3">(</span><span class="s1">startTag</span><span class="s3">)</span>
+      <span class="s0">const </span><span class="s1">vnode </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_render</span><span class="s3">()</span>
+      <span class="s1">mark</span><span class="s3">(</span><span class="s1">endTag</span><span class="s3">)</span>
+      <span class="s1">measure</span><span class="s3">(</span><span class="s2">`vue </span><span class="s1">$</span><span class="s3">{</span><span class="s1">name</span><span class="s3">} </span><span class="s2">render`</span><span class="s3">, </span><span class="s1">startTag</span><span class="s3">, </span><span class="s1">endTag</span><span class="s3">)</span>
+
+      <span class="s1">mark</span><span class="s3">(</span><span class="s1">startTag</span><span class="s3">)</span>
+      <span class="s1">vm</span><span class="s3">.</span><span class="s1">_update</span><span class="s3">(</span><span class="s1">vnode</span><span class="s3">, </span><span class="s1">hydrating</span><span class="s3">)</span>
+      <span class="s1">mark</span><span class="s3">(</span><span class="s1">endTag</span><span class="s3">)</span>
+      <span class="s1">measure</span><span class="s3">(</span><span class="s2">`vue </span><span class="s1">$</span><span class="s3">{</span><span class="s1">name</span><span class="s3">} </span><span class="s2">patch`</span><span class="s3">, </span><span class="s1">startTag</span><span class="s3">, </span><span class="s1">endTag</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">} </span><span class="s0">else </span><span class="s3">{</span>
+    <span class="s1">updateComponent </span><span class="s3">= () =&gt; {</span>
+      <span class="s1">vm</span><span class="s3">.</span><span class="s1">_update</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_render</span><span class="s3">(), </span><span class="s1">hydrating</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s0">const </span><span class="s1">watcherOptions</span><span class="s3">: </span><span class="s1">WatcherOptions </span><span class="s3">= {</span>
+    <span class="s1">before</span><span class="s3">() {</span>
+      <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_isMounted </span><span class="s3">&amp;&amp; !</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_isDestroyed</span><span class="s3">) {</span>
+        <span class="s1">callHook</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s2">'beforeUpdate'</span><span class="s3">)</span>
+      <span class="s3">}</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__</span><span class="s3">) {</span>
+    <span class="s1">watcherOptions</span><span class="s3">.</span><span class="s1">onTrack </span><span class="s3">= </span><span class="s1">e </span><span class="s3">=&gt; </span><span class="s1">callHook</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s2">'renderTracked'</span><span class="s3">, [</span><span class="s1">e</span><span class="s3">])</span>
+    <span class="s1">watcherOptions</span><span class="s3">.</span><span class="s1">onTrigger </span><span class="s3">= </span><span class="s1">e </span><span class="s3">=&gt; </span><span class="s1">callHook</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s2">'renderTriggered'</span><span class="s3">, [</span><span class="s1">e</span><span class="s3">])</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// we set this to vm._watcher inside the watcher's constructor</span>
+  <span class="s4">// since the watcher's initial patch may call $forceUpdate (e.g. inside child</span>
+  <span class="s4">// component's mounted hook), which relies on vm._watcher being already defined</span>
+  <span class="s0">new </span><span class="s1">Watcher</span><span class="s3">(</span>
+    <span class="s1">vm</span><span class="s3">,</span>
+    <span class="s1">updateComponent</span><span class="s3">,</span>
+    <span class="s1">noop</span><span class="s3">,</span>
+    <span class="s1">watcherOptions</span><span class="s3">,</span>
+    <span class="s0">true </span><span class="s4">/* isRenderWatcher */</span>
+  <span class="s3">)</span>
+  <span class="s1">hydrating </span><span class="s3">= </span><span class="s0">false</span>
+
+  <span class="s4">// flush buffer for flush: &quot;pre&quot; watchers queued in setup()</span>
+  <span class="s0">const </span><span class="s1">preWatchers </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_preWatchers</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">preWatchers</span><span class="s3">) {</span>
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">preWatchers</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+      <span class="s1">preWatchers</span><span class="s3">[</span><span class="s1">i</span><span class="s3">].</span><span class="s1">run</span><span class="s3">()</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// manually mounted instance, call mounted on self</span>
+  <span class="s4">// mounted is called for render-created child components in its inserted hook</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$vnode </span><span class="s3">== </span><span class="s0">null</span><span class="s3">) {</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">_isMounted </span><span class="s3">= </span><span class="s0">true</span>
+    <span class="s1">callHook</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s2">'mounted'</span><span class="s3">)</span>
+  <span class="s3">}</span>
+  <span class="s0">return </span><span class="s1">vm</span>
+<span class="s3">}</span>
+
+<span class="s0">export function </span><span class="s1">updateChildComponent</span><span class="s3">(</span>
+  <span class="s1">vm</span><span class="s3">: </span><span class="s1">Component</span><span class="s3">,</span>
+  <span class="s1">propsData</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">any</span><span class="s3">&gt; | </span><span class="s0">null </span><span class="s3">| </span><span class="s1">undefined</span><span class="s3">,</span>
+  <span class="s1">listeners</span><span class="s3">: </span><span class="s1">Record</span><span class="s3">&lt;</span><span class="s1">string</span><span class="s3">, </span><span class="s1">Function </span><span class="s3">| </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">Function</span><span class="s3">&gt;&gt; | </span><span class="s1">undefined</span><span class="s3">,</span>
+  <span class="s1">parentVnode</span><span class="s3">: </span><span class="s1">MountedComponentVNode</span><span class="s3">,</span>
+  <span class="s1">renderChildren</span><span class="s3">?: </span><span class="s1">Array</span><span class="s3">&lt;</span><span class="s1">VNode</span><span class="s3">&gt; | </span><span class="s0">null</span>
+<span class="s3">) {</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__</span><span class="s3">) {</span>
+    <span class="s1">isUpdatingChildComponent </span><span class="s3">= </span><span class="s0">true</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// determine whether component has slot children</span>
+  <span class="s4">// we need to do this before overwriting $options._renderChildren.</span>
+
+  <span class="s4">// check if there are dynamic scopedSlots (hand-written or compiled but with</span>
+  <span class="s4">// dynamic slot names). Static scoped slots compiled from template has the</span>
+  <span class="s4">// &quot;$stable&quot; marker.</span>
+  <span class="s0">const </span><span class="s1">newScopedSlots </span><span class="s3">= </span><span class="s1">parentVnode</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">scopedSlots</span>
+  <span class="s0">const </span><span class="s1">oldScopedSlots </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$scopedSlots</span>
+  <span class="s0">const </span><span class="s1">hasDynamicScopedSlot </span><span class="s3">= !!(</span>
+    <span class="s3">(</span><span class="s1">newScopedSlots </span><span class="s3">&amp;&amp; !</span><span class="s1">newScopedSlots</span><span class="s3">.</span><span class="s1">$stable</span><span class="s3">) ||</span>
+    <span class="s3">(</span><span class="s1">oldScopedSlots </span><span class="s3">!== </span><span class="s1">emptyObject </span><span class="s3">&amp;&amp; !</span><span class="s1">oldScopedSlots</span><span class="s3">.</span><span class="s1">$stable</span><span class="s3">) ||</span>
+    <span class="s3">(</span><span class="s1">newScopedSlots </span><span class="s3">&amp;&amp; </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$scopedSlots</span><span class="s3">.</span><span class="s1">$key </span><span class="s3">!== </span><span class="s1">newScopedSlots</span><span class="s3">.</span><span class="s1">$key</span><span class="s3">) ||</span>
+    <span class="s3">(!</span><span class="s1">newScopedSlots </span><span class="s3">&amp;&amp; </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$scopedSlots</span><span class="s3">.</span><span class="s1">$key</span><span class="s3">)</span>
+  <span class="s3">)</span>
+
+  <span class="s4">// Any static slot children from the parent may have changed during parent's</span>
+  <span class="s4">// update. Dynamic scoped slots may also have changed. In such cases, a forced</span>
+  <span class="s4">// update is necessary to ensure correctness.</span>
+  <span class="s0">let </span><span class="s1">needsForceUpdate </span><span class="s3">= !!(</span>
+    <span class="s1">renderChildren </span><span class="s3">|| </span><span class="s4">// has new static slots</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">_renderChildren </span><span class="s3">|| </span><span class="s4">// has old static slots</span>
+    <span class="s1">hasDynamicScopedSlot</span>
+  <span class="s3">)</span>
+
+  <span class="s0">const </span><span class="s1">prevVNode </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$vnode</span>
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">_parentVnode </span><span class="s3">= </span><span class="s1">parentVnode</span>
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">$vnode </span><span class="s3">= </span><span class="s1">parentVnode </span><span class="s4">// update vm's placeholder node without re-render</span>
+
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_vnode</span><span class="s3">) {</span>
+    <span class="s4">// update child tree's parent</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">_vnode</span><span class="s3">.</span><span class="s1">parent </span><span class="s3">= </span><span class="s1">parentVnode</span>
+  <span class="s3">}</span>
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">_renderChildren </span><span class="s3">= </span><span class="s1">renderChildren</span>
+
+  <span class="s4">// update $attrs and $listeners hash</span>
+  <span class="s4">// these are also reactive so they may trigger child update if the child</span>
+  <span class="s4">// used them during render</span>
+  <span class="s0">const </span><span class="s1">attrs </span><span class="s3">= </span><span class="s1">parentVnode</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">attrs </span><span class="s3">|| </span><span class="s1">emptyObject</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_attrsProxy</span><span class="s3">) {</span>
+    <span class="s4">// force update if attrs are accessed and has changed since it may be</span>
+    <span class="s4">// passed to a child component.</span>
+    <span class="s0">if </span><span class="s3">(</span>
+      <span class="s1">syncSetupProxy</span><span class="s3">(</span>
+        <span class="s1">vm</span><span class="s3">.</span><span class="s1">_attrsProxy</span><span class="s3">,</span>
+        <span class="s1">attrs</span><span class="s3">,</span>
+        <span class="s3">(</span><span class="s1">prevVNode</span><span class="s3">.</span><span class="s1">data </span><span class="s3">&amp;&amp; </span><span class="s1">prevVNode</span><span class="s3">.</span><span class="s1">data</span><span class="s3">.</span><span class="s1">attrs</span><span class="s3">) || </span><span class="s1">emptyObject</span><span class="s3">,</span>
+        <span class="s1">vm</span><span class="s3">,</span>
+        <span class="s2">'$attrs'</span>
+      <span class="s3">)</span>
+    <span class="s3">) {</span>
+      <span class="s1">needsForceUpdate </span><span class="s3">= </span><span class="s0">true</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">$attrs </span><span class="s3">= </span><span class="s1">attrs</span>
+
+  <span class="s4">// update listeners</span>
+  <span class="s1">listeners </span><span class="s3">= </span><span class="s1">listeners </span><span class="s3">|| </span><span class="s1">emptyObject</span>
+  <span class="s0">const </span><span class="s1">prevListeners </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">_parentListeners</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_listenersProxy</span><span class="s3">) {</span>
+    <span class="s1">syncSetupProxy</span><span class="s3">(</span>
+      <span class="s1">vm</span><span class="s3">.</span><span class="s1">_listenersProxy</span><span class="s3">,</span>
+      <span class="s1">listeners</span><span class="s3">,</span>
+      <span class="s1">prevListeners </span><span class="s3">|| </span><span class="s1">emptyObject</span><span class="s3">,</span>
+      <span class="s1">vm</span><span class="s3">,</span>
+      <span class="s2">'$listeners'</span>
+    <span class="s3">)</span>
+  <span class="s3">}</span>
+  <span class="s1">vm</span><span class="s3">.</span><span class="s1">$listeners </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">_parentListeners </span><span class="s3">= </span><span class="s1">listeners</span>
+  <span class="s1">updateComponentListeners</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s1">listeners</span><span class="s3">, </span><span class="s1">prevListeners</span><span class="s3">)</span>
+
+  <span class="s4">// update props</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">propsData </span><span class="s3">&amp;&amp; </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">props</span><span class="s3">) {</span>
+    <span class="s1">toggleObserving</span><span class="s3">(</span><span class="s0">false</span><span class="s3">)</span>
+    <span class="s0">const </span><span class="s1">props </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_props</span>
+    <span class="s0">const </span><span class="s1">propKeys </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">_propKeys </span><span class="s3">|| []</span>
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">propKeys</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+      <span class="s0">const </span><span class="s1">key </span><span class="s3">= </span><span class="s1">propKeys</span><span class="s3">[</span><span class="s1">i</span><span class="s3">]</span>
+      <span class="s0">const </span><span class="s1">propOptions</span><span class="s3">: </span><span class="s1">any </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">props </span><span class="s4">// wtf flow?</span>
+      <span class="s1">props</span><span class="s3">[</span><span class="s1">key</span><span class="s3">] = </span><span class="s1">validateProp</span><span class="s3">(</span><span class="s1">key</span><span class="s3">, </span><span class="s1">propOptions</span><span class="s3">, </span><span class="s1">propsData</span><span class="s3">, </span><span class="s1">vm</span><span class="s3">)</span>
+    <span class="s3">}</span>
+    <span class="s1">toggleObserving</span><span class="s3">(</span><span class="s0">true</span><span class="s3">)</span>
+    <span class="s4">// keep a copy of raw propsData</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">.</span><span class="s1">propsData </span><span class="s3">= </span><span class="s1">propsData</span>
+  <span class="s3">}</span>
+
+  <span class="s4">// resolve slots + force update if has children</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">needsForceUpdate</span><span class="s3">) {</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">$slots </span><span class="s3">= </span><span class="s1">resolveSlots</span><span class="s3">(</span><span class="s1">renderChildren</span><span class="s3">, </span><span class="s1">parentVnode</span><span class="s3">.</span><span class="s1">context</span><span class="s3">)</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">$forceUpdate</span><span class="s3">()</span>
+  <span class="s3">}</span>
+
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">__DEV__</span><span class="s3">) {</span>
+    <span class="s1">isUpdatingChildComponent </span><span class="s3">= </span><span class="s0">false</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">function </span><span class="s1">isInInactiveTree</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">) {</span>
+  <span class="s0">while </span><span class="s3">(</span><span class="s1">vm </span><span class="s3">&amp;&amp; (</span><span class="s1">vm </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$parent</span><span class="s3">)) {</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_inactive</span><span class="s3">) </span><span class="s0">return true</span>
+  <span class="s3">}</span>
+  <span class="s0">return false</span>
+<span class="s3">}</span>
+
+<span class="s0">export function </span><span class="s1">activateChildComponent</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">: </span><span class="s1">Component</span><span class="s3">, </span><span class="s1">direct</span><span class="s3">?: </span><span class="s1">boolean</span><span class="s3">) {</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">direct</span><span class="s3">) {</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">_directInactive </span><span class="s3">= </span><span class="s0">false</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">isInInactiveTree</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">)) {</span>
+      <span class="s0">return</span>
+    <span class="s3">}</span>
+  <span class="s3">} </span><span class="s0">else if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_directInactive</span><span class="s3">) {</span>
+    <span class="s0">return</span>
+  <span class="s3">}</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_inactive </span><span class="s3">|| </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_inactive </span><span class="s3">=== </span><span class="s0">null</span><span class="s3">) {</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">_inactive </span><span class="s3">= </span><span class="s0">false</span>
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$children</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+      <span class="s1">activateChildComponent</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$children</span><span class="s3">[</span><span class="s1">i</span><span class="s3">])</span>
+    <span class="s3">}</span>
+    <span class="s1">callHook</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s2">'activated'</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">export function </span><span class="s1">deactivateChildComponent</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">: </span><span class="s1">Component</span><span class="s3">, </span><span class="s1">direct</span><span class="s3">?: </span><span class="s1">boolean</span><span class="s3">) {</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">direct</span><span class="s3">) {</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">_directInactive </span><span class="s3">= </span><span class="s0">true</span>
+    <span class="s0">if </span><span class="s3">(</span><span class="s1">isInInactiveTree</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">)) {</span>
+      <span class="s0">return</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+  <span class="s0">if </span><span class="s3">(!</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_inactive</span><span class="s3">) {</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">_inactive </span><span class="s3">= </span><span class="s0">true</span>
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$children</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+      <span class="s1">deactivateChildComponent</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$children</span><span class="s3">[</span><span class="s1">i</span><span class="s3">])</span>
+    <span class="s3">}</span>
+    <span class="s1">callHook</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">, </span><span class="s2">'deactivated'</span><span class="s3">)</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s0">export function </span><span class="s1">callHook</span><span class="s3">(</span>
+  <span class="s1">vm</span><span class="s3">: </span><span class="s1">Component</span><span class="s3">,</span>
+  <span class="s1">hook</span><span class="s3">: </span><span class="s1">string</span><span class="s3">,</span>
+  <span class="s1">args</span><span class="s3">?: </span><span class="s1">any</span><span class="s3">[],</span>
+  <span class="s1">setContext </span><span class="s3">= </span><span class="s0">true</span>
+<span class="s3">) {</span>
+  <span class="s4">// #7573 disable dep collection when invoking lifecycle hooks</span>
+  <span class="s1">pushTarget</span><span class="s3">()</span>
+  <span class="s0">const </span><span class="s1">prev </span><span class="s3">= </span><span class="s1">currentInstance</span>
+  <span class="s1">setContext </span><span class="s3">&amp;&amp; </span><span class="s1">setCurrentInstance</span><span class="s3">(</span><span class="s1">vm</span><span class="s3">)</span>
+  <span class="s0">const </span><span class="s1">handlers </span><span class="s3">= </span><span class="s1">vm</span><span class="s3">.</span><span class="s1">$options</span><span class="s3">[</span><span class="s1">hook</span><span class="s3">]</span>
+  <span class="s0">const </span><span class="s1">info </span><span class="s3">= </span><span class="s2">`</span><span class="s1">$</span><span class="s3">{</span><span class="s1">hook</span><span class="s3">} </span><span class="s2">hook`</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">handlers</span><span class="s3">) {</span>
+    <span class="s0">for </span><span class="s3">(</span><span class="s0">let </span><span class="s1">i </span><span class="s3">= </span><span class="s5">0</span><span class="s3">, </span><span class="s1">j </span><span class="s3">= </span><span class="s1">handlers</span><span class="s3">.</span><span class="s1">length</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&lt; </span><span class="s1">j</span><span class="s3">; </span><span class="s1">i</span><span class="s3">++) {</span>
+      <span class="s1">invokeWithErrorHandling</span><span class="s3">(</span><span class="s1">handlers</span><span class="s3">[</span><span class="s1">i</span><span class="s3">], </span><span class="s1">vm</span><span class="s3">, </span><span class="s1">args </span><span class="s3">|| </span><span class="s0">null</span><span class="s3">, </span><span class="s1">vm</span><span class="s3">, </span><span class="s1">info</span><span class="s3">)</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+  <span class="s0">if </span><span class="s3">(</span><span class="s1">vm</span><span class="s3">.</span><span class="s1">_hasHookEvent</span><span class="s3">) {</span>
+    <span class="s1">vm</span><span class="s3">.</span><span class="s1">$emit</span><span class="s3">(</span><span class="s2">'hook:' </span><span class="s3">+ </span><span class="s1">hook</span><span class="s3">)</span>
+  <span class="s3">}</span>
+  <span class="s1">setContext </span><span class="s3">&amp;&amp; </span><span class="s1">setCurrentInstance</span><span class="s3">(</span><span class="s1">prev</span><span class="s3">)</span>
+  <span class="s1">popTarget</span><span class="s3">()</span>
+<span class="s3">}</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<html>
+<head>
+<title>OriginalSource.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #67a37c; font-style: italic;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+OriginalSource.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+    MIT License http://www.opensource.org/licenses/mit-license.php 
+    Author Tobias Koppers @sokra 
+*/</span>
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">const </span><span class="s3">{ </span><span class="s1">getMap</span><span class="s3">, </span><span class="s1">getSourceAndMap </span><span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./helpers/getFromStreamChunks&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">splitIntoLines </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./helpers/splitIntoLines&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">getGeneratedSourceInfo </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./helpers/getGeneratedSourceInfo&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">Source </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./Source&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">splitIntoPotentialTokens </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./helpers/splitIntoPotentialTokens&quot;</span><span class="s3">);</span>
+
+<span class="s4">class </span><span class="s1">OriginalSource </span><span class="s4">extends </span><span class="s1">Source </span><span class="s3">{</span>
+	<span class="s1">constructor</span><span class="s3">(</span><span class="s1">value</span><span class="s3">, </span><span class="s1">name</span><span class="s3">) {</span>
+		<span class="s4">super</span><span class="s3">();</span>
+		<span class="s4">const </span><span class="s1">isBuffer </span><span class="s3">= </span><span class="s1">Buffer</span><span class="s3">.</span><span class="s1">isBuffer</span><span class="s3">(</span><span class="s1">value</span><span class="s3">);</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_value </span><span class="s3">= </span><span class="s1">isBuffer </span><span class="s3">? </span><span class="s1">undefined </span><span class="s3">: </span><span class="s1">value</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_valueAsBuffer </span><span class="s3">= </span><span class="s1">isBuffer </span><span class="s3">? </span><span class="s1">value </span><span class="s3">: </span><span class="s1">undefined</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">_name </span><span class="s3">= </span><span class="s1">name</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s1">getName</span><span class="s3">() {</span>
+		<span class="s4">return this</span><span class="s3">.</span><span class="s1">_name</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s1">source</span><span class="s3">() {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_value </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_value </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_valueAsBuffer</span><span class="s3">.</span><span class="s1">toString</span><span class="s3">(</span><span class="s2">&quot;utf-8&quot;</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s4">return this</span><span class="s3">.</span><span class="s1">_value</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s1">buffer</span><span class="s3">() {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_valueAsBuffer </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_valueAsBuffer </span><span class="s3">= </span><span class="s1">Buffer</span><span class="s3">.</span><span class="s1">from</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_value</span><span class="s3">, </span><span class="s2">&quot;utf-8&quot;</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s4">return this</span><span class="s3">.</span><span class="s1">_valueAsBuffer</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s1">map</span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+		<span class="s4">return </span><span class="s1">getMap</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">options</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s1">sourceAndMap</span><span class="s3">(</span><span class="s1">options</span><span class="s3">) {</span>
+		<span class="s4">return </span><span class="s1">getSourceAndMap</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">options</span><span class="s3">);</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{object} options options</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{function(string, number, number, number, number, number, number): void} onChunk called for each chunk of code</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{function(number, string, string)} onSource called for each source</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{function(number, string)} onName called for each name</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">streamChunks</span><span class="s3">(</span><span class="s1">options</span><span class="s3">, </span><span class="s1">onChunk</span><span class="s3">, </span><span class="s1">onSource</span><span class="s3">, </span><span class="s1">onName</span><span class="s3">) {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_value </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_value </span><span class="s3">= </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_valueAsBuffer</span><span class="s3">.</span><span class="s1">toString</span><span class="s3">(</span><span class="s2">&quot;utf-8&quot;</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s1">onSource</span><span class="s3">(</span><span class="s7">0</span><span class="s3">, </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_name</span><span class="s3">, </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_value</span><span class="s3">);</span>
+		<span class="s4">const </span><span class="s1">finalSource </span><span class="s3">= !!(</span><span class="s1">options </span><span class="s3">&amp;&amp; </span><span class="s1">options</span><span class="s3">.</span><span class="s1">finalSource</span><span class="s3">);</span>
+		<span class="s4">if </span><span class="s3">(!</span><span class="s1">options </span><span class="s3">|| </span><span class="s1">options</span><span class="s3">.</span><span class="s1">columns </span><span class="s3">!== </span><span class="s4">false</span><span class="s3">) {</span>
+			<span class="s0">// With column info we need to read all lines and split them</span>
+			<span class="s4">const </span><span class="s1">matches </span><span class="s3">= </span><span class="s1">splitIntoPotentialTokens</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_value</span><span class="s3">);</span>
+			<span class="s4">let </span><span class="s1">line </span><span class="s3">= </span><span class="s7">1</span><span class="s3">;</span>
+			<span class="s4">let </span><span class="s1">column </span><span class="s3">= </span><span class="s7">0</span><span class="s3">;</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">matches </span><span class="s3">!== </span><span class="s4">null</span><span class="s3">) {</span>
+				<span class="s4">for </span><span class="s3">(</span><span class="s4">const </span><span class="s1">match of matches</span><span class="s3">) {</span>
+					<span class="s4">const </span><span class="s1">isEndOfLine </span><span class="s3">= </span><span class="s1">match</span><span class="s3">.</span><span class="s1">endsWith</span><span class="s3">(</span><span class="s2">&quot;</span><span class="s4">\n</span><span class="s2">&quot;</span><span class="s3">);</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">isEndOfLine </span><span class="s3">&amp;&amp; </span><span class="s1">match</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s7">1</span><span class="s3">) {</span>
+						<span class="s4">if </span><span class="s3">(!</span><span class="s1">finalSource</span><span class="s3">) </span><span class="s1">onChunk</span><span class="s3">(</span><span class="s1">match</span><span class="s3">, </span><span class="s1">line</span><span class="s3">, </span><span class="s1">column</span><span class="s3">, -</span><span class="s7">1</span><span class="s3">, -</span><span class="s7">1</span><span class="s3">, -</span><span class="s7">1</span><span class="s3">, -</span><span class="s7">1</span><span class="s3">);</span>
+					<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+						<span class="s4">const </span><span class="s1">chunk </span><span class="s3">= </span><span class="s1">finalSource </span><span class="s3">? </span><span class="s1">undefined </span><span class="s3">: </span><span class="s1">match</span><span class="s3">;</span>
+						<span class="s1">onChunk</span><span class="s3">(</span><span class="s1">chunk</span><span class="s3">, </span><span class="s1">line</span><span class="s3">, </span><span class="s1">column</span><span class="s3">, </span><span class="s7">0</span><span class="s3">, </span><span class="s1">line</span><span class="s3">, </span><span class="s1">column</span><span class="s3">, -</span><span class="s7">1</span><span class="s3">);</span>
+					<span class="s3">}</span>
+					<span class="s4">if </span><span class="s3">(</span><span class="s1">isEndOfLine</span><span class="s3">) {</span>
+						<span class="s1">line</span><span class="s3">++;</span>
+						<span class="s1">column </span><span class="s3">= </span><span class="s7">0</span><span class="s3">;</span>
+					<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+						<span class="s1">column </span><span class="s3">+= </span><span class="s1">match</span><span class="s3">.</span><span class="s1">length</span><span class="s3">;</span>
+					<span class="s3">}</span>
+				<span class="s3">}</span>
+			<span class="s3">}</span>
+			<span class="s4">return </span><span class="s3">{</span>
+				<span class="s1">generatedLine</span><span class="s3">: </span><span class="s1">line</span><span class="s3">,</span>
+				<span class="s1">generatedColumn</span><span class="s3">: </span><span class="s1">column</span><span class="s3">,</span>
+				<span class="s1">source</span><span class="s3">: </span><span class="s1">finalSource </span><span class="s3">? </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_value </span><span class="s3">: </span><span class="s1">undefined</span>
+			<span class="s3">};</span>
+		<span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">finalSource</span><span class="s3">) {</span>
+			<span class="s0">// Without column info and with final source we only</span>
+			<span class="s0">// need meta info to generate mapping</span>
+			<span class="s4">const </span><span class="s1">result </span><span class="s3">= </span><span class="s1">getGeneratedSourceInfo</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_value</span><span class="s3">);</span>
+			<span class="s4">const </span><span class="s3">{ </span><span class="s1">generatedLine</span><span class="s3">, </span><span class="s1">generatedColumn </span><span class="s3">} = </span><span class="s1">result</span><span class="s3">;</span>
+			<span class="s4">if </span><span class="s3">(</span><span class="s1">generatedColumn </span><span class="s3">=== </span><span class="s7">0</span><span class="s3">) {</span>
+				<span class="s4">for </span><span class="s3">(</span><span class="s4">let </span><span class="s1">line </span><span class="s3">= </span><span class="s7">1</span><span class="s3">; </span><span class="s1">line </span><span class="s3">&lt; </span><span class="s1">generatedLine</span><span class="s3">; </span><span class="s1">line</span><span class="s3">++)</span>
+					<span class="s1">onChunk</span><span class="s3">(</span><span class="s1">undefined</span><span class="s3">, </span><span class="s1">line</span><span class="s3">, </span><span class="s7">0</span><span class="s3">, </span><span class="s7">0</span><span class="s3">, </span><span class="s1">line</span><span class="s3">, </span><span class="s7">0</span><span class="s3">, -</span><span class="s7">1</span><span class="s3">);</span>
+			<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+				<span class="s4">for </span><span class="s3">(</span><span class="s4">let </span><span class="s1">line </span><span class="s3">= </span><span class="s7">1</span><span class="s3">; </span><span class="s1">line </span><span class="s3">&lt;= </span><span class="s1">generatedLine</span><span class="s3">; </span><span class="s1">line</span><span class="s3">++)</span>
+					<span class="s1">onChunk</span><span class="s3">(</span><span class="s1">undefined</span><span class="s3">, </span><span class="s1">line</span><span class="s3">, </span><span class="s7">0</span><span class="s3">, </span><span class="s7">0</span><span class="s3">, </span><span class="s1">line</span><span class="s3">, </span><span class="s7">0</span><span class="s3">, -</span><span class="s7">1</span><span class="s3">);</span>
+			<span class="s3">}</span>
+			<span class="s4">return </span><span class="s1">result</span><span class="s3">;</span>
+		<span class="s3">} </span><span class="s4">else </span><span class="s3">{</span>
+			<span class="s0">// Without column info, but also without final source</span>
+			<span class="s0">// we need to split source by lines</span>
+			<span class="s4">let </span><span class="s1">line </span><span class="s3">= </span><span class="s7">1</span><span class="s3">;</span>
+			<span class="s4">const </span><span class="s1">matches </span><span class="s3">= </span><span class="s1">splitIntoLines</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_value</span><span class="s3">);</span>
+			<span class="s4">let </span><span class="s1">match</span><span class="s3">;</span>
+			<span class="s4">for </span><span class="s3">(</span><span class="s1">match of matches</span><span class="s3">) {</span>
+				<span class="s1">onChunk</span><span class="s3">(</span><span class="s1">finalSource </span><span class="s3">? </span><span class="s1">undefined </span><span class="s3">: </span><span class="s1">match</span><span class="s3">, </span><span class="s1">line</span><span class="s3">, </span><span class="s7">0</span><span class="s3">, </span><span class="s7">0</span><span class="s3">, </span><span class="s1">line</span><span class="s3">, </span><span class="s7">0</span><span class="s3">, -</span><span class="s7">1</span><span class="s3">);</span>
+				<span class="s1">line</span><span class="s3">++;</span>
+			<span class="s3">}</span>
+			<span class="s4">return </span><span class="s1">matches</span><span class="s3">.</span><span class="s1">length </span><span class="s3">=== </span><span class="s7">0 </span><span class="s3">|| </span><span class="s1">match</span><span class="s3">.</span><span class="s1">endsWith</span><span class="s3">(</span><span class="s2">&quot;</span><span class="s4">\n</span><span class="s2">&quot;</span><span class="s3">)</span>
+				<span class="s3">? {</span>
+						<span class="s1">generatedLine</span><span class="s3">: </span><span class="s1">matches</span><span class="s3">.</span><span class="s1">length </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">,</span>
+						<span class="s1">generatedColumn</span><span class="s3">: </span><span class="s7">0</span><span class="s3">,</span>
+						<span class="s1">source</span><span class="s3">: </span><span class="s1">finalSource </span><span class="s3">? </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_value </span><span class="s3">: </span><span class="s1">undefined</span>
+				  <span class="s3">}</span>
+				<span class="s3">: {</span>
+						<span class="s1">generatedLine</span><span class="s3">: </span><span class="s1">matches</span><span class="s3">.</span><span class="s1">length</span><span class="s3">,</span>
+						<span class="s1">generatedColumn</span><span class="s3">: </span><span class="s1">match</span><span class="s3">.</span><span class="s1">length</span><span class="s3">,</span>
+						<span class="s1">source</span><span class="s3">: </span><span class="s1">finalSource </span><span class="s3">? </span><span class="s4">this</span><span class="s3">.</span><span class="s1">_value </span><span class="s3">: </span><span class="s1">undefined</span>
+				  <span class="s3">};</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+
+	<span class="s1">updateHash</span><span class="s3">(</span><span class="s1">hash</span><span class="s3">) {</span>
+		<span class="s4">if </span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_valueAsBuffer </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+			<span class="s4">this</span><span class="s3">.</span><span class="s1">_valueAsBuffer </span><span class="s3">= </span><span class="s1">Buffer</span><span class="s3">.</span><span class="s1">from</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_value</span><span class="s3">, </span><span class="s2">&quot;utf-8&quot;</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s1">hash</span><span class="s3">.</span><span class="s1">update</span><span class="s3">(</span><span class="s2">&quot;OriginalSource&quot;</span><span class="s3">);</span>
+		<span class="s1">hash</span><span class="s3">.</span><span class="s1">update</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_valueAsBuffer</span><span class="s3">);</span>
+		<span class="s1">hash</span><span class="s3">.</span><span class="s1">update</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">_name </span><span class="s3">|| </span><span class="s2">&quot;&quot;</span><span class="s3">);</span>
+	<span class="s3">}</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">OriginalSource</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

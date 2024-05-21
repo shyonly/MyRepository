@@ -1,0 +1,195 @@
+<html>
+<head>
+<title>render.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+render.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{</span>
+  <span class="s1">warn</span><span class="s2">,</span>
+  <span class="s1">nextTick</span><span class="s2">,</span>
+  <span class="s1">emptyObject</span><span class="s2">,</span>
+  <span class="s1">handleError</span><span class="s2">,</span>
+  <span class="s1">defineReactive</span><span class="s2">,</span>
+  <span class="s1">isArray</span>
+<span class="s2">} </span><span class="s1">from </span><span class="s3">'../util/index'</span>
+
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">createElement </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../vdom/create-element'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">installRenderHelpers </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./render-helpers/index'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">resolveSlots </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./render-helpers/resolve-slots'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">normalizeScopedSlots </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../vdom/helpers/normalize-scoped-slots'</span>
+<span class="s0">import </span><span class="s1">VNode</span><span class="s2">, { </span><span class="s1">createEmptyVNode </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../vdom/vnode'</span>
+
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">isUpdatingChildComponent </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./lifecycle'</span>
+<span class="s0">import </span><span class="s1">type </span><span class="s2">{ </span><span class="s1">Component </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'types/component'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">setCurrentInstance </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'v3/currentInstance'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">syncSetupSlots </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'v3/apiSetup'</span>
+
+<span class="s0">export function </span><span class="s1">initRender</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">: </span><span class="s1">Component</span><span class="s2">) {</span>
+  <span class="s1">vm</span><span class="s2">.</span><span class="s1">_vnode </span><span class="s2">= </span><span class="s0">null </span><span class="s4">// the root of the child tree</span>
+  <span class="s1">vm</span><span class="s2">.</span><span class="s1">_staticTrees </span><span class="s2">= </span><span class="s0">null </span><span class="s4">// v-once cached trees</span>
+  <span class="s0">const </span><span class="s1">options </span><span class="s2">= </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$options</span>
+  <span class="s0">const </span><span class="s1">parentVnode </span><span class="s2">= (</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$vnode </span><span class="s2">= </span><span class="s1">options</span><span class="s2">.</span><span class="s1">_parentVnode</span><span class="s2">!) </span><span class="s4">// the placeholder node in parent tree</span>
+  <span class="s0">const </span><span class="s1">renderContext </span><span class="s2">= </span><span class="s1">parentVnode </span><span class="s2">&amp;&amp; (</span><span class="s1">parentVnode</span><span class="s2">.</span><span class="s1">context </span><span class="s2">as </span><span class="s1">Component</span><span class="s2">)</span>
+  <span class="s1">vm</span><span class="s2">.</span><span class="s1">$slots </span><span class="s2">= </span><span class="s1">resolveSlots</span><span class="s2">(</span><span class="s1">options</span><span class="s2">.</span><span class="s1">_renderChildren</span><span class="s2">, </span><span class="s1">renderContext</span><span class="s2">)</span>
+  <span class="s1">vm</span><span class="s2">.</span><span class="s1">$scopedSlots </span><span class="s2">= </span><span class="s1">parentVnode</span>
+    <span class="s2">? </span><span class="s1">normalizeScopedSlots</span><span class="s2">(</span>
+        <span class="s1">vm</span><span class="s2">.</span><span class="s1">$parent</span><span class="s2">!,</span>
+        <span class="s1">parentVnode</span><span class="s2">.</span><span class="s1">data</span><span class="s2">!.</span><span class="s1">scopedSlots</span><span class="s2">,</span>
+        <span class="s1">vm</span><span class="s2">.</span><span class="s1">$slots</span>
+      <span class="s2">)</span>
+    <span class="s2">: </span><span class="s1">emptyObject</span>
+  <span class="s4">// bind the createElement fn to this instance</span>
+  <span class="s4">// so that we get proper render context inside it.</span>
+  <span class="s4">// args order: tag, data, children, normalizationType, alwaysNormalize</span>
+  <span class="s4">// internal version is used by render functions compiled from templates</span>
+  <span class="s4">// @ts-expect-error</span>
+  <span class="s1">vm</span><span class="s2">.</span><span class="s1">_c </span><span class="s2">= (</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">, </span><span class="s1">c</span><span class="s2">, </span><span class="s1">d</span><span class="s2">) =&gt; </span><span class="s1">createElement</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">, </span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">, </span><span class="s1">c</span><span class="s2">, </span><span class="s1">d</span><span class="s2">, </span><span class="s0">false</span><span class="s2">)</span>
+  <span class="s4">// normalization is always applied for the public version, used in</span>
+  <span class="s4">// user-written render functions.</span>
+  <span class="s4">// @ts-expect-error</span>
+  <span class="s1">vm</span><span class="s2">.</span><span class="s1">$createElement </span><span class="s2">= (</span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">, </span><span class="s1">c</span><span class="s2">, </span><span class="s1">d</span><span class="s2">) =&gt; </span><span class="s1">createElement</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">, </span><span class="s1">a</span><span class="s2">, </span><span class="s1">b</span><span class="s2">, </span><span class="s1">c</span><span class="s2">, </span><span class="s1">d</span><span class="s2">, </span><span class="s0">true</span><span class="s2">)</span>
+
+  <span class="s4">// $attrs &amp; $listeners are exposed for easier HOC creation.</span>
+  <span class="s4">// they need to be reactive so that HOCs using them are always updated</span>
+  <span class="s0">const </span><span class="s1">parentData </span><span class="s2">= </span><span class="s1">parentVnode </span><span class="s2">&amp;&amp; </span><span class="s1">parentVnode</span><span class="s2">.</span><span class="s1">data</span>
+
+  <span class="s4">/* istanbul ignore else */</span>
+  <span class="s0">if </span><span class="s2">(</span><span class="s1">__DEV__</span><span class="s2">) {</span>
+    <span class="s1">defineReactive</span><span class="s2">(</span>
+      <span class="s1">vm</span><span class="s2">,</span>
+      <span class="s3">'$attrs'</span><span class="s2">,</span>
+      <span class="s2">(</span><span class="s1">parentData </span><span class="s2">&amp;&amp; </span><span class="s1">parentData</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">) || </span><span class="s1">emptyObject</span><span class="s2">,</span>
+      <span class="s2">() =&gt; {</span>
+        <span class="s2">!</span><span class="s1">isUpdatingChildComponent </span><span class="s2">&amp;&amp; </span><span class="s1">warn</span><span class="s2">(</span><span class="s3">`$attrs is readonly.`</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">)</span>
+      <span class="s2">},</span>
+      <span class="s0">true</span>
+    <span class="s2">)</span>
+    <span class="s1">defineReactive</span><span class="s2">(</span>
+      <span class="s1">vm</span><span class="s2">,</span>
+      <span class="s3">'$listeners'</span><span class="s2">,</span>
+      <span class="s1">options</span><span class="s2">.</span><span class="s1">_parentListeners </span><span class="s2">|| </span><span class="s1">emptyObject</span><span class="s2">,</span>
+      <span class="s2">() =&gt; {</span>
+        <span class="s2">!</span><span class="s1">isUpdatingChildComponent </span><span class="s2">&amp;&amp; </span><span class="s1">warn</span><span class="s2">(</span><span class="s3">`$listeners is readonly.`</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">)</span>
+      <span class="s2">},</span>
+      <span class="s0">true</span>
+    <span class="s2">)</span>
+  <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+    <span class="s1">defineReactive</span><span class="s2">(</span>
+      <span class="s1">vm</span><span class="s2">,</span>
+      <span class="s3">'$attrs'</span><span class="s2">,</span>
+      <span class="s2">(</span><span class="s1">parentData </span><span class="s2">&amp;&amp; </span><span class="s1">parentData</span><span class="s2">.</span><span class="s1">attrs</span><span class="s2">) || </span><span class="s1">emptyObject</span><span class="s2">,</span>
+      <span class="s0">null</span><span class="s2">,</span>
+      <span class="s0">true</span>
+    <span class="s2">)</span>
+    <span class="s1">defineReactive</span><span class="s2">(</span>
+      <span class="s1">vm</span><span class="s2">,</span>
+      <span class="s3">'$listeners'</span><span class="s2">,</span>
+      <span class="s1">options</span><span class="s2">.</span><span class="s1">_parentListeners </span><span class="s2">|| </span><span class="s1">emptyObject</span><span class="s2">,</span>
+      <span class="s0">null</span><span class="s2">,</span>
+      <span class="s0">true</span>
+    <span class="s2">)</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">export let </span><span class="s1">currentRenderingInstance</span><span class="s2">: </span><span class="s1">Component </span><span class="s2">| </span><span class="s0">null </span><span class="s2">= </span><span class="s0">null</span>
+
+<span class="s4">// for testing only</span>
+<span class="s0">export function </span><span class="s1">setCurrentRenderingInstance</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">: </span><span class="s1">Component</span><span class="s2">) {</span>
+  <span class="s1">currentRenderingInstance </span><span class="s2">= </span><span class="s1">vm</span>
+<span class="s2">}</span>
+
+<span class="s0">export function </span><span class="s1">renderMixin</span><span class="s2">(</span><span class="s1">Vue</span><span class="s2">: </span><span class="s0">typeof </span><span class="s1">Component</span><span class="s2">) {</span>
+  <span class="s4">// install runtime convenience helpers</span>
+  <span class="s1">installRenderHelpers</span><span class="s2">(</span><span class="s1">Vue</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">)</span>
+
+  <span class="s1">Vue</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">$nextTick </span><span class="s2">= </span><span class="s0">function </span><span class="s2">(</span><span class="s1">fn</span><span class="s2">: (</span><span class="s1">...args</span><span class="s2">: </span><span class="s1">any</span><span class="s2">[]) =&gt; </span><span class="s1">any</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">nextTick</span><span class="s2">(</span><span class="s1">fn</span><span class="s2">, </span><span class="s0">this</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s1">Vue</span><span class="s2">.</span><span class="s1">prototype</span><span class="s2">.</span><span class="s1">_render </span><span class="s2">= </span><span class="s0">function </span><span class="s2">(): </span><span class="s1">VNode </span><span class="s2">{</span>
+    <span class="s0">const </span><span class="s1">vm</span><span class="s2">: </span><span class="s1">Component </span><span class="s2">= </span><span class="s0">this</span>
+    <span class="s0">const </span><span class="s2">{ </span><span class="s1">render</span><span class="s2">, </span><span class="s1">_parentVnode </span><span class="s2">} = </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$options</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">_parentVnode </span><span class="s2">&amp;&amp; </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_isMounted</span><span class="s2">) {</span>
+      <span class="s1">vm</span><span class="s2">.</span><span class="s1">$scopedSlots </span><span class="s2">= </span><span class="s1">normalizeScopedSlots</span><span class="s2">(</span>
+        <span class="s1">vm</span><span class="s2">.</span><span class="s1">$parent</span><span class="s2">!,</span>
+        <span class="s1">_parentVnode</span><span class="s2">.</span><span class="s1">data</span><span class="s2">!.</span><span class="s1">scopedSlots</span><span class="s2">,</span>
+        <span class="s1">vm</span><span class="s2">.</span><span class="s1">$slots</span><span class="s2">,</span>
+        <span class="s1">vm</span><span class="s2">.</span><span class="s1">$scopedSlots</span>
+      <span class="s2">)</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_slotsProxy</span><span class="s2">) {</span>
+        <span class="s1">syncSetupSlots</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_slotsProxy</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$scopedSlots</span><span class="s2">)</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s4">// set parent vnode. this allows render functions to have access</span>
+    <span class="s4">// to the data on the placeholder node.</span>
+    <span class="s1">vm</span><span class="s2">.</span><span class="s1">$vnode </span><span class="s2">= </span><span class="s1">_parentVnode</span><span class="s2">!</span>
+    <span class="s4">// render self</span>
+    <span class="s0">let </span><span class="s1">vnode</span>
+    <span class="s0">try </span><span class="s2">{</span>
+      <span class="s4">// There's no need to maintain a stack because all render fns are called</span>
+      <span class="s4">// separately from one another. Nested component's render fns are called</span>
+      <span class="s4">// when parent component is patched.</span>
+      <span class="s1">setCurrentInstance</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">)</span>
+      <span class="s1">currentRenderingInstance </span><span class="s2">= </span><span class="s1">vm</span>
+      <span class="s1">vnode </span><span class="s2">= </span><span class="s1">render</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_renderProxy</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$createElement</span><span class="s2">)</span>
+    <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">e</span><span class="s2">: </span><span class="s1">any</span><span class="s2">) {</span>
+      <span class="s1">handleError</span><span class="s2">(</span><span class="s1">e</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">, </span><span class="s3">`render`</span><span class="s2">)</span>
+      <span class="s4">// return error render result,</span>
+      <span class="s4">// or previous vnode to prevent render error causing blank component</span>
+      <span class="s4">/* istanbul ignore else */</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">__DEV__ </span><span class="s2">&amp;&amp; </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$options</span><span class="s2">.</span><span class="s1">renderError</span><span class="s2">) {</span>
+        <span class="s0">try </span><span class="s2">{</span>
+          <span class="s1">vnode </span><span class="s2">= </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">$options</span><span class="s2">.</span><span class="s1">renderError</span><span class="s2">.</span><span class="s1">call</span><span class="s2">(</span>
+            <span class="s1">vm</span><span class="s2">.</span><span class="s1">_renderProxy</span><span class="s2">,</span>
+            <span class="s1">vm</span><span class="s2">.</span><span class="s1">$createElement</span><span class="s2">,</span>
+            <span class="s1">e</span>
+          <span class="s2">)</span>
+        <span class="s2">} </span><span class="s0">catch </span><span class="s2">(</span><span class="s1">e</span><span class="s2">: </span><span class="s1">any</span><span class="s2">) {</span>
+          <span class="s1">handleError</span><span class="s2">(</span><span class="s1">e</span><span class="s2">, </span><span class="s1">vm</span><span class="s2">, </span><span class="s3">`renderError`</span><span class="s2">)</span>
+          <span class="s1">vnode </span><span class="s2">= </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_vnode</span>
+        <span class="s2">}</span>
+      <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+        <span class="s1">vnode </span><span class="s2">= </span><span class="s1">vm</span><span class="s2">.</span><span class="s1">_vnode</span>
+      <span class="s2">}</span>
+    <span class="s2">} </span><span class="s0">finally </span><span class="s2">{</span>
+      <span class="s1">currentRenderingInstance </span><span class="s2">= </span><span class="s0">null</span>
+      <span class="s1">setCurrentInstance</span><span class="s2">()</span>
+    <span class="s2">}</span>
+    <span class="s4">// if the returned array contains only a single node, allow it</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">) &amp;&amp; </span><span class="s1">vnode</span><span class="s2">.</span><span class="s1">length </span><span class="s2">=== </span><span class="s5">1</span><span class="s2">) {</span>
+      <span class="s1">vnode </span><span class="s2">= </span><span class="s1">vnode</span><span class="s2">[</span><span class="s5">0</span><span class="s2">]</span>
+    <span class="s2">}</span>
+    <span class="s4">// return empty vnode in case the render function errored out</span>
+    <span class="s0">if </span><span class="s2">(!(</span><span class="s1">vnode </span><span class="s0">instanceof </span><span class="s1">VNode</span><span class="s2">)) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">__DEV__ </span><span class="s2">&amp;&amp; </span><span class="s1">isArray</span><span class="s2">(</span><span class="s1">vnode</span><span class="s2">)) {</span>
+        <span class="s1">warn</span><span class="s2">(</span>
+          <span class="s3">'Multiple root nodes returned from render function. Render function ' </span><span class="s2">+</span>
+            <span class="s3">'should return a single root node.'</span><span class="s2">,</span>
+          <span class="s1">vm</span>
+        <span class="s2">)</span>
+      <span class="s2">}</span>
+      <span class="s1">vnode </span><span class="s2">= </span><span class="s1">createEmptyVNode</span><span class="s2">()</span>
+    <span class="s2">}</span>
+    <span class="s4">// set parent</span>
+    <span class="s1">vnode</span><span class="s2">.</span><span class="s1">parent </span><span class="s2">= </span><span class="s1">_parentVnode</span>
+    <span class="s0">return </span><span class="s1">vnode</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

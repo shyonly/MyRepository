@@ -1,0 +1,107 @@
+<html>
+<head>
+<title>end-of-stream.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+end-of-stream.js</font>
+</center></td></tr></table>
+<pre><span class="s0">// Ported from https://github.com/mafintosh/end-of-stream with</span>
+<span class="s0">// permission from the author, Mathias Buus (@mafintosh).</span>
+
+<span class="s2">'use strict'</span><span class="s3">;</span>
+
+<span class="s4">var </span><span class="s1">ERR_STREAM_PREMATURE_CLOSE </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">'../../../errors'</span><span class="s3">).</span><span class="s1">codes</span><span class="s3">.</span><span class="s1">ERR_STREAM_PREMATURE_CLOSE</span><span class="s3">;</span>
+<span class="s4">function </span><span class="s1">once</span><span class="s3">(</span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s4">var </span><span class="s1">called </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+  <span class="s4">return function </span><span class="s3">() {</span>
+    <span class="s4">if </span><span class="s3">(</span><span class="s1">called</span><span class="s3">) </span><span class="s4">return</span><span class="s3">;</span>
+    <span class="s1">called </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+    <span class="s4">for </span><span class="s3">(</span><span class="s4">var </span><span class="s1">_len </span><span class="s3">= </span><span class="s1">arguments</span><span class="s3">.</span><span class="s1">length</span><span class="s3">, </span><span class="s1">args </span><span class="s3">= </span><span class="s4">new </span><span class="s1">Array</span><span class="s3">(</span><span class="s1">_len</span><span class="s3">), </span><span class="s1">_key </span><span class="s3">= </span><span class="s5">0</span><span class="s3">; </span><span class="s1">_key </span><span class="s3">&lt; </span><span class="s1">_len</span><span class="s3">; </span><span class="s1">_key</span><span class="s3">++) {</span>
+      <span class="s1">args</span><span class="s3">[</span><span class="s1">_key</span><span class="s3">] = </span><span class="s1">arguments</span><span class="s3">[</span><span class="s1">_key</span><span class="s3">];</span>
+    <span class="s3">}</span>
+    <span class="s1">callback</span><span class="s3">.</span><span class="s1">apply</span><span class="s3">(</span><span class="s4">this</span><span class="s3">, </span><span class="s1">args</span><span class="s3">);</span>
+  <span class="s3">};</span>
+<span class="s3">}</span>
+<span class="s4">function </span><span class="s1">noop</span><span class="s3">() {}</span>
+<span class="s4">function </span><span class="s1">isRequest</span><span class="s3">(</span><span class="s1">stream</span><span class="s3">) {</span>
+  <span class="s4">return </span><span class="s1">stream</span><span class="s3">.</span><span class="s1">setHeader </span><span class="s3">&amp;&amp; </span><span class="s4">typeof </span><span class="s1">stream</span><span class="s3">.</span><span class="s1">abort </span><span class="s3">=== </span><span class="s2">'function'</span><span class="s3">;</span>
+<span class="s3">}</span>
+<span class="s4">function </span><span class="s1">eos</span><span class="s3">(</span><span class="s1">stream</span><span class="s3">, </span><span class="s1">opts</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) {</span>
+  <span class="s4">if </span><span class="s3">(</span><span class="s4">typeof </span><span class="s1">opts </span><span class="s3">=== </span><span class="s2">'function'</span><span class="s3">) </span><span class="s4">return </span><span class="s1">eos</span><span class="s3">(</span><span class="s1">stream</span><span class="s3">, </span><span class="s4">null</span><span class="s3">, </span><span class="s1">opts</span><span class="s3">);</span>
+  <span class="s4">if </span><span class="s3">(!</span><span class="s1">opts</span><span class="s3">) </span><span class="s1">opts </span><span class="s3">= {};</span>
+  <span class="s1">callback </span><span class="s3">= </span><span class="s1">once</span><span class="s3">(</span><span class="s1">callback </span><span class="s3">|| </span><span class="s1">noop</span><span class="s3">);</span>
+  <span class="s4">var </span><span class="s1">readable </span><span class="s3">= </span><span class="s1">opts</span><span class="s3">.</span><span class="s1">readable </span><span class="s3">|| </span><span class="s1">opts</span><span class="s3">.</span><span class="s1">readable </span><span class="s3">!== </span><span class="s4">false </span><span class="s3">&amp;&amp; </span><span class="s1">stream</span><span class="s3">.</span><span class="s1">readable</span><span class="s3">;</span>
+  <span class="s4">var </span><span class="s1">writable </span><span class="s3">= </span><span class="s1">opts</span><span class="s3">.</span><span class="s1">writable </span><span class="s3">|| </span><span class="s1">opts</span><span class="s3">.</span><span class="s1">writable </span><span class="s3">!== </span><span class="s4">false </span><span class="s3">&amp;&amp; </span><span class="s1">stream</span><span class="s3">.</span><span class="s1">writable</span><span class="s3">;</span>
+  <span class="s4">var </span><span class="s1">onlegacyfinish </span><span class="s3">= </span><span class="s4">function </span><span class="s1">onlegacyfinish</span><span class="s3">() {</span>
+    <span class="s4">if </span><span class="s3">(!</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">writable</span><span class="s3">) </span><span class="s1">onfinish</span><span class="s3">();</span>
+  <span class="s3">};</span>
+  <span class="s4">var </span><span class="s1">writableEnded </span><span class="s3">= </span><span class="s1">stream</span><span class="s3">.</span><span class="s1">_writableState </span><span class="s3">&amp;&amp; </span><span class="s1">stream</span><span class="s3">.</span><span class="s1">_writableState</span><span class="s3">.</span><span class="s1">finished</span><span class="s3">;</span>
+  <span class="s4">var </span><span class="s1">onfinish </span><span class="s3">= </span><span class="s4">function </span><span class="s1">onfinish</span><span class="s3">() {</span>
+    <span class="s1">writable </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+    <span class="s1">writableEnded </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+    <span class="s4">if </span><span class="s3">(!</span><span class="s1">readable</span><span class="s3">) </span><span class="s1">callback</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">stream</span><span class="s3">);</span>
+  <span class="s3">};</span>
+  <span class="s4">var </span><span class="s1">readableEnded </span><span class="s3">= </span><span class="s1">stream</span><span class="s3">.</span><span class="s1">_readableState </span><span class="s3">&amp;&amp; </span><span class="s1">stream</span><span class="s3">.</span><span class="s1">_readableState</span><span class="s3">.</span><span class="s1">endEmitted</span><span class="s3">;</span>
+  <span class="s4">var </span><span class="s1">onend </span><span class="s3">= </span><span class="s4">function </span><span class="s1">onend</span><span class="s3">() {</span>
+    <span class="s1">readable </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+    <span class="s1">readableEnded </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+    <span class="s4">if </span><span class="s3">(!</span><span class="s1">writable</span><span class="s3">) </span><span class="s1">callback</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">stream</span><span class="s3">);</span>
+  <span class="s3">};</span>
+  <span class="s4">var </span><span class="s1">onerror </span><span class="s3">= </span><span class="s4">function </span><span class="s1">onerror</span><span class="s3">(</span><span class="s1">err</span><span class="s3">) {</span>
+    <span class="s1">callback</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">stream</span><span class="s3">, </span><span class="s1">err</span><span class="s3">);</span>
+  <span class="s3">};</span>
+  <span class="s4">var </span><span class="s1">onclose </span><span class="s3">= </span><span class="s4">function </span><span class="s1">onclose</span><span class="s3">() {</span>
+    <span class="s4">var </span><span class="s1">err</span><span class="s3">;</span>
+    <span class="s4">if </span><span class="s3">(</span><span class="s1">readable </span><span class="s3">&amp;&amp; !</span><span class="s1">readableEnded</span><span class="s3">) {</span>
+      <span class="s4">if </span><span class="s3">(!</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">_readableState </span><span class="s3">|| !</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">_readableState</span><span class="s3">.</span><span class="s1">ended</span><span class="s3">) </span><span class="s1">err </span><span class="s3">= </span><span class="s4">new </span><span class="s1">ERR_STREAM_PREMATURE_CLOSE</span><span class="s3">();</span>
+      <span class="s4">return </span><span class="s1">callback</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">stream</span><span class="s3">, </span><span class="s1">err</span><span class="s3">);</span>
+    <span class="s3">}</span>
+    <span class="s4">if </span><span class="s3">(</span><span class="s1">writable </span><span class="s3">&amp;&amp; !</span><span class="s1">writableEnded</span><span class="s3">) {</span>
+      <span class="s4">if </span><span class="s3">(!</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">_writableState </span><span class="s3">|| !</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">_writableState</span><span class="s3">.</span><span class="s1">ended</span><span class="s3">) </span><span class="s1">err </span><span class="s3">= </span><span class="s4">new </span><span class="s1">ERR_STREAM_PREMATURE_CLOSE</span><span class="s3">();</span>
+      <span class="s4">return </span><span class="s1">callback</span><span class="s3">.</span><span class="s1">call</span><span class="s3">(</span><span class="s1">stream</span><span class="s3">, </span><span class="s1">err</span><span class="s3">);</span>
+    <span class="s3">}</span>
+  <span class="s3">};</span>
+  <span class="s4">var </span><span class="s1">onrequest </span><span class="s3">= </span><span class="s4">function </span><span class="s1">onrequest</span><span class="s3">() {</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">req</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s2">'finish'</span><span class="s3">, </span><span class="s1">onfinish</span><span class="s3">);</span>
+  <span class="s3">};</span>
+  <span class="s4">if </span><span class="s3">(</span><span class="s1">isRequest</span><span class="s3">(</span><span class="s1">stream</span><span class="s3">)) {</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s2">'complete'</span><span class="s3">, </span><span class="s1">onfinish</span><span class="s3">);</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s2">'abort'</span><span class="s3">, </span><span class="s1">onclose</span><span class="s3">);</span>
+    <span class="s4">if </span><span class="s3">(</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">req</span><span class="s3">) </span><span class="s1">onrequest</span><span class="s3">();</span><span class="s4">else </span><span class="s1">stream</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s2">'request'</span><span class="s3">, </span><span class="s1">onrequest</span><span class="s3">);</span>
+  <span class="s3">} </span><span class="s4">else if </span><span class="s3">(</span><span class="s1">writable </span><span class="s3">&amp;&amp; !</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">_writableState</span><span class="s3">) {</span>
+    <span class="s0">// legacy streams</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s2">'end'</span><span class="s3">, </span><span class="s1">onlegacyfinish</span><span class="s3">);</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s2">'close'</span><span class="s3">, </span><span class="s1">onlegacyfinish</span><span class="s3">);</span>
+  <span class="s3">}</span>
+  <span class="s1">stream</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s2">'end'</span><span class="s3">, </span><span class="s1">onend</span><span class="s3">);</span>
+  <span class="s1">stream</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s2">'finish'</span><span class="s3">, </span><span class="s1">onfinish</span><span class="s3">);</span>
+  <span class="s4">if </span><span class="s3">(</span><span class="s1">opts</span><span class="s3">.</span><span class="s1">error </span><span class="s3">!== </span><span class="s4">false</span><span class="s3">) </span><span class="s1">stream</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s2">'error'</span><span class="s3">, </span><span class="s1">onerror</span><span class="s3">);</span>
+  <span class="s1">stream</span><span class="s3">.</span><span class="s1">on</span><span class="s3">(</span><span class="s2">'close'</span><span class="s3">, </span><span class="s1">onclose</span><span class="s3">);</span>
+  <span class="s4">return function </span><span class="s3">() {</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">removeListener</span><span class="s3">(</span><span class="s2">'complete'</span><span class="s3">, </span><span class="s1">onfinish</span><span class="s3">);</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">removeListener</span><span class="s3">(</span><span class="s2">'abort'</span><span class="s3">, </span><span class="s1">onclose</span><span class="s3">);</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">removeListener</span><span class="s3">(</span><span class="s2">'request'</span><span class="s3">, </span><span class="s1">onrequest</span><span class="s3">);</span>
+    <span class="s4">if </span><span class="s3">(</span><span class="s1">stream</span><span class="s3">.</span><span class="s1">req</span><span class="s3">) </span><span class="s1">stream</span><span class="s3">.</span><span class="s1">req</span><span class="s3">.</span><span class="s1">removeListener</span><span class="s3">(</span><span class="s2">'finish'</span><span class="s3">, </span><span class="s1">onfinish</span><span class="s3">);</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">removeListener</span><span class="s3">(</span><span class="s2">'end'</span><span class="s3">, </span><span class="s1">onlegacyfinish</span><span class="s3">);</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">removeListener</span><span class="s3">(</span><span class="s2">'close'</span><span class="s3">, </span><span class="s1">onlegacyfinish</span><span class="s3">);</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">removeListener</span><span class="s3">(</span><span class="s2">'finish'</span><span class="s3">, </span><span class="s1">onfinish</span><span class="s3">);</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">removeListener</span><span class="s3">(</span><span class="s2">'end'</span><span class="s3">, </span><span class="s1">onend</span><span class="s3">);</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">removeListener</span><span class="s3">(</span><span class="s2">'error'</span><span class="s3">, </span><span class="s1">onerror</span><span class="s3">);</span>
+    <span class="s1">stream</span><span class="s3">.</span><span class="s1">removeListener</span><span class="s3">(</span><span class="s2">'close'</span><span class="s3">, </span><span class="s1">onclose</span><span class="s3">);</span>
+  <span class="s3">};</span>
+<span class="s3">}</span>
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">eos</span><span class="s3">;</span></pre>
+</body>
+</html>

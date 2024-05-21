@@ -1,0 +1,814 @@
+<html>
+<head>
+<title>walkCssTokens.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #67a37c; font-style: italic;}
+.s6 { color: #cf8e6d;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+walkCssTokens.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+    MIT License http://www.opensource.org/licenses/mit-license.php 
+    Author Tobias Koppers @sokra 
+*/</span>
+
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@typedef </span><span class="s4">{Object} CssTokenCallbacks</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number): boolean=} isSelector</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number, number, number, number): number=} url</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number, number): number=} string</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number, number): number=} leftParenthesis</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number, number): number=} rightParenthesis</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number, number): number=} pseudoFunction</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number, number): number=} function</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number, number): number=} pseudoClass</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number, number): number=} atKeyword</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number, number): number=} class</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number, number): number=} identifier</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number, number): number=} id</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number, number): number=} leftCurlyBracket</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number, number): number=} rightCurlyBracket</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number, number): number=} semicolon</span>
+ <span class="s4">* </span><span class="s5">@property </span><span class="s4">{function(string, number, number): number=} comma</span>
+ <span class="s4">*/</span>
+
+<span class="s4">/** </span><span class="s5">@typedef </span><span class="s4">{function(string, number, CssTokenCallbacks): number} CharHandler */</span>
+
+<span class="s0">// spec: https://drafts.csswg.org/css-syntax/</span>
+
+<span class="s6">const </span><span class="s1">CC_LINE_FEED </span><span class="s3">= </span><span class="s2">&quot;</span><span class="s6">\n</span><span class="s2">&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_CARRIAGE_RETURN </span><span class="s3">= </span><span class="s2">&quot;</span><span class="s6">\r</span><span class="s2">&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_FORM_FEED </span><span class="s3">= </span><span class="s2">&quot;</span><span class="s6">\f</span><span class="s2">&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+
+<span class="s6">const </span><span class="s1">CC_TAB </span><span class="s3">= </span><span class="s2">&quot;</span><span class="s6">\t</span><span class="s2">&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_SPACE </span><span class="s3">= </span><span class="s2">&quot; &quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+
+<span class="s6">const </span><span class="s1">CC_SOLIDUS </span><span class="s3">= </span><span class="s2">&quot;/&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_REVERSE_SOLIDUS </span><span class="s3">= </span><span class="s2">&quot;</span><span class="s6">\\</span><span class="s2">&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_ASTERISK </span><span class="s3">= </span><span class="s2">&quot;*&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+
+<span class="s6">const </span><span class="s1">CC_LEFT_PARENTHESIS </span><span class="s3">= </span><span class="s2">&quot;(&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_RIGHT_PARENTHESIS </span><span class="s3">= </span><span class="s2">&quot;)&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_LEFT_CURLY </span><span class="s3">= </span><span class="s2">&quot;{&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_RIGHT_CURLY </span><span class="s3">= </span><span class="s2">&quot;}&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_LEFT_SQUARE </span><span class="s3">= </span><span class="s2">&quot;[&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_RIGHT_SQUARE </span><span class="s3">= </span><span class="s2">&quot;]&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+
+<span class="s6">const </span><span class="s1">CC_QUOTATION_MARK </span><span class="s3">= </span><span class="s2">'&quot;'</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_APOSTROPHE </span><span class="s3">= </span><span class="s2">&quot;'&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+
+<span class="s6">const </span><span class="s1">CC_FULL_STOP </span><span class="s3">= </span><span class="s2">&quot;.&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_COLON </span><span class="s3">= </span><span class="s2">&quot;:&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_SEMICOLON </span><span class="s3">= </span><span class="s2">&quot;;&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_COMMA </span><span class="s3">= </span><span class="s2">&quot;,&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_PERCENTAGE </span><span class="s3">= </span><span class="s2">&quot;%&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_AT_SIGN </span><span class="s3">= </span><span class="s2">&quot;@&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+
+<span class="s6">const </span><span class="s1">CC_LOW_LINE </span><span class="s3">= </span><span class="s2">&quot;_&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_LOWER_A </span><span class="s3">= </span><span class="s2">&quot;a&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_LOWER_U </span><span class="s3">= </span><span class="s2">&quot;u&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_LOWER_E </span><span class="s3">= </span><span class="s2">&quot;e&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_LOWER_Z </span><span class="s3">= </span><span class="s2">&quot;z&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_UPPER_A </span><span class="s3">= </span><span class="s2">&quot;A&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_UPPER_E </span><span class="s3">= </span><span class="s2">&quot;E&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_UPPER_U </span><span class="s3">= </span><span class="s2">&quot;U&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_UPPER_Z </span><span class="s3">= </span><span class="s2">&quot;Z&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_0 </span><span class="s3">= </span><span class="s2">&quot;0&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_9 </span><span class="s3">= </span><span class="s2">&quot;9&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+
+<span class="s6">const </span><span class="s1">CC_NUMBER_SIGN </span><span class="s3">= </span><span class="s2">&quot;#&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_PLUS_SIGN </span><span class="s3">= </span><span class="s2">&quot;+&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_HYPHEN_MINUS </span><span class="s3">= </span><span class="s2">&quot;-&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+
+<span class="s6">const </span><span class="s1">CC_LESS_THAN_SIGN </span><span class="s3">= </span><span class="s2">&quot;&lt;&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+<span class="s6">const </span><span class="s1">CC_GREATER_THAN_SIGN </span><span class="s3">= </span><span class="s2">&quot;&gt;&quot;</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s7">0</span><span class="s3">);</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} cc char code</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{boolean} true, if cc is a newline</span>
+ <span class="s4">*/</span>
+<span class="s6">const </span><span class="s1">_isNewLine </span><span class="s3">= </span><span class="s1">cc </span><span class="s3">=&gt; {</span>
+	<span class="s6">return </span><span class="s3">(</span>
+		<span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_LINE_FEED </span><span class="s3">|| </span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_CARRIAGE_RETURN </span><span class="s3">|| </span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_FORM_FEED</span>
+	<span class="s3">);</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeSpace </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{number} */</span>
+	<span class="s6">let </span><span class="s1">cc</span><span class="s3">;</span>
+	<span class="s6">do </span><span class="s3">{</span>
+		<span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s3">} </span><span class="s6">while </span><span class="s3">(</span><span class="s1">_isWhiteSpace</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">));</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} cc char code</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{boolean} true, if cc is a newline</span>
+ <span class="s4">*/</span>
+<span class="s6">const </span><span class="s1">_isNewline </span><span class="s3">= </span><span class="s1">cc </span><span class="s3">=&gt; {</span>
+	<span class="s6">return </span><span class="s3">(</span>
+		<span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_LINE_FEED </span><span class="s3">|| </span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_CARRIAGE_RETURN </span><span class="s3">|| </span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_FORM_FEED</span>
+	<span class="s3">);</span>
+<span class="s3">};</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} cc char code</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{boolean} true, if cc is a space (U+0009 CHARACTER TABULATION or U+0020 SPACE)</span>
+ <span class="s4">*/</span>
+<span class="s6">const </span><span class="s1">_isSpace </span><span class="s3">= </span><span class="s1">cc </span><span class="s3">=&gt; {</span>
+	<span class="s6">return </span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_TAB </span><span class="s3">|| </span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_SPACE</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} cc char code</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{boolean} true, if cc is a whitespace</span>
+ <span class="s4">*/</span>
+<span class="s6">const </span><span class="s1">_isWhiteSpace </span><span class="s3">= </span><span class="s1">cc </span><span class="s3">=&gt; {</span>
+	<span class="s6">return </span><span class="s1">_isNewline</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">) || </span><span class="s1">_isSpace</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">);</span>
+<span class="s3">};</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* ident-start code point</span>
+ <span class="s4">*</span>
+ <span class="s4">* A letter, a non-ASCII code point, or U+005F LOW LINE (_).</span>
+ <span class="s4">*</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} cc char code</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{boolean} true, if cc is a start code point of an identifier</span>
+ <span class="s4">*/</span>
+<span class="s6">const </span><span class="s1">isIdentStartCodePoint </span><span class="s3">= </span><span class="s1">cc </span><span class="s3">=&gt; {</span>
+	<span class="s6">return </span><span class="s3">(</span>
+		<span class="s3">(</span><span class="s1">cc </span><span class="s3">&gt;= </span><span class="s1">CC_LOWER_A </span><span class="s3">&amp;&amp; </span><span class="s1">cc </span><span class="s3">&lt;= </span><span class="s1">CC_LOWER_Z</span><span class="s3">) ||</span>
+		<span class="s3">(</span><span class="s1">cc </span><span class="s3">&gt;= </span><span class="s1">CC_UPPER_A </span><span class="s3">&amp;&amp; </span><span class="s1">cc </span><span class="s3">&lt;= </span><span class="s1">CC_UPPER_Z</span><span class="s3">) ||</span>
+		<span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_LOW_LINE </span><span class="s3">||</span>
+		<span class="s1">cc </span><span class="s3">&gt;= </span><span class="s7">0x80</span>
+	<span class="s3">);</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeDelimToken </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s6">return </span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeComments </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s0">// If the next two input code point are U+002F SOLIDUS (/) followed by a U+002A</span>
+	<span class="s0">// ASTERISK (*), consume them and all following code points up to and including</span>
+	<span class="s0">// the first U+002A ASTERISK (*) followed by a U+002F SOLIDUS (/), or up to an</span>
+	<span class="s0">// EOF code point. Return to the start of this step.</span>
+	<span class="s0">//</span>
+	<span class="s0">// If the preceding paragraph ended by consuming an EOF code point, this is a parse error.</span>
+	<span class="s0">// But we are silent on errors.</span>
+	<span class="s6">if </span><span class="s3">(</span>
+		<span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">) === </span><span class="s1">CC_SOLIDUS </span><span class="s3">&amp;&amp;</span>
+		<span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">) === </span><span class="s1">CC_ASTERISK</span>
+	<span class="s3">) {</span>
+		<span class="s1">pos </span><span class="s3">+= </span><span class="s7">1</span><span class="s3">;</span>
+		<span class="s6">while </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">&lt; </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) {</span>
+			<span class="s6">if </span><span class="s3">(</span>
+				<span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">) === </span><span class="s1">CC_ASTERISK </span><span class="s3">&amp;&amp;</span>
+				<span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">) === </span><span class="s1">CC_SOLIDUS</span>
+			<span class="s3">) {</span>
+				<span class="s1">pos </span><span class="s3">+= </span><span class="s7">2</span><span class="s3">;</span>
+				<span class="s6">break</span><span class="s3">;</span>
+			<span class="s3">}</span>
+			<span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{function(number): CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeString </span><span class="s3">= </span><span class="s1">quote_cc </span><span class="s3">=&gt; (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s6">const </span><span class="s1">start </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s1">pos </span><span class="s3">= </span><span class="s1">_consumeString</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">quote_cc</span><span class="s3">);</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">string </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+		<span class="s1">pos </span><span class="s3">= </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">string</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s3">}</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} input input</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} pos position</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} quote_cc quote char code</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{number} new position</span>
+ <span class="s4">*/</span>
+<span class="s6">const </span><span class="s1">_consumeString </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">quote_cc</span><span class="s3">) =&gt; {</span>
+	<span class="s1">pos</span><span class="s3">++;</span>
+	<span class="s6">for </span><span class="s3">(;;) {</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+		<span class="s6">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">quote_cc</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">;</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">_isNewLine</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">)) {</span>
+			<span class="s0">// bad string</span>
+			<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+		<span class="s3">}</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_REVERSE_SOLIDUS</span><span class="s3">) {</span>
+			<span class="s0">// we don't need to fully parse the escaped code point</span>
+			<span class="s0">// just skip over a potential new line</span>
+			<span class="s1">pos</span><span class="s3">++;</span>
+			<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+			<span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s3">} </span><span class="s6">else </span><span class="s3">{</span>
+			<span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} cc char code</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{boolean} is identifier start code</span>
+ <span class="s4">*/</span>
+<span class="s6">const </span><span class="s1">_isIdentifierStartCode </span><span class="s3">= </span><span class="s1">cc </span><span class="s3">=&gt; {</span>
+	<span class="s6">return </span><span class="s3">(</span>
+		<span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_LOW_LINE </span><span class="s3">||</span>
+		<span class="s3">(</span><span class="s1">cc </span><span class="s3">&gt;= </span><span class="s1">CC_LOWER_A </span><span class="s3">&amp;&amp; </span><span class="s1">cc </span><span class="s3">&lt;= </span><span class="s1">CC_LOWER_Z</span><span class="s3">) ||</span>
+		<span class="s3">(</span><span class="s1">cc </span><span class="s3">&gt;= </span><span class="s1">CC_UPPER_A </span><span class="s3">&amp;&amp; </span><span class="s1">cc </span><span class="s3">&lt;= </span><span class="s1">CC_UPPER_Z</span><span class="s3">) ||</span>
+		<span class="s1">cc </span><span class="s3">&gt; </span><span class="s7">0x80</span>
+	<span class="s3">);</span>
+<span class="s3">};</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} first first code point</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} second second code point</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{boolean} true if two code points are a valid escape</span>
+ <span class="s4">*/</span>
+<span class="s6">const </span><span class="s1">_isTwoCodePointsAreValidEscape </span><span class="s3">= (</span><span class="s1">first</span><span class="s3">, </span><span class="s1">second</span><span class="s3">) =&gt; {</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">first </span><span class="s3">!== </span><span class="s1">CC_REVERSE_SOLIDUS</span><span class="s3">) </span><span class="s6">return false</span><span class="s3">;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">_isNewLine</span><span class="s3">(</span><span class="s1">second</span><span class="s3">)) </span><span class="s6">return false</span><span class="s3">;</span>
+	<span class="s6">return true</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} cc char code</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{boolean} is digit</span>
+ <span class="s4">*/</span>
+<span class="s6">const </span><span class="s1">_isDigit </span><span class="s3">= </span><span class="s1">cc </span><span class="s3">=&gt; {</span>
+	<span class="s6">return </span><span class="s1">cc </span><span class="s3">&gt;= </span><span class="s1">CC_0 </span><span class="s3">&amp;&amp; </span><span class="s1">cc </span><span class="s3">&lt;= </span><span class="s1">CC_9</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} input input</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} pos position</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{boolean} true, if input at pos starts an identifier</span>
+ <span class="s4">*/</span>
+<span class="s6">const </span><span class="s1">_startsIdentifier </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">) =&gt; {</span>
+	<span class="s6">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_HYPHEN_MINUS</span><span class="s3">) {</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return false</span><span class="s3">;</span>
+		<span class="s6">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">);</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_HYPHEN_MINUS</span><span class="s3">) </span><span class="s6">return true</span><span class="s3">;</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_REVERSE_SOLIDUS</span><span class="s3">) {</span>
+			<span class="s6">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">2</span><span class="s3">);</span>
+			<span class="s6">return </span><span class="s3">!</span><span class="s1">_isNewLine</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s6">return </span><span class="s1">_isIdentifierStartCode</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">);</span>
+	<span class="s3">}</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_REVERSE_SOLIDUS</span><span class="s3">) {</span>
+		<span class="s6">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">);</span>
+		<span class="s6">return </span><span class="s3">!</span><span class="s1">_isNewLine</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">);</span>
+	<span class="s3">}</span>
+	<span class="s6">return </span><span class="s1">_isIdentifierStartCode</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">);</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeNumberSign </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s6">const </span><span class="s1">start </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s1">pos</span><span class="s3">++;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">isSelector</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">) &amp;&amp; </span><span class="s1">_startsIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">)) {</span>
+		<span class="s1">pos </span><span class="s3">= </span><span class="s1">_consumeIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">id </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+			<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">id</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeMinus </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s6">const </span><span class="s1">start </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s1">pos</span><span class="s3">++;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s6">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s0">// If the input stream starts with a number, reconsume the current input code point, consume a numeric token, and return it.</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_FULL_STOP </span><span class="s3">|| </span><span class="s1">_isDigit</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">)) {</span>
+		<span class="s6">return </span><span class="s1">consumeNumericToken</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+	<span class="s3">} </span><span class="s6">else if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_HYPHEN_MINUS</span><span class="s3">) {</span>
+		<span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+		<span class="s6">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_GREATER_THAN_SIGN</span><span class="s3">) {</span>
+			<span class="s6">return </span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">;</span>
+		<span class="s3">} </span><span class="s6">else </span><span class="s3">{</span>
+			<span class="s1">pos </span><span class="s3">= </span><span class="s1">_consumeIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+			<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">identifier </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+				<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">identifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+	<span class="s3">} </span><span class="s6">else if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_REVERSE_SOLIDUS</span><span class="s3">) {</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1 </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+		<span class="s6">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">);</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">_isNewLine</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">)) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+		<span class="s1">pos </span><span class="s3">= </span><span class="s1">_consumeIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">identifier </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+			<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">identifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+		<span class="s3">}</span>
+	<span class="s3">} </span><span class="s6">else if </span><span class="s3">(</span><span class="s1">_isIdentifierStartCode</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">)) {</span>
+		<span class="s1">pos </span><span class="s3">= </span><span class="s1">consumeOtherIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos </span><span class="s3">- </span><span class="s7">1</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+	<span class="s3">}</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeDot </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s6">const </span><span class="s1">start </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s1">pos</span><span class="s3">++;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s6">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">_isDigit</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">)) </span><span class="s6">return </span><span class="s1">consumeNumericToken</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos </span><span class="s3">- </span><span class="s7">2</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+	<span class="s6">if </span><span class="s3">(!</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">isSelector</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">) || !</span><span class="s1">_startsIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">))</span>
+		<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s1">pos </span><span class="s3">= </span><span class="s1">_consumeIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">class </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) </span><span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">class</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeNumericToken </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s1">pos </span><span class="s3">= </span><span class="s1">_consumeNumber</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">_startsIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">))</span>
+		<span class="s6">return </span><span class="s1">_consumeIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+	<span class="s6">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_PERCENTAGE</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">;</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeOtherIdentifier </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s6">const </span><span class="s1">start </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s1">pos </span><span class="s3">= </span><span class="s1">_consumeIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">!== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length </span><span class="s3">&amp;&amp; </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">) === </span><span class="s1">CC_LEFT_PARENTHESIS</span><span class="s3">) {</span>
+		<span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">function </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+			<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">function</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+		<span class="s3">}</span>
+	<span class="s3">} </span><span class="s6">else </span><span class="s3">{</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">identifier </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+			<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">identifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumePotentialUrl </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s6">const </span><span class="s1">start </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s1">pos </span><span class="s3">= </span><span class="s1">_consumeIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+	<span class="s6">const </span><span class="s1">nextPos </span><span class="s3">= </span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">;</span>
+	<span class="s6">if </span><span class="s3">(</span>
+		<span class="s1">pos </span><span class="s3">=== </span><span class="s1">start </span><span class="s3">+ </span><span class="s7">3 </span><span class="s3">&amp;&amp;</span>
+		<span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">start</span><span class="s3">, </span><span class="s1">nextPos</span><span class="s3">).</span><span class="s1">toLowerCase</span><span class="s3">() === </span><span class="s2">&quot;url(&quot;</span>
+	<span class="s3">) {</span>
+		<span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s6">let </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+		<span class="s6">while </span><span class="s3">(</span><span class="s1">_isWhiteSpace</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">)) {</span>
+			<span class="s1">pos</span><span class="s3">++;</span>
+			<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+			<span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_QUOTATION_MARK </span><span class="s3">|| </span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_APOSTROPHE</span><span class="s3">) {</span>
+			<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">function </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+				<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">function</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">nextPos</span><span class="s3">);</span>
+			<span class="s3">}</span>
+			<span class="s6">return </span><span class="s1">nextPos</span><span class="s3">;</span>
+		<span class="s3">} </span><span class="s6">else </span><span class="s3">{</span>
+			<span class="s6">const </span><span class="s1">contentStart </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+			<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{number} */</span>
+			<span class="s6">let </span><span class="s1">contentEnd</span><span class="s3">;</span>
+			<span class="s6">for </span><span class="s3">(;;) {</span>
+				<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_REVERSE_SOLIDUS</span><span class="s3">) {</span>
+					<span class="s1">pos</span><span class="s3">++;</span>
+					<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+					<span class="s1">pos</span><span class="s3">++;</span>
+				<span class="s3">} </span><span class="s6">else if </span><span class="s3">(</span><span class="s1">_isWhiteSpace</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">)) {</span>
+					<span class="s1">contentEnd </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+					<span class="s6">do </span><span class="s3">{</span>
+						<span class="s1">pos</span><span class="s3">++;</span>
+						<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+						<span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+					<span class="s3">} </span><span class="s6">while </span><span class="s3">(</span><span class="s1">_isWhiteSpace</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">));</span>
+					<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">!== </span><span class="s1">CC_RIGHT_PARENTHESIS</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+					<span class="s1">pos</span><span class="s3">++;</span>
+					<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">url </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+						<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">url</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">contentStart</span><span class="s3">, </span><span class="s1">contentEnd</span><span class="s3">);</span>
+					<span class="s3">}</span>
+					<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s3">} </span><span class="s6">else if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_RIGHT_PARENTHESIS</span><span class="s3">) {</span>
+					<span class="s1">contentEnd </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+					<span class="s1">pos</span><span class="s3">++;</span>
+					<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">url </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+						<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">url</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">contentStart</span><span class="s3">, </span><span class="s1">contentEnd</span><span class="s3">);</span>
+					<span class="s3">}</span>
+					<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s3">} </span><span class="s6">else if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_LEFT_PARENTHESIS</span><span class="s3">) {</span>
+					<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s3">} </span><span class="s6">else </span><span class="s3">{</span>
+					<span class="s1">pos</span><span class="s3">++;</span>
+				<span class="s3">}</span>
+				<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+	<span class="s3">} </span><span class="s6">else </span><span class="s3">{</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">identifier </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+			<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">identifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumePotentialPseudo </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s6">const </span><span class="s1">start </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s1">pos</span><span class="s3">++;</span>
+	<span class="s6">if </span><span class="s3">(!</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">isSelector</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">) || !</span><span class="s1">_startsIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">))</span>
+		<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s1">pos </span><span class="s3">= </span><span class="s1">_consumeIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+	<span class="s6">let </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_LEFT_PARENTHESIS</span><span class="s3">) {</span>
+		<span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">pseudoFunction </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+			<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">pseudoFunction</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+		<span class="s3">}</span>
+		<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s3">}</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">pseudoClass </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+		<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">pseudoClass</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s3">}</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeLeftParenthesis </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s1">pos</span><span class="s3">++;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">leftParenthesis </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+		<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">leftParenthesis</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos </span><span class="s3">- </span><span class="s7">1</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s3">}</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeRightParenthesis </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s1">pos</span><span class="s3">++;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">rightParenthesis </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+		<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">rightParenthesis</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos </span><span class="s3">- </span><span class="s7">1</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s3">}</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeLeftCurlyBracket </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s1">pos</span><span class="s3">++;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">leftCurlyBracket </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+		<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">leftCurlyBracket</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos </span><span class="s3">- </span><span class="s7">1</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s3">}</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeRightCurlyBracket </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s1">pos</span><span class="s3">++;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">rightCurlyBracket </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+		<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">rightCurlyBracket</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos </span><span class="s3">- </span><span class="s7">1</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s3">}</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeSemicolon </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s1">pos</span><span class="s3">++;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">semicolon </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+		<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">semicolon</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos </span><span class="s3">- </span><span class="s7">1</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s3">}</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeComma </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s1">pos</span><span class="s3">++;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">comma </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+		<span class="s6">return </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">comma</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos </span><span class="s3">- </span><span class="s7">1</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s3">}</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">_consumeIdentifier </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">) =&gt; {</span>
+	<span class="s6">for </span><span class="s3">(;;) {</span>
+		<span class="s6">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_REVERSE_SOLIDUS</span><span class="s3">) {</span>
+			<span class="s1">pos</span><span class="s3">++;</span>
+			<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+			<span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s3">} </span><span class="s6">else if </span><span class="s3">(</span>
+			<span class="s1">_isIdentifierStartCode</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">) ||</span>
+			<span class="s1">_isDigit</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">) ||</span>
+			<span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_HYPHEN_MINUS</span>
+		<span class="s3">) {</span>
+			<span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s3">} </span><span class="s6">else </span><span class="s3">{</span>
+			<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">_consumeNumber </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">) =&gt; {</span>
+	<span class="s1">pos</span><span class="s3">++;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s6">let </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s6">while </span><span class="s3">(</span><span class="s1">_isDigit</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">)) {</span>
+		<span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+		<span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s3">}</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_FULL_STOP </span><span class="s3">&amp;&amp; </span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1 </span><span class="s3">!== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) {</span>
+		<span class="s6">const </span><span class="s1">next </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">);</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">_isDigit</span><span class="s3">(</span><span class="s1">next</span><span class="s3">)) {</span>
+			<span class="s1">pos </span><span class="s3">+= </span><span class="s7">2</span><span class="s3">;</span>
+			<span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+			<span class="s6">while </span><span class="s3">(</span><span class="s1">_isDigit</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">)) {</span>
+				<span class="s1">pos</span><span class="s3">++;</span>
+				<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_LOWER_E </span><span class="s3">|| </span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_UPPER_E</span><span class="s3">) {</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1 </span><span class="s3">!== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) {</span>
+			<span class="s6">const </span><span class="s1">next </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">2</span><span class="s3">);</span>
+			<span class="s6">if </span><span class="s3">(</span><span class="s1">_isDigit</span><span class="s3">(</span><span class="s1">next</span><span class="s3">)) {</span>
+				<span class="s1">pos </span><span class="s3">+= </span><span class="s7">2</span><span class="s3">;</span>
+			<span class="s3">} </span><span class="s6">else if </span><span class="s3">(</span>
+				<span class="s3">(</span><span class="s1">next </span><span class="s3">=== </span><span class="s1">CC_HYPHEN_MINUS </span><span class="s3">|| </span><span class="s1">next </span><span class="s3">=== </span><span class="s1">CC_PLUS_SIGN</span><span class="s3">) &amp;&amp;</span>
+				<span class="s1">pos </span><span class="s3">+ </span><span class="s7">2 </span><span class="s3">!== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span>
+			<span class="s3">) {</span>
+				<span class="s6">const </span><span class="s1">next </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">2</span><span class="s3">);</span>
+				<span class="s6">if </span><span class="s3">(</span><span class="s1">_isDigit</span><span class="s3">(</span><span class="s1">next</span><span class="s3">)) {</span>
+					<span class="s1">pos </span><span class="s3">+= </span><span class="s7">3</span><span class="s3">;</span>
+				<span class="s3">} </span><span class="s6">else </span><span class="s3">{</span>
+					<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+				<span class="s3">}</span>
+			<span class="s3">} </span><span class="s6">else </span><span class="s3">{</span>
+				<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+			<span class="s3">}</span>
+		<span class="s3">}</span>
+	<span class="s3">} </span><span class="s6">else </span><span class="s3">{</span>
+		<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s3">}</span>
+	<span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s6">while </span><span class="s3">(</span><span class="s1">_isDigit</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">)) {</span>
+		<span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+		<span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+	<span class="s3">}</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeLessThan </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">input</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">, </span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">4</span><span class="s3">) === </span><span class="s2">&quot;!--&quot;</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">4</span><span class="s3">;</span>
+	<span class="s6">return </span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeAt </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s6">const </span><span class="s1">start </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s1">pos</span><span class="s3">++;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">_startsIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">)) {</span>
+		<span class="s1">pos </span><span class="s3">= </span><span class="s1">_consumeIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">atKeyword </span><span class="s3">!== </span><span class="s1">undefined</span><span class="s3">) {</span>
+			<span class="s1">pos </span><span class="s3">= </span><span class="s1">callbacks</span><span class="s3">.</span><span class="s1">atKeyword</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">start</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">);</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/** </span><span class="s5">@type </span><span class="s4">{CharHandler} */</span>
+<span class="s6">const </span><span class="s1">consumeReverseSolidus </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s6">const </span><span class="s1">start </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s1">pos</span><span class="s3">++;</span>
+	<span class="s6">if </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">=== </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) </span><span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+	<span class="s0">// If the input stream starts with a valid escape, reconsume the current input code point, consume an ident-like token, and return it.</span>
+	<span class="s6">if </span><span class="s3">(</span>
+		<span class="s1">_isTwoCodePointsAreValidEscape</span><span class="s3">(</span>
+			<span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">start</span><span class="s3">),</span>
+			<span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">)</span>
+		<span class="s3">)</span>
+	<span class="s3">) {</span>
+		<span class="s6">return </span><span class="s1">consumeOtherIdentifier</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos </span><span class="s3">- </span><span class="s7">1</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+	<span class="s3">}</span>
+	<span class="s0">// Otherwise, this is a parse error. Return a &lt;delim-token&gt; with its value set to the current input code point.</span>
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s6">const </span><span class="s1">CHAR_MAP </span><span class="s3">= </span><span class="s1">Array</span><span class="s3">.</span><span class="s1">from</span><span class="s3">({ </span><span class="s1">length</span><span class="s3">: </span><span class="s7">0x80 </span><span class="s3">}, (</span><span class="s1">_</span><span class="s3">, </span><span class="s1">cc</span><span class="s3">) =&gt; {</span>
+	<span class="s0">// https://drafts.csswg.org/css-syntax/#consume-token</span>
+	<span class="s6">switch </span><span class="s3">(</span><span class="s1">cc</span><span class="s3">) {</span>
+		<span class="s0">// whitespace</span>
+		<span class="s6">case </span><span class="s1">CC_LINE_FEED</span><span class="s3">:</span>
+		<span class="s6">case </span><span class="s1">CC_CARRIAGE_RETURN</span><span class="s3">:</span>
+		<span class="s6">case </span><span class="s1">CC_FORM_FEED</span><span class="s3">:</span>
+		<span class="s6">case </span><span class="s1">CC_TAB</span><span class="s3">:</span>
+		<span class="s6">case </span><span class="s1">CC_SPACE</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeSpace</span><span class="s3">;</span>
+		<span class="s0">// U+0022 QUOTATION MARK (&quot;)</span>
+		<span class="s6">case </span><span class="s1">CC_QUOTATION_MARK</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeString</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">);</span>
+		<span class="s0">// U+0023 NUMBER SIGN (#)</span>
+		<span class="s6">case </span><span class="s1">CC_NUMBER_SIGN</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeNumberSign</span><span class="s3">;</span>
+		<span class="s0">// U+0027 APOSTROPHE (')</span>
+		<span class="s6">case </span><span class="s1">CC_APOSTROPHE</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeString</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">);</span>
+		<span class="s0">// U+0028 LEFT PARENTHESIS (()</span>
+		<span class="s6">case </span><span class="s1">CC_LEFT_PARENTHESIS</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeLeftParenthesis</span><span class="s3">;</span>
+		<span class="s0">// U+0029 RIGHT PARENTHESIS ())</span>
+		<span class="s6">case </span><span class="s1">CC_RIGHT_PARENTHESIS</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeRightParenthesis</span><span class="s3">;</span>
+		<span class="s0">// U+002B PLUS SIGN (+)</span>
+		<span class="s6">case </span><span class="s1">CC_PLUS_SIGN</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeNumericToken</span><span class="s3">;</span>
+		<span class="s0">// U+002C COMMA (,)</span>
+		<span class="s6">case </span><span class="s1">CC_COMMA</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeComma</span><span class="s3">;</span>
+		<span class="s0">// U+002D HYPHEN-MINUS (-)</span>
+		<span class="s6">case </span><span class="s1">CC_HYPHEN_MINUS</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeMinus</span><span class="s3">;</span>
+		<span class="s0">// U+002E FULL STOP (.)</span>
+		<span class="s6">case </span><span class="s1">CC_FULL_STOP</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeDot</span><span class="s3">;</span>
+		<span class="s0">// U+003A COLON (:)</span>
+		<span class="s6">case </span><span class="s1">CC_COLON</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumePotentialPseudo</span><span class="s3">;</span>
+		<span class="s0">// U+003B SEMICOLON (;)</span>
+		<span class="s6">case </span><span class="s1">CC_SEMICOLON</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeSemicolon</span><span class="s3">;</span>
+		<span class="s0">// U+003C LESS-THAN SIGN (&lt;)</span>
+		<span class="s6">case </span><span class="s1">CC_LESS_THAN_SIGN</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeLessThan</span><span class="s3">;</span>
+		<span class="s0">// U+0040 COMMERCIAL AT (@)</span>
+		<span class="s6">case </span><span class="s1">CC_AT_SIGN</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeAt</span><span class="s3">;</span>
+		<span class="s0">// U+005B LEFT SQUARE BRACKET ([)</span>
+		<span class="s6">case </span><span class="s1">CC_LEFT_SQUARE</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeDelimToken</span><span class="s3">;</span>
+		<span class="s0">// U+005C REVERSE SOLIDUS (\)</span>
+		<span class="s6">case </span><span class="s1">CC_REVERSE_SOLIDUS</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeReverseSolidus</span><span class="s3">;</span>
+		<span class="s0">// U+005D RIGHT SQUARE BRACKET (])</span>
+		<span class="s6">case </span><span class="s1">CC_RIGHT_SQUARE</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeDelimToken</span><span class="s3">;</span>
+		<span class="s0">// U+007B LEFT CURLY BRACKET ({)</span>
+		<span class="s6">case </span><span class="s1">CC_LEFT_CURLY</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeLeftCurlyBracket</span><span class="s3">;</span>
+		<span class="s0">// U+007D RIGHT CURLY BRACKET (})</span>
+		<span class="s6">case </span><span class="s1">CC_RIGHT_CURLY</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumeRightCurlyBracket</span><span class="s3">;</span>
+		<span class="s0">// Optimization</span>
+		<span class="s6">case </span><span class="s1">CC_LOWER_U</span><span class="s3">:</span>
+		<span class="s6">case </span><span class="s1">CC_UPPER_U</span><span class="s3">:</span>
+			<span class="s6">return </span><span class="s1">consumePotentialUrl</span><span class="s3">;</span>
+		<span class="s6">default</span><span class="s3">:</span>
+			<span class="s0">// digit</span>
+			<span class="s6">if </span><span class="s3">(</span><span class="s1">_isDigit</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">)) </span><span class="s6">return </span><span class="s1">consumeNumericToken</span><span class="s3">;</span>
+			<span class="s0">// ident-start code point</span>
+			<span class="s6">if </span><span class="s3">(</span><span class="s1">isIdentStartCodePoint</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">)) {</span>
+				<span class="s6">return </span><span class="s1">consumeOtherIdentifier</span><span class="s3">;</span>
+			<span class="s3">}</span>
+			<span class="s0">// EOF, but we don't have it</span>
+			<span class="s0">// anything else</span>
+			<span class="s6">return </span><span class="s1">consumeDelimToken</span><span class="s3">;</span>
+	<span class="s3">}</span>
+<span class="s3">});</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} input input css</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{CssTokenCallbacks} callbacks callbacks</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{void}</span>
+ <span class="s4">*/</span>
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">) =&gt; {</span>
+	<span class="s0">// This section describes how to consume a token from a stream of code points. It will return a single token of any type.</span>
+	<span class="s6">let </span><span class="s1">pos </span><span class="s3">= </span><span class="s7">0</span><span class="s3">;</span>
+	<span class="s6">while </span><span class="s3">(</span><span class="s1">pos </span><span class="s3">&lt; </span><span class="s1">input</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) {</span>
+		<span class="s0">// Consume comments.</span>
+		<span class="s1">pos </span><span class="s3">= </span><span class="s1">consumeComments</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+
+		<span class="s6">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+
+		<span class="s0">// Consume the next input code point.</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">&lt; </span><span class="s7">0x80</span><span class="s3">) {</span>
+			<span class="s1">pos </span><span class="s3">= </span><span class="s1">CHAR_MAP</span><span class="s3">[</span><span class="s1">cc</span><span class="s3">](</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, </span><span class="s1">callbacks</span><span class="s3">);</span>
+		<span class="s3">} </span><span class="s6">else </span><span class="s3">{</span>
+			<span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+<span class="s3">};</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports</span><span class="s3">.</span><span class="s1">isIdentStartCodePoint </span><span class="s3">= </span><span class="s1">isIdentStartCodePoint</span><span class="s3">;</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} input input</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} pos position</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{number} position after comments</span>
+ <span class="s4">*/</span>
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports</span><span class="s3">.</span><span class="s1">eatComments </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">) =&gt; {</span>
+	<span class="s6">for </span><span class="s3">(;;) {</span>
+		<span class="s6">let </span><span class="s1">originalPos </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+		<span class="s1">pos </span><span class="s3">= </span><span class="s1">consumeComments</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, {});</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">originalPos </span><span class="s3">=== </span><span class="s1">pos</span><span class="s3">) {</span>
+			<span class="s6">break</span><span class="s3">;</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} input input</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} pos position</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{number} position after whitespace</span>
+ <span class="s4">*/</span>
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports</span><span class="s3">.</span><span class="s1">eatWhitespace </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">) =&gt; {</span>
+	<span class="s6">while </span><span class="s3">(</span><span class="s1">_isWhiteSpace</span><span class="s3">(</span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">))) {</span>
+		<span class="s1">pos</span><span class="s3">++;</span>
+	<span class="s3">}</span>
+
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} input input</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} pos position</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{number} position after whitespace and comments</span>
+ <span class="s4">*/</span>
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports</span><span class="s3">.</span><span class="s1">eatWhitespaceAndComments </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">) =&gt; {</span>
+	<span class="s6">for </span><span class="s3">(;;) {</span>
+		<span class="s6">let </span><span class="s1">originalPos </span><span class="s3">= </span><span class="s1">pos</span><span class="s3">;</span>
+		<span class="s1">pos </span><span class="s3">= </span><span class="s1">consumeComments</span><span class="s3">(</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">, {});</span>
+		<span class="s6">while </span><span class="s3">(</span><span class="s1">_isWhiteSpace</span><span class="s3">(</span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">))) {</span>
+			<span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s3">}</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">originalPos </span><span class="s3">=== </span><span class="s1">pos</span><span class="s3">) {</span>
+			<span class="s6">break</span><span class="s3">;</span>
+		<span class="s3">}</span>
+	<span class="s3">}</span>
+
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{string} input input</span>
+ <span class="s4">* </span><span class="s5">@param </span><span class="s4">{number} pos position</span>
+ <span class="s4">* </span><span class="s5">@returns </span><span class="s4">{number} position after whitespace</span>
+ <span class="s4">*/</span>
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports</span><span class="s3">.</span><span class="s1">eatWhiteLine </span><span class="s3">= (</span><span class="s1">input</span><span class="s3">, </span><span class="s1">pos</span><span class="s3">) =&gt; {</span>
+	<span class="s6">for </span><span class="s3">(;;) {</span>
+		<span class="s6">const </span><span class="s1">cc </span><span class="s3">= </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos</span><span class="s3">);</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">_isSpace</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">)) {</span>
+			<span class="s1">pos</span><span class="s3">++;</span>
+			<span class="s6">continue</span><span class="s3">;</span>
+		<span class="s3">}</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">_isNewLine</span><span class="s3">(</span><span class="s1">cc</span><span class="s3">)) </span><span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s0">// For `\r\n`</span>
+		<span class="s6">if </span><span class="s3">(</span><span class="s1">cc </span><span class="s3">=== </span><span class="s1">CC_CARRIAGE_RETURN </span><span class="s3">&amp;&amp; </span><span class="s1">input</span><span class="s3">.</span><span class="s1">charCodeAt</span><span class="s3">(</span><span class="s1">pos </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">) === </span><span class="s1">CC_LINE_FEED</span><span class="s3">)</span>
+			<span class="s1">pos</span><span class="s3">++;</span>
+		<span class="s6">break</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s6">return </span><span class="s1">pos</span><span class="s3">;</span>
+<span class="s3">};</span>
+</pre>
+</body>
+</html>

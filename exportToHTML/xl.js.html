@@ -1,0 +1,114 @@
+<html>
+<head>
+<title>xl.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #cf8e6d;}
+.s3 { color: #bcbec4;}
+.s4 { color: #6aab73;}
+.s5 { color: #42c3d4;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+xl.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+Language: XL 
+Author: Christophe de Dinechin &lt;christophe@taodyne.com&gt; 
+Description: An extensible programming language, based on parse tree rewriting 
+Website: http://xlr.sf.net 
+*/</span>
+
+<span class="s2">function </span><span class="s1">xl</span><span class="s3">(</span><span class="s1">hljs</span><span class="s3">) {</span>
+  <span class="s2">const </span><span class="s1">BUILTIN_MODULES </span><span class="s3">=</span>
+    <span class="s4">'ObjectLoader Animate MovieCredits Slides Filters Shading Materials LensFlare Mapping VLCAudioVideo ' </span><span class="s3">+</span>
+    <span class="s4">'StereoDecoder PointCloud NetworkAccess RemoteControl RegExp ChromaKey Snowfall NodeJS Speech Charts'</span><span class="s3">;</span>
+
+  <span class="s2">const </span><span class="s1">XL_KEYWORDS </span><span class="s3">= {</span>
+    <span class="s1">$pattern</span><span class="s3">: </span><span class="s5">/[a-zA-Z][a-zA-Z0-9_?]*/</span><span class="s3">,</span>
+    <span class="s1">keyword</span><span class="s3">:</span>
+      <span class="s4">'if then else do while until for loop import with is as where when by data constant ' </span><span class="s3">+</span>
+      <span class="s4">'integer real text name boolean symbol infix prefix postfix block tree'</span><span class="s3">,</span>
+    <span class="s1">literal</span><span class="s3">:</span>
+      <span class="s4">'true false nil'</span><span class="s3">,</span>
+    <span class="s1">built_in</span><span class="s3">:</span>
+      <span class="s4">'in mod rem and or xor not abs sign floor ceil sqrt sin cos tan asin ' </span><span class="s3">+</span>
+      <span class="s4">'acos atan exp expm1 log log2 log10 log1p pi at text_length text_range ' </span><span class="s3">+</span>
+      <span class="s4">'text_find text_replace contains page slide basic_slide title_slide ' </span><span class="s3">+</span>
+      <span class="s4">'title subtitle fade_in fade_out fade_at clear_color color line_color ' </span><span class="s3">+</span>
+      <span class="s4">'line_width texture_wrap texture_transform texture scale_?x scale_?y ' </span><span class="s3">+</span>
+      <span class="s4">'scale_?z? translate_?x translate_?y translate_?z? rotate_?x rotate_?y ' </span><span class="s3">+</span>
+      <span class="s4">'rotate_?z? rectangle circle ellipse sphere path line_to move_to ' </span><span class="s3">+</span>
+      <span class="s4">'quad_to curve_to theme background contents locally time mouse_?x ' </span><span class="s3">+</span>
+      <span class="s4">'mouse_?y mouse_buttons ' </span><span class="s3">+</span>
+      <span class="s1">BUILTIN_MODULES</span>
+  <span class="s3">};</span>
+
+  <span class="s2">const </span><span class="s1">DOUBLE_QUOTE_TEXT </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'string'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s4">'&quot;'</span><span class="s3">,</span>
+    <span class="s1">end</span><span class="s3">: </span><span class="s4">'&quot;'</span><span class="s3">,</span>
+    <span class="s1">illegal</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">n'</span>
+  <span class="s3">};</span>
+  <span class="s2">const </span><span class="s1">SINGLE_QUOTE_TEXT </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'string'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\'</span><span class="s4">'</span><span class="s3">,</span>
+    <span class="s1">end</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\'</span><span class="s4">'</span><span class="s3">,</span>
+    <span class="s1">illegal</span><span class="s3">: </span><span class="s4">'</span><span class="s2">\\</span><span class="s4">n'</span>
+  <span class="s3">};</span>
+  <span class="s2">const </span><span class="s1">LONG_TEXT </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'string'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s4">'&lt;&lt;'</span><span class="s3">,</span>
+    <span class="s1">end</span><span class="s3">: </span><span class="s4">'&gt;&gt;'</span>
+  <span class="s3">};</span>
+  <span class="s2">const </span><span class="s1">BASED_NUMBER </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'number'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s4">'[0-9]+#[0-9A-Z_]+(</span><span class="s2">\\</span><span class="s4">.[0-9-A-Z_]+)?#?([Ee][+-]?[0-9]+)?'</span>
+  <span class="s3">};</span>
+  <span class="s2">const </span><span class="s1">IMPORT </span><span class="s3">= {</span>
+    <span class="s1">beginKeywords</span><span class="s3">: </span><span class="s4">'import'</span><span class="s3">,</span>
+    <span class="s1">end</span><span class="s3">: </span><span class="s4">'$'</span><span class="s3">,</span>
+    <span class="s1">keywords</span><span class="s3">: </span><span class="s1">XL_KEYWORDS</span><span class="s3">,</span>
+    <span class="s1">contains</span><span class="s3">: [ </span><span class="s1">DOUBLE_QUOTE_TEXT </span><span class="s3">]</span>
+  <span class="s3">};</span>
+  <span class="s2">const </span><span class="s1">FUNCTION_DEFINITION </span><span class="s3">= {</span>
+    <span class="s1">className</span><span class="s3">: </span><span class="s4">'function'</span><span class="s3">,</span>
+    <span class="s1">begin</span><span class="s3">: </span><span class="s5">/[a-z][^\n]*-&gt;/</span><span class="s3">,</span>
+    <span class="s1">returnBegin</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+    <span class="s1">end</span><span class="s3">: </span><span class="s5">/-&gt;/</span><span class="s3">,</span>
+    <span class="s1">contains</span><span class="s3">: [</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">inherit</span><span class="s3">(</span><span class="s1">hljs</span><span class="s3">.</span><span class="s1">TITLE_MODE</span><span class="s3">, {</span>
+        <span class="s1">starts</span><span class="s3">: {</span>
+          <span class="s1">endsWithParent</span><span class="s3">: </span><span class="s2">true</span><span class="s3">,</span>
+          <span class="s1">keywords</span><span class="s3">: </span><span class="s1">XL_KEYWORDS</span>
+        <span class="s3">}</span>
+      <span class="s3">})</span>
+    <span class="s3">]</span>
+  <span class="s3">};</span>
+  <span class="s2">return </span><span class="s3">{</span>
+    <span class="s1">name</span><span class="s3">: </span><span class="s4">'XL'</span><span class="s3">,</span>
+    <span class="s1">aliases</span><span class="s3">: [ </span><span class="s4">'tao' </span><span class="s3">],</span>
+    <span class="s1">keywords</span><span class="s3">: </span><span class="s1">XL_KEYWORDS</span><span class="s3">,</span>
+    <span class="s1">contains</span><span class="s3">: [</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">C_LINE_COMMENT_MODE</span><span class="s3">,</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">C_BLOCK_COMMENT_MODE</span><span class="s3">,</span>
+      <span class="s1">DOUBLE_QUOTE_TEXT</span><span class="s3">,</span>
+      <span class="s1">SINGLE_QUOTE_TEXT</span><span class="s3">,</span>
+      <span class="s1">LONG_TEXT</span><span class="s3">,</span>
+      <span class="s1">FUNCTION_DEFINITION</span><span class="s3">,</span>
+      <span class="s1">IMPORT</span><span class="s3">,</span>
+      <span class="s1">BASED_NUMBER</span><span class="s3">,</span>
+      <span class="s1">hljs</span><span class="s3">.</span><span class="s1">NUMBER_MODE</span>
+    <span class="s3">]</span>
+  <span class="s3">};</span>
+<span class="s3">}</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s1">xl</span><span class="s3">;</span>
+</pre>
+</body>
+</html>

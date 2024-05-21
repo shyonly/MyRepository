@@ -1,0 +1,178 @@
+<html>
+<head>
+<title>bits.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #5f826b; font-style: italic;}
+.s5 { color: #cf8e6d;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+bits.js</font>
+</center></td></tr></table>
+<pre><span class="s0">// Copyright 2012 The Obvious Corporation.</span>
+
+<span class="s0">/* 
+ * bits: Bitwise buffer utilities. The utilities here treat a buffer 
+ * as a little-endian bigint, so the lowest-order bit is bit #0 of 
+ * `buffer[0]`, and the highest-order bit is bit #7 of 
+ * `buffer[buffer.length - 1]`. 
+ */</span>
+
+<span class="s0">/* 
+ * Modules used 
+ */</span>
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+<span class="s0">/* 
+ * Exported bindings 
+ */</span>
+
+<span class="s4">/**</span>
+ <span class="s4">* Extracts the given number of bits from the buffer at the indicated</span>
+ <span class="s4">* index, returning a simple number as the result. If bits are requested</span>
+ <span class="s4">* that aren't covered by the buffer, the `defaultBit` is used as their</span>
+ <span class="s4">* value.</span>
+ <span class="s4">*</span>
+ <span class="s4">* The `bitLength` must be no more than 32. The `defaultBit` if not</span>
+ <span class="s4">* specified is taken to be `0`.</span>
+ <span class="s4">*/</span>
+
+<span class="s1">Object</span><span class="s3">.</span><span class="s1">defineProperty</span><span class="s3">(</span><span class="s1">exports</span><span class="s3">, </span><span class="s2">&quot;__esModule&quot;</span><span class="s3">, {</span>
+  <span class="s1">value</span><span class="s3">: </span><span class="s5">true</span>
+<span class="s3">});</span>
+<span class="s1">exports</span><span class="s3">.</span><span class="s1">extract </span><span class="s3">= </span><span class="s1">extract</span><span class="s3">;</span>
+<span class="s1">exports</span><span class="s3">.</span><span class="s1">inject </span><span class="s3">= </span><span class="s1">inject</span><span class="s3">;</span>
+<span class="s1">exports</span><span class="s3">.</span><span class="s1">getSign </span><span class="s3">= </span><span class="s1">getSign</span><span class="s3">;</span>
+<span class="s1">exports</span><span class="s3">.</span><span class="s1">highOrder </span><span class="s3">= </span><span class="s1">highOrder</span><span class="s3">;</span>
+
+<span class="s5">function </span><span class="s1">extract</span><span class="s3">(</span><span class="s1">buffer</span><span class="s3">, </span><span class="s1">bitIndex</span><span class="s3">, </span><span class="s1">bitLength</span><span class="s3">, </span><span class="s1">defaultBit</span><span class="s3">) {</span>
+  <span class="s5">if </span><span class="s3">(</span><span class="s1">bitLength </span><span class="s3">&lt; </span><span class="s6">0 </span><span class="s3">|| </span><span class="s1">bitLength </span><span class="s3">&gt; </span><span class="s6">32</span><span class="s3">) {</span>
+    <span class="s5">throw new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">&quot;Bad value for bitLength.&quot;</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s5">if </span><span class="s3">(</span><span class="s1">defaultBit </span><span class="s3">=== </span><span class="s1">undefined</span><span class="s3">) {</span>
+    <span class="s1">defaultBit </span><span class="s3">= </span><span class="s6">0</span><span class="s3">;</span>
+  <span class="s3">} </span><span class="s5">else if </span><span class="s3">(</span><span class="s1">defaultBit </span><span class="s3">!== </span><span class="s6">0 </span><span class="s3">&amp;&amp; </span><span class="s1">defaultBit </span><span class="s3">!== </span><span class="s6">1</span><span class="s3">) {</span>
+    <span class="s5">throw new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">&quot;Bad value for defaultBit.&quot;</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s5">var </span><span class="s1">defaultByte </span><span class="s3">= </span><span class="s1">defaultBit </span><span class="s3">* </span><span class="s6">0xff</span><span class="s3">;</span>
+  <span class="s5">var </span><span class="s1">result </span><span class="s3">= </span><span class="s6">0</span><span class="s3">; </span><span class="s0">// All starts are inclusive. The {endByte, endBit} pair is exclusive, but</span>
+  <span class="s0">// if endBit !== 0, then endByte is inclusive.</span>
+
+  <span class="s5">var </span><span class="s1">lastBit </span><span class="s3">= </span><span class="s1">bitIndex </span><span class="s3">+ </span><span class="s1">bitLength</span><span class="s3">;</span>
+  <span class="s5">var </span><span class="s1">startByte </span><span class="s3">= </span><span class="s1">Math</span><span class="s3">.</span><span class="s1">floor</span><span class="s3">(</span><span class="s1">bitIndex </span><span class="s3">/ </span><span class="s6">8</span><span class="s3">);</span>
+  <span class="s5">var </span><span class="s1">startBit </span><span class="s3">= </span><span class="s1">bitIndex </span><span class="s3">% </span><span class="s6">8</span><span class="s3">;</span>
+  <span class="s5">var </span><span class="s1">endByte </span><span class="s3">= </span><span class="s1">Math</span><span class="s3">.</span><span class="s1">floor</span><span class="s3">(</span><span class="s1">lastBit </span><span class="s3">/ </span><span class="s6">8</span><span class="s3">);</span>
+  <span class="s5">var </span><span class="s1">endBit </span><span class="s3">= </span><span class="s1">lastBit </span><span class="s3">% </span><span class="s6">8</span><span class="s3">;</span>
+
+  <span class="s5">if </span><span class="s3">(</span><span class="s1">endBit </span><span class="s3">!== </span><span class="s6">0</span><span class="s3">) {</span>
+    <span class="s0">// `(1 &lt;&lt; endBit) - 1` is the mask of all bits up to but not including</span>
+    <span class="s0">// the endBit.</span>
+    <span class="s1">result </span><span class="s3">= </span><span class="s1">get</span><span class="s3">(</span><span class="s1">endByte</span><span class="s3">) &amp; (</span><span class="s6">1 </span><span class="s3">&lt;&lt; </span><span class="s1">endBit</span><span class="s3">) - </span><span class="s6">1</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s5">while </span><span class="s3">(</span><span class="s1">endByte </span><span class="s3">&gt; </span><span class="s1">startByte</span><span class="s3">) {</span>
+    <span class="s1">endByte</span><span class="s3">--;</span>
+    <span class="s1">result </span><span class="s3">= </span><span class="s1">result </span><span class="s3">&lt;&lt; </span><span class="s6">8 </span><span class="s3">| </span><span class="s1">get</span><span class="s3">(</span><span class="s1">endByte</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s1">result </span><span class="s3">&gt;&gt;&gt;= </span><span class="s1">startBit</span><span class="s3">;</span>
+  <span class="s5">return </span><span class="s1">result</span><span class="s3">;</span>
+
+  <span class="s5">function </span><span class="s1">get</span><span class="s3">(</span><span class="s1">index</span><span class="s3">) {</span>
+    <span class="s5">var </span><span class="s1">result </span><span class="s3">= </span><span class="s1">buffer</span><span class="s3">[</span><span class="s1">index</span><span class="s3">];</span>
+    <span class="s5">return </span><span class="s1">result </span><span class="s3">=== </span><span class="s1">undefined </span><span class="s3">? </span><span class="s1">defaultByte </span><span class="s3">: </span><span class="s1">result</span><span class="s3">;</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+<span class="s4">/**</span>
+ <span class="s4">* Injects the given bits into the given buffer at the given index. Any</span>
+ <span class="s4">* bits in the value beyond the length to set are ignored.</span>
+ <span class="s4">*/</span>
+
+
+<span class="s5">function </span><span class="s1">inject</span><span class="s3">(</span><span class="s1">buffer</span><span class="s3">, </span><span class="s1">bitIndex</span><span class="s3">, </span><span class="s1">bitLength</span><span class="s3">, </span><span class="s1">value</span><span class="s3">) {</span>
+  <span class="s5">if </span><span class="s3">(</span><span class="s1">bitLength </span><span class="s3">&lt; </span><span class="s6">0 </span><span class="s3">|| </span><span class="s1">bitLength </span><span class="s3">&gt; </span><span class="s6">32</span><span class="s3">) {</span>
+    <span class="s5">throw new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">&quot;Bad value for bitLength.&quot;</span><span class="s3">);</span>
+  <span class="s3">}</span>
+
+  <span class="s5">var </span><span class="s1">lastByte </span><span class="s3">= </span><span class="s1">Math</span><span class="s3">.</span><span class="s1">floor</span><span class="s3">((</span><span class="s1">bitIndex </span><span class="s3">+ </span><span class="s1">bitLength </span><span class="s3">- </span><span class="s6">1</span><span class="s3">) / </span><span class="s6">8</span><span class="s3">);</span>
+
+  <span class="s5">if </span><span class="s3">(</span><span class="s1">bitIndex </span><span class="s3">&lt; </span><span class="s6">0 </span><span class="s3">|| </span><span class="s1">lastByte </span><span class="s3">&gt;= </span><span class="s1">buffer</span><span class="s3">.</span><span class="s1">length</span><span class="s3">) {</span>
+    <span class="s5">throw new </span><span class="s1">Error</span><span class="s3">(</span><span class="s2">&quot;Index out of range.&quot;</span><span class="s3">);</span>
+  <span class="s3">} </span><span class="s0">// Just keeping it simple, until / unless profiling shows that this</span>
+  <span class="s0">// is a problem.</span>
+
+
+  <span class="s5">var </span><span class="s1">atByte </span><span class="s3">= </span><span class="s1">Math</span><span class="s3">.</span><span class="s1">floor</span><span class="s3">(</span><span class="s1">bitIndex </span><span class="s3">/ </span><span class="s6">8</span><span class="s3">);</span>
+  <span class="s5">var </span><span class="s1">atBit </span><span class="s3">= </span><span class="s1">bitIndex </span><span class="s3">% </span><span class="s6">8</span><span class="s3">;</span>
+
+  <span class="s5">while </span><span class="s3">(</span><span class="s1">bitLength </span><span class="s3">&gt; </span><span class="s6">0</span><span class="s3">) {</span>
+    <span class="s5">if </span><span class="s3">(</span><span class="s1">value </span><span class="s3">&amp; </span><span class="s6">1</span><span class="s3">) {</span>
+      <span class="s1">buffer</span><span class="s3">[</span><span class="s1">atByte</span><span class="s3">] |= </span><span class="s6">1 </span><span class="s3">&lt;&lt; </span><span class="s1">atBit</span><span class="s3">;</span>
+    <span class="s3">} </span><span class="s5">else </span><span class="s3">{</span>
+      <span class="s1">buffer</span><span class="s3">[</span><span class="s1">atByte</span><span class="s3">] &amp;= ~(</span><span class="s6">1 </span><span class="s3">&lt;&lt; </span><span class="s1">atBit</span><span class="s3">);</span>
+    <span class="s3">}</span>
+
+    <span class="s1">value </span><span class="s3">&gt;&gt;= </span><span class="s6">1</span><span class="s3">;</span>
+    <span class="s1">bitLength</span><span class="s3">--;</span>
+    <span class="s1">atBit </span><span class="s3">= (</span><span class="s1">atBit </span><span class="s3">+ </span><span class="s6">1</span><span class="s3">) % </span><span class="s6">8</span><span class="s3">;</span>
+
+    <span class="s5">if </span><span class="s3">(</span><span class="s1">atBit </span><span class="s3">=== </span><span class="s6">0</span><span class="s3">) {</span>
+      <span class="s1">atByte</span><span class="s3">++;</span>
+    <span class="s3">}</span>
+  <span class="s3">}</span>
+<span class="s3">}</span>
+<span class="s4">/**</span>
+ <span class="s4">* Gets the sign bit of the given buffer.</span>
+ <span class="s4">*/</span>
+
+
+<span class="s5">function </span><span class="s1">getSign</span><span class="s3">(</span><span class="s1">buffer</span><span class="s3">) {</span>
+  <span class="s5">return </span><span class="s1">buffer</span><span class="s3">[</span><span class="s1">buffer</span><span class="s3">.</span><span class="s1">length </span><span class="s3">- </span><span class="s6">1</span><span class="s3">] &gt;&gt;&gt; </span><span class="s6">7</span><span class="s3">;</span>
+<span class="s3">}</span>
+<span class="s4">/**</span>
+ <span class="s4">* Gets the zero-based bit number of the highest-order bit with the</span>
+ <span class="s4">* given value in the given buffer.</span>
+ <span class="s4">*</span>
+ <span class="s4">* If the buffer consists entirely of the other bit value, then this returns</span>
+ <span class="s4">* `-1`.</span>
+ <span class="s4">*/</span>
+
+
+<span class="s5">function </span><span class="s1">highOrder</span><span class="s3">(</span><span class="s1">bit</span><span class="s3">, </span><span class="s1">buffer</span><span class="s3">) {</span>
+  <span class="s5">var </span><span class="s1">length </span><span class="s3">= </span><span class="s1">buffer</span><span class="s3">.</span><span class="s1">length</span><span class="s3">;</span>
+  <span class="s5">var </span><span class="s1">fullyWrongByte </span><span class="s3">= (</span><span class="s1">bit </span><span class="s3">^ </span><span class="s6">1</span><span class="s3">) * </span><span class="s6">0xff</span><span class="s3">; </span><span class="s0">// the other-bit extended to a full byte</span>
+
+  <span class="s5">while </span><span class="s3">(</span><span class="s1">length </span><span class="s3">&gt; </span><span class="s6">0 </span><span class="s3">&amp;&amp; </span><span class="s1">buffer</span><span class="s3">[</span><span class="s1">length </span><span class="s3">- </span><span class="s6">1</span><span class="s3">] === </span><span class="s1">fullyWrongByte</span><span class="s3">) {</span>
+    <span class="s1">length</span><span class="s3">--;</span>
+  <span class="s3">}</span>
+
+  <span class="s5">if </span><span class="s3">(</span><span class="s1">length </span><span class="s3">=== </span><span class="s6">0</span><span class="s3">) {</span>
+    <span class="s0">// Degenerate case. The buffer consists entirely of ~bit.</span>
+    <span class="s5">return </span><span class="s3">-</span><span class="s6">1</span><span class="s3">;</span>
+  <span class="s3">}</span>
+
+  <span class="s5">var </span><span class="s1">byteToCheck </span><span class="s3">= </span><span class="s1">buffer</span><span class="s3">[</span><span class="s1">length </span><span class="s3">- </span><span class="s6">1</span><span class="s3">];</span>
+  <span class="s5">var </span><span class="s1">result </span><span class="s3">= </span><span class="s1">length </span><span class="s3">* </span><span class="s6">8 </span><span class="s3">- </span><span class="s6">1</span><span class="s3">;</span>
+
+  <span class="s5">for </span><span class="s3">(</span><span class="s5">var </span><span class="s1">i </span><span class="s3">= </span><span class="s6">7</span><span class="s3">; </span><span class="s1">i </span><span class="s3">&gt; </span><span class="s6">0</span><span class="s3">; </span><span class="s1">i</span><span class="s3">--) {</span>
+    <span class="s5">if </span><span class="s3">((</span><span class="s1">byteToCheck </span><span class="s3">&gt;&gt; </span><span class="s1">i </span><span class="s3">&amp; </span><span class="s6">1</span><span class="s3">) === </span><span class="s1">bit</span><span class="s3">) {</span>
+      <span class="s5">break</span><span class="s3">;</span>
+    <span class="s3">}</span>
+
+    <span class="s1">result</span><span class="s3">--;</span>
+  <span class="s3">}</span>
+
+  <span class="s5">return </span><span class="s1">result</span><span class="s3">;</span>
+<span class="s3">}</span></pre>
+</body>
+</html>

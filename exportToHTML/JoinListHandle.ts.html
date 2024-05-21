@@ -1,0 +1,281 @@
+<html>
+<head>
+<title>JoinListHandle.ts</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+JoinListHandle.ts</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s2">{ </span><span class="s1">ContainerFragment </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'.'</span>
+<span class="s0">import </span><span class="s1">$</span><span class="s2">, { </span><span class="s1">DomElement </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'../../../utils/dom-core'</span>
+<span class="s0">import </span><span class="s2">{ </span><span class="s1">Exec</span><span class="s2">, </span><span class="s1">HandlerListOptions</span><span class="s2">, </span><span class="s1">ListHandle </span><span class="s2">} </span><span class="s1">from </span><span class="s3">'./ListHandle'</span>
+<span class="s0">import </span><span class="s2">{</span>
+    <span class="s1">filterSelectionNodes</span><span class="s2">,</span>
+    <span class="s1">getStartPoint</span><span class="s2">,</span>
+    <span class="s1">getEndPoint</span><span class="s2">,</span>
+    <span class="s1">insertBefore</span><span class="s2">,</span>
+    <span class="s1">createElement</span><span class="s2">,</span>
+    <span class="s1">createDocumentFragment</span><span class="s2">,</span>
+    <span class="s1">createElementFragment</span><span class="s2">,</span>
+<span class="s2">} </span><span class="s1">from </span><span class="s3">'../utils'</span>
+
+<span class="s0">export default class </span><span class="s1">JoinListHandle </span><span class="s0">extends </span><span class="s1">ListHandle </span><span class="s0">implements </span><span class="s1">Exec </span><span class="s2">{</span>
+    <span class="s1">constructor</span><span class="s2">(</span><span class="s1">options</span><span class="s2">: </span><span class="s1">HandlerListOptions</span><span class="s2">) {</span>
+        <span class="s0">super</span><span class="s2">(</span><span class="s1">options</span><span class="s2">)</span>
+    <span class="s2">}</span>
+
+    <span class="s1">exec</span><span class="s2">(): </span><span class="s0">void </span><span class="s2">{</span>
+        <span class="s0">const </span><span class="s2">{ </span><span class="s1">editor</span><span class="s2">, </span><span class="s1">listType</span><span class="s2">, </span><span class="s1">listTarget</span><span class="s2">, </span><span class="s1">$startElem</span><span class="s2">, </span><span class="s1">$endElem </span><span class="s2">} = </span><span class="s0">this</span><span class="s2">.</span><span class="s1">options</span>
+
+        <span class="s4">// 容器 - HTML 文档片段</span>
+        <span class="s0">let </span><span class="s1">$containerFragment</span><span class="s2">: </span><span class="s1">ContainerFragment</span>
+
+        <span class="s4">// 获取选中的段落</span>
+        <span class="s0">const </span><span class="s1">$nodes</span><span class="s2">: </span><span class="s1">DomElement</span><span class="s2">[] = </span><span class="s1">editor</span><span class="s2">.</span><span class="s1">selection</span><span class="s2">.</span><span class="s1">getSelectionRangeTopNodes</span><span class="s2">()</span>
+
+        <span class="s4">// 获取开始段落和结束段落 标签名</span>
+        <span class="s0">const </span><span class="s1">startNodeName </span><span class="s2">= </span><span class="s1">$startElem</span><span class="s2">?.</span><span class="s1">getNodeName</span><span class="s2">()</span>
+        <span class="s0">const </span><span class="s1">endNodeName </span><span class="s2">= </span><span class="s1">$endElem</span><span class="s2">?.</span><span class="s1">getNodeName</span><span class="s2">()</span>
+
+        <span class="s4">// =====================================</span>
+        <span class="s4">// 开头结尾都是序列的情况下</span>
+        <span class="s4">// 开头序列 和 结尾序列的标签名一致的时候</span>
+        <span class="s4">// =====================================</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">startNodeName </span><span class="s2">=== </span><span class="s1">endNodeName</span><span class="s2">) {</span>
+            <span class="s4">// =====================================</span>
+            <span class="s4">// 开头序列 和 结尾序列 中间还有其他的段落的时候</span>
+            <span class="s4">// =====================================</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s1">$nodes</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s5">2</span><span class="s2">) {</span>
+                <span class="s4">// 弹出 开头 和 结尾</span>
+                <span class="s1">$nodes</span><span class="s2">.</span><span class="s1">shift</span><span class="s2">()</span>
+                <span class="s1">$nodes</span><span class="s2">.</span><span class="s1">pop</span><span class="s2">()</span>
+
+                <span class="s4">// 把中间部分的节点元素转换成 li 元素并添加到文档片段后删除</span>
+                <span class="s1">$containerFragment </span><span class="s2">= </span><span class="s1">createElementFragment</span><span class="s2">(</span>
+                    <span class="s1">filterSelectionNodes</span><span class="s2">(</span><span class="s1">$nodes</span><span class="s2">), </span><span class="s4">// 过滤 $nodes 获取到符合要求的选中元素节点</span>
+                    <span class="s1">createDocumentFragment</span><span class="s2">() </span><span class="s4">// 创建 文档片段</span>
+                <span class="s2">)</span>
+
+                <span class="s4">// =====================================</span>
+                <span class="s4">// 由于开头序列 和 结尾序列的标签名一样，所以只判断了开头序列的</span>
+                <span class="s4">// 当开头序列的标签名和按钮类型 一致 的时候</span>
+                <span class="s4">// 代表着当前是一个 设置序列 的操作</span>
+                <span class="s4">// =====================================</span>
+                <span class="s0">if </span><span class="s2">(</span><span class="s1">startNodeName </span><span class="s2">=== </span><span class="s1">listType</span><span class="s2">) {</span>
+                    <span class="s4">// 把结束序列的 li 元素添加到 文档片段中</span>
+                    <span class="s1">$endElem</span><span class="s2">.</span><span class="s1">children</span><span class="s2">()?.</span><span class="s1">forEach</span><span class="s2">((</span><span class="s1">$list</span><span class="s2">: </span><span class="s1">HTMLElement</span><span class="s2">) =&gt; {</span>
+                        <span class="s1">$containerFragment</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">$list</span><span class="s2">)</span>
+                    <span class="s2">})</span>
+
+                    <span class="s4">// 下序列全选被掏空了，就卸磨杀驴吧</span>
+                    <span class="s1">$endElem</span><span class="s2">.</span><span class="s1">remove</span><span class="s2">()</span>
+
+                    <span class="s4">// 在开始序列中添加 文档片段</span>
+                    <span class="s0">this</span><span class="s2">.</span><span class="s1">selectionRangeElem</span><span class="s2">.</span><span class="s1">set</span><span class="s2">(</span><span class="s1">$containerFragment</span><span class="s2">)</span>
+                    <span class="s1">$startElem</span><span class="s2">.</span><span class="s1">elems</span><span class="s2">[</span><span class="s5">0</span><span class="s2">].</span><span class="s1">append</span><span class="s2">(</span><span class="s1">$containerFragment</span><span class="s2">)</span>
+                <span class="s2">}</span>
+
+                <span class="s4">// =====================================</span>
+                <span class="s4">// 由于开头序列 和 结尾序列的标签名一样，所以只判断了开头序列的</span>
+                <span class="s4">// 当开头序列的标签名和按钮类型 不一致 的时候</span>
+                <span class="s4">// 代表着当前是一个 转换序列 的操作</span>
+                <span class="s4">// =====================================</span>
+                <span class="s0">else </span><span class="s2">{</span>
+                    <span class="s4">// 创建 开始序列和结束序列的文档片段</span>
+                    <span class="s0">const </span><span class="s1">$startFragment </span><span class="s2">= </span><span class="s1">document</span><span class="s2">.</span><span class="s1">createDocumentFragment</span><span class="s2">()</span>
+                    <span class="s0">const </span><span class="s1">$endFragment </span><span class="s2">= </span><span class="s1">document</span><span class="s2">.</span><span class="s1">createDocumentFragment</span><span class="s2">()</span>
+
+                    <span class="s4">// 获取起点元素</span>
+                    <span class="s0">let </span><span class="s1">$startDom</span><span class="s2">: </span><span class="s1">DomElement </span><span class="s2">= </span><span class="s1">getStartPoint</span><span class="s2">(</span><span class="s1">$startElem</span><span class="s2">)</span>
+                    <span class="s4">// 获取上半序列中的选中内容，并添加到文档片段中</span>
+                    <span class="s0">while </span><span class="s2">(</span><span class="s1">$startDom</span><span class="s2">.</span><span class="s1">length</span><span class="s2">) {</span>
+                        <span class="s0">const </span><span class="s1">_element </span><span class="s2">= </span><span class="s1">$startDom</span><span class="s2">.</span><span class="s1">elems</span><span class="s2">[</span><span class="s5">0</span><span class="s2">]</span>
+                        <span class="s1">$startDom </span><span class="s2">= </span><span class="s1">$startDom</span><span class="s2">.</span><span class="s1">next</span><span class="s2">()</span>
+                        <span class="s1">$startFragment</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">_element</span><span class="s2">)</span>
+                    <span class="s2">}</span>
+
+                    <span class="s4">// 获取结束元素</span>
+                    <span class="s0">let </span><span class="s1">$endDom</span><span class="s2">: </span><span class="s1">DomElement </span><span class="s2">= </span><span class="s1">getEndPoint</span><span class="s2">(</span><span class="s1">$endElem</span><span class="s2">)</span>
+                    <span class="s4">// 获取下半序列中选中的内容</span>
+                    <span class="s0">const </span><span class="s1">domArr</span><span class="s2">: </span><span class="s1">Element</span><span class="s2">[] = []</span>
+                    <span class="s0">while </span><span class="s2">(</span><span class="s1">$endDom</span><span class="s2">.</span><span class="s1">length</span><span class="s2">) {</span>
+                        <span class="s1">domArr</span><span class="s2">.</span><span class="s1">unshift</span><span class="s2">(</span><span class="s1">$endDom</span><span class="s2">.</span><span class="s1">elems</span><span class="s2">[</span><span class="s5">0</span><span class="s2">])</span>
+                        <span class="s1">$endDom </span><span class="s2">= </span><span class="s1">$endDom</span><span class="s2">.</span><span class="s1">prev</span><span class="s2">()</span>
+                    <span class="s2">}</span>
+                    <span class="s4">// 添加到文档片段中</span>
+                    <span class="s1">domArr</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">((</span><span class="s1">$node</span><span class="s2">: </span><span class="s1">Element</span><span class="s2">) =&gt; {</span>
+                        <span class="s1">$endFragment</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">$node</span><span class="s2">)</span>
+                    <span class="s2">})</span>
+
+                    <span class="s4">// 合并文档片段</span>
+                    <span class="s0">const </span><span class="s1">$orderFragment </span><span class="s2">= </span><span class="s1">createElement</span><span class="s2">(</span><span class="s1">listTarget</span><span class="s2">)</span>
+                    <span class="s1">$orderFragment</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">$startFragment</span><span class="s2">)</span>
+                    <span class="s1">$orderFragment</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">$containerFragment</span><span class="s2">)</span>
+                    <span class="s1">$orderFragment</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">$endFragment</span><span class="s2">)</span>
+                    <span class="s1">$containerFragment </span><span class="s2">= </span><span class="s1">$orderFragment</span>
+
+                    <span class="s4">// 插入</span>
+                    <span class="s0">this</span><span class="s2">.</span><span class="s1">selectionRangeElem</span><span class="s2">.</span><span class="s1">set</span><span class="s2">(</span><span class="s1">$containerFragment</span><span class="s2">)</span>
+                    <span class="s1">$</span><span class="s2">(</span><span class="s1">$orderFragment</span><span class="s2">).</span><span class="s1">insertAfter</span><span class="s2">(</span><span class="s1">$startElem</span><span class="s2">)</span>
+
+                    <span class="s4">// 序列全选被掏空了后，就卸磨杀驴吧</span>
+                    <span class="s2">!</span><span class="s1">$startElem</span><span class="s2">.</span><span class="s1">children</span><span class="s2">()?.</span><span class="s1">length </span><span class="s2">&amp;&amp; </span><span class="s1">$startElem</span><span class="s2">.</span><span class="s1">remove</span><span class="s2">()</span>
+                    <span class="s2">!</span><span class="s1">$endElem</span><span class="s2">.</span><span class="s1">children</span><span class="s2">()?.</span><span class="s1">length </span><span class="s2">&amp;&amp; </span><span class="s1">$endElem</span><span class="s2">.</span><span class="s1">remove</span><span class="s2">()</span>
+                <span class="s2">}</span>
+            <span class="s2">}</span>
+
+            <span class="s4">// =====================================</span>
+            <span class="s4">// 开头序列 和 结尾序列 中间没有其他的段落</span>
+            <span class="s4">// =====================================</span>
+            <span class="s0">else </span><span class="s2">{</span>
+                <span class="s1">$nodes</span><span class="s2">.</span><span class="s1">length </span><span class="s2">= </span><span class="s5">0</span>
+
+                <span class="s4">// 获取起点元素</span>
+                <span class="s0">let </span><span class="s1">$startDom</span><span class="s2">: </span><span class="s1">DomElement </span><span class="s2">= </span><span class="s1">getStartPoint</span><span class="s2">(</span><span class="s1">$startElem</span><span class="s2">)</span>
+                <span class="s4">// 获取上半序列中的选中内容</span>
+                <span class="s0">while </span><span class="s2">(</span><span class="s1">$startDom</span><span class="s2">.</span><span class="s1">length</span><span class="s2">) {</span>
+                    <span class="s1">$nodes</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">$startDom</span><span class="s2">)</span>
+                    <span class="s1">$startDom </span><span class="s2">= </span><span class="s1">$startDom</span><span class="s2">.</span><span class="s1">next</span><span class="s2">()</span>
+                <span class="s2">}</span>
+
+                <span class="s4">// 获取结束元素</span>
+                <span class="s0">let </span><span class="s1">$endDom</span><span class="s2">: </span><span class="s1">DomElement </span><span class="s2">= </span><span class="s1">getEndPoint</span><span class="s2">(</span><span class="s1">$endElem</span><span class="s2">)</span>
+                <span class="s4">// 获取下半序列中选中的内容</span>
+                <span class="s0">const </span><span class="s1">domArr</span><span class="s2">: </span><span class="s1">DomElement</span><span class="s2">[] = []</span>
+                <span class="s4">// 获取下半序列中的选中内容</span>
+                <span class="s0">while </span><span class="s2">(</span><span class="s1">$endDom</span><span class="s2">.</span><span class="s1">length</span><span class="s2">) {</span>
+                    <span class="s1">domArr</span><span class="s2">.</span><span class="s1">unshift</span><span class="s2">(</span><span class="s1">$endDom</span><span class="s2">)</span>
+                    <span class="s1">$endDom </span><span class="s2">= </span><span class="s1">$endDom</span><span class="s2">.</span><span class="s1">prev</span><span class="s2">()</span>
+                <span class="s2">}</span>
+
+                <span class="s4">// 融合内容</span>
+                <span class="s1">$nodes</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">...domArr</span><span class="s2">)</span>
+
+                <span class="s4">// =====================================</span>
+                <span class="s4">// 由于开头序列 和 结尾序列的标签名一样，所以只判断了开头序列的</span>
+                <span class="s4">// 当开头序列的标签名和按钮类型 一致 的时候</span>
+                <span class="s4">// 代表着当前是一个 取消序列 的操作</span>
+                <span class="s4">// =====================================</span>
+                <span class="s0">if </span><span class="s2">(</span><span class="s1">startNodeName </span><span class="s2">=== </span><span class="s1">listType</span><span class="s2">) {</span>
+                    <span class="s4">// 创建 文档片段</span>
+                    <span class="s4">// 把 li 转换为 p 标签</span>
+                    <span class="s1">$containerFragment </span><span class="s2">= </span><span class="s1">createElementFragment</span><span class="s2">(</span>
+                        <span class="s1">$nodes</span><span class="s2">,</span>
+                        <span class="s1">createDocumentFragment</span><span class="s2">(),</span>
+                        <span class="s3">'p'</span>
+                    <span class="s2">)</span>
+
+                    <span class="s4">// 插入到 endElem 前</span>
+                    <span class="s0">this</span><span class="s2">.</span><span class="s1">selectionRangeElem</span><span class="s2">.</span><span class="s1">set</span><span class="s2">(</span><span class="s1">$containerFragment</span><span class="s2">)</span>
+                    <span class="s1">insertBefore</span><span class="s2">(</span><span class="s1">$startElem</span><span class="s2">, </span><span class="s1">$containerFragment</span><span class="s2">, </span><span class="s1">$endElem</span><span class="s2">.</span><span class="s1">elems</span><span class="s2">[</span><span class="s5">0</span><span class="s2">])</span>
+                <span class="s2">}</span>
+
+                <span class="s4">// =====================================</span>
+                <span class="s4">// 由于开头序列 和 结尾序列的标签名一样，所以只判断了开头序列的</span>
+                <span class="s4">// 当开头序列的标签名和按钮类型 不一致 的时候</span>
+                <span class="s4">// 代表着当前是一个 设置序列 的操作</span>
+                <span class="s4">// =====================================</span>
+                <span class="s0">else </span><span class="s2">{</span>
+                    <span class="s4">// 创建 序列元素</span>
+                    <span class="s1">$containerFragment </span><span class="s2">= </span><span class="s1">createElement</span><span class="s2">(</span><span class="s1">listTarget</span><span class="s2">)</span>
+                    <span class="s4">// li 元素添加到 序列元素 中</span>
+                    <span class="s1">$nodes</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">((</span><span class="s1">$list</span><span class="s2">: </span><span class="s1">DomElement</span><span class="s2">) =&gt; {</span>
+                        <span class="s1">$containerFragment</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">$list</span><span class="s2">.</span><span class="s1">elems</span><span class="s2">[</span><span class="s5">0</span><span class="s2">])</span>
+                    <span class="s2">})</span>
+                    <span class="s4">// 插入到 startElem 之后</span>
+                    <span class="s0">this</span><span class="s2">.</span><span class="s1">selectionRangeElem</span><span class="s2">.</span><span class="s1">set</span><span class="s2">(</span><span class="s1">$containerFragment</span><span class="s2">)</span>
+                    <span class="s1">$</span><span class="s2">(</span><span class="s1">$containerFragment</span><span class="s2">).</span><span class="s1">insertAfter</span><span class="s2">(</span><span class="s1">$startElem</span><span class="s2">)</span>
+                <span class="s2">}</span>
+
+                <span class="s4">// 序列全选被掏空了后，就卸磨杀驴吧</span>
+                <span class="s2">!</span><span class="s1">$startElem</span><span class="s2">.</span><span class="s1">children</span><span class="s2">()?.</span><span class="s1">length </span><span class="s2">&amp;&amp; </span><span class="s1">$endElem</span><span class="s2">.</span><span class="s1">remove</span><span class="s2">()</span>
+                <span class="s2">!</span><span class="s1">$endElem</span><span class="s2">.</span><span class="s1">children</span><span class="s2">()?.</span><span class="s1">length </span><span class="s2">&amp;&amp; </span><span class="s1">$endElem</span><span class="s2">.</span><span class="s1">remove</span><span class="s2">()</span>
+            <span class="s2">}</span>
+        <span class="s2">}</span>
+
+        <span class="s4">// =====================================</span>
+        <span class="s4">// 由于开头序列 和 结尾序列的标签名不一样</span>
+        <span class="s4">// =====================================</span>
+        <span class="s0">else </span><span class="s2">{</span>
+            <span class="s4">// 下序列元素数组</span>
+            <span class="s0">const </span><span class="s1">lowerListElems</span><span class="s2">: </span><span class="s1">DomElement</span><span class="s2">[] = []</span>
+            <span class="s4">// 获取结束元素</span>
+            <span class="s0">let </span><span class="s1">$endDom</span><span class="s2">: </span><span class="s1">DomElement </span><span class="s2">= </span><span class="s1">getEndPoint</span><span class="s2">(</span><span class="s1">$endElem</span><span class="s2">)</span>
+            <span class="s4">// 获取下半序列中选中的内容</span>
+            <span class="s0">while </span><span class="s2">(</span><span class="s1">$endDom</span><span class="s2">.</span><span class="s1">length</span><span class="s2">) {</span>
+                <span class="s1">lowerListElems</span><span class="s2">.</span><span class="s1">unshift</span><span class="s2">(</span><span class="s1">$endDom</span><span class="s2">)</span>
+                <span class="s1">$endDom </span><span class="s2">= </span><span class="s1">$endDom</span><span class="s2">.</span><span class="s1">prev</span><span class="s2">()</span>
+            <span class="s2">}</span>
+
+            <span class="s4">// 上序列元素数组</span>
+            <span class="s0">const </span><span class="s1">upperListElems</span><span class="s2">: </span><span class="s1">DomElement</span><span class="s2">[] = []</span>
+            <span class="s4">// 获取起点元素</span>
+            <span class="s0">let </span><span class="s1">$startDom</span><span class="s2">: </span><span class="s1">DomElement </span><span class="s2">= </span><span class="s1">getStartPoint</span><span class="s2">(</span><span class="s1">$startElem</span><span class="s2">)</span>
+            <span class="s4">// 获取上半序列中的选中内容，并添加到文档片段中</span>
+            <span class="s0">while </span><span class="s2">(</span><span class="s1">$startDom</span><span class="s2">.</span><span class="s1">length</span><span class="s2">) {</span>
+                <span class="s1">upperListElems</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">$startDom</span><span class="s2">)</span>
+                <span class="s1">$startDom </span><span class="s2">= </span><span class="s1">$startDom</span><span class="s2">.</span><span class="s1">next</span><span class="s2">()</span>
+            <span class="s2">}</span>
+
+            <span class="s4">// 创建 文档片段</span>
+            <span class="s1">$containerFragment </span><span class="s2">= </span><span class="s1">createDocumentFragment</span><span class="s2">()</span>
+
+            <span class="s4">// 弹出开头和结尾的序列</span>
+            <span class="s1">$nodes</span><span class="s2">.</span><span class="s1">shift</span><span class="s2">()</span>
+            <span class="s1">$nodes</span><span class="s2">.</span><span class="s1">pop</span><span class="s2">()</span>
+
+            <span class="s4">// 把头部序列的内容添加到文档片段当中</span>
+            <span class="s1">upperListElems</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">$list </span><span class="s2">=&gt; </span><span class="s1">$containerFragment</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">$list</span><span class="s2">.</span><span class="s1">elems</span><span class="s2">[</span><span class="s5">0</span><span class="s2">]))</span>
+
+            <span class="s4">// 生成 li 标签，并且添加到 文档片段中，删除无用节点</span>
+            <span class="s1">$containerFragment </span><span class="s2">= </span><span class="s1">createElementFragment</span><span class="s2">(</span>
+                <span class="s1">filterSelectionNodes</span><span class="s2">(</span><span class="s1">$nodes</span><span class="s2">), </span><span class="s4">// 序列中间的数据 - 进行数据过滤</span>
+                <span class="s1">$containerFragment</span>
+            <span class="s2">)</span>
+
+            <span class="s4">// 把尾部序列的内容添加到文档片段当中</span>
+            <span class="s1">lowerListElems</span><span class="s2">.</span><span class="s1">forEach</span><span class="s2">(</span><span class="s1">$list </span><span class="s2">=&gt; </span><span class="s1">$containerFragment</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">$list</span><span class="s2">.</span><span class="s1">elems</span><span class="s2">[</span><span class="s5">0</span><span class="s2">]))</span>
+
+            <span class="s4">// 记录</span>
+            <span class="s0">this</span><span class="s2">.</span><span class="s1">selectionRangeElem</span><span class="s2">.</span><span class="s1">set</span><span class="s2">(</span><span class="s1">$containerFragment</span><span class="s2">)</span>
+
+            <span class="s4">// =====================================</span>
+            <span class="s4">// 开头序列 和 设置序列类型相同</span>
+            <span class="s4">// =====================================</span>
+            <span class="s0">if </span><span class="s2">(</span><span class="s1">startNodeName </span><span class="s2">=== </span><span class="s1">listType</span><span class="s2">) {</span>
+                <span class="s4">// 插入到 开始序列的尾部(作为子元素)</span>
+                <span class="s1">$startElem</span><span class="s2">.</span><span class="s1">elems</span><span class="s2">[</span><span class="s5">0</span><span class="s2">].</span><span class="s1">append</span><span class="s2">(</span><span class="s1">$containerFragment</span><span class="s2">)</span>
+
+                <span class="s4">// 序列全选被掏空了后，就卸磨杀驴吧</span>
+                <span class="s2">!</span><span class="s1">$endElem</span><span class="s2">.</span><span class="s1">children</span><span class="s2">()?.</span><span class="s1">length </span><span class="s2">&amp;&amp; </span><span class="s1">$endElem</span><span class="s2">.</span><span class="s1">remove</span><span class="s2">()</span>
+            <span class="s2">}</span>
+
+            <span class="s4">// =====================================</span>
+            <span class="s4">// 结尾序列 和 设置序列类型相同</span>
+            <span class="s4">// =====================================</span>
+            <span class="s0">else </span><span class="s2">{</span>
+                <span class="s4">// 插入到结束序列的顶部(作为子元素)</span>
+                <span class="s0">if </span><span class="s2">(</span><span class="s1">$endElem</span><span class="s2">.</span><span class="s1">children</span><span class="s2">()?.</span><span class="s1">length</span><span class="s2">) {</span>
+                    <span class="s0">const </span><span class="s1">$endElemChild </span><span class="s2">= </span><span class="s1">$endElem</span><span class="s2">.</span><span class="s1">children</span><span class="s2">() as </span><span class="s1">DomElement</span>
+                    <span class="s1">insertBefore</span><span class="s2">(</span><span class="s1">$endElemChild</span><span class="s2">, </span><span class="s1">$containerFragment</span><span class="s2">, </span><span class="s1">$endElemChild</span><span class="s2">.</span><span class="s1">elems</span><span class="s2">[</span><span class="s5">0</span><span class="s2">])</span>
+                <span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+                    <span class="s1">$endElem</span><span class="s2">.</span><span class="s1">elems</span><span class="s2">[</span><span class="s5">0</span><span class="s2">].</span><span class="s1">append</span><span class="s2">(</span><span class="s1">$containerFragment</span><span class="s2">)</span>
+                <span class="s2">}</span>
+            <span class="s2">}</span>
+        <span class="s2">}</span>
+    <span class="s2">}</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

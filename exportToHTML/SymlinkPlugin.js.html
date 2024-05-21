@@ -1,0 +1,124 @@
+<html>
+<head>
+<title>SymlinkPlugin.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #6aab73;}
+.s3 { color: #bcbec4;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #67a37c; font-style: italic;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+SymlinkPlugin.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+    MIT License http://www.opensource.org/licenses/mit-license.php 
+    Author Tobias Koppers @sokra 
+*/</span>
+
+<span class="s2">&quot;use strict&quot;</span><span class="s3">;</span>
+
+<span class="s4">const </span><span class="s1">forEachBail </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./forEachBail&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s1">getPaths </span><span class="s3">= </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./getPaths&quot;</span><span class="s3">);</span>
+<span class="s4">const </span><span class="s3">{ </span><span class="s1">getType</span><span class="s3">, </span><span class="s1">PathType </span><span class="s3">} = </span><span class="s1">require</span><span class="s3">(</span><span class="s2">&quot;./util/path&quot;</span><span class="s3">);</span>
+
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Resolver&quot;)} Resolver */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Resolver&quot;).ResolveRequest} ResolveRequest */</span>
+<span class="s5">/** </span><span class="s6">@typedef </span><span class="s5">{import(&quot;./Resolver&quot;).ResolveStepHook} ResolveStepHook */</span>
+
+<span class="s1">module</span><span class="s3">.</span><span class="s1">exports </span><span class="s3">= </span><span class="s4">class </span><span class="s1">SymlinkPlugin </span><span class="s3">{</span>
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string | ResolveStepHook} source source</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string | ResolveStepHook} target target</span>
+	 <span class="s5">*/</span>
+	<span class="s1">constructor</span><span class="s3">(</span><span class="s1">source</span><span class="s3">, </span><span class="s1">target</span><span class="s3">) {</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">source </span><span class="s3">= </span><span class="s1">source</span><span class="s3">;</span>
+		<span class="s4">this</span><span class="s3">.</span><span class="s1">target </span><span class="s3">= </span><span class="s1">target</span><span class="s3">;</span>
+	<span class="s3">}</span>
+
+	<span class="s5">/**</span>
+	 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{Resolver} resolver the resolver</span>
+	 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+	 <span class="s5">*/</span>
+	<span class="s1">apply</span><span class="s3">(</span><span class="s1">resolver</span><span class="s3">) {</span>
+		<span class="s4">const </span><span class="s1">target </span><span class="s3">= </span><span class="s1">resolver</span><span class="s3">.</span><span class="s1">ensureHook</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">target</span><span class="s3">);</span>
+		<span class="s4">const </span><span class="s1">fs </span><span class="s3">= </span><span class="s1">resolver</span><span class="s3">.</span><span class="s1">fileSystem</span><span class="s3">;</span>
+		<span class="s1">resolver</span>
+			<span class="s3">.</span><span class="s1">getHook</span><span class="s3">(</span><span class="s4">this</span><span class="s3">.</span><span class="s1">source</span><span class="s3">)</span>
+			<span class="s3">.</span><span class="s1">tapAsync</span><span class="s3">(</span><span class="s2">&quot;SymlinkPlugin&quot;</span><span class="s3">, (</span><span class="s1">request</span><span class="s3">, </span><span class="s1">resolveContext</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) =&gt; {</span>
+				<span class="s4">if </span><span class="s3">(</span><span class="s1">request</span><span class="s3">.</span><span class="s1">ignoreSymlinks</span><span class="s3">) </span><span class="s4">return </span><span class="s1">callback</span><span class="s3">();</span>
+				<span class="s4">const </span><span class="s1">pathsResult </span><span class="s3">= </span><span class="s1">getPaths</span><span class="s3">(</span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{string} */ </span><span class="s3">(</span><span class="s1">request</span><span class="s3">.</span><span class="s1">path</span><span class="s3">));</span>
+				<span class="s4">const </span><span class="s1">pathSegments </span><span class="s3">= </span><span class="s1">pathsResult</span><span class="s3">.</span><span class="s1">segments</span><span class="s3">;</span>
+				<span class="s4">const </span><span class="s1">paths </span><span class="s3">= </span><span class="s1">pathsResult</span><span class="s3">.</span><span class="s1">paths</span><span class="s3">;</span>
+
+				<span class="s4">let </span><span class="s1">containsSymlink </span><span class="s3">= </span><span class="s4">false</span><span class="s3">;</span>
+				<span class="s4">let </span><span class="s1">idx </span><span class="s3">= -</span><span class="s7">1</span><span class="s3">;</span>
+				<span class="s1">forEachBail</span><span class="s3">(</span>
+					<span class="s1">paths</span><span class="s3">,</span>
+					<span class="s5">/**</span>
+					 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{string} path path</span>
+					 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{(err?: null|Error, result?: null|number) =&gt; void} callback callback</span>
+					 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+					 <span class="s5">*/</span>
+					<span class="s3">(</span><span class="s1">path</span><span class="s3">, </span><span class="s1">callback</span><span class="s3">) =&gt; {</span>
+						<span class="s1">idx</span><span class="s3">++;</span>
+						<span class="s4">if </span><span class="s3">(</span><span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">fileDependencies</span><span class="s3">)</span>
+							<span class="s1">resolveContext</span><span class="s3">.</span><span class="s1">fileDependencies</span><span class="s3">.</span><span class="s1">add</span><span class="s3">(</span><span class="s1">path</span><span class="s3">);</span>
+						<span class="s1">fs</span><span class="s3">.</span><span class="s1">readlink</span><span class="s3">(</span><span class="s1">path</span><span class="s3">, (</span><span class="s1">err</span><span class="s3">, </span><span class="s1">result</span><span class="s3">) =&gt; {</span>
+							<span class="s4">if </span><span class="s3">(!</span><span class="s1">err </span><span class="s3">&amp;&amp; </span><span class="s1">result</span><span class="s3">) {</span>
+								<span class="s1">pathSegments</span><span class="s3">[</span><span class="s1">idx</span><span class="s3">] = </span><span class="s5">/** </span><span class="s6">@type </span><span class="s5">{string} */ </span><span class="s3">(</span><span class="s1">result</span><span class="s3">);</span>
+								<span class="s1">containsSymlink </span><span class="s3">= </span><span class="s4">true</span><span class="s3">;</span>
+								<span class="s0">// Shortcut when absolute symlink found</span>
+								<span class="s4">const </span><span class="s1">resultType </span><span class="s3">= </span><span class="s1">getType</span><span class="s3">(</span><span class="s1">result</span><span class="s3">.</span><span class="s1">toString</span><span class="s3">());</span>
+								<span class="s4">if </span><span class="s3">(</span>
+									<span class="s1">resultType </span><span class="s3">=== </span><span class="s1">PathType</span><span class="s3">.</span><span class="s1">AbsoluteWin </span><span class="s3">||</span>
+									<span class="s1">resultType </span><span class="s3">=== </span><span class="s1">PathType</span><span class="s3">.</span><span class="s1">AbsolutePosix</span>
+								<span class="s3">) {</span>
+									<span class="s4">return </span><span class="s1">callback</span><span class="s3">(</span><span class="s4">null</span><span class="s3">, </span><span class="s1">idx</span><span class="s3">);</span>
+								<span class="s3">}</span>
+							<span class="s3">}</span>
+							<span class="s1">callback</span><span class="s3">();</span>
+						<span class="s3">});</span>
+					<span class="s3">},</span>
+					<span class="s5">/**</span>
+					 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{null|Error} [err] error</span>
+					 <span class="s5">* </span><span class="s6">@param </span><span class="s5">{null|number} [idx] result</span>
+					 <span class="s5">* </span><span class="s6">@returns </span><span class="s5">{void}</span>
+					 <span class="s5">*/</span>
+					<span class="s3">(</span><span class="s1">err</span><span class="s3">, </span><span class="s1">idx</span><span class="s3">) =&gt; {</span>
+						<span class="s4">if </span><span class="s3">(!</span><span class="s1">containsSymlink</span><span class="s3">) </span><span class="s4">return </span><span class="s1">callback</span><span class="s3">();</span>
+						<span class="s4">const </span><span class="s1">resultSegments </span><span class="s3">=</span>
+							<span class="s4">typeof </span><span class="s1">idx </span><span class="s3">=== </span><span class="s2">&quot;number&quot;</span>
+								<span class="s3">? </span><span class="s1">pathSegments</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">(</span><span class="s7">0</span><span class="s3">, </span><span class="s1">idx </span><span class="s3">+ </span><span class="s7">1</span><span class="s3">)</span>
+								<span class="s3">: </span><span class="s1">pathSegments</span><span class="s3">.</span><span class="s1">slice</span><span class="s3">();</span>
+						<span class="s4">const </span><span class="s1">result </span><span class="s3">= </span><span class="s1">resultSegments</span><span class="s3">.</span><span class="s1">reduceRight</span><span class="s3">((</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">) =&gt; {</span>
+							<span class="s4">return </span><span class="s1">resolver</span><span class="s3">.</span><span class="s1">join</span><span class="s3">(</span><span class="s1">a</span><span class="s3">, </span><span class="s1">b</span><span class="s3">);</span>
+						<span class="s3">});</span>
+						<span class="s5">/** </span><span class="s6">@type </span><span class="s5">{ResolveRequest} */</span>
+						<span class="s4">const </span><span class="s1">obj </span><span class="s3">= {</span>
+							<span class="s1">...request</span><span class="s3">,</span>
+							<span class="s1">path</span><span class="s3">: </span><span class="s1">result</span>
+						<span class="s3">};</span>
+						<span class="s1">resolver</span><span class="s3">.</span><span class="s1">doResolve</span><span class="s3">(</span>
+							<span class="s1">target</span><span class="s3">,</span>
+							<span class="s1">obj</span><span class="s3">,</span>
+							<span class="s2">&quot;resolved symlink to &quot; </span><span class="s3">+ </span><span class="s1">result</span><span class="s3">,</span>
+							<span class="s1">resolveContext</span><span class="s3">,</span>
+							<span class="s1">callback</span>
+						<span class="s3">);</span>
+					<span class="s3">}</span>
+				<span class="s3">);</span>
+			<span class="s3">});</span>
+	<span class="s3">}</span>
+<span class="s3">};</span>
+</pre>
+</body>
+</html>

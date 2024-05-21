@@ -1,0 +1,75 @@
+<html>
+<head>
+<title>loadLoader.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+loadLoader.js</font>
+</center></td></tr></table>
+<pre><span class="s0">var </span><span class="s1">LoaderLoadingError </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">&quot;./LoaderLoadingError&quot;</span><span class="s2">);</span>
+<span class="s0">var </span><span class="s1">url</span><span class="s2">;</span>
+
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= </span><span class="s0">function </span><span class="s1">loadLoader</span><span class="s2">(</span><span class="s1">loader</span><span class="s2">, </span><span class="s1">callback</span><span class="s2">) {</span>
+	<span class="s0">if</span><span class="s2">(</span><span class="s1">loader</span><span class="s2">.</span><span class="s1">type </span><span class="s2">=== </span><span class="s3">&quot;module&quot;</span><span class="s2">) {</span>
+		<span class="s0">try </span><span class="s2">{</span>
+			<span class="s0">if</span><span class="s2">(</span><span class="s1">url </span><span class="s2">=== </span><span class="s1">undefined</span><span class="s2">) </span><span class="s1">url </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">&quot;url&quot;</span><span class="s2">);</span>
+			<span class="s0">var </span><span class="s1">loaderUrl </span><span class="s2">= </span><span class="s1">url</span><span class="s2">.</span><span class="s1">pathToFileURL</span><span class="s2">(</span><span class="s1">loader</span><span class="s2">.</span><span class="s1">path</span><span class="s2">);</span>
+			<span class="s0">var </span><span class="s1">modulePromise </span><span class="s2">= </span><span class="s1">eval</span><span class="s2">(</span><span class="s3">&quot;import(&quot; </span><span class="s2">+ </span><span class="s1">JSON</span><span class="s2">.</span><span class="s1">stringify</span><span class="s2">(</span><span class="s1">loaderUrl</span><span class="s2">.</span><span class="s1">toString</span><span class="s2">()) + </span><span class="s3">&quot;)&quot;</span><span class="s2">);</span>
+			<span class="s1">modulePromise</span><span class="s2">.</span><span class="s1">then</span><span class="s2">(</span><span class="s0">function</span><span class="s2">(</span><span class="s1">module</span><span class="s2">) {</span>
+				<span class="s1">handleResult</span><span class="s2">(</span><span class="s1">loader</span><span class="s2">, </span><span class="s1">module</span><span class="s2">, </span><span class="s1">callback</span><span class="s2">);</span>
+			<span class="s2">}, </span><span class="s1">callback</span><span class="s2">);</span>
+			<span class="s0">return</span><span class="s2">;</span>
+		<span class="s2">} </span><span class="s0">catch</span><span class="s2">(</span><span class="s1">e</span><span class="s2">) {</span>
+			<span class="s1">callback</span><span class="s2">(</span><span class="s1">e</span><span class="s2">);</span>
+		<span class="s2">}</span>
+	<span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+		<span class="s0">try </span><span class="s2">{</span>
+			<span class="s0">var </span><span class="s1">module </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s1">loader</span><span class="s2">.</span><span class="s1">path</span><span class="s2">);</span>
+		<span class="s2">} </span><span class="s0">catch</span><span class="s2">(</span><span class="s1">e</span><span class="s2">) {</span>
+			<span class="s4">// it is possible for node to choke on a require if the FD descriptor</span>
+			<span class="s4">// limit has been reached. give it a chance to recover.</span>
+			<span class="s0">if</span><span class="s2">(</span><span class="s1">e </span><span class="s0">instanceof </span><span class="s1">Error </span><span class="s2">&amp;&amp; </span><span class="s1">e</span><span class="s2">.</span><span class="s1">code </span><span class="s2">=== </span><span class="s3">&quot;EMFILE&quot;</span><span class="s2">) {</span>
+				<span class="s0">var </span><span class="s1">retry </span><span class="s2">= </span><span class="s1">loadLoader</span><span class="s2">.</span><span class="s1">bind</span><span class="s2">(</span><span class="s0">null</span><span class="s2">, </span><span class="s1">loader</span><span class="s2">, </span><span class="s1">callback</span><span class="s2">);</span>
+				<span class="s0">if</span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">setImmediate </span><span class="s2">=== </span><span class="s3">&quot;function&quot;</span><span class="s2">) {</span>
+					<span class="s4">// node &gt;= 0.9.0</span>
+					<span class="s0">return </span><span class="s1">setImmediate</span><span class="s2">(</span><span class="s1">retry</span><span class="s2">);</span>
+				<span class="s2">} </span><span class="s0">else </span><span class="s2">{</span>
+					<span class="s4">// node &lt; 0.9.0</span>
+					<span class="s0">return </span><span class="s1">process</span><span class="s2">.</span><span class="s1">nextTick</span><span class="s2">(</span><span class="s1">retry</span><span class="s2">);</span>
+				<span class="s2">}</span>
+			<span class="s2">}</span>
+			<span class="s0">return </span><span class="s1">callback</span><span class="s2">(</span><span class="s1">e</span><span class="s2">);</span>
+		<span class="s2">}</span>
+		<span class="s0">return </span><span class="s1">handleResult</span><span class="s2">(</span><span class="s1">loader</span><span class="s2">, </span><span class="s1">module</span><span class="s2">, </span><span class="s1">callback</span><span class="s2">);</span>
+	<span class="s2">}</span>
+<span class="s2">};</span>
+
+<span class="s0">function </span><span class="s1">handleResult</span><span class="s2">(</span><span class="s1">loader</span><span class="s2">, </span><span class="s1">module</span><span class="s2">, </span><span class="s1">callback</span><span class="s2">) {</span>
+	<span class="s0">if</span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">module </span><span class="s2">!== </span><span class="s3">&quot;function&quot; </span><span class="s2">&amp;&amp; </span><span class="s0">typeof </span><span class="s1">module </span><span class="s2">!== </span><span class="s3">&quot;object&quot;</span><span class="s2">) {</span>
+		<span class="s0">return </span><span class="s1">callback</span><span class="s2">(</span><span class="s0">new </span><span class="s1">LoaderLoadingError</span><span class="s2">(</span>
+			<span class="s3">&quot;Module '&quot; </span><span class="s2">+ </span><span class="s1">loader</span><span class="s2">.</span><span class="s1">path </span><span class="s2">+ </span><span class="s3">&quot;' is not a loader (export function or es6 module)&quot;</span>
+		<span class="s2">));</span>
+	<span class="s2">}</span>
+	<span class="s1">loader</span><span class="s2">.</span><span class="s1">normal </span><span class="s2">= </span><span class="s0">typeof </span><span class="s1">module </span><span class="s2">=== </span><span class="s3">&quot;function&quot; </span><span class="s2">? </span><span class="s1">module </span><span class="s2">: </span><span class="s1">module</span><span class="s2">.</span><span class="s1">default</span><span class="s2">;</span>
+	<span class="s1">loader</span><span class="s2">.</span><span class="s1">pitch </span><span class="s2">= </span><span class="s1">module</span><span class="s2">.</span><span class="s1">pitch</span><span class="s2">;</span>
+	<span class="s1">loader</span><span class="s2">.</span><span class="s1">raw </span><span class="s2">= </span><span class="s1">module</span><span class="s2">.</span><span class="s1">raw</span><span class="s2">;</span>
+	<span class="s0">if</span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">loader</span><span class="s2">.</span><span class="s1">normal </span><span class="s2">!== </span><span class="s3">&quot;function&quot; </span><span class="s2">&amp;&amp; </span><span class="s0">typeof </span><span class="s1">loader</span><span class="s2">.</span><span class="s1">pitch </span><span class="s2">!== </span><span class="s3">&quot;function&quot;</span><span class="s2">) {</span>
+		<span class="s0">return </span><span class="s1">callback</span><span class="s2">(</span><span class="s0">new </span><span class="s1">LoaderLoadingError</span><span class="s2">(</span>
+			<span class="s3">&quot;Module '&quot; </span><span class="s2">+ </span><span class="s1">loader</span><span class="s2">.</span><span class="s1">path </span><span class="s2">+ </span><span class="s3">&quot;' is not a loader (must have normal or pitch function)&quot;</span>
+		<span class="s2">));</span>
+	<span class="s2">}</span>
+	<span class="s1">callback</span><span class="s2">();</span>
+<span class="s2">}</span>
+</pre>
+</body>
+</html>

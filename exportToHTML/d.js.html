@@ -1,0 +1,295 @@
+<html>
+<head>
+<title>d.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #7a7e85;}
+.s1 { color: #bcbec4;}
+.s2 { color: #5f826b; font-style: italic;}
+.s3 { color: #67a37c; font-style: italic;}
+.s4 { color: #cf8e6d;}
+.s5 { color: #bcbec4;}
+.s6 { color: #6aab73;}
+.s7 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+d.js</font>
+</center></td></tr></table>
+<pre><span class="s0">/* 
+Language: D 
+Author: Aleksandar Ruzicic &lt;aleksandar@ruzicic.info&gt; 
+Description: D is a language with C-like syntax and static typing. It pragmatically combines efficiency, control, and modeling power, with safety and programmer productivity. 
+Version: 1.0a 
+Website: https://dlang.org 
+Date: 2012-04-08 
+*/</span>
+
+<span class="s2">/**</span>
+ <span class="s2">* Known issues:</span>
+ <span class="s2">*</span>
+ <span class="s2">* - invalid hex string literals will be recognized as a double quoted strings</span>
+ <span class="s2">*   but 'x' at the beginning of string will not be matched</span>
+ <span class="s2">*</span>
+ <span class="s2">* - delimited string literals are not checked for matching end delimiter</span>
+ <span class="s2">*   (not possible to do with js regexp)</span>
+ <span class="s2">*</span>
+ <span class="s2">* - content of token string is colored as a string (i.e. no keyword coloring inside a token string)</span>
+ <span class="s2">*   also, content of token string is not validated to contain only valid D tokens</span>
+ <span class="s2">*</span>
+ <span class="s2">* - special token sequence rule is not strictly following D grammar (anything following #line</span>
+ <span class="s2">*   up to the end of line is matched as special token sequence)</span>
+ <span class="s2">*/</span>
+
+<span class="s2">/** </span><span class="s3">@type </span><span class="s2">LanguageFn */</span>
+<span class="s4">function </span><span class="s1">d</span><span class="s5">(</span><span class="s1">hljs</span><span class="s5">) {</span>
+  <span class="s2">/**</span>
+   <span class="s2">* Language keywords</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{Object}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">D_KEYWORDS </span><span class="s5">= {</span>
+    <span class="s1">$pattern</span><span class="s5">: </span><span class="s1">hljs</span><span class="s5">.</span><span class="s1">UNDERSCORE_IDENT_RE</span><span class="s5">,</span>
+    <span class="s1">keyword</span><span class="s5">:</span>
+      <span class="s6">'abstract alias align asm assert auto body break byte case cast catch class ' </span><span class="s5">+</span>
+      <span class="s6">'const continue debug default delete deprecated do else enum export extern final ' </span><span class="s5">+</span>
+      <span class="s6">'finally for foreach foreach_reverse|10 goto if immutable import in inout int ' </span><span class="s5">+</span>
+      <span class="s6">'interface invariant is lazy macro mixin module new nothrow out override package ' </span><span class="s5">+</span>
+      <span class="s6">'pragma private protected public pure ref return scope shared static struct ' </span><span class="s5">+</span>
+      <span class="s6">'super switch synchronized template this throw try typedef typeid typeof union ' </span><span class="s5">+</span>
+      <span class="s6">'unittest version void volatile while with __FILE__ __LINE__ __gshared|10 ' </span><span class="s5">+</span>
+      <span class="s6">'__thread __traits __DATE__ __EOF__ __TIME__ __TIMESTAMP__ __VENDOR__ __VERSION__'</span><span class="s5">,</span>
+    <span class="s1">built_in</span><span class="s5">:</span>
+      <span class="s6">'bool cdouble cent cfloat char creal dchar delegate double dstring float function ' </span><span class="s5">+</span>
+      <span class="s6">'idouble ifloat ireal long real short string ubyte ucent uint ulong ushort wchar ' </span><span class="s5">+</span>
+      <span class="s6">'wstring'</span><span class="s5">,</span>
+    <span class="s1">literal</span><span class="s5">:</span>
+      <span class="s6">'false null true'</span>
+  <span class="s5">};</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* Number literal regexps</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{String}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">decimal_integer_re </span><span class="s5">= </span><span class="s6">'(0|[1-9][</span><span class="s4">\\</span><span class="s6">d_]*)'</span><span class="s5">;</span>
+  <span class="s4">const </span><span class="s1">decimal_integer_nosus_re </span><span class="s5">= </span><span class="s6">'(0|[1-9][</span><span class="s4">\\</span><span class="s6">d_]*|</span><span class="s4">\\</span><span class="s6">d[</span><span class="s4">\\</span><span class="s6">d_]*|[</span><span class="s4">\\</span><span class="s6">d_]+?</span><span class="s4">\\</span><span class="s6">d)'</span><span class="s5">;</span>
+  <span class="s4">const </span><span class="s1">binary_integer_re </span><span class="s5">= </span><span class="s6">'0[bB][01_]+'</span><span class="s5">;</span>
+  <span class="s4">const </span><span class="s1">hexadecimal_digits_re </span><span class="s5">= </span><span class="s6">'([</span><span class="s4">\\</span><span class="s6">da-fA-F][</span><span class="s4">\\</span><span class="s6">da-fA-F_]*|_[</span><span class="s4">\\</span><span class="s6">da-fA-F][</span><span class="s4">\\</span><span class="s6">da-fA-F_]*)'</span><span class="s5">;</span>
+  <span class="s4">const </span><span class="s1">hexadecimal_integer_re </span><span class="s5">= </span><span class="s6">'0[xX]' </span><span class="s5">+ </span><span class="s1">hexadecimal_digits_re</span><span class="s5">;</span>
+
+  <span class="s4">const </span><span class="s1">decimal_exponent_re </span><span class="s5">= </span><span class="s6">'([eE][+-]?' </span><span class="s5">+ </span><span class="s1">decimal_integer_nosus_re </span><span class="s5">+ </span><span class="s6">')'</span><span class="s5">;</span>
+  <span class="s4">const </span><span class="s1">decimal_float_re </span><span class="s5">= </span><span class="s6">'(' </span><span class="s5">+ </span><span class="s1">decimal_integer_nosus_re </span><span class="s5">+ </span><span class="s6">'(</span><span class="s4">\\</span><span class="s6">.</span><span class="s4">\\</span><span class="s6">d*|' </span><span class="s5">+ </span><span class="s1">decimal_exponent_re </span><span class="s5">+ </span><span class="s6">')|' </span><span class="s5">+</span>
+                <span class="s6">'</span><span class="s4">\\</span><span class="s6">d+</span><span class="s4">\\</span><span class="s6">.' </span><span class="s5">+ </span><span class="s1">decimal_integer_nosus_re </span><span class="s5">+ </span><span class="s6">'|' </span><span class="s5">+</span>
+                <span class="s6">'</span><span class="s4">\\</span><span class="s6">.' </span><span class="s5">+ </span><span class="s1">decimal_integer_re </span><span class="s5">+ </span><span class="s1">decimal_exponent_re </span><span class="s5">+ </span><span class="s6">'?' </span><span class="s5">+</span>
+              <span class="s6">')'</span><span class="s5">;</span>
+  <span class="s4">const </span><span class="s1">hexadecimal_float_re </span><span class="s5">= </span><span class="s6">'(0[xX](' </span><span class="s5">+</span>
+                  <span class="s1">hexadecimal_digits_re </span><span class="s5">+ </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">.' </span><span class="s5">+ </span><span class="s1">hexadecimal_digits_re </span><span class="s5">+ </span><span class="s6">'|' </span><span class="s5">+</span>
+                  <span class="s6">'</span><span class="s4">\\</span><span class="s6">.?' </span><span class="s5">+ </span><span class="s1">hexadecimal_digits_re </span><span class="s5">+</span>
+                 <span class="s6">')[pP][+-]?' </span><span class="s5">+ </span><span class="s1">decimal_integer_nosus_re </span><span class="s5">+ </span><span class="s6">')'</span><span class="s5">;</span>
+
+  <span class="s4">const </span><span class="s1">integer_re </span><span class="s5">= </span><span class="s6">'(' </span><span class="s5">+</span>
+      <span class="s1">decimal_integer_re </span><span class="s5">+ </span><span class="s6">'|' </span><span class="s5">+</span>
+      <span class="s1">binary_integer_re </span><span class="s5">+ </span><span class="s6">'|' </span><span class="s5">+</span>
+       <span class="s1">hexadecimal_integer_re </span><span class="s5">+</span>
+    <span class="s6">')'</span><span class="s5">;</span>
+
+  <span class="s4">const </span><span class="s1">float_re </span><span class="s5">= </span><span class="s6">'(' </span><span class="s5">+</span>
+      <span class="s1">hexadecimal_float_re </span><span class="s5">+ </span><span class="s6">'|' </span><span class="s5">+</span>
+      <span class="s1">decimal_float_re </span><span class="s5">+</span>
+    <span class="s6">')'</span><span class="s5">;</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* Escape sequence supported in D string and character literals</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{String}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">escape_sequence_re </span><span class="s5">= </span><span class="s6">'</span><span class="s4">\\\\</span><span class="s6">(' </span><span class="s5">+</span>
+              <span class="s6">'[</span><span class="s4">\'</span><span class="s6">&quot;</span><span class="s4">\\</span><span class="s6">?</span><span class="s4">\\\\</span><span class="s6">abfnrtv]|' </span><span class="s5">+ </span><span class="s0">// common escapes</span>
+              <span class="s6">'u[</span><span class="s4">\\</span><span class="s6">dA-Fa-f]{4}|' </span><span class="s5">+ </span><span class="s0">// four hex digit unicode codepoint</span>
+              <span class="s6">'[0-7]{1,3}|' </span><span class="s5">+ </span><span class="s0">// one to three octal digit ascii char code</span>
+              <span class="s6">'x[</span><span class="s4">\\</span><span class="s6">dA-Fa-f]{2}|' </span><span class="s5">+ </span><span class="s0">// two hex digit ascii char code</span>
+              <span class="s6">'U[</span><span class="s4">\\</span><span class="s6">dA-Fa-f]{8}' </span><span class="s5">+ </span><span class="s0">// eight hex digit unicode codepoint</span>
+              <span class="s6">')|' </span><span class="s5">+</span>
+              <span class="s6">'&amp;[a-zA-Z</span><span class="s4">\\</span><span class="s6">d]{2,};'</span><span class="s5">; </span><span class="s0">// named character entity</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* D integer number literals</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{Object}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">D_INTEGER_MODE </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'number'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">b' </span><span class="s5">+ </span><span class="s1">integer_re </span><span class="s5">+ </span><span class="s6">'(L|u|U|Lu|LU|uL|UL)?'</span><span class="s5">,</span>
+    <span class="s1">relevance</span><span class="s5">: </span><span class="s7">0</span>
+  <span class="s5">};</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* [D_FLOAT_MODE description]</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{Object}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">D_FLOAT_MODE </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'number'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">b(' </span><span class="s5">+</span>
+        <span class="s1">float_re </span><span class="s5">+ </span><span class="s6">'([fF]|L|i|[fF]i|Li)?|' </span><span class="s5">+</span>
+        <span class="s1">integer_re </span><span class="s5">+ </span><span class="s6">'(i|[fF]i|Li)' </span><span class="s5">+</span>
+      <span class="s6">')'</span><span class="s5">,</span>
+    <span class="s1">relevance</span><span class="s5">: </span><span class="s7">0</span>
+  <span class="s5">};</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* D character literal</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{Object}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">D_CHARACTER_MODE </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'string'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\'</span><span class="s6">(' </span><span class="s5">+ </span><span class="s1">escape_sequence_re </span><span class="s5">+ </span><span class="s6">'|.)'</span><span class="s5">,</span>
+    <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\'</span><span class="s6">'</span><span class="s5">,</span>
+    <span class="s1">illegal</span><span class="s5">: </span><span class="s6">'.'</span>
+  <span class="s5">};</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* D string escape sequence</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{Object}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">D_ESCAPE_SEQUENCE </span><span class="s5">= {</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s1">escape_sequence_re</span><span class="s5">,</span>
+    <span class="s1">relevance</span><span class="s5">: </span><span class="s7">0</span>
+  <span class="s5">};</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* D double quoted string literal</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{Object}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">D_STRING_MODE </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'string'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'&quot;'</span><span class="s5">,</span>
+    <span class="s1">contains</span><span class="s5">: [</span><span class="s1">D_ESCAPE_SEQUENCE</span><span class="s5">],</span>
+    <span class="s1">end</span><span class="s5">: </span><span class="s6">'&quot;[cwd]?'</span>
+  <span class="s5">};</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* D wysiwyg and delimited string literals</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{Object}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">D_WYSIWYG_DELIMITED_STRING_MODE </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'string'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'[rq]&quot;'</span><span class="s5">,</span>
+    <span class="s1">end</span><span class="s5">: </span><span class="s6">'&quot;[cwd]?'</span><span class="s5">,</span>
+    <span class="s1">relevance</span><span class="s5">: </span><span class="s7">5</span>
+  <span class="s5">};</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* D alternate wysiwyg string literal</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{Object}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">D_ALTERNATE_WYSIWYG_STRING_MODE </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'string'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'`'</span><span class="s5">,</span>
+    <span class="s1">end</span><span class="s5">: </span><span class="s6">'`[cwd]?'</span>
+  <span class="s5">};</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* D hexadecimal string literal</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{Object}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">D_HEX_STRING_MODE </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'string'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'x&quot;[</span><span class="s4">\\</span><span class="s6">da-fA-F</span><span class="s4">\\</span><span class="s6">s</span><span class="s4">\\</span><span class="s6">n</span><span class="s4">\\</span><span class="s6">r]*&quot;[cwd]?'</span><span class="s5">,</span>
+    <span class="s1">relevance</span><span class="s5">: </span><span class="s7">10</span>
+  <span class="s5">};</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* D delimited string literal</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{Object}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">D_TOKEN_STRING_MODE </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'string'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'q&quot;</span><span class="s4">\\</span><span class="s6">{'</span><span class="s5">,</span>
+    <span class="s1">end</span><span class="s5">: </span><span class="s6">'</span><span class="s4">\\</span><span class="s6">}&quot;'</span>
+  <span class="s5">};</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* Hashbang support</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{Object}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">D_HASHBANG_MODE </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'meta'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'^#!'</span><span class="s5">,</span>
+    <span class="s1">end</span><span class="s5">: </span><span class="s6">'$'</span><span class="s5">,</span>
+    <span class="s1">relevance</span><span class="s5">: </span><span class="s7">5</span>
+  <span class="s5">};</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* D special token sequence</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{Object}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">D_SPECIAL_TOKEN_SEQUENCE_MODE </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'meta'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'#(line)'</span><span class="s5">,</span>
+    <span class="s1">end</span><span class="s5">: </span><span class="s6">'$'</span><span class="s5">,</span>
+    <span class="s1">relevance</span><span class="s5">: </span><span class="s7">5</span>
+  <span class="s5">};</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* D attributes</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{Object}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">D_ATTRIBUTE_MODE </span><span class="s5">= {</span>
+    <span class="s1">className</span><span class="s5">: </span><span class="s6">'keyword'</span><span class="s5">,</span>
+    <span class="s1">begin</span><span class="s5">: </span><span class="s6">'@[a-zA-Z_][a-zA-Z_</span><span class="s4">\\</span><span class="s6">d]*'</span>
+  <span class="s5">};</span>
+
+  <span class="s2">/**</span>
+   <span class="s2">* D nesting comment</span>
+   <span class="s2">*</span>
+   <span class="s2">* </span><span class="s3">@type </span><span class="s2">{Object}</span>
+   <span class="s2">*/</span>
+  <span class="s4">const </span><span class="s1">D_NESTING_COMMENT_MODE </span><span class="s5">= </span><span class="s1">hljs</span><span class="s5">.</span><span class="s1">COMMENT</span><span class="s5">(</span>
+    <span class="s6">'</span><span class="s4">\\</span><span class="s6">/</span><span class="s4">\\</span><span class="s6">+'</span><span class="s5">,</span>
+    <span class="s6">'</span><span class="s4">\\</span><span class="s6">+</span><span class="s4">\\</span><span class="s6">/'</span><span class="s5">,</span>
+    <span class="s5">{</span>
+      <span class="s1">contains</span><span class="s5">: [</span><span class="s6">'self'</span><span class="s5">],</span>
+      <span class="s1">relevance</span><span class="s5">: </span><span class="s7">10</span>
+    <span class="s5">}</span>
+  <span class="s5">);</span>
+
+  <span class="s4">return </span><span class="s5">{</span>
+    <span class="s1">name</span><span class="s5">: </span><span class="s6">'D'</span><span class="s5">,</span>
+    <span class="s1">keywords</span><span class="s5">: </span><span class="s1">D_KEYWORDS</span><span class="s5">,</span>
+    <span class="s1">contains</span><span class="s5">: [</span>
+      <span class="s1">hljs</span><span class="s5">.</span><span class="s1">C_LINE_COMMENT_MODE</span><span class="s5">,</span>
+      <span class="s1">hljs</span><span class="s5">.</span><span class="s1">C_BLOCK_COMMENT_MODE</span><span class="s5">,</span>
+      <span class="s1">D_NESTING_COMMENT_MODE</span><span class="s5">,</span>
+      <span class="s1">D_HEX_STRING_MODE</span><span class="s5">,</span>
+      <span class="s1">D_STRING_MODE</span><span class="s5">,</span>
+      <span class="s1">D_WYSIWYG_DELIMITED_STRING_MODE</span><span class="s5">,</span>
+      <span class="s1">D_ALTERNATE_WYSIWYG_STRING_MODE</span><span class="s5">,</span>
+      <span class="s1">D_TOKEN_STRING_MODE</span><span class="s5">,</span>
+      <span class="s1">D_FLOAT_MODE</span><span class="s5">,</span>
+      <span class="s1">D_INTEGER_MODE</span><span class="s5">,</span>
+      <span class="s1">D_CHARACTER_MODE</span><span class="s5">,</span>
+      <span class="s1">D_HASHBANG_MODE</span><span class="s5">,</span>
+      <span class="s1">D_SPECIAL_TOKEN_SEQUENCE_MODE</span><span class="s5">,</span>
+      <span class="s1">D_ATTRIBUTE_MODE</span>
+    <span class="s5">]</span>
+  <span class="s5">};</span>
+<span class="s5">}</span>
+
+<span class="s1">module</span><span class="s5">.</span><span class="s1">exports </span><span class="s5">= </span><span class="s1">d</span><span class="s5">;</span>
+</pre>
+</body>
+</html>

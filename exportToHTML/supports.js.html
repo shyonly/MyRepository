@@ -1,0 +1,325 @@
+<html>
+<head>
+<title>supports.js</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #42c3d4;}
+.s5 { color: #5f826b; font-style: italic;}
+.s6 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#1e1f22">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+supports.js</font>
+</center></td></tr></table>
+<pre><span class="s0">let </span><span class="s1">featureQueries </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'caniuse-lite/data/features/css-featurequeries.js'</span><span class="s2">)</span>
+<span class="s0">let </span><span class="s1">feature </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'caniuse-lite/dist/unpacker/feature'</span><span class="s2">)</span>
+<span class="s0">let </span><span class="s2">{ </span><span class="s1">parse </span><span class="s2">} = </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'postcss'</span><span class="s2">)</span>
+
+<span class="s0">let </span><span class="s1">Browsers </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./browsers'</span><span class="s2">)</span>
+<span class="s0">let </span><span class="s1">brackets </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./brackets'</span><span class="s2">)</span>
+<span class="s0">let </span><span class="s1">Value </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./value'</span><span class="s2">)</span>
+<span class="s0">let </span><span class="s1">utils </span><span class="s2">= </span><span class="s1">require</span><span class="s2">(</span><span class="s3">'./utils'</span><span class="s2">)</span>
+
+<span class="s0">let </span><span class="s1">data </span><span class="s2">= </span><span class="s1">feature</span><span class="s2">(</span><span class="s1">featureQueries</span><span class="s2">)</span>
+
+<span class="s0">let </span><span class="s1">supported </span><span class="s2">= []</span>
+<span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">browser </span><span class="s0">in </span><span class="s1">data</span><span class="s2">.</span><span class="s1">stats</span><span class="s2">) {</span>
+  <span class="s0">let </span><span class="s1">versions </span><span class="s2">= </span><span class="s1">data</span><span class="s2">.</span><span class="s1">stats</span><span class="s2">[</span><span class="s1">browser</span><span class="s2">]</span>
+  <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">version </span><span class="s0">in </span><span class="s1">versions</span><span class="s2">) {</span>
+    <span class="s0">let </span><span class="s1">support </span><span class="s2">= </span><span class="s1">versions</span><span class="s2">[</span><span class="s1">version</span><span class="s2">]</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s4">/y/</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">support</span><span class="s2">)) {</span>
+      <span class="s1">supported</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s1">browser </span><span class="s2">+ </span><span class="s3">' ' </span><span class="s2">+ </span><span class="s1">version</span><span class="s2">)</span>
+    <span class="s2">}</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s0">class </span><span class="s1">Supports </span><span class="s2">{</span>
+  <span class="s1">constructor</span><span class="s2">(</span><span class="s1">Prefixes</span><span class="s2">, </span><span class="s1">all</span><span class="s2">) {</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">Prefixes </span><span class="s2">= </span><span class="s1">Prefixes</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">all </span><span class="s2">= </span><span class="s1">all</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Add prefixes</span>
+   <span class="s5">*/</span>
+  <span class="s1">add</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">, </span><span class="s1">all</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">nodes</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">i </span><span class="s2">=&gt; {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">isProp</span><span class="s2">(</span><span class="s1">i</span><span class="s2">)) {</span>
+        <span class="s0">let </span><span class="s1">prefixed </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">prefixed</span><span class="s2">(</span><span class="s1">i</span><span class="s2">[</span><span class="s6">0</span><span class="s2">])</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s1">prefixed</span><span class="s2">.</span><span class="s1">length </span><span class="s2">&gt; </span><span class="s6">1</span><span class="s2">) {</span>
+          <span class="s0">return this</span><span class="s2">.</span><span class="s1">convert</span><span class="s2">(</span><span class="s1">prefixed</span><span class="s2">)</span>
+        <span class="s2">}</span>
+
+        <span class="s0">return </span><span class="s1">i</span>
+      <span class="s2">}</span>
+
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">i </span><span class="s2">=== </span><span class="s3">'object'</span><span class="s2">) {</span>
+        <span class="s0">return this</span><span class="s2">.</span><span class="s1">add</span><span class="s2">(</span><span class="s1">i</span><span class="s2">, </span><span class="s1">all</span><span class="s2">)</span>
+      <span class="s2">}</span>
+
+      <span class="s0">return </span><span class="s1">i</span>
+    <span class="s2">})</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Clean brackets with one child</span>
+   <span class="s5">*/</span>
+  <span class="s1">cleanBrackets</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s1">nodes</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">i </span><span class="s2">=&gt; {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">i </span><span class="s2">!== </span><span class="s3">'object'</span><span class="s2">) {</span>
+        <span class="s0">return </span><span class="s1">i</span>
+      <span class="s2">}</span>
+
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">i</span><span class="s2">.</span><span class="s1">length </span><span class="s2">=== </span><span class="s6">1 </span><span class="s2">&amp;&amp; </span><span class="s0">typeof </span><span class="s1">i</span><span class="s2">[</span><span class="s6">0</span><span class="s2">] === </span><span class="s3">'object'</span><span class="s2">) {</span>
+        <span class="s0">return this</span><span class="s2">.</span><span class="s1">cleanBrackets</span><span class="s2">(</span><span class="s1">i</span><span class="s2">[</span><span class="s6">0</span><span class="s2">])</span>
+      <span class="s2">}</span>
+
+      <span class="s0">return this</span><span class="s2">.</span><span class="s1">cleanBrackets</span><span class="s2">(</span><span class="s1">i</span><span class="s2">)</span>
+    <span class="s2">})</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Add &quot; or &quot; between properties and convert it to brackets format</span>
+   <span class="s5">*/</span>
+  <span class="s1">convert</span><span class="s2">(</span><span class="s1">progress</span><span class="s2">) {</span>
+    <span class="s0">let </span><span class="s1">result </span><span class="s2">= [</span><span class="s3">''</span><span class="s2">]</span>
+    <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">i of progress</span><span class="s2">) {</span>
+      <span class="s1">result</span><span class="s2">.</span><span class="s1">push</span><span class="s2">([</span><span class="s3">`</span><span class="s1">$</span><span class="s2">{</span><span class="s1">i</span><span class="s2">.</span><span class="s1">prop</span><span class="s2">}</span><span class="s3">: </span><span class="s1">$</span><span class="s2">{</span><span class="s1">i</span><span class="s2">.</span><span class="s1">value</span><span class="s2">}</span><span class="s3">`</span><span class="s2">])</span>
+      <span class="s1">result</span><span class="s2">.</span><span class="s1">push</span><span class="s2">(</span><span class="s3">' or '</span><span class="s2">)</span>
+    <span class="s2">}</span>
+    <span class="s1">result</span><span class="s2">[</span><span class="s1">result</span><span class="s2">.</span><span class="s1">length </span><span class="s2">- </span><span class="s6">1</span><span class="s2">] = </span><span class="s3">''</span>
+    <span class="s0">return </span><span class="s1">result</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Check global options</span>
+   <span class="s5">*/</span>
+  <span class="s1">disabled</span><span class="s2">(</span><span class="s1">node</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s0">this</span><span class="s2">.</span><span class="s1">all</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">grid</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">prop </span><span class="s2">=== </span><span class="s3">'display' </span><span class="s2">&amp;&amp; </span><span class="s1">node</span><span class="s2">.</span><span class="s1">value</span><span class="s2">.</span><span class="s1">includes</span><span class="s2">(</span><span class="s3">'grid'</span><span class="s2">)) {</span>
+        <span class="s0">return true</span>
+      <span class="s2">}</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">prop</span><span class="s2">.</span><span class="s1">includes</span><span class="s2">(</span><span class="s3">'grid'</span><span class="s2">) || </span><span class="s1">node</span><span class="s2">.</span><span class="s1">prop </span><span class="s2">=== </span><span class="s3">'justify-items'</span><span class="s2">) {</span>
+        <span class="s0">return true</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">all</span><span class="s2">.</span><span class="s1">options</span><span class="s2">.</span><span class="s1">flexbox </span><span class="s2">=== </span><span class="s0">false</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">prop </span><span class="s2">=== </span><span class="s3">'display' </span><span class="s2">&amp;&amp; </span><span class="s1">node</span><span class="s2">.</span><span class="s1">value</span><span class="s2">.</span><span class="s1">includes</span><span class="s2">(</span><span class="s3">'flex'</span><span class="s2">)) {</span>
+        <span class="s0">return true</span>
+      <span class="s2">}</span>
+      <span class="s0">let </span><span class="s1">other </span><span class="s2">= [</span><span class="s3">'order'</span><span class="s2">, </span><span class="s3">'justify-content'</span><span class="s2">, </span><span class="s3">'align-items'</span><span class="s2">, </span><span class="s3">'align-content'</span><span class="s2">]</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">prop</span><span class="s2">.</span><span class="s1">includes</span><span class="s2">(</span><span class="s3">'flex'</span><span class="s2">) || </span><span class="s1">other</span><span class="s2">.</span><span class="s1">includes</span><span class="s2">(</span><span class="s1">node</span><span class="s2">.</span><span class="s1">prop</span><span class="s2">)) {</span>
+        <span class="s0">return true</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s0">return false</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Return true if prefixed property has no unprefixed</span>
+   <span class="s5">*/</span>
+  <span class="s1">isHack</span><span class="s2">(</span><span class="s1">all</span><span class="s2">, </span><span class="s1">unprefixed</span><span class="s2">) {</span>
+    <span class="s0">let </span><span class="s1">check </span><span class="s2">= </span><span class="s0">new </span><span class="s1">RegExp</span><span class="s2">(</span><span class="s3">`(</span><span class="s0">\\</span><span class="s3">(|</span><span class="s0">\\</span><span class="s3">s)</span><span class="s1">$</span><span class="s2">{</span><span class="s1">utils</span><span class="s2">.</span><span class="s1">escapeRegexp</span><span class="s2">(</span><span class="s1">unprefixed</span><span class="s2">)}</span><span class="s3">:`</span><span class="s2">)</span>
+    <span class="s0">return </span><span class="s2">!</span><span class="s1">check</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">all</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Return true if brackets node is &quot;not&quot; word</span>
+   <span class="s5">*/</span>
+  <span class="s1">isNot</span><span class="s2">(</span><span class="s1">node</span><span class="s2">) {</span>
+    <span class="s0">return typeof </span><span class="s1">node </span><span class="s2">=== </span><span class="s3">'string' </span><span class="s2">&amp;&amp; </span><span class="s4">/not\s*/i</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">node</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Return true if brackets node is &quot;or&quot; word</span>
+   <span class="s5">*/</span>
+  <span class="s1">isOr</span><span class="s2">(</span><span class="s1">node</span><span class="s2">) {</span>
+    <span class="s0">return typeof </span><span class="s1">node </span><span class="s2">=== </span><span class="s3">'string' </span><span class="s2">&amp;&amp; </span><span class="s4">/\s*or\s*/i</span><span class="s2">.</span><span class="s1">test</span><span class="s2">(</span><span class="s1">node</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Return true if brackets node is (prop: value)</span>
+   <span class="s5">*/</span>
+  <span class="s1">isProp</span><span class="s2">(</span><span class="s1">node</span><span class="s2">) {</span>
+    <span class="s0">return </span><span class="s2">(</span>
+      <span class="s0">typeof </span><span class="s1">node </span><span class="s2">=== </span><span class="s3">'object' </span><span class="s2">&amp;&amp;</span>
+      <span class="s1">node</span><span class="s2">.</span><span class="s1">length </span><span class="s2">=== </span><span class="s6">1 </span><span class="s2">&amp;&amp;</span>
+      <span class="s0">typeof </span><span class="s1">node</span><span class="s2">[</span><span class="s6">0</span><span class="s2">] === </span><span class="s3">'string'</span>
+    <span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Compress value functions into a string nodes</span>
+   <span class="s5">*/</span>
+  <span class="s1">normalize</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">) {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">nodes </span><span class="s2">!== </span><span class="s3">'object'</span><span class="s2">) {</span>
+      <span class="s0">return </span><span class="s1">nodes</span>
+    <span class="s2">}</span>
+
+    <span class="s1">nodes </span><span class="s2">= </span><span class="s1">nodes</span><span class="s2">.</span><span class="s1">filter</span><span class="s2">(</span><span class="s1">i </span><span class="s2">=&gt; </span><span class="s1">i </span><span class="s2">!== </span><span class="s3">''</span><span class="s2">)</span>
+
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">nodes</span><span class="s2">[</span><span class="s6">0</span><span class="s2">] === </span><span class="s3">'string'</span><span class="s2">) {</span>
+      <span class="s0">let </span><span class="s1">firstNode </span><span class="s2">= </span><span class="s1">nodes</span><span class="s2">[</span><span class="s6">0</span><span class="s2">].</span><span class="s1">trim</span><span class="s2">()</span>
+
+      <span class="s0">if </span><span class="s2">(</span>
+        <span class="s1">firstNode</span><span class="s2">.</span><span class="s1">includes</span><span class="s2">(</span><span class="s3">':'</span><span class="s2">) ||</span>
+        <span class="s1">firstNode </span><span class="s2">=== </span><span class="s3">'selector' </span><span class="s2">||</span>
+        <span class="s1">firstNode </span><span class="s2">=== </span><span class="s3">'not selector'</span>
+      <span class="s2">) {</span>
+        <span class="s0">return </span><span class="s2">[</span><span class="s1">brackets</span><span class="s2">.</span><span class="s1">stringify</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">)]</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+    <span class="s0">return </span><span class="s1">nodes</span><span class="s2">.</span><span class="s1">map</span><span class="s2">(</span><span class="s1">i </span><span class="s2">=&gt; </span><span class="s0">this</span><span class="s2">.</span><span class="s1">normalize</span><span class="s2">(</span><span class="s1">i</span><span class="s2">))</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Parse string into declaration property and value</span>
+   <span class="s5">*/</span>
+  <span class="s1">parse</span><span class="s2">(</span><span class="s1">str</span><span class="s2">) {</span>
+    <span class="s0">let </span><span class="s1">parts </span><span class="s2">= </span><span class="s1">str</span><span class="s2">.</span><span class="s1">split</span><span class="s2">(</span><span class="s3">':'</span><span class="s2">)</span>
+    <span class="s0">let </span><span class="s1">prop </span><span class="s2">= </span><span class="s1">parts</span><span class="s2">[</span><span class="s6">0</span><span class="s2">]</span>
+    <span class="s0">let </span><span class="s1">value </span><span class="s2">= </span><span class="s1">parts</span><span class="s2">[</span><span class="s6">1</span><span class="s2">]</span>
+    <span class="s0">if </span><span class="s2">(!</span><span class="s1">value</span><span class="s2">) </span><span class="s1">value </span><span class="s2">= </span><span class="s3">''</span>
+    <span class="s0">return </span><span class="s2">[</span><span class="s1">prop</span><span class="s2">.</span><span class="s1">trim</span><span class="s2">(), </span><span class="s1">value</span><span class="s2">.</span><span class="s1">trim</span><span class="s2">()]</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Return array of Declaration with all necessary prefixes</span>
+   <span class="s5">*/</span>
+  <span class="s1">prefixed</span><span class="s2">(</span><span class="s1">str</span><span class="s2">) {</span>
+    <span class="s0">let </span><span class="s1">rule </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">virtual</span><span class="s2">(</span><span class="s1">str</span><span class="s2">)</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">disabled</span><span class="s2">(</span><span class="s1">rule</span><span class="s2">.</span><span class="s1">first</span><span class="s2">)) {</span>
+      <span class="s0">return </span><span class="s1">rule</span><span class="s2">.</span><span class="s1">nodes</span>
+    <span class="s2">}</span>
+
+    <span class="s0">let </span><span class="s1">result </span><span class="s2">= { </span><span class="s1">warn</span><span class="s2">: () =&gt; </span><span class="s0">null </span><span class="s2">}</span>
+
+    <span class="s0">let </span><span class="s1">prefixer </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">prefixer</span><span class="s2">().</span><span class="s1">add</span><span class="s2">[</span><span class="s1">rule</span><span class="s2">.</span><span class="s1">first</span><span class="s2">.</span><span class="s1">prop</span><span class="s2">]</span>
+    <span class="s1">prefixer </span><span class="s2">&amp;&amp; </span><span class="s1">prefixer</span><span class="s2">.</span><span class="s1">process </span><span class="s2">&amp;&amp; </span><span class="s1">prefixer</span><span class="s2">.</span><span class="s1">process</span><span class="s2">(</span><span class="s1">rule</span><span class="s2">.</span><span class="s1">first</span><span class="s2">, </span><span class="s1">result</span><span class="s2">)</span>
+
+    <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">decl of rule</span><span class="s2">.</span><span class="s1">nodes</span><span class="s2">) {</span>
+      <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">value of </span><span class="s0">this</span><span class="s2">.</span><span class="s1">prefixer</span><span class="s2">().</span><span class="s1">values</span><span class="s2">(</span><span class="s3">'add'</span><span class="s2">, </span><span class="s1">rule</span><span class="s2">.</span><span class="s1">first</span><span class="s2">.</span><span class="s1">prop</span><span class="s2">)) {</span>
+        <span class="s1">value</span><span class="s2">.</span><span class="s1">process</span><span class="s2">(</span><span class="s1">decl</span><span class="s2">)</span>
+      <span class="s2">}</span>
+      <span class="s1">Value</span><span class="s2">.</span><span class="s1">save</span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">all</span><span class="s2">, </span><span class="s1">decl</span><span class="s2">)</span>
+    <span class="s2">}</span>
+
+    <span class="s0">return </span><span class="s1">rule</span><span class="s2">.</span><span class="s1">nodes</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Return prefixer only with @supports supported browsers</span>
+   <span class="s5">*/</span>
+  <span class="s1">prefixer</span><span class="s2">() {</span>
+    <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">prefixerCache</span><span class="s2">) {</span>
+      <span class="s0">return this</span><span class="s2">.</span><span class="s1">prefixerCache</span>
+    <span class="s2">}</span>
+
+    <span class="s0">let </span><span class="s1">filtered </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">all</span><span class="s2">.</span><span class="s1">browsers</span><span class="s2">.</span><span class="s1">selected</span><span class="s2">.</span><span class="s1">filter</span><span class="s2">(</span><span class="s1">i </span><span class="s2">=&gt; {</span>
+      <span class="s0">return </span><span class="s1">supported</span><span class="s2">.</span><span class="s1">includes</span><span class="s2">(</span><span class="s1">i</span><span class="s2">)</span>
+    <span class="s2">})</span>
+
+    <span class="s0">let </span><span class="s1">browsers </span><span class="s2">= </span><span class="s0">new </span><span class="s1">Browsers</span><span class="s2">(</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">all</span><span class="s2">.</span><span class="s1">browsers</span><span class="s2">.</span><span class="s1">data</span><span class="s2">,</span>
+      <span class="s1">filtered</span><span class="s2">,</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">all</span><span class="s2">.</span><span class="s1">options</span>
+    <span class="s2">)</span>
+    <span class="s0">this</span><span class="s2">.</span><span class="s1">prefixerCache </span><span class="s2">= </span><span class="s0">new this</span><span class="s2">.</span><span class="s1">Prefixes</span><span class="s2">(</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">all</span><span class="s2">.</span><span class="s1">data</span><span class="s2">,</span>
+      <span class="s1">browsers</span><span class="s2">,</span>
+      <span class="s0">this</span><span class="s2">.</span><span class="s1">all</span><span class="s2">.</span><span class="s1">options</span>
+    <span class="s2">)</span>
+    <span class="s0">return this</span><span class="s2">.</span><span class="s1">prefixerCache</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Add prefixed declaration</span>
+   <span class="s5">*/</span>
+  <span class="s1">process</span><span class="s2">(</span><span class="s1">rule</span><span class="s2">) {</span>
+    <span class="s0">let </span><span class="s1">ast </span><span class="s2">= </span><span class="s1">brackets</span><span class="s2">.</span><span class="s1">parse</span><span class="s2">(</span><span class="s1">rule</span><span class="s2">.</span><span class="s1">params</span><span class="s2">)</span>
+    <span class="s1">ast </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">normalize</span><span class="s2">(</span><span class="s1">ast</span><span class="s2">)</span>
+    <span class="s1">ast </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">remove</span><span class="s2">(</span><span class="s1">ast</span><span class="s2">, </span><span class="s1">rule</span><span class="s2">.</span><span class="s1">params</span><span class="s2">)</span>
+    <span class="s1">ast </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">add</span><span class="s2">(</span><span class="s1">ast</span><span class="s2">, </span><span class="s1">rule</span><span class="s2">.</span><span class="s1">params</span><span class="s2">)</span>
+    <span class="s1">ast </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">cleanBrackets</span><span class="s2">(</span><span class="s1">ast</span><span class="s2">)</span>
+    <span class="s1">rule</span><span class="s2">.</span><span class="s1">params </span><span class="s2">= </span><span class="s1">brackets</span><span class="s2">.</span><span class="s1">stringify</span><span class="s2">(</span><span class="s1">ast</span><span class="s2">)</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Remove all unnecessary prefixes</span>
+   <span class="s5">*/</span>
+  <span class="s1">remove</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">, </span><span class="s1">all</span><span class="s2">) {</span>
+    <span class="s0">let </span><span class="s1">i </span><span class="s2">= </span><span class="s6">0</span>
+    <span class="s0">while </span><span class="s2">(</span><span class="s1">i </span><span class="s2">&lt; </span><span class="s1">nodes</span><span class="s2">.</span><span class="s1">length</span><span class="s2">) {</span>
+      <span class="s0">if </span><span class="s2">(</span>
+        <span class="s2">!</span><span class="s0">this</span><span class="s2">.</span><span class="s1">isNot</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">[</span><span class="s1">i </span><span class="s2">- </span><span class="s6">1</span><span class="s2">]) &amp;&amp;</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">isProp</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">[</span><span class="s1">i</span><span class="s2">]) &amp;&amp;</span>
+        <span class="s0">this</span><span class="s2">.</span><span class="s1">isOr</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">[</span><span class="s1">i </span><span class="s2">+ </span><span class="s6">1</span><span class="s2">])</span>
+      <span class="s2">) {</span>
+        <span class="s0">if </span><span class="s2">(</span><span class="s0">this</span><span class="s2">.</span><span class="s1">toRemove</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">[</span><span class="s1">i</span><span class="s2">][</span><span class="s6">0</span><span class="s2">], </span><span class="s1">all</span><span class="s2">)) {</span>
+          <span class="s1">nodes</span><span class="s2">.</span><span class="s1">splice</span><span class="s2">(</span><span class="s1">i</span><span class="s2">, </span><span class="s6">2</span><span class="s2">)</span>
+          <span class="s0">continue</span>
+        <span class="s2">}</span>
+
+        <span class="s1">i </span><span class="s2">+= </span><span class="s6">2</span>
+        <span class="s0">continue</span>
+      <span class="s2">}</span>
+
+      <span class="s0">if </span><span class="s2">(</span><span class="s0">typeof </span><span class="s1">nodes</span><span class="s2">[</span><span class="s1">i</span><span class="s2">] === </span><span class="s3">'object'</span><span class="s2">) {</span>
+        <span class="s1">nodes</span><span class="s2">[</span><span class="s1">i</span><span class="s2">] = </span><span class="s0">this</span><span class="s2">.</span><span class="s1">remove</span><span class="s2">(</span><span class="s1">nodes</span><span class="s2">[</span><span class="s1">i</span><span class="s2">], </span><span class="s1">all</span><span class="s2">)</span>
+      <span class="s2">}</span>
+
+      <span class="s1">i </span><span class="s2">+= </span><span class="s6">1</span>
+    <span class="s2">}</span>
+    <span class="s0">return </span><span class="s1">nodes</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Return true if we need to remove node</span>
+   <span class="s5">*/</span>
+  <span class="s1">toRemove</span><span class="s2">(</span><span class="s1">str</span><span class="s2">, </span><span class="s1">all</span><span class="s2">) {</span>
+    <span class="s0">let </span><span class="s2">[</span><span class="s1">prop</span><span class="s2">, </span><span class="s1">value</span><span class="s2">] = </span><span class="s0">this</span><span class="s2">.</span><span class="s1">parse</span><span class="s2">(</span><span class="s1">str</span><span class="s2">)</span>
+    <span class="s0">let </span><span class="s1">unprefixed </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">all</span><span class="s2">.</span><span class="s1">unprefixed</span><span class="s2">(</span><span class="s1">prop</span><span class="s2">)</span>
+
+    <span class="s0">let </span><span class="s1">cleaner </span><span class="s2">= </span><span class="s0">this</span><span class="s2">.</span><span class="s1">all</span><span class="s2">.</span><span class="s1">cleaner</span><span class="s2">()</span>
+
+    <span class="s0">if </span><span class="s2">(</span>
+      <span class="s1">cleaner</span><span class="s2">.</span><span class="s1">remove</span><span class="s2">[</span><span class="s1">prop</span><span class="s2">] &amp;&amp;</span>
+      <span class="s1">cleaner</span><span class="s2">.</span><span class="s1">remove</span><span class="s2">[</span><span class="s1">prop</span><span class="s2">].</span><span class="s1">remove </span><span class="s2">&amp;&amp;</span>
+      <span class="s2">!</span><span class="s0">this</span><span class="s2">.</span><span class="s1">isHack</span><span class="s2">(</span><span class="s1">all</span><span class="s2">, </span><span class="s1">unprefixed</span><span class="s2">)</span>
+    <span class="s2">) {</span>
+      <span class="s0">return true</span>
+    <span class="s2">}</span>
+
+    <span class="s0">for </span><span class="s2">(</span><span class="s0">let </span><span class="s1">checker of cleaner</span><span class="s2">.</span><span class="s1">values</span><span class="s2">(</span><span class="s3">'remove'</span><span class="s2">, </span><span class="s1">unprefixed</span><span class="s2">)) {</span>
+      <span class="s0">if </span><span class="s2">(</span><span class="s1">checker</span><span class="s2">.</span><span class="s1">check</span><span class="s2">(</span><span class="s1">value</span><span class="s2">)) {</span>
+        <span class="s0">return true</span>
+      <span class="s2">}</span>
+    <span class="s2">}</span>
+
+    <span class="s0">return false</span>
+  <span class="s2">}</span>
+
+  <span class="s5">/**</span>
+   <span class="s5">* Create virtual rule to process it by prefixer</span>
+   <span class="s5">*/</span>
+  <span class="s1">virtual</span><span class="s2">(</span><span class="s1">str</span><span class="s2">) {</span>
+    <span class="s0">let </span><span class="s2">[</span><span class="s1">prop</span><span class="s2">, </span><span class="s1">value</span><span class="s2">] = </span><span class="s0">this</span><span class="s2">.</span><span class="s1">parse</span><span class="s2">(</span><span class="s1">str</span><span class="s2">)</span>
+    <span class="s0">let </span><span class="s1">rule </span><span class="s2">= </span><span class="s1">parse</span><span class="s2">(</span><span class="s3">'a{}'</span><span class="s2">).</span><span class="s1">first</span>
+    <span class="s1">rule</span><span class="s2">.</span><span class="s1">append</span><span class="s2">({ </span><span class="s1">prop</span><span class="s2">, </span><span class="s1">raws</span><span class="s2">: { </span><span class="s1">before</span><span class="s2">: </span><span class="s3">'' </span><span class="s2">}, </span><span class="s1">value </span><span class="s2">})</span>
+    <span class="s0">return </span><span class="s1">rule</span>
+  <span class="s2">}</span>
+<span class="s2">}</span>
+
+<span class="s1">module</span><span class="s2">.</span><span class="s1">exports </span><span class="s2">= </span><span class="s1">Supports</span>
+</pre>
+</body>
+</html>
